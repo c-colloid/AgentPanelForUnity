@@ -69,7 +69,13 @@ namespace Colloid.AgentPanel.Tests
                     Assert.IsTrue(status.Trusted, status.Profile.Id + " (bundled) must always be Trusted");
                 }
             }
-            Assert.AreEqual(5, bundledCount, "four Phase 5b stream C profiles plus bakery");
+            // Since the 2026-09-11 core/pro split the bundled JSONs ship in
+            // Agent Panel Pro and reach Core through IExtensionProfileProvider,
+            // so the count is 0 without Pro and 5 with it; Pro's own tests
+            // pin the five. What Core guarantees is that every bundled
+            // profile the catalog knows shows up here, always trusted.
+            Assert.AreEqual(ExtensionProfileCatalog.LoadBundled().Count, bundledCount,
+                "every bundled profile the catalog loads must appear in BuildStatuses");
         }
 
         [Test]

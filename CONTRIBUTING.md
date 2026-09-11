@@ -44,10 +44,22 @@ Unity.exe -batchmode -runTests -testPlatform EditMode -testResults <結果xml> -
 
 エディタ内からは `Window > General > Test Runner`(EditMode)でも実行できます。
 
+### Core 単体で確認する
+
+公開ミラーの利用者は Core(`jp.colloid.unity-agent-panel`)だけを受け取るため、
+Core は Pro(`jp.colloid.agent-panel-pro`)なしでコンパイルとテストが通らなければ
+なりません。手元で確かめるには、サンドボックスの `Packages/manifest.json` から
+Pro の行を消す(または Pro のリンクを外す)だけです。Pro は Core を参照する側なので、
+Pro を外しても Core 側は壊れません(逆に Core だけを外すことはできません)。
+Test Runner には `Colloid.AgentPanel.Editor.Tests` だけが並びます。
+
+Pro のツールを書くときは、Core 側のコードやテストに Pro の型への参照が逆流していない
+ことをこの状態で確認してください。CI も同じ確認を毎回行います(下記)。
+
 ### CI
 
 - `dotnet-smoke.yml` — Unity 不要・ライセンス不要の高速ゲート。JSON コアやスクリプト検証ゲートなど Unity 非依存のソースを .NET でそのままコンパイルして検証します。
-- `editmode-tests.yml` — GameCI の Editor イメージ上で EditMode スイート全体を実行します。Unity のアカウント資格情報(Actions シークレット `UNITY_EMAIL` / `UNITY_PASSWORD`)が必要です。フォークでは設定するまで実行されません。
+- `editmode-tests.yml` — GameCI の Editor イメージ上で EditMode スイートを 2 回実行します。1 回目は Core + Pro(`ci/HostProject`)、2 回目は Core だけ(`ci/HostProjectCoreOnly`、`ci/make-core-only-host.sh` が `ci/HostProject` から Pro を除いて組み立てる)。Core 単体でも通ることを毎回保証するためです。Unity のアカウント資格情報(Actions シークレット `UNITY_EMAIL` / `UNITY_PASSWORD`)が必要です。フォークでは設定するまで実行されません。`ci/HostProject/Packages/manifest.json` を変えたら `ci/HostProjectCoreOnly/Packages/manifest.json` も同じ変更(Pro の行を除く)を入れてください。ずれていると CI が止まります。
 - `tag-release.yml` — `package.json` の version が main に入ったときに `vX.Y.Z` タグを自動で打ちます。
 
 詳細は [ci/README.md](ci/README.md) を参照してください。

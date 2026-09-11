@@ -150,11 +150,19 @@ namespace Colloid.AgentPanel.Tests
         [Test]
         public void Registry_DestructiveTools_MatchThePinnedSet()
         {
-            var expected = new HashSet<string> { "uap_asset_delete", "uap_prefab_apply_overrides" };
+            // Core's own destructive tools only: since the 2026-09-11
+            // core/pro split, uap_prefab_apply_overrides lives in Agent
+            // Panel Pro (pinned by Pro's test assembly), and CI runs this
+            // suite both with and without Pro installed.
+            var expected = new HashSet<string> { "uap_asset_delete" };
             ToolRegistry registry = ToolRegistry.CreateDefault(false);
             var actual = new HashSet<string>();
             foreach (IUapTool tool in registry.ListEnabled(AllModules(registry)))
             {
+                if (tool.GetType().Assembly != typeof(ToolRegistry).Assembly)
+                {
+                    continue;
+                }
                 if (tool is IUapDestructiveTool)
                 {
                     actual.Add(tool.Name);

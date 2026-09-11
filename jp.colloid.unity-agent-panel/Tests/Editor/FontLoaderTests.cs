@@ -1,5 +1,6 @@
 using System;
 using System.Reflection;
+using Colloid.AgentPanel.Ops;
 using Colloid.AgentPanel.UI;
 using NUnit.Framework;
 using UnityEditor;
@@ -280,7 +281,7 @@ namespace Colloid.AgentPanel.Tests
                 Assert.Ignore("DynamicOS FontAsset creation unavailable in"
                     + " headless batch mode on this machine.");
             }
-            int beforeId = before.GetInstanceID();
+            UnityObjectId beforeId = UnityObjectId.Of(before);
 
             // A domain reload resets managed statics but -- per probe 4 --
             // NOT the underlying HideAndDontSave native object. Reflection
@@ -302,7 +303,7 @@ namespace Colloid.AgentPanel.Tests
             Assert.IsNotNull(after,
                 "the marked asset must be re-found after a simulated"
                 + " reload, not left null");
-            Assert.AreEqual(beforeId, after.GetInstanceID(),
+            Assert.AreEqual(beforeId, UnityObjectId.Of(after),
                 "the SAME native object must be reused, never recreated");
             Assert.AreEqual(
                 "osasset-reused:" + FontLoader.JapaneseUiAssetMarkerName,

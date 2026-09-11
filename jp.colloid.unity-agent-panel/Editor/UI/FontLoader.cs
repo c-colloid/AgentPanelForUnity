@@ -5,6 +5,8 @@ using UnityEngine.SceneManagement;
 using UnityEngine.TextCore.LowLevel;
 using UnityEngine.UIElements;
 
+using Colloid.AgentPanel.Ops;
+
 namespace Colloid.AgentPanel.UI
 {
     /// <summary>
@@ -717,14 +719,14 @@ namespace Colloid.AgentPanel.UI
         /// </summary>
         private static string HealThroughFontFix(UnityEngine.TextCore.Text.FontAsset broken)
         {
-            int materialBefore = InstanceIdOrZero(broken != null ? broken.material : null);
+            UnityObjectId materialBefore = UnityObjectId.Of(broken != null ? broken.material : null);
             UnityEngine.TextCore.Text.FontAsset afterRead = FontFixBridge.CjkUiFontAsset;
             if (afterRead != null && !ReferenceEquals(afterRead, broken))
             {
                 return LastFontFixHeal = " (rebuilt by UITK Font Fix)";
             }
             if (afterRead != null && IsHealthy(afterRead)
-                && InstanceIdOrZero(afterRead.material) != materialBefore)
+                && UnityObjectId.Of(afterRead.material) != materialBefore)
             {
                 AgentPanelWindow.MarkAllTextDirty();
                 return LastFontFixHeal = " (repaired in place by UITK Font Fix)";
@@ -734,28 +736,6 @@ namespace Colloid.AgentPanel.UI
                 return LastFontFixHeal = " (rebuilt via UITK Font Fix ResetCaches)";
             }
             return LastFontFixHeal = string.Empty;
-        }
-
-        /// <summary>
-        /// Instance id of <paramref name="obj"/>, or 0 for a true null.
-        /// Works on a DESTROYED object too (the id is cached managed
-        /// state), which is what lets a material swap be detected when
-        /// the previous material died with the scene.
-        /// </summary>
-        private static int InstanceIdOrZero(Object obj)
-        {
-            if (ReferenceEquals(obj, null))
-            {
-                return 0;
-            }
-            try
-            {
-                return obj.GetInstanceID();
-            }
-            catch (System.Exception)
-            {
-                return 0;
-            }
         }
 
         /// <summary>True when the material or any USED atlas texture is alive but not HideAndDontSave (the guard's cheap scan; used slots only, bounded by atlasTextureCount).</summary>

@@ -9,6 +9,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (nothing yet)
 
+## [0.42.2] - 2026-09-11
+
+### Fixed
+
+- **Unity 6.4 / 6.5 compile**: `Object.GetInstanceID()` is obsolete from
+  6.4 and an error from 6.5 (replaced by `EntityId`), and the
+  `FindObjectsSortMode` overload of `FindObjectsByType` is obsolete from
+  6.4. Both are now spelled once in the new `Editor/Ops/UnityObjectCompat.cs`
+  (`UnityObjectCompat.FindAll<T>()` and the version-neutral
+  `UnityObjectId` identity struct, `EntityId` on 6.3+ and the instance id
+  before) and used by `FontLoader`, `UapScreenCapture`, `SceneMarkerPin`
+  and the tests, so no other file carries a version conditional. CI now
+  also runs the suite on 6000.3.24f1 and 6000.5.11f1 (design note
+  docs/design-notes/2026-09-11-unity-6-support.md, "Unity 6.3 / 6.4 / 6.5").
+
+## [0.42.1] - 2026-09-11
+
+### Changed
+
+- **Unity 6 (6000.x) is now a supported and CI-verified target** (design
+  note docs/design-notes/2026-09-11-unity-6-support.md). The obsolete
+  `Object.FindObjectOfType`/`FindObjectsOfType` calls in
+  `UapScreenCapture` and `SceneMarkerPin` (and the test suite's scene
+  cleanup) were replaced with `FindFirstObjectByType`/`FindObjectsByType`
+  so the package compiles without deprecation warnings on Unity 6; every
+  editor-internal reflection site (`LogEntries.GetCountsByType`,
+  `HandleUtility.IntersectRayMesh`, `Clickable.Invoke`,
+  `SceneProvider.InvalidateScene`) was checked against the 6000.0 source
+  and is unchanged. The EditMode workflow now runs the whole suite on
+  both 2022.3.22f1 and 6000.0.83f1. The minimum stays 2022.3 LTS.
+
 ## [0.42.0] - 2026-09-11
 
 ### Added

@@ -35,10 +35,7 @@ namespace Colloid.AgentPanel.Tests
             "uap_object_inspect",
             "uap_asset_find",
             "uap_search",
-            "uap_prefab_get_overrides",
             "uap_editor_screenshot",
-            "uap_editor_ui_list_windows",
-            "uap_editor_ui_dump",
             // 2026-09-07 markers module: list only reads the marker store.
             "uap_marker_list",
         };
@@ -66,22 +63,7 @@ namespace Colloid.AgentPanel.Tests
             "uap_asset_create",
             "uap_asset_delete",
             "uap_scripts_commit",
-            "uap_prefab_create",
-            "uap_prefab_apply_overrides",
-            "uap_prefab_revert_overrides",
-            "uap_prefab_revert_override",
             "uap_editor_execute_menu",
-            "uap_lightmap_bake",
-            // 2026-09-08: starts/cancels Bakery bakes and writes its settings
-            // into the scene's storage object.
-            "uap_bakery_bake",
-            "uap_anim_create_clip",
-            "uap_animator_edit",
-            "uap_material_set",
-            "uap_asset_set_property",
-            "uap_avatar_configure",
-            "uap_editor_ui_click",
-            "uap_editor_ui_set_value",
             // 2026-09-07 markers module: add/clear change what is on the
             // user's screen (not the project) -- still a side effect the
             // permission card must ask about, so never auto-approved.
@@ -97,12 +79,27 @@ namespace Colloid.AgentPanel.Tests
             return ToolRegistry.CreateDefault(false);
         }
 
+        /// <summary>
+        /// The registry's tools that this package defines. Since the
+        /// 2026-09-11 core/pro split, CreateDefault also registers whatever
+        /// an installed add-on's IUapToolProvider yields (Agent Panel Pro's
+        /// prefab/anim/ui/lightmap tools), and CI runs this suite both with
+        /// and without Pro -- so Core's pinned sets cover Core's tools only,
+        /// and Pro's own test assembly pins Pro's.
+        /// </summary>
+        private static List<IUapTool> CoreTools(ToolRegistry registry)
+        {
+            List<IUapTool> tools = registry.ListEnabled(AllModules(registry));
+            tools.RemoveAll(t => t.GetType().Assembly != typeof(ToolRegistry).Assembly);
+            return tools;
+        }
+
         [Test]
         public void EveryRegisteredTool_IsAccountedForInExactlyOneSet()
         {
             ToolRegistry registry = CreateFullRegistry();
-            Assert.AreEqual(ExpectedReadOnlyNames.Count + ExpectedMutatingNames.Count, registry.Count,
-                "a tool was registered that this test's two expected-name sets do not (yet) account for"
+            Assert.AreEqual(ExpectedReadOnlyNames.Count + ExpectedMutatingNames.Count, CoreTools(registry).Count,
+                "a Core tool was registered that this test's two expected-name sets do not (yet) account for"
                 + " -- classify it as read-only or mutating and add it to the matching set above.");
         }
 
@@ -110,7 +107,7 @@ namespace Colloid.AgentPanel.Tests
         public void ReadOnlyTools_MatchTheExactPinnedSet()
         {
             ToolRegistry registry = CreateFullRegistry();
-            List<IUapTool> readOnlyTools = registry.ListEnabled(AllModules(registry));
+            List<IUapTool> readOnlyTools = CoreTools(registry);
             readOnlyTools.RemoveAll(t => !t.ReadOnly);
 
             var actualNames = new HashSet<string>();

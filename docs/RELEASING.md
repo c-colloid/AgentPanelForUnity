@@ -27,6 +27,19 @@
    同名タグが既にあれば何もしない(冪等)ので、再実行やバージョンを変えない
    package.json の編集は無害。手で打つ必要はない。
 
+   **タグ付けトークン**: このワークフローはリポジトリシークレット
+   `RELEASE_TAG_TOKEN` があればそれで、なければ自前の `GITHUB_TOKEN` でタグを
+   push する。`GITHUB_TOKEN` は通常のリリースには十分だが、リリースコミットが
+   `.github/workflows/` 配下を追加・変更している場合、GitHub はそのコミットへの
+   タグ push を拒否する(`refusing to allow a GitHub App to create or update
+   workflow ... without `workflows` permission`。REST の refs API でも同じく
+   403 で、トークンなしの回避策はない)。v0.42.0 は `mirror-core.yml` を追加した
+   ため実際にこれで失敗した。CI を同時に触るリリースを通すには、このリポジトリ
+   に対して Contents: Read and write と Workflows: Read and write を持つ
+   fine-grained PAT(classic なら `repo` + `workflow` スコープ)を
+   `RELEASE_TAG_TOKEN` として登録し、失敗した「Tag release」を
+   workflow_dispatch で再実行する(同名タグが無ければ打ち直す)。
+
    自動化以前のリリース(v0.25.0 / v0.26.0 / v0.27.0)は付け忘れているため、
    遡って手で打つ場合のみ:
 
@@ -55,7 +68,8 @@ Core の package.json しか見ていない)。Core と Pro を同じ作業ブ�
 
 ## 公開ミラー(`.github/workflows/mirror-core.yml`)
 
-`v*` タグの push(またはワークフロー手動実行)で、Core だけを
+`tag-release.yml` の完了(`workflow_run`)、手で push した `v*` タグ、または
+ワークフローの手動実行を起点に、Core だけを
 `ci/public-mirror/allowlist.txt` の許可リストに従って抽出し、公開リポジトリ
 `${{ vars.PUBLIC_MIRROR_REPO }}`(例: `c-colloid/AgentPanelForUnity`)へ
 1スカッシュコミット「`Release <tag>`」として `main` と同じタグを push する。
@@ -65,6 +79,12 @@ Core の package.json しか見ていない)。Core と Pro を同じ作業ブ�
 - リポジトリシークレット `PUBLIC_MIRROR_TOKEN`: 公開リポジトリへの push 権限を
   持つ Personal Access Token(このプライベートリポジトリの `GITHUB_TOKEN` では
   別リポジトリへ push できないため)。
+- `tag-release.yml` が `GITHUB_TOKEN` で打つタグは `push` イベントを発生させない
+  (GitHub の仕様)ため、ミラーは「Tag release」ワークフローの完了を受けて起動し、
+  そのコミットの Core `package.json` からタグ名を求める。`RELEASE_TAG_TOKEN`
+  (PAT)で打たれたタグは `push` イベントも発生させるので、ミラーが
+  `workflow_run` と `push` の 2 回起動しうるが、公開側に差分・タグが既に
+  あれば何もしない(冪等)ので無害。
 - 初回のミラー push が公開側の履歴を v1.0.0 相当からゼロ地点として作る
   (それ以前のタグをまとめて後追いで流す運用ではない)。
 - Pro に関するドキュメントを Core 側の許可対象ファイル(`docs/*.md`・
@@ -137,3 +157,5 @@ Core の package.json しか見ていない)。Core と Pro を同じ作業ブ�
 | v0.40.0 | ANTHROPIC_API_KEY のブロックを廃止(Claude Code 利用条件対応): 既定を Auto(環境変数に一切触れず CLI 自身の認証選択に委ねる)に反転し、従来の無条件除去は設定 > アカウントの「APIキー認証」を Subscription only にしたときだけの明示オプトインに。API キー認証中はアカウントカードの常時ノート+会話ログの一度きりの system note で可視化(2026-09-10) |
 | v0.41.0 | ACP バックエンドの認証案内の是正と可視化: Gemini CLI の個人向け Google ログイン終了(2026-06-18)に合わせて説明を「Gemini API キー(`GEMINI_API_KEY` / `~/.gemini/.env`)または Code Assist Standard/Enterprise の Google ログイン」に訂正し、サインイン全滅時の会話ノートに環境変数名と設定場所を明記 + Codex(`CODEX_API_KEY` / `OPENAI_API_KEY`)/ Grok Build(`XAI_API_KEY`)の API キー経路を併記 + ACP で実際に認証に通った方式をアカウントカードに常時表示(API キー系なら課金先の注記と会話ログへの一度きりの注記)。パネルは API キーを保存しない方針を明文化(2026-09-10) |
 | v0.42.0 | Core/Pro 分割: prefab・アニメーション・UI 自動操作の全モジュールとライトマップ/Bakery ベイクツール、同梱 Extension Profiles 5件を新パッケージ `jp.colloid.agent-panel-pro`(プロプライエタリ)へ切り出し。Core に `IUapToolProvider`/`IExtensionProfileProvider` の登録シームを新設し、Pro 導入時は挙動無変化。Pro 不在時は該当モジュールのトグルを無効化してヒント表示(2026-09-11) |
+| v0.42.1 | Unity 6(6000.x)対応: 非推奨の `FindObjectOfType`/`FindObjectsOfType` を `FindFirstObjectByType`/`FindObjectsByType` に置換し、Editor 内部 API への reflection 4 箇所を 6000.0 のソースで確認。EditMode CI を 2022.3.22f1 と 6000.0.83f1 のマトリクスに(2026-09-11) |
+| v0.42.2 | Unity 6.3〜6.5 対応: `GetInstanceID`(6.4 で非推奨・6.5 でエラー)と `FindObjectsSortMode` 付き `FindObjectsByType`(6.4 で非推奨)を `UnityObjectCompat` / `UnityObjectId` に集約(`EntityId` 対応)。CI マトリクスに 6000.3.24f1 / 6000.5.11f1 を追加し、runner のディスク確保と常駐コンテナ方式に変更、6.5 で削除された `com.unity.modules.vr` をホスト manifest から除去(2026-09-11) |

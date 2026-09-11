@@ -5,7 +5,7 @@ namespace Colloid.AgentPanel.Ops
     /// <summary>
     /// The open-core registration seam (docs/design-notes/2026-09-11-core-pro-split.md
     /// section "seam 1"): an add-on package (Agent Panel Pro, or any other
-    /// third party) implements this on a non-abstract class with a public
+    /// third party) implements this on a PUBLIC, non-abstract class with a public
     /// parameterless constructor, and <see cref="ToolRegistry.CreateDefault(bool)"/>
     /// discovers it via <c>UnityEditor.TypeCache.GetTypesDerivedFrom&lt;IUapToolProvider&gt;()</c>
     /// and registers every tool it yields through the same

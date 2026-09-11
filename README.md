@@ -1,4 +1,4 @@
-![Unity 2022.3+](https://img.shields.io/badge/Unity-2022.3%2B-333) ![Editor only](https://img.shields.io/badge/Editor--only-yes-333) ![License: MIT](https://img.shields.io/badge/License-MIT-333)
+![Unity 2022.3+ / Unity 6](https://img.shields.io/badge/Unity-2022.3%2B%20%7C%206-333) ![Editor only](https://img.shields.io/badge/Editor--only-yes-333) ![License: MIT](https://img.shields.io/badge/License-MIT-333)
 
 # Agent Panel for Unity
 
@@ -87,7 +87,7 @@ Pro 未導入でも Core は問題なく動作し、設定画面の該当モジ�
 
 | 要件 | 内容 |
 |---|---|
-| Unity | 2022.3 LTS 以降(検証環境: 2022.3.22f1) |
+| Unity | 2022.3 LTS 以降、Unity 6(6000.0 / 6.3 / 6.5)を含む(CI の EditMode テストを 2022.3.22f1 / 6000.0.83f1 / 6000.3.24f1 / 6000.5.11f1 で実行) |
 | OS | Windows で開発・検証しています。macOS / Linux 向けの CLI 探索・プロセス終了経路は用意していますが、日常的な検証は行っていません |
 | Claude Code CLI | v2.1.218 以降。ネイティブインストーラでの導入を推奨 |
 | 認証 | Claude のサブスクリプション(Pro/Max)。パネル内のアカウントカード、またはターミナルの `claude` + `/login` でログインします |
@@ -104,9 +104,9 @@ Pro 未導入でも Core は問題なく動作し、設定画面の該当モジ�
 
 `Window > Package Manager > + > Add package from git URL...` を開き、次の形式で入力します。
 
-[https://github.com/c-colloid/UnityAgentPanel.git?path=jp.colloid.unity-agent-panel](https://github.com/c-colloid/UnityAgentPanel.git?path=jp.colloid.unity-agent-panel#v0.42.0)
+[https://github.com/c-colloid/UnityAgentPanel.git?path=jp.colloid.unity-agent-panel](https://github.com/c-colloid/UnityAgentPanel.git?path=jp.colloid.unity-agent-panel#v0.42.2)
 
-上記のリンク先は最新のリリースタグ(`#v0.42.0`)を指しています。URL 末尾にタグを付けるとそのバージョンに固定でき、省略すると main の最新を取得します。タグの一覧は [CHANGELOG](jp.colloid.unity-agent-panel/CHANGELOG.md) を参照してください。
+上記のリンク先は最新のリリースタグ(`#v0.42.2`)を指しています。URL 末尾にタグを付けるとそのバージョンに固定でき、省略すると main の最新を取得します。タグの一覧は [CHANGELOG](jp.colloid.unity-agent-panel/CHANGELOG.md) を参照してください。
 
 ### 方法 2: `Packages` フォルダへ配置(embedded パッケージ)
 

@@ -1,4 +1,4 @@
-![Unity 2022.3+](https://img.shields.io/badge/Unity-2022.3%2B-333) ![Editor only](https://img.shields.io/badge/Editor--only-yes-333) ![License: MIT](https://img.shields.io/badge/License-MIT-333)
+![Unity 2022.3+ / Unity 6](https://img.shields.io/badge/Unity-2022.3%2B%20%7C%206-333) ![Editor only](https://img.shields.io/badge/Editor--only-yes-333) ![License: MIT](https://img.shields.io/badge/License-MIT-333)
 
 # Agent Panel for Unity
 
@@ -85,7 +85,7 @@ Core works fully without Pro installed; the Settings toggle for an affected modu
 
 | Requirement | Details |
 |---|---|
-| Unity | 2022.3 LTS or later (verified on 2022.3.22f1) |
+| Unity | 2022.3 LTS or later, including Unity 6 (6000.0 / 6.3 / 6.5); CI runs the EditMode suite on 2022.3.22f1, 6000.0.83f1, 6000.3.24f1 and 6000.5.11f1 |
 | OS | Developed and verified on Windows. CLI discovery and process-kill paths exist for macOS / Linux but are not exercised regularly |
 | Claude Code CLI | v2.1.218 or later; the native installer is recommended |
 | Auth | A Claude subscription (Pro/Max). Log in from the account card in the panel, or run `claude` and `/login` in a terminal |
@@ -102,9 +102,9 @@ The package lives in `jp.colloid.unity-agent-panel/` and has no package dependen
 
 `Window > Package Manager > + > Add package from git URL...`:
 
-[https://github.com/c-colloid/UnityAgentPanel.git?path=jp.colloid.unity-agent-panel](https://github.com/c-colloid/UnityAgentPanel.git?path=jp.colloid.unity-agent-panel#v0.42.0)
+[https://github.com/c-colloid/UnityAgentPanel.git?path=jp.colloid.unity-agent-panel](https://github.com/c-colloid/UnityAgentPanel.git?path=jp.colloid.unity-agent-panel#v0.42.2)
 
-The link above points at the latest release tag (`#v0.42.0`). Append a tag to pin a version; omit it to track `main`. Tags are listed in the [CHANGELOG](jp.colloid.unity-agent-panel/CHANGELOG.md).
+The link above points at the latest release tag (`#v0.42.2`). Append a tag to pin a version; omit it to track `main`. Tags are listed in the [CHANGELOG](jp.colloid.unity-agent-panel/CHANGELOG.md).
 
 ### Option 2: embedded package under `Packages/`
 

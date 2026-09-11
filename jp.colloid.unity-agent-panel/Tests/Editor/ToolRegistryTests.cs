@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using Colloid.AgentPanel.Core.Json;
 using Colloid.AgentPanel.Ops;
 using NUnit.Framework;
+using UnityEngine;
+using UnityEngine.TestTools;
 
 namespace Colloid.AgentPanel.Tests
 {
@@ -198,6 +200,11 @@ namespace Colloid.AgentPanel.Tests
             var registry = new ToolRegistry();
             var throwing = new ThrowingToolProvider();
             var ok = new StubToolProvider { Tools = new IUapTool[] { new StubUapTool { Name = "pro_ok", Module = "anim" } } };
+            // The skip is logged as an error on purpose (a broken add-on
+            // must be visible in the Console); the runner treats an
+            // unexpected error log as a failure, so declare it.
+            LogAssert.Expect(LogType.Error,
+                new System.Text.RegularExpressions.Regex("ThrowingToolProvider' threw while creating tools"));
 
             ToolRegistry.RegisterProviderTools(registry, new IUapToolProvider[] { throwing, ok }, false);
 

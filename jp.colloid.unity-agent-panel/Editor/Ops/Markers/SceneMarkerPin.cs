@@ -266,7 +266,7 @@ namespace Colloid.AgentPanel.Ops.Markers
             double now = EditorApplication.timeSinceStartup;
             if (_rendererCache == null || now - _rendererCacheAt > 0.25)
             {
-                _rendererCache = UnityEngine.Object.FindObjectsOfType<Renderer>();
+                _rendererCache = UnityObjectCompat.FindAll<Renderer>();
                 _rendererCacheAt = now;
             }
             return _rendererCache;

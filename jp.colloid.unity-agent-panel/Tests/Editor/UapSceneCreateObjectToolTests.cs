@@ -24,7 +24,7 @@ namespace Colloid.AgentPanel.Tests
         [TearDown]
         public void TearDown()
         {
-            foreach (GameObject go in GameObject.FindObjectsOfType<GameObject>())
+            foreach (GameObject go in UnityObjectCompat.FindAll<GameObject>())
             {
                 if (go != null && go.name.StartsWith("UapSceneToolTest"))
                 {

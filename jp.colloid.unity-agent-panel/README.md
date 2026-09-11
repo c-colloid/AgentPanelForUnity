@@ -2,7 +2,7 @@
 
 Claude Code CLI を Unity エディタ内のドッキング可能なチャットパネルとして統合する Editor 専用 UPM パッケージです。CLI を常駐プロセスとして起動し、双方向の `stream-json` プロトコルで通信することで、ストリーミング応答・インライン権限カード・サブエージェント表示・Unity 操作ツール(内蔵 MCP サーバ)・ドメインリロードをまたぐセッション復元などを提供します。外部パッケージへの依存はありません。
 
-- 対応 Unity: 2022.3 LTS 以降
+- 対応 Unity: 2022.3 LTS 以降(Unity 6 / 6000.x を含む)
 - 必要なもの: Claude Code CLI(v2.1.218 以降)と Claude のサブスクリプション。`ANTHROPIC_API_KEY` は設定しないでください
 - 開く場所: **Window > Agent Panel**
 

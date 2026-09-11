@@ -51,7 +51,7 @@ namespace Colloid.AgentPanel.Ops
             public double RecordedAt;
         }
 
-        private static readonly Dictionary<int, SceneViewGeometry> _geometry = new Dictionary<int, SceneViewGeometry>();
+        private static readonly Dictionary<UnityObjectId, SceneViewGeometry> _geometry = new Dictionary<UnityObjectId, SceneViewGeometry>();
         private static bool _installed;
 
         [InitializeOnLoadMethod]
@@ -79,7 +79,7 @@ namespace Colloid.AgentPanel.Ops
             {
                 return;
             }
-            _geometry[sceneView.GetInstanceID()] = new SceneViewGeometry
+            _geometry[UnityObjectId.Of(sceneView)] = new SceneViewGeometry
             {
                 ScreenOrigin = GUIUtility.GUIToScreenPoint(Vector2.zero) + area.position,
                 PointWidth = Mathf.RoundToInt(area.width),
@@ -93,13 +93,13 @@ namespace Colloid.AgentPanel.Ops
         public static bool TryGetGeometry(SceneView sceneView, out SceneViewGeometry geometry)
         {
             geometry = default(SceneViewGeometry);
-            return sceneView != null && _geometry.TryGetValue(sceneView.GetInstanceID(), out geometry);
+            return sceneView != null && _geometry.TryGetValue(UnityObjectId.Of(sceneView), out geometry);
         }
 
         /// <summary>Test seam: records geometry as the tracker would (no GUI context needed).</summary>
-        internal static void RecordGeometryForTests(int sceneViewInstanceId, SceneViewGeometry geometry)
+        internal static void RecordGeometryForTests(UnityObjectId sceneViewId, SceneViewGeometry geometry)
         {
-            _geometry[sceneViewInstanceId] = geometry;
+            _geometry[sceneViewId] = geometry;
         }
 
         // -- Whole-view capture (shared by uap_editor_screenshot and the composer) ------
@@ -185,7 +185,7 @@ namespace Colloid.AgentPanel.Ops
             camera = Camera.main;
             if (camera == null)
             {
-                camera = UnityEngine.Object.FindObjectOfType<Camera>();
+                camera = UnityEngine.Object.FindFirstObjectByType<Camera>();
             }
             if (camera == null)
             {

@@ -5,7 +5,7 @@ namespace Colloid.AgentPanel.Ops.Profiles
     /// (docs/design-notes/2026-09-11-core-pro-split.md "seam 2"): an
     /// add-on package (Agent Panel Pro, or any other third party) that
     /// ships its own reviewed *.json profiles implements this on a
-    /// non-abstract class with a public parameterless constructor, and
+    /// PUBLIC, non-abstract class with a public parameterless constructor, and
     /// <see cref="ExtensionProfileCatalog.LoadBundled"/> discovers it via
     /// <c>UnityEditor.TypeCache.GetTypesDerivedFrom&lt;IExtensionProfileProvider&gt;()</c>
     /// and merges its directory's *.json files into the bundled catalog --

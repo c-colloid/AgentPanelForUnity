@@ -209,8 +209,16 @@ namespace Colloid.AgentPanel.Ops
             List<Type> types;
             try
             {
+                // Only PUBLIC classes are providers. Test stubs are private nested
+                // classes inside test fixtures (e.g. ToolRegistryTests.
+                // ThrowingToolProvider) and live in the same domain as this
+                // code under the EditMode runner -- without this filter
+                // TypeCache hands them to production CreateDefault, and a
+                // stub that throws on purpose logs an error into every
+                // unrelated test that touches UapOpsServer.Registry.
                 types = TypeCache.GetTypesDerivedFrom<IUapToolProvider>()
-                    .Where(t => !t.IsAbstract && !t.IsInterface && t.GetConstructor(Type.EmptyTypes) != null)
+                    .Where(t => !t.IsAbstract && !t.IsInterface && (t.IsPublic || t.IsNestedPublic)
+                        && t.GetConstructor(Type.EmptyTypes) != null)
                     .OrderBy(t => t.FullName, StringComparer.Ordinal)
                     .ToList();
             }
