@@ -1,0 +1,5000 @@
+/* Structure-only stylesheet for the Agent Panel. Every color, spacing and
+   radius value is a var(--uap-*) reference resolved by ThemeDark.uss /
+   ThemeLight.uss (theme class on the window root). Hardcoded colors are
+   forbidden here (ARCHITECTURE.md D6).
+
+   NOTE: USS variables cannot be used inside shorthand properties
+   (margin/padding/border-radius/border-color), so every var() reference
+   below uses the longhand form on purpose. */
+
+/* ---- ScrollView content-container defensive baseline ----------------
+   Unity's implicit editor default stylesheet normally supplies
+   .unity-scroll-view__content-container { flex-shrink: 0; } so a
+   ScrollView's content never flex-compresses to viewport size when it is
+   taller/wider than the viewport (Yoga implements no min-content floor --
+   without flex-shrink:0 the content-container falls back to the initial
+   flex-shrink:1 and gets crushed instead of overflowing/scrolling). The
+   real fix is that AgentPanelWindow.CreateGUI no longer removes that
+   implicit sheet (see
+   docs/design-notes/2026-07-31-settings-layout-freeze-investigation.md and
+   .../2026-07-31-scroll-container-shrink-fix.md), but this redundant,
+   explicit rule keeps every ScrollView in this package safe even on a host
+   root that never had the implicit sheet in the first place (a bare
+   VisualElement panel, a future test harness, or a Unity version that
+   changes what ships implicitly). Structural only -- no color/spacing
+   tokens involved. */
+.unity-scroll-view__content-container {
+    flex-shrink: 0;
+}
+
+/* ---- Root regions --------------------------------------------------- */
+
+.uap-root {
+    flex-grow: 1;
+    background-color: var(--uap-bg-base);
+    color: var(--uap-text-primary);
+}
+
+.uap-header {
+    height: 28px;
+    flex-direction: row;
+    align-items: center;
+    padding-left: var(--uap-space-m);
+    padding-right: var(--uap-space-s);
+    border-bottom-width: 1px;
+    border-bottom-color: var(--uap-border);
+    flex-shrink: 0;
+}
+
+.uap-view-container {
+    flex-grow: 1;
+    /* HARD CLIP for everything the views paint. UI Toolkit paints later
+       siblings on top, and the header/status regions are EARLIER siblings
+       of this container -- so any content that escapes the chat
+       ScrollView's own clipping (long-standing bleed: scrolled-out
+       transcript rows painted over the transparent header, visible in
+       user screenshots since Phase 2) would draw over the chrome.
+       Clipping here guarantees no view content can ever paint outside
+       the container band, independent of the inner ScrollView's
+       behavior. See docs/design-notes/2026-07-31-transcript-clipping.md. */
+    overflow: hidden;
+}
+
+.uap-status-bar {
+    height: 20px;
+    flex-direction: row;
+    align-items: center;
+    padding-left: var(--uap-space-m);
+    padding-right: var(--uap-space-m);
+    border-top-width: 1px;
+    border-top-color: var(--uap-border);
+    flex-shrink: 0;
+    font-size: var(--uap-font-size-meta);
+    color: var(--uap-text-secondary);
+}
+
+/* ---- Header --------------------------------------------------------- */
+
+.uap-header-spark {
+    color: var(--uap-accent-agent);
+    font-size: var(--uap-font-size-spark);
+    -unity-font-style: bold;
+    margin-right: var(--uap-space-s);
+}
+
+.uap-header-title {
+    flex-grow: 1;
+    flex-shrink: 1;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: var(--uap-font-size-body);
+    -unity-text-align: middle-left;
+}
+
+.uap-header-btn {
+    width: var(--uap-icon-btn-size);
+    height: var(--uap-icon-btn-size);
+    margin-top: 0;
+    margin-right: 0;
+    margin-bottom: 0;
+    margin-left: var(--uap-space-xs);
+    padding: 0;
+    background-color: rgba(0, 0, 0, 0);
+    border-width: 0;
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+    justify-content: center;
+    align-items: center;
+    font-size: var(--uap-font-size-title);
+    color: var(--uap-text-secondary);
+    -unity-text-align: middle-center;
+}
+
+.uap-header-btn:hover {
+    background-color: var(--uap-bg-hover);
+    color: var(--uap-text-primary);
+}
+
+/* 2026-09-05 UI redesign (D2): every control gets the same four states.
+   :active sinks one step, :focus draws the ring, :disabled flattens --
+   HeaderView calls SetEnabled(false) on these but the sheet had no rule,
+   so Unity's off-theme default disabled look leaked through. */
+.uap-header-btn:active {
+    background-color: var(--uap-bg-active);
+}
+
+.uap-header-btn:focus {
+    border-width: 1px;
+    border-top-color: var(--uap-focus-ring);
+    border-bottom-color: var(--uap-focus-ring);
+    border-left-color: var(--uap-focus-ring);
+    border-right-color: var(--uap-focus-ring);
+}
+
+.uap-header-btn:disabled {
+    color: var(--uap-text-disabled);
+    background-color: rgba(0, 0, 0, 0);
+}
+
+.uap-header-btn > Image {
+    width: 14px;
+    height: 14px;
+}
+
+/* Errored-state reconnect affordance: same square icon-button shape as the
+   other header buttons, plus a warn-colored glyph/tint so it reads as an
+   action item rather than blending into the idle button row. */
+.uap-header-btn--warn {
+    color: var(--uap-status-warn);
+}
+
+/* Text buttons (model picker, history) -- narrower than the square icon
+   buttons above, content-width with an ellipsis cap so a long model
+   description can never push the +/gear buttons off the header. */
+.uap-header-model-btn,
+.uap-header-history-btn,
+.uap-header-compact-btn {
+    max-width: 110px;
+    height: var(--uap-control-h);
+    margin-top: 0;
+    margin-right: 0;
+    margin-bottom: 0;
+    margin-left: var(--uap-space-xs);
+    padding-top: 0;
+    padding-right: var(--uap-space-s);
+    padding-bottom: 0;
+    padding-left: var(--uap-space-s);
+    background-color: var(--uap-bg-elevated);
+    border-width: 1px;
+    border-top-color: var(--uap-border-subtle);
+    border-bottom-color: var(--uap-border-subtle);
+    border-left-color: var(--uap-border-subtle);
+    border-right-color: var(--uap-border-subtle);
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+    font-size: var(--uap-font-size-small);
+    color: var(--uap-text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex-shrink: 0;
+    -unity-text-align: middle-center;
+}
+
+.uap-header-model-btn:hover,
+.uap-header-history-btn:hover,
+.uap-header-compact-btn:hover {
+    background-color: var(--uap-bg-hover);
+    color: var(--uap-text-primary);
+}
+
+.uap-header-model-btn:active,
+.uap-header-history-btn:active,
+.uap-header-compact-btn:active,
+.uap-header-autoapprove-btn:active {
+    background-color: var(--uap-bg-active);
+}
+
+/* 2026-09-06 review fix 2: the narrow-dock chip. Hidden at every width
+   except when the root carries uap-narrow (rules at the end of this
+   file), where it stands in for the model + auto-approve chips. */
+.uap-header-compact-btn {
+    display: none;
+}
+
+.uap-header-model-btn:focus,
+.uap-header-history-btn:focus,
+.uap-header-compact-btn:focus,
+.uap-header-autoapprove-btn:focus {
+    border-top-color: var(--uap-focus-ring);
+    border-bottom-color: var(--uap-focus-ring);
+    border-left-color: var(--uap-focus-ring);
+    border-right-color: var(--uap-focus-ring);
+}
+
+.uap-header-model-btn:disabled,
+.uap-header-history-btn:disabled,
+.uap-header-autoapprove-btn:disabled {
+    background-color: var(--uap-bg-base);
+    color: var(--uap-text-disabled);
+}
+
+/* Auto-approve level control. Same chip shape as the model button next to
+   it, but a little narrower: its longest label is a whole phrase, and the
+   header has to survive a ~300 px dock alongside the title and four other
+   controls. flex-shrink is stated because this IS a flex row with fixed
+   siblings -- the rule the package has now shipped three regressions
+   against (see docs/design-notes/2026-08-03-list-row-control-alignment.md
+   section 8.4). Text ellipsizes rather than pushing anything off-screen;
+   the full level name and what it covers are in the tooltip. */
+.uap-header-autoapprove-btn {
+    flex-shrink: 1;
+    min-width: 46px;
+    max-width: 132px;
+    height: var(--uap-control-h);
+    margin-top: 0;
+    margin-right: 0;
+    margin-bottom: 0;
+    margin-left: var(--uap-space-xs);
+    padding-top: 0;
+    padding-right: var(--uap-space-s);
+    padding-bottom: 0;
+    padding-left: var(--uap-space-s);
+    font-size: var(--uap-font-size-small);
+    color: var(--uap-text-secondary);
+    background-color: var(--uap-bg-elevated);
+    border-width: 1px;
+    border-top-color: var(--uap-border-subtle);
+    border-bottom-color: var(--uap-border-subtle);
+    border-left-color: var(--uap-border-subtle);
+    border-right-color: var(--uap-border-subtle);
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.uap-header-autoapprove-btn:hover {
+    background-color: var(--uap-bg-hover);
+    color: var(--uap-text-primary);
+}
+
+/* How much the agent may do unattended should be legible at a glance, not
+   only by reading the label. Undoable work is tinted like a warning;
+   work Undo cannot take back is tinted like an error, because that is
+   what it is -- the end-of-turn warning still fires, but at that level it
+   arrives after the fact rather than before. */
+.uap-header-autoapprove-btn--relaxed {
+    color: var(--uap-status-warn);
+    border-top-color: var(--uap-status-warn);
+    border-bottom-color: var(--uap-status-warn);
+    border-left-color: var(--uap-status-warn);
+    border-right-color: var(--uap-status-warn);
+}
+
+/* 2026-08-14 UI polish audit: was --uap-status-error (red), which reads as
+   "something is wrong right now" everywhere else in the panel (Stop
+   button, error banners, failed tool cards) -- but this chip is a standing
+   policy setting, not a live error. --uap-accent-caution carries the same
+   "highest tier, pay attention" weight without leaking error-red into a
+   chip that can sit lit for an entire session. --relaxed one step below
+   stays on --uap-status-warn (yellow) per the existing tier rule --
+   unchanged here on purpose. */
+.uap-header-autoapprove-btn--open {
+    color: var(--uap-accent-caution);
+    border-top-color: var(--uap-accent-caution);
+    border-bottom-color: var(--uap-accent-caution);
+    border-left-color: var(--uap-accent-caution);
+    border-right-color: var(--uap-accent-caution);
+}
+
+/* ---- Status bar ------------------------------------------------------ */
+
+.uap-status-dot {
+    width: 8px;
+    height: 8px;
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+    border-bottom-left-radius: 4px;
+    border-bottom-right-radius: 4px;
+    margin-right: var(--uap-space-s);
+    flex-shrink: 0;
+    background-color: var(--uap-text-disabled);
+}
+
+.uap-status-dot--idle { background-color: var(--uap-status-idle); }
+.uap-status-dot--busy { background-color: var(--uap-status-busy); }
+.uap-status-dot--warn { background-color: var(--uap-status-warn); }
+.uap-status-dot--error { background-color: var(--uap-status-error); }
+/* 2026-08-14 UI polish audit: the client-null/no-error branch previously
+   fell through to the neutral (text-disabled) dot, which reads the same as
+   "nothing has ever connected". Warn-toned so a reconnect-pending state is
+   visibly distinct from both idle and truly disconnected. */
+.uap-status-dot--reconnecting { background-color: var(--uap-status-warn); }
+
+.uap-status-text {
+    color: var(--uap-text-primary);
+    flex-shrink: 0;
+}
+
+/* UXO-7: the compact Reconnect that appears only after the 10s
+   slow-connect escalation (spec section 3.3). Sized to sit inside the
+   status strip without changing its height. */
+.uap-status-slow-reconnect {
+    margin-left: var(--uap-space-m);
+    padding-top: 0;
+    padding-bottom: 0;
+    padding-left: var(--uap-space-m);
+    padding-right: var(--uap-space-m);
+    font-size: var(--uap-font-size-small);
+    background-color: var(--uap-bg-elevated);
+    color: var(--uap-text-primary);
+    border-width: 1px;
+    border-top-color: var(--uap-border-subtle);
+    border-right-color: var(--uap-border-subtle);
+    border-bottom-color: var(--uap-border-subtle);
+    border-left-color: var(--uap-border-subtle);
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+    flex-shrink: 0;
+}
+
+.uap-status-slow-reconnect:hover {
+    background-color: var(--uap-bg-hover);
+}
+
+.uap-status-slow-reconnect:active {
+    background-color: var(--uap-bg-active);
+}
+
+.uap-status-slow-reconnect:focus {
+    border-top-color: var(--uap-focus-ring);
+    border-bottom-color: var(--uap-focus-ring);
+    border-left-color: var(--uap-focus-ring);
+    border-right-color: var(--uap-focus-ring);
+}
+
+.uap-status-sep {
+    width: 1px;
+    height: 10px;
+    background-color: var(--uap-border-subtle);
+    margin-left: var(--uap-space-m);
+    margin-right: var(--uap-space-m);
+    flex-shrink: 0;
+}
+
+.uap-status-model {
+    flex-shrink: 1;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.uap-status-usage {
+    flex-shrink: 0;
+}
+
+/* Context-window meter: thin track + fill bar, plus a percentage label.
+   Hidden entirely (both elements, StatusBarView.RefreshContextMeter) when
+   no result.modelUsage data exists yet this session, rather than showing a
+   misleading 0%. */
+.uap-status-ctx-meter {
+    width: 36px;
+    height: 6px;
+    margin-right: var(--uap-space-xs);
+    background-color: var(--uap-bg-sunken);
+    border-top-left-radius: 2px;
+    border-top-right-radius: 2px;
+    border-bottom-left-radius: 2px;
+    border-bottom-right-radius: 2px;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.uap-status-ctx-fill {
+    height: 100%;
+    background-color: var(--uap-status-idle);
+}
+
+.uap-status-ctx-fill--warn {
+    background-color: var(--uap-status-warn);
+}
+
+.uap-status-ctx-label {
+    flex-shrink: 0;
+    margin-right: var(--uap-space-m);
+    color: var(--uap-text-secondary);
+}
+
+.uap-status-warn-text {
+    color: var(--uap-status-warn);
+}
+
+/* Clickable usage area (opens the per-model breakdown popover). */
+.uap-status-usage-container {
+    flex-shrink: 0;
+}
+
+.uap-status-usage-container:hover .uap-status-usage {
+    color: var(--uap-text-primary);
+}
+
+/* ---- Usage breakdown popover (StatusBarView.UsagePopover, ShowAsDropDown) ---- */
+
+.uap-usage-popover {
+    flex-grow: 1;
+    padding-top: var(--uap-space-m);
+    padding-right: var(--uap-space-m);
+    padding-bottom: var(--uap-space-m);
+    padding-left: var(--uap-space-m);
+    background-color: var(--uap-bg-base);
+}
+
+.uap-usage-popover-title {
+    font-size: var(--uap-font-size-meta);
+    -unity-font-style: bold;
+    margin-bottom: var(--uap-space-s);
+}
+
+.uap-usage-popover-empty {
+    font-size: var(--uap-font-size-meta);
+    color: var(--uap-text-secondary);
+}
+
+.uap-usage-popover-row {
+    margin-bottom: var(--uap-space-m);
+    padding-bottom: var(--uap-space-s);
+    border-bottom-width: 1px;
+    border-bottom-color: var(--uap-border-subtle);
+}
+
+.uap-usage-popover-model {
+    font-size: var(--uap-font-size-meta);
+    -unity-font-style: bold;
+    color: var(--uap-text-primary);
+    white-space: normal;
+}
+
+.uap-usage-popover-detail {
+    font-size: var(--uap-font-size-small);
+    color: var(--uap-text-secondary);
+    white-space: normal;
+}
+
+/* ---- Chat view layout ------------------------------------------------ */
+
+.uap-chat {
+    flex-grow: 1;
+}
+
+.uap-chat-content {
+    flex-grow: 1;
+    /* The transcript keeps a guaranteed minimum visible height: scarcity
+       flexes the permission card (which scrolls internally), never the
+       message list, so a pending card can never fully crush the chat. */
+    min-height: var(--uap-msg-list-min);
+}
+
+.uap-msg-list {
+    flex-grow: 1;
+    /* Same sibling-paint-order clip as .uap-view-container, one level
+       down: the context bar / composer are LATER siblings below the
+       message area, and unclipped scrolled-out rows painted through
+       them (visible bleed behind the +Selection/+Scene chips). See
+       docs/design-notes/2026-07-31-transcript-clipping.md. */
+    overflow: hidden;
+}
+
+.uap-msg-scroll {
+    flex-grow: 1;
+    overflow: hidden;
+}
+
+/* Compaction progress row (docs/design-notes/2026-09-10-compacting-indicator.md):
+   pinned under the transcript while the CLI summarizes the conversation.
+   Elevated like an info banner so it reads as "the panel is doing
+   something", not as another transcript line. */
+.uap-compacting-row {
+    flex-direction: row;
+    align-items: center;
+    background-color: var(--uap-bg-elevated);
+    padding-top: var(--uap-space-s);
+    padding-bottom: var(--uap-space-s);
+    padding-left: var(--uap-space-m);
+    padding-right: var(--uap-space-m);
+}
+
+.uap-compacting-text {
+    flex-grow: 1;
+    flex-shrink: 1;
+    white-space: normal;
+    font-size: var(--uap-font-size-meta);
+    color: var(--uap-text-secondary);
+}
+
+/* ---- Message blocks (full width, no bubbles; R05 section 5.4) -------- */
+
+.uap-msg {
+    margin-top: var(--uap-space-s);
+    margin-bottom: var(--uap-space-s);
+    margin-left: var(--uap-space-m);
+    margin-right: var(--uap-space-m);
+    padding-top: var(--uap-space-m);
+    padding-bottom: var(--uap-space-m);
+    padding-left: var(--uap-space-m);
+    padding-right: var(--uap-space-m);
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+    flex-shrink: 0;
+}
+
+.uap-msg--user {
+    background-color: var(--uap-bg-elevated);
+    border-left-width: 2px;
+    border-left-color: var(--uap-accent-user);
+    margin-top: var(--uap-space-l);
+}
+
+.uap-msg--assistant {
+    padding-top: var(--uap-space-s);
+}
+
+.uap-msg--system {
+    padding-top: var(--uap-space-xs);
+    padding-bottom: var(--uap-space-xs);
+    margin-top: var(--uap-space-xs);
+    margin-bottom: var(--uap-space-xs);
+}
+
+.uap-msg-rolerow {
+    flex-direction: row;
+    align-items: center;
+    margin-bottom: var(--uap-space-s);
+}
+
+.uap-msg-spark {
+    color: var(--uap-accent-agent);
+    -unity-font-style: bold;
+    font-size: var(--uap-font-size-body);
+    margin-right: var(--uap-space-s);
+}
+
+.uap-msg-role {
+    font-size: var(--uap-font-size-meta);
+    -unity-font-style: bold;
+    color: var(--uap-text-secondary);
+}
+
+.uap-msg-role--assistant {
+    color: var(--uap-text-primary);
+}
+
+.uap-text {
+    white-space: normal;
+    font-size: var(--uap-font-size-body);
+    margin-top: var(--uap-space-xs);
+    margin-bottom: var(--uap-space-xs);
+    color: var(--uap-text-primary);
+}
+
+/* ---- Code blocks ------------------------------------------------------ */
+
+.uap-code {
+    background-color: var(--uap-bg-sunken);
+    border-width: 1px;
+    border-top-color: var(--uap-border);
+    border-bottom-color: var(--uap-border);
+    border-left-color: var(--uap-border);
+    border-right-color: var(--uap-border);
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+    margin-top: var(--uap-space-s);
+    margin-bottom: var(--uap-space-s);
+}
+
+.uap-code-header {
+    flex-direction: row;
+    align-items: center;
+    padding-top: var(--uap-space-xs);
+    padding-bottom: var(--uap-space-xs);
+    padding-left: var(--uap-space-s);
+    padding-right: var(--uap-space-s);
+    border-bottom-width: 1px;
+    border-bottom-color: var(--uap-border);
+}
+
+.uap-code-lang {
+    font-size: var(--uap-font-size-small);
+    color: var(--uap-text-secondary);
+    flex-grow: 1;
+}
+
+.uap-code-copy {
+    font-size: 10px;
+    padding: 1px 6px;
+    margin: 0;
+    background-color: rgba(0, 0, 0, 0);
+    border-width: 1px;
+    border-top-color: var(--uap-border-subtle);
+    border-bottom-color: var(--uap-border-subtle);
+    border-left-color: var(--uap-border-subtle);
+    border-right-color: var(--uap-border-subtle);
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+    color: var(--uap-text-secondary);
+}
+
+.uap-code-copy:hover {
+    background-color: var(--uap-bg-hover);
+    color: var(--uap-text-primary);
+}
+
+.uap-code-body {
+    white-space: normal;
+    font-size: var(--uap-font-size-code);
+    padding-top: var(--uap-space-s);
+    padding-bottom: var(--uap-space-s);
+    padding-left: var(--uap-space-s);
+    padding-right: var(--uap-space-s);
+    color: var(--uap-text-primary);
+}
+
+/* ---- Thinking blocks --------------------------------------------------- */
+
+.uap-thinking {
+    margin-top: var(--uap-space-xs);
+    margin-bottom: var(--uap-space-xs);
+}
+
+/* 2026-08-14 UI polish audit: the Thinking block's Foldout header read as
+   plain text with no affordance -- nothing said "this expands" the way a
+   bordered .uap-toolcard row does elsewhere in the transcript. A UIToolkit
+   Foldout's header IS its Toggle child (there is no separate header
+   element to target), so this borrows .uap-toolcard's bg/border/radius
+   language directly onto that child so "bordered row = expandable" reads
+   consistently across both surfaces. */
+.uap-thinking > Toggle {
+    flex-direction: row;
+    align-items: center;
+    background-color: var(--uap-bg-elevated);
+    border-width: 1px;
+    border-top-color: var(--uap-border-subtle);
+    border-bottom-color: var(--uap-border-subtle);
+    border-left-color: var(--uap-border-subtle);
+    border-right-color: var(--uap-border-subtle);
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+    padding-top: var(--uap-space-xs);
+    padding-bottom: var(--uap-space-xs);
+    padding-left: var(--uap-space-s);
+    padding-right: var(--uap-space-s);
+}
+
+.uap-thinking > Toggle:hover {
+    background-color: var(--uap-bg-hover);
+}
+
+.uap-thinking Label {
+    color: var(--uap-text-secondary);
+    font-size: var(--uap-font-size-meta);
+}
+
+.uap-thinking-text {
+    white-space: normal;
+    padding-left: var(--uap-space-m);
+}
+
+/* Compact one-line indicator for an empty-text Thinking block (design note
+   2026-08-01-thinking-content-loss.md section 5) -- subtle secondary text,
+   no foldout chrome. */
+.uap-thinking-indicator {
+    color: var(--uap-text-secondary);
+    font-size: var(--uap-font-size-meta);
+    margin-top: var(--uap-space-xs);
+    margin-bottom: var(--uap-space-xs);
+}
+
+/* ---- Tool status glyphs (shared by ToolActivityCard / SubagentCard /
+       ToolActivityCard.CreateGroupRow / MessageBlockFactory) ---------------
+   The old .uap-tool row container + name/summary/time rules that used to
+   live here were dead (no C# call site since the toolcard/subcard split)
+   and were removed in the 2026-09-05 UI redesign (D8). */
+
+.uap-tool-icon {
+    width: 14px;
+    height: 14px;
+    margin-right: var(--uap-space-s);
+    flex-shrink: 0;
+}
+
+.uap-tool-glyph {
+    font-size: var(--uap-font-size-meta);
+    margin-right: var(--uap-space-s);
+    flex-shrink: 0;
+    -unity-font-style: bold;
+}
+
+.uap-tool-glyph--ok { color: var(--uap-status-idle); }
+.uap-tool-glyph--fail { color: var(--uap-status-error); }
+.uap-tool-glyph--busy { color: var(--uap-status-busy); }
+.uap-tool-glyph--pending { color: var(--uap-text-disabled); }
+/* 2026-09-05 UI redesign (D3): a tool the USER denied is not a tool that
+   broke. Caution amber = "the outcome of your own policy" (the same
+   reading the auto-approve chip gives that colour), leaving error red to
+   mean "something actually failed". */
+.uap-tool-glyph--denied { color: var(--uap-accent-caution); }
+
+/* ---- System notes / errors ---------------------------------------------- */
+
+.uap-note {
+    -unity-text-align: middle-center;
+    font-size: var(--uap-font-size-meta);
+    color: var(--uap-text-secondary);
+    white-space: normal;
+    margin-top: var(--uap-space-s);
+    margin-bottom: var(--uap-space-s);
+}
+
+/* 2026-08-14 UI polish audit: process-exited/reconnecting system notes
+   (MakeSystemNote(text, warning: true), AgentHub) previously rendered as
+   plain neutral --uap-note text, indistinguishable from routine info notes
+   like "context compacted". Warn-toned so a note the user should actually
+   read stands out from one that is just narration. */
+.uap-note--warn {
+    color: var(--uap-status-warn);
+}
+
+.uap-error {
+    flex-direction: row;
+    align-items: flex-start;
+    background-color: var(--uap-bg-elevated);
+    border-left-width: 2px;
+    border-left-color: var(--uap-status-error);
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+    padding-top: var(--uap-space-s);
+    padding-bottom: var(--uap-space-s);
+    padding-left: var(--uap-space-s);
+    padding-right: var(--uap-space-s);
+    margin-top: var(--uap-space-xs);
+    margin-bottom: var(--uap-space-xs);
+}
+
+.uap-error-icon {
+    width: 14px;
+    height: 14px;
+    margin-right: var(--uap-space-s);
+    flex-shrink: 0;
+}
+
+.uap-error-text {
+    color: var(--uap-status-error);
+    font-size: var(--uap-font-size-meta);
+    white-space: normal;
+    flex-shrink: 1;
+}
+
+.uap-prune-note {
+    -unity-text-align: middle-center;
+    font-size: var(--uap-font-size-small);
+    color: var(--uap-text-disabled);
+    margin-top: var(--uap-space-s);
+    margin-bottom: var(--uap-space-s);
+    margin-left: var(--uap-space-s);
+    margin-right: var(--uap-space-s);
+}
+
+/* ---- Jump-to-bottom pill --------------------------------------------------- */
+
+.uap-jump-pill {
+    position: absolute;
+    bottom: 10px;
+    right: 18px;
+    padding-top: var(--uap-btn-pad-y);
+    padding-bottom: var(--uap-btn-pad-y);
+    padding-left: var(--uap-btn-pad-x);
+    padding-right: var(--uap-btn-pad-x);
+    margin: 0;
+    border-top-left-radius: var(--uap-radius-pill);
+    border-top-right-radius: var(--uap-radius-pill);
+    border-bottom-left-radius: var(--uap-radius-pill);
+    border-bottom-right-radius: var(--uap-radius-pill);
+    background-color: var(--uap-bg-elevated);
+    border-width: 1px;
+    border-top-color: var(--uap-border-subtle);
+    border-bottom-color: var(--uap-border-subtle);
+    border-left-color: var(--uap-border-subtle);
+    border-right-color: var(--uap-border-subtle);
+    color: var(--uap-text-primary);
+    font-size: var(--uap-font-size-meta);
+}
+
+.uap-jump-pill:hover {
+    background-color: var(--uap-bg-hover);
+}
+
+.uap-jump-pill:active {
+    background-color: var(--uap-bg-active);
+}
+
+/* ---- Composer ---------------------------------------------------------------- */
+
+/* 2026-09-05 UI redesign (D6): no border-top here. The context bar above
+   (.uap-ctxbar) already draws the input region's top edge, and the two
+   are ONE region -- "what goes in, and the field it goes into" -- so a
+   second hairline between them only split the region in half. */
+.uap-composer {
+    padding-top: var(--uap-space-s);
+    padding-bottom: var(--uap-space-m);
+    padding-left: var(--uap-space-m);
+    padding-right: var(--uap-space-m);
+    flex-shrink: 0;
+}
+
+.uap-composer-fieldwrap {
+    flex-shrink: 0;
+}
+
+/* Slash-command suggestion popup (design note 2026-09-07-slash-commands-
+   and-compaction.md section 1.3). Sits in normal flow directly above the
+   field so it can never be clipped by the panel edge or overlap the
+   message list; it opens while the field holds "/" + a command prefix and
+   closes on the first space, on Esc, or on completion. */
+.uap-slash-popup {
+    flex-shrink: 0;
+    margin-bottom: var(--uap-space-xs);
+    background-color: var(--uap-bg-elevated);
+    border-width: 1px;
+    border-top-color: var(--uap-border);
+    border-bottom-color: var(--uap-border);
+    border-left-color: var(--uap-border);
+    border-right-color: var(--uap-border);
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+    padding-top: var(--uap-space-xs);
+    padding-bottom: var(--uap-space-xs);
+}
+
+.uap-slash-row {
+    flex-direction: row;
+    align-items: center;
+    padding-top: 3px;
+    padding-bottom: 3px;
+    padding-left: var(--uap-space-s);
+    padding-right: var(--uap-space-s);
+}
+
+.uap-slash-row:hover {
+    background-color: var(--uap-bg-hover);
+}
+
+.uap-slash-row--selected {
+    background-color: var(--uap-bg-selected);
+}
+
+.uap-slash-name {
+    font-size: var(--uap-font-size-body);
+    color: var(--uap-text-primary);
+    -unity-font-style: bold;
+    flex-shrink: 0;
+    margin-right: var(--uap-space-s);
+}
+
+.uap-slash-arg {
+    font-size: var(--uap-font-size-meta);
+    color: var(--uap-text-secondary);
+    flex-shrink: 0;
+    margin-right: var(--uap-space-s);
+}
+
+.uap-slash-desc {
+    font-size: var(--uap-font-size-meta);
+    color: var(--uap-text-secondary);
+    flex-shrink: 1;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.uap-slash-empty {
+    font-size: var(--uap-font-size-meta);
+    color: var(--uap-text-disabled);
+    padding-top: 3px;
+    padding-bottom: 3px;
+    padding-left: var(--uap-space-s);
+    padding-right: var(--uap-space-s);
+}
+
+.uap-composer-field {
+    margin: 0;
+    max-height: 120px;
+}
+
+.uap-composer-field #unity-text-input {
+    background-color: var(--uap-bg-sunken);
+    border-top-color: var(--uap-border);
+    border-bottom-color: var(--uap-border);
+    border-left-color: var(--uap-border);
+    border-right-color: var(--uap-border);
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+    padding-top: var(--uap-space-s);
+    padding-bottom: var(--uap-space-s);
+    padding-left: var(--uap-space-s);
+    padding-right: var(--uap-space-s);
+    font-size: var(--uap-font-size-body);
+    white-space: normal;
+    color: var(--uap-text-primary);
+}
+
+/* Visible focus indication: the ID selector above outweighs Unity's
+   built-in focus style, so without this rule the composer would show no
+   focus ring at all. */
+.uap-composer-field #unity-text-input:focus {
+    border-top-color: var(--uap-accent-user);
+    border-bottom-color: var(--uap-accent-user);
+    border-left-color: var(--uap-accent-user);
+    border-right-color: var(--uap-accent-user);
+}
+
+.uap-composer-placeholder {
+    position: absolute;
+    left: 9px;
+    right: 9px;
+    top: 6px;
+    color: var(--uap-text-disabled);
+    font-size: var(--uap-font-size-body);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.uap-composer-row {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: var(--uap-space-s);
+}
+
+.uap-composer-hint {
+    font-size: var(--uap-font-size-small);
+    color: var(--uap-text-disabled);
+    flex-shrink: 1;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.uap-composer-actions {
+    flex-direction: row;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.uap-quickactions-btn {
+    /* Standard-button family (3px 10px -- same as .uap-card-btn /
+       .uap-settings-btn). Was the one stray at 2px 10px with no reason
+       recorded (2026-08-14 token-hygiene note). */
+    padding-top: var(--uap-btn-pad-y);
+    padding-bottom: var(--uap-btn-pad-y);
+    padding-left: var(--uap-btn-pad-x);
+    padding-right: var(--uap-btn-pad-x);
+    margin-top: 0;
+    margin-right: 0;
+    margin-bottom: 0;
+    margin-left: 0;
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+    border-width: 1px;
+    border-top-color: var(--uap-border-subtle);
+    border-bottom-color: var(--uap-border-subtle);
+    border-left-color: var(--uap-border-subtle);
+    border-right-color: var(--uap-border-subtle);
+    font-size: var(--uap-font-size-meta);
+    background-color: var(--uap-bg-elevated);
+    color: var(--uap-text-primary);
+    flex-shrink: 0;
+}
+
+.uap-quickactions-btn:hover {
+    background-color: var(--uap-bg-hover);
+}
+
+.uap-quickactions-btn:active {
+    background-color: var(--uap-bg-active);
+}
+
+.uap-quickactions-btn:focus {
+    border-top-color: var(--uap-focus-ring);
+    border-bottom-color: var(--uap-focus-ring);
+    border-left-color: var(--uap-focus-ring);
+    border-right-color: var(--uap-focus-ring);
+}
+
+.uap-quickactions-btn:disabled {
+    background-color: var(--uap-bg-elevated);
+    color: var(--uap-text-disabled);
+}
+
+.uap-send-btn {
+    padding: 2px 14px;
+    margin-top: 0;
+    margin-right: 0;
+    margin-bottom: 0;
+    margin-left: var(--uap-space-s);
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+    border-width: 1px;
+    border-top-color: var(--uap-accent-user);
+    border-bottom-color: var(--uap-accent-user);
+    border-left-color: var(--uap-accent-user);
+    border-right-color: var(--uap-accent-user);
+    font-size: var(--uap-font-size-meta);
+    -unity-font-style: bold;
+    background-color: var(--uap-accent-user);
+    color: var(--uap-on-accent);
+    flex-shrink: 0;
+}
+
+.uap-send-btn:hover {
+    background-color: var(--uap-bg-selected);
+}
+
+/* Filled primary: the ring is drawn in --uap-on-accent because a ring in
+   the accent colour would vanish into the fill. */
+.uap-send-btn:focus {
+    border-top-color: var(--uap-on-accent);
+    border-bottom-color: var(--uap-on-accent);
+    border-left-color: var(--uap-on-accent);
+    border-right-color: var(--uap-on-accent);
+}
+
+.uap-send-btn:active {
+    background-color: var(--uap-bg-selected);
+    border-top-color: var(--uap-bg-selected);
+    border-bottom-color: var(--uap-bg-selected);
+    border-left-color: var(--uap-bg-selected);
+    border-right-color: var(--uap-bg-selected);
+}
+
+.uap-send-btn:disabled {
+    background-color: var(--uap-bg-elevated);
+    border-top-color: var(--uap-border-subtle);
+    border-bottom-color: var(--uap-border-subtle);
+    border-left-color: var(--uap-border-subtle);
+    border-right-color: var(--uap-border-subtle);
+    color: var(--uap-text-disabled);
+}
+
+.uap-send-btn--stop {
+    background-color: var(--uap-status-error);
+    border-top-color: var(--uap-status-error);
+    border-bottom-color: var(--uap-status-error);
+    border-left-color: var(--uap-status-error);
+    border-right-color: var(--uap-status-error);
+}
+
+/* Higher specificity than .uap-send-btn:hover so the Stop button keeps its
+   error family on hover instead of flipping to the selection blue. */
+.uap-send-btn--stop:hover,
+.uap-send-btn--stop:active {
+    background-color: var(--uap-status-error-hover);
+    border-top-color: var(--uap-status-error-hover);
+    border-bottom-color: var(--uap-status-error-hover);
+    border-left-color: var(--uap-status-error-hover);
+    border-right-color: var(--uap-status-error-hover);
+}
+
+/* ---- Permission card (hybrid: compact inline row / floating window host;
+       R05 section 3.7) -------------------------------------------------- */
+
+.uap-perm {
+    background-color: var(--uap-permission-bg);
+    border-left-width: 3px;
+    border-left-color: var(--uap-status-warn);
+    border-top-width: 1px;
+    border-bottom-width: 1px;
+    border-right-width: 1px;
+    border-top-color: var(--uap-border-subtle);
+    border-bottom-color: var(--uap-border-subtle);
+    border-right-color: var(--uap-border-subtle);
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+    margin-top: var(--uap-space-s);
+    margin-bottom: var(--uap-space-s);
+    margin-left: var(--uap-space-m);
+    margin-right: var(--uap-space-m);
+    /* Collapsed card is a single ~30px summary row: it must NEVER shrink,
+       or Yoga crushes it to ~2px and the summary row bleeds over the
+       context-chip bar with 0-height button hitboxes (2026-08-01 note).
+       Tiny panels are already routed to the floating window by the hybrid
+       geometry check, so shrink is only meaningful while expanded. */
+    flex-shrink: 0;
+    /* If anything ever crushes the card again, clip instead of painting
+       over the neighbors below (same lesson as the transcript bleed). */
+    overflow: hidden;
+}
+
+/* Expanded inline card: scarcity may shrink it (details scroll internally);
+   the token floor keeps it usable. min-height outranks the C#-computed
+   inline max-height cap when the two conflict, so the 40% cap can never
+   crush the card below this value. */
+.uap-perm--expanded {
+    flex-shrink: 1;
+    min-height: var(--uap-perm-card-min);
+}
+
+.uap-perm-body {
+    flex-shrink: 1;
+    min-height: 0;
+}
+
+.uap-perm-summary {
+    /* Safety net for the trailing-control column: see
+       docs/design-notes/2026-08-03-list-row-control-alignment.md section 3.1.
+       This row already has a flex-grow child, so there is no free space to
+       distribute and this has no visible effect TODAY -- that is the point.
+       If a future edit drops that flex-grow, the trailing control still
+       lands in a straight column instead of drifting with content width. */
+    justify-content: space-between;
+    flex-direction: row;
+    /* 2026-09-06 review fix 1: the row may break into two lines -- text
+       block first, controls block second -- instead of ellipsizing the
+       target out of existence (measured: "pa..." at 600px, nothing at
+       300px). --uap-perm-summary-min stays the ONE-line floor. */
+    flex-wrap: wrap;
+    align-items: center;
+    flex-shrink: 0;
+    min-height: var(--uap-perm-summary-min);
+    padding-top: var(--uap-space-xs);
+    padding-bottom: var(--uap-space-xs);
+    padding-left: var(--uap-space-m);
+    padding-right: var(--uap-space-s);
+}
+
+/* Title + target + undo badge. min-width is what forces the wrap: below
+   it the controls block cannot share the line and drops under. */
+.uap-perm-summary-text {
+    flex-direction: row;
+    align-items: center;
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 140px;
+    overflow: hidden;
+}
+
+/* Allow / Always / Deny + chevron + open-in-window. Never shrinks (the
+   buttons are the point); grows so that on its own line it spans the row
+   and keeps the buttons right-aligned under the text. */
+.uap-perm-summary-controls {
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-end;
+    flex-grow: 1;
+    flex-shrink: 0;
+}
+
+/* 2026-08-14 UI polish audit: font-size-body read too close in weight to
+   the surrounding meta-sized labels for what is the permission card's own
+   title row -- bumped to font-size-title to match the visual weight of
+   other card/section titles (.uap-empty-title, .uap-card-title) in the
+   panel. */
+.uap-perm-summary-title {
+    flex-grow: 1;
+    flex-shrink: 1;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: var(--uap-font-size-title);
+    -unity-font-style: bold;
+    color: var(--uap-text-primary);
+    margin-right: var(--uap-space-s);
+}
+
+/* UXA-1: the operation target (file name / command summary) on the
+   summary row -- always visible, even collapsed. Shrinks with ellipsis
+   but is capped so a long path can never starve the title or the action
+   buttons; mono face applied in code (MessageBlockFactory.ApplyMonoFont). */
+.uap-perm-summary-target {
+    flex-grow: 0;
+    flex-shrink: 1;
+    max-width: 45%;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: var(--uap-font-size-body);
+    color: var(--uap-text-secondary);
+    margin-right: var(--uap-space-s);
+}
+
+/* Design note 2026-09-10 section 1: "N more waiting" behind the one
+   request the card shows -- muted like .uap-perm-summary-target, never
+   wraps, sits between the title/target and the undo badge/action buttons. */
+.uap-perm-queue-depth {
+    flex-shrink: 0;
+    flex-grow: 0;
+    white-space: nowrap;
+    font-size: var(--uap-font-size-small);
+    color: var(--uap-text-secondary);
+    margin-right: var(--uap-space-s);
+}
+
+.uap-perm-summary-actions {
+    flex-direction: row;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+/* Design section 8.2 B2(b): flagged on a UapOps tool whose Undoable is
+   false -- never wraps, sits between the title and the action buttons. */
+.uap-perm-undo-badge {
+    flex-shrink: 0;
+    flex-grow: 0;
+    white-space: nowrap;
+    font-size: var(--uap-font-size-small);
+    color: var(--uap-status-warn);
+    border-width: 1px;
+    border-top-color: var(--uap-warn-border);
+    border-right-color: var(--uap-warn-border);
+    border-bottom-color: var(--uap-warn-border);
+    border-left-color: var(--uap-warn-border);
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+    background-color: var(--uap-warn-bg);
+    padding-top: 1px;
+    padding-bottom: 1px;
+    padding-left: var(--uap-space-xs);
+    padding-right: var(--uap-space-xs);
+    margin-right: var(--uap-space-s);
+}
+
+.uap-perm-iconbtn {
+    width: var(--uap-icon-btn-size);
+    height: var(--uap-icon-btn-size);
+    padding: 0;
+    margin-top: 0;
+    margin-bottom: 0;
+    margin-left: var(--uap-space-xs);
+    margin-right: 0;
+    background-color: rgba(0, 0, 0, 0);
+    border-width: 0;
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+    color: var(--uap-text-secondary);
+    font-size: var(--uap-font-size-body);
+    -unity-text-align: middle-center;
+    flex-shrink: 0;
+}
+
+.uap-perm-iconbtn:hover {
+    background-color: var(--uap-bg-hover);
+    color: var(--uap-text-primary);
+}
+
+.uap-perm-iconbtn:active {
+    background-color: var(--uap-bg-active);
+}
+
+.uap-perm-iconbtn:focus {
+    border-width: 1px;
+    border-top-color: var(--uap-focus-ring);
+    border-bottom-color: var(--uap-focus-ring);
+    border-left-color: var(--uap-focus-ring);
+    border-right-color: var(--uap-focus-ring);
+}
+
+/* Internal scroll area: everything beyond the height cap scrolls INSIDE
+   the card -- nothing may ever render outside the window bounds. */
+.uap-perm-details {
+    flex-grow: 0;
+    flex-shrink: 1;
+    min-height: 0;
+    padding-top: 0;
+    padding-bottom: var(--uap-space-m);
+    padding-left: var(--uap-space-m);
+    padding-right: var(--uap-space-m);
+}
+
+/* Slim inline status bar while the request is shown in the floating
+   window: "Waiting for permission - shown in window [Show here]". */
+.uap-perm-waitbar {
+    flex-direction: row;
+    align-items: center;
+    min-height: var(--uap-perm-summary-min);
+    padding-top: var(--uap-space-xs);
+    padding-bottom: var(--uap-space-xs);
+    padding-left: var(--uap-space-m);
+    padding-right: var(--uap-space-s);
+}
+
+.uap-perm-waitbar-text {
+    flex-grow: 1;
+    flex-shrink: 1;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: var(--uap-font-size-meta);
+    color: var(--uap-text-secondary);
+    margin-right: var(--uap-space-s);
+}
+
+/* Floating window host: the card fills the utility window and the details
+   area takes all remaining height (always expanded, no cap).
+
+   HEIGHT CHAIN (2026-08-05 stepper design note, measured): UITK/Yoga
+   defaults BOTH flex-grow AND flex-shrink to 0, so before this chain a
+   4-question card measured 736px tall inside a 360px window while its
+   _details ScrollView sat at viewport 707px vs content 699px -- the
+   ScrollView existed all along but NEVER scrolled, because nothing above
+   it constrained its height and the whole card simply grew past the
+   window instead. The inline host only worked by accident: C# feeds it an
+   external max-height (the 40 percent cap). The window host has no cap,
+   so every element between the window root and the ScrollView must opt
+   in: flex-grow: 1 to claim the window's free height, and flex-shrink: 1
+   + min-height: 0 to give height back when content is taller than the
+   window (shrink 0 is the exact root cause: at the default, an element's
+   basis is its content height and it refuses to go below it). This is
+   the third recurrence of the same flex-default defect in this project
+   (list-row alignment, history filter bar) -- keep the whole chain
+   explicit, and keep every rule scoped to the window host: the inline
+   host's SetMaxCardHeight path must not change. */
+.uap-permwin-root {
+    flex-grow: 1;
+    /* Chain link 1 (window root -> host): without shrink the host sizes
+       to its content (the measured 736px) and overflows the window; the
+       card constraints below would then bound against an ALREADY
+       overflowing parent and fix nothing. */
+    flex-shrink: 1;
+    min-height: 0;
+    background-color: var(--uap-bg-base);
+    padding-top: var(--uap-space-m);
+    padding-bottom: var(--uap-space-m);
+    padding-left: var(--uap-space-m);
+    padding-right: var(--uap-space-m);
+}
+
+.uap-perm--windowhost {
+    flex-grow: 1;
+    /* Chain link 2 (host -> card root): the base .uap-perm rule pins
+       flex-shrink: 0 as the collapsed-crush guard, which protects the
+       INLINE card's summary-row-only state (2026-08-01 note). The window
+       host is always expanded with internal scrolling, so shrink is both
+       safe and required here. Same specificity as .uap-perm, later in
+       the file, so this override wins. */
+    flex-shrink: 1;
+    min-height: 0;
+    margin-top: 0;
+    margin-bottom: 0;
+    margin-left: 0;
+    margin-right: 0;
+}
+
+.uap-perm--windowhost .uap-perm-body {
+    flex-grow: 1;
+    /* Chain links 3/4 (card root -> body -> details): the base
+       .uap-perm-body / .uap-perm-details rules currently carry
+       flex-shrink: 1 + min-height: 0 already, but those serve the inline
+       host's cap math -- restated here so the WINDOW chain is complete on
+       its own and an inline-motivated edit to the base rules cannot
+       silently reopen the 736px overflow. */
+    flex-shrink: 1;
+    min-height: 0;
+}
+
+.uap-perm--windowhost .uap-perm-details {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-height: 0;
+}
+
+.uap-perm-icon {
+    width: 14px;
+    height: 14px;
+    margin-right: var(--uap-space-s);
+    flex-shrink: 0;
+}
+
+.uap-perm-icon-glyph {
+    color: var(--uap-status-warn);
+    -unity-font-style: bold;
+    font-size: var(--uap-font-size-body);
+    margin-right: var(--uap-space-s);
+    flex-shrink: 0;
+}
+
+.uap-perm-desc {
+    font-size: var(--uap-font-size-meta);
+    color: var(--uap-text-secondary);
+    white-space: normal;
+    margin-bottom: var(--uap-space-s);
+}
+
+/* UXA-2: Edit/MultiEdit approval diff. Same sunken block treatment as
+   .uap-perm-preview; per-line backgrounds reuse the theme diff tokens the
+   ok-banner/answered-tab already use so light/dark both read. Mono face
+   is applied in code (MessageBlockFactory.ApplyMonoFont). */
+.uap-perm-diff {
+    background-color: var(--uap-bg-sunken);
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+    padding-top: var(--uap-space-s);
+    padding-bottom: var(--uap-space-s);
+    padding-left: var(--uap-space-s);
+    padding-right: var(--uap-space-s);
+    margin-top: var(--uap-space-s);
+}
+
+.uap-perm-diff-line {
+    white-space: normal;
+    font-size: var(--uap-font-size-code);
+    color: var(--uap-text-primary);
+}
+
+.uap-perm-diff-del {
+    background-color: var(--uap-diff-del-bg);
+}
+
+.uap-perm-diff-add {
+    background-color: var(--uap-diff-add-bg);
+}
+
+.uap-perm-diff-ctx {
+    color: var(--uap-text-secondary);
+}
+
+.uap-perm-diff-gap {
+    color: var(--uap-text-secondary);
+}
+
+/* Thin rule between MultiEdit edits. */
+.uap-perm-diff-sep {
+    height: 1px;
+    background-color: var(--uap-border);
+    margin-top: var(--uap-space-xs);
+    margin-bottom: var(--uap-space-xs);
+}
+
+.uap-perm-diff-expand {
+    align-self: flex-start;
+    margin-top: var(--uap-space-xs);
+}
+
+.uap-perm-preview {
+    white-space: normal;
+    font-size: var(--uap-font-size-code);
+    color: var(--uap-text-primary);
+    background-color: var(--uap-bg-sunken);
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+    padding-top: var(--uap-space-s);
+    padding-bottom: var(--uap-space-s);
+    padding-left: var(--uap-space-s);
+    padding-right: var(--uap-space-s);
+}
+
+/* 2026-08-14 UI polish audit: caption label above the deny field and the
+   Other free-text field (PermTitleFmt / PermDenyFieldCaption /
+   PermOtherFieldCaption) -- neither field previously said what it was for
+   until the user clicked into it. Small and secondary so it reads as a
+   caption, not a second title; margin-bottom ties it visually to the
+   field it labels rather than the content above. */
+.uap-perm-field-caption {
+    font-size: var(--uap-font-size-small);
+    color: var(--uap-text-secondary);
+    margin-bottom: var(--uap-space-xs);
+}
+
+.uap-perm-denyfield {
+    margin-top: 0;
+    margin-bottom: var(--uap-space-s);
+    margin-left: 0;
+    margin-right: 0;
+}
+
+.uap-perm-denyfield #unity-text-input {
+    background-color: var(--uap-bg-sunken);
+    border-top-color: var(--uap-border);
+    border-bottom-color: var(--uap-border);
+    border-left-color: var(--uap-border);
+    border-right-color: var(--uap-border);
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+    font-size: var(--uap-font-size-meta);
+    color: var(--uap-text-primary);
+}
+
+.uap-perm-hint {
+    font-size: var(--uap-font-size-small);
+    color: var(--uap-text-secondary);
+    white-space: normal;
+    margin-top: var(--uap-space-s);
+}
+
+/* AskUserQuestion stepper tab strip (2+ questions only; 2026-08-05 design
+   note): sits in the card body between the summary row and the scrolling
+   details, so navigation stays visible while a long question's options
+   scroll. flex-shrink: 0 -- the details area below is the designated
+   shrinker; the strip is a single text row and crushing it would remove
+   the only way to reach the other questions. */
+.uap-perm-qtabs {
+    flex-direction: row;
+    align-items: flex-end;
+    flex-shrink: 0;
+    padding-left: var(--uap-space-m);
+    padding-right: var(--uap-space-m);
+    border-bottom-width: 1px;
+    border-bottom-color: var(--uap-border-subtle);
+    margin-bottom: var(--uap-space-s);
+}
+
+/* Standing rule (docs/design-notes/2026-08-03-list-row-control-alignment.md):
+   a control repeated per item must line up in one row and one height.
+   white-space: nowrap keeps every tab exactly one text line tall no
+   matter how long its header is; flex-shrink: 1 + min-width + ellipsis
+   lets long headers give width back under pressure (localized Japanese
+   headers run far longer than the English a layout gets eyeballed
+   against -- the measured filter-bar lesson) instead of pushing later
+   tabs out of the strip. No bold on the current tab on purpose: bold
+   changes text width, so the strip would reflow on every navigation. */
+.uap-perm-qtab {
+    flex-shrink: 1;
+    min-width: 32px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    margin-top: 0;
+    margin-bottom: 0;
+    margin-left: 0;
+    margin-right: var(--uap-space-xs);
+    padding-top: var(--uap-space-xs);
+    padding-bottom: var(--uap-space-xs);
+    padding-left: var(--uap-space-s);
+    padding-right: var(--uap-space-s);
+    background-color: rgba(0, 0, 0, 0);
+    border-top-width: 0;
+    border-left-width: 0;
+    border-right-width: 0;
+    /* The 2px underline slot is ALWAYS present (transparent when not
+       current) so becoming current never changes the tab's height. */
+    border-bottom-width: 2px;
+    border-bottom-color: rgba(0, 0, 0, 0);
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    color: var(--uap-text-secondary);
+    font-size: var(--uap-font-size-meta);
+    -unity-text-align: middle-center;
+}
+
+.uap-perm-qtab:hover {
+    background-color: var(--uap-bg-hover);
+    color: var(--uap-text-primary);
+}
+
+/* 2026-08-14 UI polish audit: mirrors the composer's accent-user focus
+   border. Only border-bottom-color is set -- the tab's top/left/right
+   border-width is 0 (see .uap-perm-qtab above), so those sides have
+   nothing to color, and the visible underline slot is exactly what
+   .uap-perm-qtab--current already uses for its own state marker. */
+.uap-perm-qtab:focus {
+    border-bottom-color: var(--uap-accent-user);
+}
+
+/* Answered questions get the same green tint the ok-banner uses -- a
+   state marker that must survive on non-current tabs, which is the whole
+   point (see the answered state in the stepper design note). Declared
+   BEFORE --current so the current tab's text color wins when both
+   classes apply. */
+.uap-perm-qtab--answered {
+    background-color: var(--uap-diff-add-bg);
+}
+
+.uap-perm-qtab--current {
+    color: var(--uap-text-primary);
+    border-bottom-color: var(--uap-accent-user);
+}
+
+.uap-perm-question {
+    margin-top: var(--uap-space-s);
+    margin-bottom: var(--uap-space-s);
+}
+
+.uap-perm-qheader {
+    font-size: var(--uap-font-size-meta);
+    -unity-font-style: bold;
+    color: var(--uap-text-secondary);
+}
+
+.uap-perm-qtext {
+    font-size: var(--uap-font-size-body);
+    color: var(--uap-text-primary);
+    white-space: normal;
+    margin-bottom: var(--uap-space-s);
+}
+
+.uap-perm-option {
+    align-items: flex-start;
+    -unity-text-align: middle-left;
+    margin-top: var(--uap-space-xs);
+    margin-bottom: 0;
+    margin-left: 0;
+    margin-right: 0;
+    padding-top: var(--uap-space-s);
+    padding-bottom: var(--uap-space-s);
+    padding-left: var(--uap-space-m);
+    padding-right: var(--uap-space-m);
+    background-color: var(--uap-bg-elevated);
+    border-width: 1px;
+    border-top-color: var(--uap-border-subtle);
+    border-bottom-color: var(--uap-border-subtle);
+    border-left-color: var(--uap-border-subtle);
+    border-right-color: var(--uap-border-subtle);
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+    font-size: var(--uap-font-size-body);
+    color: var(--uap-text-primary);
+    white-space: normal;
+}
+
+.uap-perm-option:hover {
+    background-color: var(--uap-bg-hover);
+}
+
+/* 2026-08-14 UI polish audit: the panel had exactly one :focus rule
+   (the composer field) before this round -- keyboard focus on a question
+   option was otherwise invisible. Mirrors that composer treatment
+   (accent-user border) rather than inventing a new focus language. */
+.uap-perm-option:focus {
+    border-top-color: var(--uap-accent-user);
+    border-bottom-color: var(--uap-accent-user);
+    border-left-color: var(--uap-accent-user);
+    border-right-color: var(--uap-accent-user);
+}
+
+.uap-perm-option--selected {
+    background-color: var(--uap-bg-selected);
+    color: var(--uap-on-accent);
+    border-top-color: var(--uap-accent-user);
+    border-bottom-color: var(--uap-accent-user);
+    border-left-color: var(--uap-accent-user);
+    border-right-color: var(--uap-accent-user);
+}
+
+.uap-perm-option--selected:hover {
+    background-color: var(--uap-bg-selected);
+}
+
+.uap-perm-option-label {
+    font-size: var(--uap-font-size-body);
+    white-space: normal;
+    -unity-text-align: middle-left;
+}
+
+.uap-perm-option-desc {
+    font-size: var(--uap-font-size-small);
+    color: var(--uap-text-secondary);
+    white-space: normal;
+    -unity-text-align: middle-left;
+}
+
+.uap-perm-option--selected .uap-perm-option-desc {
+    color: var(--uap-on-accent);
+}
+
+/* 2026-08-14 UI polish audit: PermissionCard.cs has emitted this class on
+   the synthetic "Other..." option button since it was added, but no rule
+   ever matched it -- it rendered identically to every real option, with
+   no visual cue that picking it opens a free-text field rather than
+   selecting a fixed choice. Sunken background sets it apart from the
+   elevated real options; the italic secondary label (descendant selector,
+   not the option itself, so the option's own border/selection states are
+   untouched) reads as a prompt rather than a fixed answer. */
+.uap-perm-option--other {
+    background-color: var(--uap-bg-sunken);
+}
+
+.uap-perm-option--other .uap-perm-option-label {
+    color: var(--uap-text-secondary);
+    -unity-font-style: italic;
+}
+
+/* Free-text field for the synthetic "Other..." option (shown only while
+   that option is selected). Indented under its option button so it reads
+   as the option's own input, not another question-level control; the
+   inner #unity-text-input restyle mirrors .uap-perm-denyfield -- the one
+   other free-text entry this card owns -- so the two fields cannot drift
+   apart visually. Longhand margins on purpose (UssHygieneTests: no var()
+   inside shorthands). */
+.uap-perm-other-field {
+    margin-top: var(--uap-space-xs);
+    margin-bottom: 0;
+    margin-left: var(--uap-space-m);
+    margin-right: 0;
+}
+
+.uap-perm-other-field #unity-text-input {
+    background-color: var(--uap-bg-sunken);
+    border-top-color: var(--uap-border);
+    border-bottom-color: var(--uap-border);
+    border-left-color: var(--uap-border);
+    border-right-color: var(--uap-border);
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+    font-size: var(--uap-font-size-meta);
+    color: var(--uap-text-primary);
+}
+
+/* ---- Banners (resume / reconnect) --------------------------------------------- */
+
+.uap-banner {
+    /* Safety net for the trailing-control column: see
+       docs/design-notes/2026-08-03-list-row-control-alignment.md section 3.1.
+       This row already has a flex-grow child, so there is no free space to
+       distribute and this has no visible effect TODAY -- that is the point.
+       If a future edit drops that flex-grow, the trailing control still
+       lands in a straight column instead of drifting with content width. */
+    justify-content: space-between;
+    flex-direction: row;
+    align-items: center;
+    padding-top: var(--uap-space-s);
+    padding-bottom: var(--uap-space-s);
+    padding-left: var(--uap-space-m);
+    padding-right: var(--uap-space-m);
+    border-bottom-width: 1px;
+    border-bottom-color: var(--uap-border);
+    flex-shrink: 0;
+}
+
+.uap-banner--info { background-color: var(--uap-bg-elevated); }
+.uap-banner--ok { background-color: var(--uap-diff-add-bg); }
+.uap-banner--warn { background-color: var(--uap-permission-bg); }
+
+.uap-banner-text {
+    flex-grow: 1;
+    flex-shrink: 1;
+    white-space: normal;
+    font-size: var(--uap-font-size-meta);
+    color: var(--uap-text-primary);
+}
+
+.uap-banner-btn {
+    font-size: var(--uap-font-size-meta);
+    padding: 1px 8px;
+    margin-top: 0;
+    margin-right: 0;
+    margin-bottom: 0;
+    margin-left: var(--uap-space-s);
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+    border-width: 1px;
+    border-top-color: var(--uap-border-subtle);
+    border-bottom-color: var(--uap-border-subtle);
+    border-left-color: var(--uap-border-subtle);
+    border-right-color: var(--uap-border-subtle);
+    background-color: var(--uap-bg-base);
+    color: var(--uap-text-primary);
+    flex-shrink: 0;
+}
+
+.uap-banner-btn:hover {
+    background-color: var(--uap-bg-hover);
+}
+
+.uap-banner-btn:active {
+    background-color: var(--uap-bg-active);
+}
+
+.uap-banner-btn:focus {
+    border-top-color: var(--uap-focus-ring);
+    border-bottom-color: var(--uap-focus-ring);
+    border-left-color: var(--uap-focus-ring);
+    border-right-color: var(--uap-focus-ring);
+}
+
+/* ---- Empty state ------------------------------------------------------------------ */
+
+.uap-empty {
+    flex-grow: 1;
+    justify-content: center;
+    align-items: center;
+    padding-top: var(--uap-space-xl);
+    padding-bottom: var(--uap-space-xl);
+    padding-left: var(--uap-space-xl);
+    padding-right: var(--uap-space-xl);
+}
+
+.uap-empty-spark {
+    font-size: var(--uap-font-size-spark-xl);
+    color: var(--uap-accent-agent);
+    -unity-font-style: bold;
+    margin-bottom: var(--uap-space-m);
+}
+
+.uap-empty-title {
+    font-size: var(--uap-font-size-title);
+    -unity-font-style: bold;
+    margin-bottom: var(--uap-space-s);
+}
+
+.uap-empty-sub {
+    font-size: var(--uap-font-size-meta);
+    color: var(--uap-text-secondary);
+    margin-bottom: var(--uap-space-xl);
+    white-space: normal;
+    -unity-text-align: middle-center;
+}
+
+.uap-chip {
+    padding-top: var(--uap-space-s);
+    padding-bottom: var(--uap-space-s);
+    padding-left: var(--uap-space-m);
+    padding-right: var(--uap-space-m);
+    margin-top: var(--uap-space-xs);
+    margin-bottom: var(--uap-space-xs);
+    margin-left: var(--uap-space-xs);
+    margin-right: var(--uap-space-xs);
+    border-top-left-radius: var(--uap-radius-pill);
+    border-top-right-radius: var(--uap-radius-pill);
+    border-bottom-left-radius: var(--uap-radius-pill);
+    border-bottom-right-radius: var(--uap-radius-pill);
+    background-color: var(--uap-bg-elevated);
+    border-width: 1px;
+    border-top-color: var(--uap-border-subtle);
+    border-bottom-color: var(--uap-border-subtle);
+    border-left-color: var(--uap-border-subtle);
+    border-right-color: var(--uap-border-subtle);
+    font-size: var(--uap-font-size-meta);
+    color: var(--uap-text-primary);
+}
+
+.uap-chip:hover,
+.uap-chip:focus {
+    background-color: var(--uap-bg-hover);
+    border-top-color: var(--uap-accent-user);
+    border-bottom-color: var(--uap-accent-user);
+    border-left-color: var(--uap-accent-user);
+    border-right-color: var(--uap-accent-user);
+}
+
+.uap-chip:active {
+    background-color: var(--uap-bg-active);
+}
+
+/* ---- First-run cards ------------------------------------------------------------------ */
+
+.uap-firstrun {
+    flex-grow: 1;
+    align-items: center;
+    justify-content: center;
+    padding-top: var(--uap-space-xl);
+    padding-bottom: var(--uap-space-xl);
+    padding-left: var(--uap-space-xl);
+    padding-right: var(--uap-space-xl);
+}
+
+.uap-card {
+    max-width: 440px;
+    width: 100%;
+    background-color: var(--uap-bg-elevated);
+    border-width: 1px;
+    border-top-color: var(--uap-border-subtle);
+    border-bottom-color: var(--uap-border-subtle);
+    border-left-color: var(--uap-border-subtle);
+    border-right-color: var(--uap-border-subtle);
+    /* --uap-radius-card, matching the token's own stated purpose
+       (2026-08-14 token-hygiene note): the class literally named card
+       used the control radius while the token literally named card
+       styled only the Settings section chrome. Cards now mean one
+       shape everywhere. */
+    border-top-left-radius: var(--uap-radius-card);
+    border-top-right-radius: var(--uap-radius-card);
+    border-bottom-left-radius: var(--uap-radius-card);
+    border-bottom-right-radius: var(--uap-radius-card);
+    padding-top: var(--uap-space-xl);
+    padding-bottom: var(--uap-space-xl);
+    padding-left: var(--uap-space-xl);
+    padding-right: var(--uap-space-xl);
+}
+
+.uap-card-title {
+    font-size: var(--uap-font-size-title);
+    -unity-font-style: bold;
+    margin-bottom: var(--uap-space-m);
+}
+
+.uap-card-body {
+    font-size: var(--uap-font-size-body);
+    white-space: normal;
+    color: var(--uap-text-primary);
+    margin-bottom: var(--uap-space-m);
+}
+
+.uap-card-detail {
+    font-size: var(--uap-font-size-small);
+    white-space: normal;
+    color: var(--uap-text-secondary);
+    margin-top: var(--uap-space-m);
+}
+
+.uap-card-row {
+    flex-direction: row;
+    align-items: center;
+    margin-top: var(--uap-space-s);
+}
+
+/* UXO-4: the login card's collapsed "another way" terminal path. */
+.uap-card-foldout {
+    margin-top: 6px;
+}
+
+/* flex-shrink is stated explicitly even though 0 is UI Toolkit's default.
+   This class is reused at a dozen unrelated call sites, several of which
+   are the trailing control of a row and depend on not shrinking (the
+   extension-profile Approve/Revoke button and FirstRunView's Browse button
+   have no other protection). Relying on the implicit default means one
+   unrelated edit here silently regresses rows nobody was thinking about --
+   which is how the v0.9.0 off-screen-delete-button defect happened. */
+.uap-card-btn {
+    flex-shrink: 0;
+    font-size: var(--uap-font-size-meta);
+    padding-top: var(--uap-btn-pad-y);
+    padding-bottom: var(--uap-btn-pad-y);
+    padding-left: var(--uap-btn-pad-x);
+    padding-right: var(--uap-btn-pad-x);
+    margin-top: 0;
+    margin-bottom: 0;
+    margin-left: 0;
+    margin-right: var(--uap-space-s);
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+    border-width: 1px;
+    border-top-color: var(--uap-border-subtle);
+    border-bottom-color: var(--uap-border-subtle);
+    border-left-color: var(--uap-border-subtle);
+    border-right-color: var(--uap-border-subtle);
+    background-color: var(--uap-bg-base);
+    color: var(--uap-text-primary);
+}
+
+.uap-card-btn:hover {
+    background-color: var(--uap-bg-hover);
+}
+
+.uap-card-btn:active {
+    background-color: var(--uap-bg-active);
+}
+
+/* 2026-08-14 UI polish audit: mirrors the composer's accent-user focus
+   border -- one of three controls (with .uap-perm-option, .uap-perm-qtab)
+   that had no visible keyboard-focus state before this round. */
+.uap-card-btn:focus {
+    border-top-color: var(--uap-accent-user);
+    border-bottom-color: var(--uap-accent-user);
+    border-left-color: var(--uap-accent-user);
+    border-right-color: var(--uap-accent-user);
+}
+
+/* 2026-08-14 UI polish audit: the stylesheet had zero :disabled rules
+   before this round (Unity's own default disabled look does not follow
+   this package's theme tokens), so a disabled card button rendered
+   identically to an enabled one. bg-elevated/border-subtle/text-disabled
+   reuse the same "flattened, no accent" language every other disabled-ish
+   surface in the panel already uses. */
+.uap-card-btn:disabled {
+    background-color: var(--uap-bg-elevated);
+    border-top-color: var(--uap-border-subtle);
+    border-bottom-color: var(--uap-border-subtle);
+    border-left-color: var(--uap-border-subtle);
+    border-right-color: var(--uap-border-subtle);
+    color: var(--uap-text-disabled);
+}
+
+.uap-card-btn--primary {
+    background-color: var(--uap-accent-user);
+    border-top-color: var(--uap-accent-user);
+    border-bottom-color: var(--uap-accent-user);
+    border-left-color: var(--uap-accent-user);
+    border-right-color: var(--uap-accent-user);
+    color: var(--uap-on-accent);
+}
+
+/* Same rationale as .uap-card-btn:disabled above -- without this, a
+   disabled primary button kept its full accent-user fill and read as
+   clickable. Overrides the accent fill back down to the same flattened
+   disabled surface so "primary" and "secondary" converge once neither is
+   actionable. */
+.uap-card-btn--primary:disabled {
+    background-color: var(--uap-bg-elevated);
+    border-top-color: var(--uap-border-subtle);
+    border-bottom-color: var(--uap-border-subtle);
+    border-left-color: var(--uap-border-subtle);
+    border-right-color: var(--uap-border-subtle);
+    color: var(--uap-text-disabled);
+}
+
+.uap-card-btn--primary:hover {
+    background-color: var(--uap-bg-selected);
+}
+
+.uap-card-btn--primary:active {
+    background-color: var(--uap-bg-selected);
+    border-top-color: var(--uap-bg-selected);
+    border-bottom-color: var(--uap-bg-selected);
+    border-left-color: var(--uap-bg-selected);
+    border-right-color: var(--uap-bg-selected);
+}
+
+/* Same on-accent ring rationale as .uap-send-btn:focus. */
+.uap-card-btn--primary:focus {
+    border-top-color: var(--uap-on-accent);
+    border-bottom-color: var(--uap-on-accent);
+    border-left-color: var(--uap-on-accent);
+    border-right-color: var(--uap-on-accent);
+}
+
+/* 2026-09-05 UI redesign (D4): the "stop this" member of a button row.
+   Deny used to be a visual peer of Always; now it keeps the plain shell
+   (so it never outranks Allow) but its text is error red and the border
+   joins it on hover -- distinct at a glance, still not a filled alarm
+   (filled red stays reserved for Stop, which halts a RUNNING turn). */
+.uap-card-btn--danger {
+    color: var(--uap-status-error);
+}
+
+.uap-card-btn--danger:hover {
+    background-color: var(--uap-bg-hover);
+    border-top-color: var(--uap-status-error);
+    border-bottom-color: var(--uap-status-error);
+    border-left-color: var(--uap-status-error);
+    border-right-color: var(--uap-status-error);
+}
+
+.uap-card-btn--danger:active {
+    background-color: var(--uap-bg-active);
+}
+
+.uap-card-btn--danger:focus {
+    border-top-color: var(--uap-status-error);
+    border-bottom-color: var(--uap-status-error);
+    border-left-color: var(--uap-status-error);
+    border-right-color: var(--uap-status-error);
+}
+
+/* 2026-08-14 UI polish audit: transparent/borderless secondary for the
+   AskUserQuestion card's Skip action -- sits next to the bordered/filled
+   .uap-card-btn / .uap-card-btn--primary pair and needs to visually read
+   as the lowest-weight of the three rather than a third equally-boxed
+   button. */
+.uap-card-btn--quiet {
+    background-color: rgba(0, 0, 0, 0);
+    border-width: 0;
+    color: var(--uap-text-secondary);
+}
+
+.uap-card-btn--quiet:hover {
+    background-color: var(--uap-bg-hover);
+    color: var(--uap-text-primary);
+}
+
+.uap-card-btn--quiet:active {
+    background-color: var(--uap-bg-active);
+}
+
+/* flex-shrink and min-width are load-bearing, and this is the worst
+   instance of the BaseField-in-a-row trap in the package -- worse than the
+   History filter bar that exposed the class, because there is no scrollbar
+   to recover with here.
+
+   This TextField holds a user/machine-supplied absolute path to the CLI
+   executable; an npm global install on Windows routinely runs 60-90+
+   characters. A TextField's preferred width follows its content, and with
+   flex-shrink at UI Toolkit's implicit 0 it could not give any of that
+   back, so it would push its sibling Browse button (.uap-card-btn,
+   flex-shrink: 0) out of the row -- and the ancestor .uap-view-container
+   sets overflow: hidden, so the button would be CLIPPED AWAY with no way
+   to scroll to it. That is the first-run card's only recovery action, on
+   the screen a user sees precisely because their CLI path is wrong.
+
+   Note the earlier comment on .uap-card-btn said this row's Browse button
+   "has no other protection" -- only the button side was ever hardened,
+   never the field side. This is that other half. */
+.uap-card-path {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 80px;
+    margin-top: 0;
+    margin-bottom: 0;
+    margin-left: 0;
+    margin-right: var(--uap-space-s);
+}
+
+.uap-card-path #unity-text-input {
+    background-color: var(--uap-bg-sunken);
+    border-top-color: var(--uap-border);
+    border-bottom-color: var(--uap-border);
+    border-left-color: var(--uap-border);
+    border-right-color: var(--uap-border);
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+    font-size: var(--uap-font-size-meta);
+}
+
+/* ---- Markdown & tool cards ---- */
+
+/* Markdown block tree (finalized messages; MarkdownRenderer). Inline
+   colors (link / inline code) are rich-text literals set in C# because
+   rich text cannot reference USS variables. */
+
+.uap-md {
+    flex-shrink: 0;
+}
+
+.uap-md-p {
+    white-space: normal;
+    font-size: var(--uap-font-size-body);
+    color: var(--uap-text-primary);
+    margin-top: var(--uap-space-xs);
+    margin-bottom: var(--uap-space-xs);
+}
+
+.uap-md-h1 {
+    white-space: normal;
+    font-size: var(--uap-font-size-h1);
+    -unity-font-style: bold;
+    color: var(--uap-text-primary);
+    margin-top: var(--uap-space-m);
+    margin-bottom: var(--uap-space-s);
+}
+
+.uap-md-h2 {
+    white-space: normal;
+    font-size: var(--uap-font-size-h2);
+    -unity-font-style: bold;
+    color: var(--uap-text-primary);
+    margin-top: var(--uap-space-m);
+    margin-bottom: var(--uap-space-s);
+}
+
+.uap-md-h3 {
+    white-space: normal;
+    font-size: var(--uap-font-size-h3);
+    -unity-font-style: bold;
+    color: var(--uap-text-primary);
+    margin-top: var(--uap-space-s);
+    margin-bottom: var(--uap-space-xs);
+}
+
+.uap-md-h4 {
+    white-space: normal;
+    font-size: var(--uap-font-size-h3);
+    -unity-font-style: bold;
+    color: var(--uap-text-secondary);
+    margin-top: var(--uap-space-s);
+    margin-bottom: var(--uap-space-xs);
+}
+
+.uap-md-hr {
+    height: 1px;
+    background-color: var(--uap-border-subtle);
+    margin-top: var(--uap-space-m);
+    margin-bottom: var(--uap-space-m);
+}
+
+.uap-md-quote {
+    border-left-width: 2px;
+    border-left-color: var(--uap-border-subtle);
+    padding-left: var(--uap-space-m);
+    margin-top: var(--uap-space-s);
+    margin-bottom: var(--uap-space-s);
+}
+
+.uap-md-quote-text {
+    white-space: normal;
+    font-size: var(--uap-font-size-body);
+    color: var(--uap-text-secondary);
+}
+
+.uap-md-li {
+    flex-direction: row;
+    align-items: flex-start;
+    margin-top: 0;
+    margin-bottom: var(--uap-space-xs);
+}
+
+.uap-md-li--nested {
+    margin-left: var(--uap-space-xl);
+}
+
+.uap-md-li-marker {
+    width: 18px;
+    flex-shrink: 0;
+    font-size: var(--uap-font-size-body);
+    color: var(--uap-text-secondary);
+    -unity-text-align: upper-right;
+    padding-right: var(--uap-space-s);
+}
+
+.uap-md-li-text {
+    flex-grow: 1;
+    flex-shrink: 1;
+    white-space: normal;
+    font-size: var(--uap-font-size-body);
+    color: var(--uap-text-primary);
+}
+
+/* Pipe tables (MarkdownRenderer + MarkdownTableParser): sunken container
+   in the CodeBlockElement family, header row bold with a bottom border,
+   optional zebra body rows via --uap-md-zebra-bg (transparent disables),
+   horizontal ScrollView wrapper for wide tables. */
+
+.uap-md-tablewrap {
+    flex-shrink: 0;
+    margin-top: var(--uap-space-s);
+    margin-bottom: var(--uap-space-s);
+    background-color: var(--uap-bg-sunken);
+    border-width: 1px;
+    border-top-color: var(--uap-border);
+    border-bottom-color: var(--uap-border);
+    border-left-color: var(--uap-border);
+    border-right-color: var(--uap-border);
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+}
+
+.uap-md-table {
+    flex-direction: column;
+}
+
+.uap-md-tr {
+    flex-direction: row;
+    border-bottom-width: 1px;
+    border-bottom-color: var(--uap-border-subtle);
+}
+
+.uap-md-tr--head {
+    border-bottom-width: 1px;
+    border-bottom-color: var(--uap-border);
+}
+
+.uap-md-tr--alt {
+    background-color: var(--uap-md-zebra-bg);
+}
+
+.uap-md-th {
+    flex-grow: 1;
+    flex-basis: 0;
+    white-space: normal;
+    font-size: var(--uap-font-size-meta);
+    -unity-font-style: bold;
+    color: var(--uap-text-primary);
+    padding-top: var(--uap-space-s);
+    padding-bottom: var(--uap-space-s);
+    padding-left: var(--uap-space-s);
+    padding-right: var(--uap-space-s);
+}
+
+.uap-md-td {
+    flex-grow: 1;
+    flex-basis: 0;
+    white-space: normal;
+    font-size: var(--uap-font-size-meta);
+    color: var(--uap-text-primary);
+    padding-top: var(--uap-space-xs);
+    padding-bottom: var(--uap-space-xs);
+    padding-left: var(--uap-space-s);
+    padding-right: var(--uap-space-s);
+}
+
+.uap-md-cell--center {
+    -unity-text-align: upper-center;
+}
+
+.uap-md-cell--right {
+    -unity-text-align: upper-right;
+}
+
+/* Code block body: horizontal scroll + selectable text via a read-only
+   TextField styled to look like plain text (R03 4.1). */
+
+.uap-code-scroll {
+    flex-shrink: 0;
+}
+
+.uap-code-field {
+    margin: 0;
+    padding: 0;
+    flex-shrink: 0;
+}
+
+.uap-code-field #unity-text-input {
+    background-color: rgba(0, 0, 0, 0);
+    border-width: 0;
+    padding-top: var(--uap-space-s);
+    padding-bottom: var(--uap-space-s);
+    padding-left: var(--uap-space-s);
+    padding-right: var(--uap-space-s);
+    font-size: var(--uap-font-size-code);
+    color: var(--uap-text-primary);
+    white-space: nowrap;
+}
+
+/* Tool activity cards (collapsible; R05 2.4) */
+
+.uap-toolcard {
+    background-color: var(--uap-bg-elevated);
+    border-width: 1px;
+    border-top-color: var(--uap-border-subtle);
+    border-bottom-color: var(--uap-border-subtle);
+    border-left-color: var(--uap-border-subtle);
+    border-right-color: var(--uap-border-subtle);
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+    margin-top: var(--uap-space-xs);
+    margin-bottom: var(--uap-space-xs);
+    flex-shrink: 0;
+}
+
+.uap-toolcard--failed {
+    border-left-color: var(--uap-status-error);
+    border-left-width: 2px;
+}
+
+/* 2026-09-05 UI redesign (D3): denied gets the same 2px accent bar as
+   failed, in the caution tone -- see .uap-tool-glyph--denied. */
+.uap-toolcard--denied {
+    border-left-color: var(--uap-accent-caution);
+    border-left-width: 2px;
+}
+
+.uap-toolcard-header {
+    /* Safety net for the trailing-control column: see
+       docs/design-notes/2026-08-03-list-row-control-alignment.md section 3.1.
+       This row already has a flex-grow child, so there is no free space to
+       distribute and this has no visible effect TODAY -- that is the point.
+       If a future edit drops that flex-grow, the trailing control still
+       lands in a straight column instead of drifting with content width. */
+    justify-content: space-between;
+    flex-direction: row;
+    align-items: center;
+    padding-top: var(--uap-space-xs);
+    padding-bottom: var(--uap-space-xs);
+    padding-left: var(--uap-space-s);
+    padding-right: var(--uap-space-s);
+}
+
+.uap-toolcard-header:hover {
+    background-color: var(--uap-bg-hover);
+}
+
+.uap-toolcard-toolicon {
+    width: 14px;
+    height: 14px;
+    margin-right: var(--uap-space-s);
+    flex-shrink: 0;
+}
+
+.uap-toolcard-toolglyph {
+    font-size: var(--uap-font-size-meta);
+    color: var(--uap-text-secondary);
+    margin-right: var(--uap-space-s);
+    flex-shrink: 0;
+}
+
+/* This label was flex-shrink: 0 with no cap, which was safe only while
+   every tool was called "Read" or "Bash". It is not any more: this package
+   ships its own in-editor MCP server, and a UapOps call renders a name
+   like mcp__unity-ops__uap_query_component_types (41 chars, measured on
+   screen) or mcp__uap-ops__uap_prefab_revert_added_gameobject (48). At
+   fontSize 11 the 48-char name measures 300.5 px against a content column
+   of about 300 px -- unshrinkable, it eats the whole header, starves
+   .uap-toolcard-summary and pushes the time and expand chevron out of a
+   container that clips, so the card cannot be expanded at all. Shrinking
+   plus a hard cap makes that structurally impossible; the C# side
+   separately strips the mcp__server__ prefix so the ellipsis is rarely
+   reached and never hides the meaningful tail. Same shape, same fix, on
+   .uap-subcard-type. */
+.uap-toolcard-name {
+    font-size: var(--uap-font-size-meta);
+    -unity-font-style: bold;
+    margin-right: var(--uap-space-s);
+    flex-shrink: 1;
+    max-width: 50%;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    color: var(--uap-text-primary);
+}
+
+.uap-toolcard-summary {
+    font-size: var(--uap-font-size-meta);
+    color: var(--uap-text-secondary);
+    flex-grow: 1;
+    flex-shrink: 1;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+/* Stand-in for .uap-toolcard-summary when the card has no summary to
+   show (the describer only echoed the tool name): keeps a flex-grow child
+   in the header so its justify-content: space-between cannot float the
+   name label into the middle of the row. */
+.uap-toolcard-spacer {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 0;
+}
+
+.uap-toolcard-time {
+    font-size: var(--uap-font-size-small);
+    color: var(--uap-text-secondary);
+    margin-left: var(--uap-space-s);
+    flex-shrink: 0;
+}
+
+.uap-toolcard-chevron {
+    font-size: var(--uap-font-size-meta);
+    color: var(--uap-text-secondary);
+    margin-left: var(--uap-space-s);
+    flex-shrink: 0;
+}
+
+.uap-toolcard-details {
+    border-top-width: 1px;
+    border-top-color: var(--uap-border-subtle);
+    padding-top: var(--uap-space-s);
+    padding-bottom: var(--uap-space-s);
+    padding-left: var(--uap-space-m);
+    padding-right: var(--uap-space-m);
+}
+
+.uap-toolcard-section {
+    margin-bottom: var(--uap-space-s);
+}
+
+.uap-toolcard-section-title {
+    font-size: var(--uap-font-size-small);
+    -unity-font-style: bold;
+    color: var(--uap-text-secondary);
+    margin-bottom: var(--uap-space-xs);
+}
+
+/* Internal scroll cap: previews longer than the token height scroll
+   inside the card instead of growing it. */
+.uap-toolcard-scroll {
+    max-height: var(--uap-tool-preview-max);
+    background-color: var(--uap-bg-sunken);
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+}
+
+.uap-toolcard-pre {
+    white-space: normal;
+    font-size: var(--uap-font-size-code);
+    color: var(--uap-text-primary);
+    padding-top: var(--uap-space-s);
+    padding-bottom: var(--uap-space-s);
+    padding-left: var(--uap-space-s);
+    padding-right: var(--uap-space-s);
+}
+
+/* Group row: "N tools (8.4s)" compressing 3+ completed cards */
+
+.uap-toolgroup {
+    background-color: var(--uap-bg-elevated);
+    border-width: 1px;
+    border-top-color: var(--uap-border-subtle);
+    border-bottom-color: var(--uap-border-subtle);
+    border-left-color: var(--uap-border-subtle);
+    border-right-color: var(--uap-border-subtle);
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+    margin-top: var(--uap-space-xs);
+    margin-bottom: var(--uap-space-xs);
+    flex-shrink: 0;
+}
+
+/* 2026-09-05 UI redesign (D3): a collapsed group hiding a failure used to
+   look like any other 1px card apart from its icon -- the single tool
+   card's accent bar never made it up to the group. Same bar, same
+   two tones, so the collapsed row and the expanded child agree. */
+.uap-toolgroup--failed {
+    border-left-color: var(--uap-status-error);
+    border-left-width: 2px;
+}
+
+.uap-toolgroup--denied {
+    border-left-color: var(--uap-accent-caution);
+    border-left-width: 2px;
+}
+
+.uap-toolgroup-header {
+    flex-direction: row;
+    align-items: center;
+    padding-top: var(--uap-space-xs);
+    padding-bottom: var(--uap-space-xs);
+    padding-left: var(--uap-space-s);
+    padding-right: var(--uap-space-s);
+}
+
+.uap-toolgroup-header:hover {
+    background-color: var(--uap-bg-hover);
+}
+
+.uap-toolgroup-title {
+    font-size: var(--uap-font-size-meta);
+    -unity-font-style: bold;
+    color: var(--uap-text-primary);
+    flex-grow: 1;
+}
+
+.uap-toolgroup-children {
+    padding-left: var(--uap-space-m);
+    padding-right: var(--uap-space-s);
+    padding-bottom: var(--uap-space-s);
+}
+
+/* ---- Subagent cards (Phase 4) ---- */
+/* Anchored at the spawning Agent/Task tool_use; ToolActivityCard's visual
+   language plus a left accent border, a "subagent" badge and an indented,
+   internally-scrolling nested-transcript region on expand. */
+
+.uap-subcard {
+    background-color: var(--uap-bg-elevated);
+    border-width: 1px;
+    border-top-color: var(--uap-border-subtle);
+    border-bottom-color: var(--uap-border-subtle);
+    border-left-width: 2px;
+    border-left-color: var(--uap-accent-agent);
+    border-right-color: var(--uap-border-subtle);
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+    margin-top: var(--uap-space-xs);
+    margin-bottom: var(--uap-space-xs);
+    flex-shrink: 0;
+}
+
+.uap-subcard--failed {
+    border-left-color: var(--uap-status-error);
+}
+
+.uap-subcard-header {
+    /* Safety net for the trailing-control column: see
+       docs/design-notes/2026-08-03-list-row-control-alignment.md section 3.1.
+       This row already has a flex-grow child, so there is no free space to
+       distribute and this has no visible effect TODAY -- that is the point.
+       If a future edit drops that flex-grow, the trailing control still
+       lands in a straight column instead of drifting with content width. */
+    justify-content: space-between;
+    flex-direction: row;
+    align-items: center;
+    padding-top: var(--uap-space-xs);
+    padding-bottom: var(--uap-space-xs);
+    padding-left: var(--uap-space-s);
+    padding-right: var(--uap-space-s);
+}
+
+.uap-subcard-header:hover {
+    background-color: var(--uap-bg-hover);
+}
+
+.uap-subcard-badge {
+    font-size: var(--uap-font-size-meta);
+    color: var(--uap-accent-agent);
+    -unity-font-style: bold;
+    margin-right: var(--uap-space-s);
+    flex-shrink: 0;
+}
+
+/* See .uap-toolcard-name for the measurement -- identical shape: an
+   unshrinkable leading label ahead of the single flex-grow column. */
+.uap-subcard-type {
+    font-size: var(--uap-font-size-meta);
+    -unity-font-style: bold;
+    color: var(--uap-text-primary);
+    margin-right: var(--uap-space-s);
+    flex-shrink: 1;
+    max-width: 50%;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.uap-subcard-desc {
+    font-size: var(--uap-font-size-meta);
+    color: var(--uap-text-secondary);
+    flex-grow: 1;
+    flex-shrink: 1;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.uap-subcard-chevron {
+    font-size: var(--uap-font-size-meta);
+    color: var(--uap-text-secondary);
+    margin-left: var(--uap-space-s);
+    flex-shrink: 0;
+}
+
+/* Was white-space: normal (word-wrap). Changed because the measured
+   task_progress descriptions this row renders are often absolute paths
+   ("Writing ~\AppData\Local\Temp\claude\...\scratchpad\s1.txt") with no
+   interior spaces -- word-wrap has nothing to break on, so a long one
+   overflowed the row horizontally instead of wrapping to a second line,
+   the same "silent layout failure, not an error" shape as every other
+   incident logged in docs/design-notes/2026-08-03-list-row-control-
+   alignment.md. SubagentCard.ShortenPathDescription (C#) shortens the
+   common case before it ever reaches this label; nowrap + ellipsis here is
+   the structural backstop for whatever is left (a long tool name or a
+   description this shortener does not recognize), matching the package
+   rule that a label must ellipsize rather than push anything off-screen. */
+.uap-subcard-progress {
+    font-size: var(--uap-font-size-small);
+    color: var(--uap-text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding-left: var(--uap-space-m);
+    padding-right: var(--uap-space-s);
+    padding-bottom: var(--uap-space-xs);
+}
+
+.uap-subcard-details {
+    border-top-width: 1px;
+    border-top-color: var(--uap-border-subtle);
+    padding-top: var(--uap-space-s);
+    padding-bottom: var(--uap-space-s);
+    padding-left: var(--uap-space-m);
+    padding-right: var(--uap-space-m);
+}
+
+.uap-subcard-summary {
+    margin-bottom: var(--uap-space-s);
+}
+
+.uap-subcard-drop-note {
+    font-size: var(--uap-font-size-small);
+    color: var(--uap-text-disabled);
+    margin-bottom: var(--uap-space-s);
+}
+
+/* Internal scroll cap: a long nested transcript scrolls inside the card
+   instead of growing it without bound. */
+.uap-subcard-nested-scroll {
+    max-height: var(--uap-subcard-nested-max);
+}
+
+/* Indented + left rule so the nested transcript visually reads as "inside"
+   the subagent, distinct from the panel's own top-level messages. */
+.uap-subcard-nested {
+    padding-left: var(--uap-space-l);
+    border-left-width: 1px;
+    border-left-color: var(--uap-border-subtle);
+}
+
+/* ---- Attachment chips ---- */
+/* Context attachments inside a user message: a compact CONTENT-HUGGING
+   chip (icon + title + chevron; align-self keeps it from stretching into
+   a Foldout-like full-width bar) with the expanded payload appearing
+   BELOW the chip, full-width, in a sunken monospace box with an internal
+   scroll cap (token --uap-attach-pre-max). */
+
+.uap-attach {
+    flex-direction: column;
+    align-items: stretch;
+    margin-top: var(--uap-space-xs);
+    margin-bottom: var(--uap-space-xs);
+    flex-shrink: 0;
+}
+
+.uap-attach-chip {
+    flex-direction: row;
+    align-items: center;
+    align-self: flex-start;
+    max-width: 60%;
+    background-color: var(--uap-bg-elevated);
+    border-width: 1px;
+    border-top-color: var(--uap-border-subtle);
+    border-bottom-color: var(--uap-border-subtle);
+    border-left-color: var(--uap-border-subtle);
+    border-right-color: var(--uap-border-subtle);
+    border-top-left-radius: var(--uap-radius-pill);
+    border-top-right-radius: var(--uap-radius-pill);
+    border-bottom-left-radius: var(--uap-radius-pill);
+    border-bottom-right-radius: var(--uap-radius-pill);
+    padding-top: var(--uap-space-xs);
+    padding-bottom: var(--uap-space-xs);
+    padding-left: var(--uap-space-m);
+    padding-right: var(--uap-space-s);
+}
+
+.uap-attach-chip:hover {
+    background-color: var(--uap-bg-hover);
+}
+
+.uap-attach-icon {
+    width: 12px;
+    height: 12px;
+    margin-right: var(--uap-space-s);
+    flex-shrink: 0;
+}
+
+.uap-attach-glyph {
+    font-size: var(--uap-font-size-meta);
+    color: var(--uap-text-secondary);
+    margin-right: var(--uap-space-s);
+    flex-shrink: 0;
+}
+
+.uap-attach-title {
+    font-size: var(--uap-font-size-meta);
+    color: var(--uap-text-secondary);
+    flex-shrink: 1;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.uap-attach-chevron {
+    font-size: var(--uap-font-size-meta);
+    color: var(--uap-text-secondary);
+    margin-left: var(--uap-space-s);
+    flex-shrink: 0;
+}
+
+/* Full-width payload box below the chip. Internal scroll cap: payloads
+   longer than the token height scroll inside the box instead of growing
+   the message. */
+.uap-attach-scroll {
+    max-height: var(--uap-attach-pre-max);
+    background-color: var(--uap-bg-sunken);
+    border-width: 1px;
+    border-top-color: var(--uap-border-subtle);
+    border-bottom-color: var(--uap-border-subtle);
+    border-left-color: var(--uap-border-subtle);
+    border-right-color: var(--uap-border-subtle);
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+    margin-top: var(--uap-space-xs);
+}
+
+.uap-attach-pre {
+    white-space: normal;
+    font-size: var(--uap-font-size-code);
+    color: var(--uap-text-primary);
+    padding-top: var(--uap-space-s);
+    padding-bottom: var(--uap-space-s);
+    padding-left: var(--uap-space-s);
+    padding-right: var(--uap-space-s);
+}
+
+/* ---- Drag & drop overlay ---- */
+/* Full-panel drop target shown only DURING a drag with valid objects.
+   Everything ignores picking (PickingMode.Ignore in C#) so the drop
+   always lands on the panel below. USS has no dashed borders in 2022.3,
+   so the frame uses a solid accent border instead. */
+
+.uap-droptarget {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--uap-drop-overlay-bg);
+    border-width: 2px;
+    border-top-color: var(--uap-drop-border);
+    border-bottom-color: var(--uap-drop-border);
+    border-left-color: var(--uap-drop-border);
+    border-right-color: var(--uap-drop-border);
+    justify-content: center;
+    align-items: center;
+}
+
+.uap-droptarget-box {
+    flex-direction: row;
+    align-items: center;
+    background-color: var(--uap-bg-elevated);
+    border-width: 2px;
+    border-top-color: var(--uap-drop-border);
+    border-bottom-color: var(--uap-drop-border);
+    border-left-color: var(--uap-drop-border);
+    border-right-color: var(--uap-drop-border);
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+    padding-top: var(--uap-space-m);
+    padding-bottom: var(--uap-space-m);
+    padding-left: var(--uap-space-xl);
+    padding-right: var(--uap-space-xl);
+}
+
+.uap-droptarget-icon {
+    width: 18px;
+    height: 18px;
+    margin-right: var(--uap-space-s);
+    flex-shrink: 0;
+}
+
+.uap-droptarget-glyph {
+    font-size: var(--uap-font-size-title);
+    color: var(--uap-accent-user);
+    margin-right: var(--uap-space-s);
+}
+
+.uap-droptarget-label {
+    font-size: var(--uap-font-size-title);
+    -unity-font-style: bold;
+    color: var(--uap-text-primary);
+}
+
+/* ---- Context bar ---- */
+
+.uap-ctxbar {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    flex-shrink: 0;
+    padding-top: var(--uap-space-s);
+    padding-bottom: 0;
+    padding-left: var(--uap-space-m);
+    padding-right: var(--uap-space-m);
+    border-top-width: 1px;
+    border-top-color: var(--uap-border);
+}
+
+.uap-ctx-attach {
+    font-size: var(--uap-font-size-small);
+    padding: 1px 6px;
+    margin-top: 0;
+    margin-bottom: var(--uap-space-s);
+    margin-left: 0;
+    margin-right: var(--uap-space-s);
+    background-color: rgba(0, 0, 0, 0);
+    border-width: 1px;
+    border-top-color: var(--uap-border-subtle);
+    border-bottom-color: var(--uap-border-subtle);
+    border-left-color: var(--uap-border-subtle);
+    border-right-color: var(--uap-border-subtle);
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+    color: var(--uap-text-secondary);
+    flex-shrink: 0;
+}
+
+.uap-ctx-attach:hover {
+    background-color: var(--uap-bg-hover);
+    color: var(--uap-text-primary);
+}
+
+.uap-ctx-attach:active {
+    background-color: var(--uap-bg-active);
+}
+
+.uap-ctx-attach:focus {
+    border-top-color: var(--uap-focus-ring);
+    border-bottom-color: var(--uap-focus-ring);
+    border-left-color: var(--uap-focus-ring);
+    border-right-color: var(--uap-focus-ring);
+}
+
+.uap-ctx-attach--on {
+    background-color: var(--uap-bg-selected);
+    border-top-color: var(--uap-accent-user);
+    border-bottom-color: var(--uap-accent-user);
+    border-left-color: var(--uap-accent-user);
+    border-right-color: var(--uap-accent-user);
+    color: var(--uap-on-accent);
+}
+
+.uap-ctx-attach--on:hover {
+    background-color: var(--uap-bg-selected);
+    color: var(--uap-on-accent);
+}
+
+.uap-ctx-chiphost {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    flex-shrink: 1;
+}
+
+.uap-ctx-chip {
+    flex-direction: row;
+    align-items: center;
+    max-width: var(--uap-ctx-chip-max);
+    background-color: var(--uap-bg-elevated);
+    border-width: 1px;
+    border-top-color: var(--uap-border-subtle);
+    border-bottom-color: var(--uap-border-subtle);
+    border-left-color: var(--uap-border-subtle);
+    border-right-color: var(--uap-border-subtle);
+    border-top-left-radius: var(--uap-radius-pill);
+    border-top-right-radius: var(--uap-radius-pill);
+    border-bottom-left-radius: var(--uap-radius-pill);
+    border-bottom-right-radius: var(--uap-radius-pill);
+    padding-top: 1px;
+    padding-bottom: 1px;
+    padding-left: var(--uap-space-s);
+    padding-right: var(--uap-space-xs);
+    margin-top: 0;
+    margin-bottom: var(--uap-space-s);
+    margin-left: 0;
+    margin-right: var(--uap-space-s);
+    flex-shrink: 0;
+}
+
+.uap-ctx-chip:hover {
+    background-color: var(--uap-bg-hover);
+}
+
+.uap-ctx-chip-icon {
+    width: 12px;
+    height: 12px;
+    margin-right: var(--uap-space-xs);
+    flex-shrink: 0;
+}
+
+.uap-ctx-chip-glyph {
+    font-size: var(--uap-font-size-small);
+    color: var(--uap-text-secondary);
+    margin-right: var(--uap-space-xs);
+    flex-shrink: 0;
+}
+
+/* --error, renamed from --warn (2026-08-14 token-hygiene note): the one
+   warn-NAMED rule in this file whose color resolved to the error token.
+   It rides the error chip's error-severity glyph, so the color was
+   right and the name was the lie. ContextBarView renamed with it. */
+.uap-ctx-chip-glyph--error {
+    font-size: var(--uap-font-size-small);
+    color: var(--uap-status-error);
+    margin-right: var(--uap-space-xs);
+    flex-shrink: 0;
+}
+
+.uap-ctx-chip-label {
+    font-size: var(--uap-font-size-meta);
+    color: var(--uap-text-primary);
+    flex-shrink: 1;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.uap-ctx-chip-x {
+    width: 14px;
+    height: 14px;
+    padding: 0;
+    margin-top: 0;
+    margin-bottom: 0;
+    margin-left: var(--uap-space-xs);
+    margin-right: 0;
+    background-color: rgba(0, 0, 0, 0);
+    border-width: 0;
+    border-top-left-radius: 7px;
+    border-top-right-radius: 7px;
+    border-bottom-left-radius: 7px;
+    border-bottom-right-radius: 7px;
+    color: var(--uap-text-secondary);
+    font-size: var(--uap-font-size-meta);
+    -unity-text-align: middle-center;
+    flex-shrink: 0;
+}
+
+.uap-ctx-chip-x:hover {
+    background-color: var(--uap-bg-hover);
+    color: var(--uap-text-primary);
+}
+
+.uap-ctx-chip-x:active {
+    background-color: var(--uap-bg-active);
+}
+
+/* Automatic Console-error chip: warning surface + error-family left bar. */
+.uap-ctx-chip--error {
+    background-color: var(--uap-permission-bg);
+    border-left-width: 2px;
+    border-left-color: var(--uap-status-error);
+}
+
+.uap-ctx-chip--error:hover {
+    background-color: var(--uap-permission-bg);
+}
+
+.uap-ctx-fixbtn {
+    font-size: var(--uap-font-size-small);
+    padding: 0 6px;
+    margin-top: 0;
+    margin-bottom: 0;
+    margin-left: var(--uap-space-s);
+    margin-right: 0;
+    border-width: 1px;
+    border-top-color: var(--uap-accent-user);
+    border-bottom-color: var(--uap-accent-user);
+    border-left-color: var(--uap-accent-user);
+    border-right-color: var(--uap-accent-user);
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+    background-color: var(--uap-accent-user);
+    color: var(--uap-on-accent);
+    flex-shrink: 0;
+}
+
+.uap-ctx-fixbtn:hover,
+.uap-ctx-fixbtn:active {
+    background-color: var(--uap-bg-selected);
+}
+
+.uap-ctx-fixbtn:focus {
+    border-top-color: var(--uap-on-accent);
+    border-bottom-color: var(--uap-on-accent);
+    border-left-color: var(--uap-on-accent);
+    border-right-color: var(--uap-on-accent);
+}
+
+/* Empty-state suggestion chip host (context-aware chips rebuild here). */
+.uap-empty-chips {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+}
+
+/* ---- Settings view ---- */
+/* Structural layout only -- colors/tokens referenced via var() live in the
+   two theme sheets' matching "Settings view" banner. */
+
+.uap-settings {
+    flex-grow: 1;
+}
+
+/* 2026-09-05 UI redesign (settings, S2): the root is a column holding
+   the reconnect banner over the scroll, so the scroll carries its own
+   class now (was `.uap-settings > .unity-scroll-view__content-viewport`). */
+.uap-settings-scroll {
+    flex-grow: 1;
+}
+
+.uap-settings-scroll > .unity-scroll-view__content-viewport {
+    padding-top: var(--uap-space-m);
+    padding-bottom: var(--uap-space-xl);
+    padding-left: var(--uap-space-m);
+    padding-right: var(--uap-space-m);
+}
+
+/* Reconnect-pending banner: warn-tinted strip pinned above the scroll,
+   text left / primary action right, wrapping on narrow docks. Same
+   surface family as .uap-perm (permission-bg + warn edge) because it is
+   the same kind of message: "a decision of yours is waiting on one
+   click". */
+.uap-settings-banner {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    flex-shrink: 0;
+    background-color: var(--uap-permission-bg);
+    border-bottom-width: 1px;
+    border-bottom-color: var(--uap-border);
+    border-left-width: 3px;
+    border-left-color: var(--uap-status-warn);
+    padding-top: var(--uap-space-s);
+    padding-bottom: var(--uap-space-s);
+    padding-left: var(--uap-space-m);
+    padding-right: var(--uap-space-m);
+}
+
+.uap-settings-banner-text {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 0;
+}
+
+.uap-settings-banner-btn {
+    margin-right: 0;
+    margin-left: var(--uap-space-s);
+}
+
+.uap-settings-title {
+    font-size: var(--uap-font-size-title);
+    -unity-font-style: bold;
+    /* 2026-09-06 review fix 4: one more step of air under the page title
+       so the first group heading reads as a heading, not a subtitle. */
+    margin-bottom: var(--uap-space-xl);
+}
+
+/* 2026-09-05 UI redesign (settings, S1): group heading between cards.
+   Small, secondary, bold -- a signpost, not a card title -- with the
+   larger gap ABOVE it (group boundary) than below (heading to its first
+   card), per the "gap between groups > gap inside" rule. */
+.uap-settings-group {
+    font-size: var(--uap-font-size-meta);
+    -unity-font-style: bold;
+    color: var(--uap-text-secondary);
+    margin-top: var(--uap-space-m);
+    margin-bottom: var(--uap-space-m);
+    margin-left: var(--uap-space-xs);
+}
+
+.uap-settings-group--first {
+    margin-top: 0;
+}
+
+/* Section-as-card (design-notes/2026-08-01-settings-visual-refresh.md phase
+   A; technique verified in docs/research/06-modern-editor-ui.md section
+   3.2/3.4): header strip (icon + title) over a body, a raised background,
+   a 1px border, and a border/background hover transition. box-shadow does
+   not exist in 2022.3 UI Toolkit (R06 section 3.4), so the "raised" look
+   comes entirely from background/border contrast, never a shadow. */
+.uap-settings-card {
+    background-color: var(--uap-settings-card-bg);
+    border-width: 1px;
+    border-top-color: var(--uap-border-subtle);
+    border-bottom-color: var(--uap-border-subtle);
+    border-left-color: var(--uap-border-subtle);
+    border-right-color: var(--uap-border-subtle);
+    border-top-left-radius: var(--uap-radius-card);
+    border-top-right-radius: var(--uap-radius-card);
+    border-bottom-left-radius: var(--uap-radius-card);
+    border-bottom-right-radius: var(--uap-radius-card);
+    margin-bottom: var(--uap-space-l);
+    overflow: hidden;
+}
+
+/* 2026-09-05 UI redesign (settings, S3): the whole-card hover highlight
+   (accent border + raised fill, 2026-08-01 phase B) is gone -- a card is
+   not a control, and a surface that lights up under the pointer promises
+   a click it cannot honour. The one clickable header in the family, the
+   collapsible section's foldout row, keeps a hover of its own below. */
+.uap-settings-section-foldout > .unity-foldout__toggle:hover {
+    background-color: var(--uap-bg-hover);
+}
+
+.uap-settings-card-header {
+    flex-direction: row;
+    align-items: center;
+    background-color: var(--uap-settings-card-header-bg);
+    padding-top: var(--uap-space-s);
+    padding-bottom: var(--uap-space-s);
+    padding-left: var(--uap-space-m);
+    padding-right: var(--uap-space-m);
+    border-bottom-width: 1px;
+    border-bottom-color: var(--uap-border-subtle);
+}
+
+.uap-settings-card-icon {
+    width: 14px;
+    height: 14px;
+    margin-right: var(--uap-space-s);
+    flex-shrink: 0;
+}
+
+/* 2026-08-14 UI polish audit: lifted to match .uap-settings-card-title's
+   own size/weight bump below -- a small secondary glyph in front of a now
+   larger, primary-colored title read as mismatched (icon reading quieter
+   than the text it introduces). */
+.uap-settings-card-icon-glyph {
+    font-size: var(--uap-font-size-body);
+    color: var(--uap-text-primary);
+    margin-right: var(--uap-space-s);
+    flex-shrink: 0;
+    -unity-font-style: bold;
+}
+
+/* 2026-08-14 UI polish audit: font-size-meta + text-secondary made every
+   Settings card header read as subordinate metadata rather than a section
+   title -- bumped to font-size-body + text-primary so it carries the same
+   weight as the other titles in the panel (.uap-card-title,
+   .uap-empty-title use text-primary by inheritance/default). */
+.uap-settings-card-title {
+    font-size: var(--uap-font-size-body);
+    -unity-font-style: bold;
+    color: var(--uap-text-primary);
+}
+
+.uap-settings-card-body {
+    padding-top: var(--uap-space-m);
+    padding-bottom: var(--uap-space-m);
+    padding-left: var(--uap-space-m);
+    /* space-m + the HelpAffordance gutter (see ThemeDark.uss). */
+    padding-right: var(--uap-settings-body-pad-r);
+}
+
+.uap-settings-row {
+    flex-direction: row;
+    align-items: center;
+    margin-top: var(--uap-space-s);
+}
+
+.uap-settings-field {
+    margin-top: var(--uap-space-s);
+    margin-bottom: 0;
+    margin-left: 0;
+    margin-right: 0;
+}
+
+/* 2026-08-14 UI polish audit: a field immediately following another
+   field's --uap-settings-hint sat only --uap-space-s below that hint text,
+   the same gap a field uses below its OWN label -- so a topic break inside
+   a card read as more of the same field group. Applied at the topic
+   breaks the audit named; extra top margin only, everything else about
+   the field is unchanged. */
+.uap-settings-field--group-start {
+    margin-top: var(--uap-space-m);
+}
+
+/* 2026-08-14 UI polish audit: the allow/deny tool-list block inside the
+   Conversation card had no visual separation from the fields above it --
+   a top border plus its own top spacing marks it as a distinct subgroup
+   within the card, one step lighter than a full card boundary. */
+.uap-settings-subgroup-start {
+    margin-top: var(--uap-space-l);
+    padding-top: var(--uap-space-m);
+    border-top-width: 1px;
+    border-top-color: var(--uap-border-subtle);
+}
+
+.uap-settings-multiline {
+    margin-top: var(--uap-space-s);
+    margin-bottom: 0;
+    margin-left: 0;
+    margin-right: 0;
+}
+
+.uap-settings-multiline #unity-text-input {
+    background-color: var(--uap-bg-sunken);
+    border-top-color: var(--uap-border);
+    border-bottom-color: var(--uap-border);
+    border-left-color: var(--uap-border);
+    border-right-color: var(--uap-border);
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+    min-height: 44px;
+    font-size: var(--uap-font-size-meta);
+    color: var(--uap-text-primary);
+}
+
+.uap-settings-hint {
+    font-size: var(--uap-font-size-small);
+    color: var(--uap-text-secondary);
+    white-space: normal;
+    margin-top: var(--uap-space-xs);
+    margin-bottom: var(--uap-space-xs);
+}
+
+/* "Some changes will apply the next time you reconnect" (SettingsChangeDetector). */
+.uap-settings-hint--pending {
+    color: var(--uap-status-warn);
+    -unity-font-style: bold;
+}
+
+/* UXO-6: the Account card's failed-login notice. Error red, not warn
+   amber -- a rejected code is a hard failure the user must act on. */
+.uap-settings-hint--error {
+    color: var(--uap-status-error);
+    -unity-font-style: bold;
+}
+
+/* For the exactly-three settings whose annotation is a warning about what
+   ENABLING them does (docs/design-notes/2026-08-04-settings-annotation-
+   load.md section 4: the script-validation gate, the auto-approve level,
+   auto-continue-after-compile) -- SettingsView.AddWarning. Needs to read
+   as "caution, read this before you flip it", not an error, so this
+   reuses --uap-status-warn (the same amber/gold caution color already
+   used above for .uap-settings-hint--pending, NOT the reddish --uap-warn-
+   bg/--uap-warn-border pair the danger-zone foldout and duplicate-name
+   warning use for an actually alarming state) rather than defining a new
+   color. UssHygieneTests.SourceScan_VarReferences_ResolveToADefinition
+   guards that every var(--x) referenced here resolves to a real
+   definition in both theme files -- --uap-status-warn already does
+   (ThemeDark.uss/ThemeLight.uss), unlike the --uap-text-error cautionary
+   tale that same test's own doc comment records (a color referenced by a
+   rule but defined nowhere, shipping with no visible effect for however
+   long it took to notice). */
+.uap-settings-hint--warning {
+    color: var(--uap-status-warn);
+    -unity-font-style: bold;
+}
+
+/* Row holding the pending-reconnect text AND its pill badge side by side
+   (design-notes/2026-08-01-settings-visual-refresh.md phase B): the pill
+   is a SECOND, independent encoding of the same state, never a
+   replacement for the sentence -- color alone is not an accessible signal. */
+.uap-settings-hint-row {
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.uap-settings-hint-row .uap-settings-hint {
+    margin-right: var(--uap-space-s);
+}
+
+/* Generic rounded pill badge (R06 section 3.8). Two color variants only --
+   warn (status color, reused from the danger-zone/pending-hint family) and
+   neutral (informational, e.g. About's version numbers) -- neither adds a
+   new accent family (05-ux-spec.md section 5.2 budget). */
+.uap-pill {
+    align-self: flex-start;
+    padding-top: 1px;
+    padding-bottom: 1px;
+    padding-left: var(--uap-space-m);
+    padding-right: var(--uap-space-m);
+    /* Joined to --uap-radius-pill with the other four pill shapes
+       (2026-08-14 token-hygiene note): this class alone hardcoded 8px
+       against everyone else's 10px, and nothing recorded why. The 2px
+       change is deliberate. */
+    border-top-left-radius: var(--uap-radius-pill);
+    border-top-right-radius: var(--uap-radius-pill);
+    border-bottom-left-radius: var(--uap-radius-pill);
+    border-bottom-right-radius: var(--uap-radius-pill);
+    font-size: var(--uap-font-size-small);
+    -unity-font-style: bold;
+}
+
+.uap-pill--warn {
+    background-color: var(--uap-status-warn);
+    color: var(--uap-bg-base);
+}
+
+.uap-pill--neutral {
+    background-color: var(--uap-bg-sunken);
+    color: var(--uap-text-secondary);
+}
+
+/* About section's two version pills, side by side (R06 section 4.5). */
+.uap-settings-version-pill {
+    margin-right: var(--uap-space-s);
+}
+
+/* Explicit for the same reason as .uap-card-btn above: a shared button
+   class whose trailing-control call sites rely on it. */
+/* Near-twin of .uap-card-btn; the one declared difference is the fill
+   (--uap-bg-elevated here vs --uap-bg-base there), and the two RENDER
+   differently because of the surfaces under them: card buttons sit on
+   elevated card bodies, so their base fill reads as a darker inset,
+   while settings buttons sit on the same-toned settings card body, so
+   their fill vanishes and the 1px border alone draws the shape. The
+   2026-08-14 token-hygiene note kept them separate rather than merging:
+   unifying the fill would visibly change one of the two surfaces, which
+   is a design decision, not hygiene. */
+.uap-settings-btn {
+    flex-shrink: 0;
+    font-size: var(--uap-font-size-meta);
+    padding-top: var(--uap-btn-pad-y);
+    padding-bottom: var(--uap-btn-pad-y);
+    padding-left: var(--uap-btn-pad-x);
+    padding-right: var(--uap-btn-pad-x);
+    margin-top: 0;
+    margin-bottom: 0;
+    margin-left: 0;
+    margin-right: var(--uap-space-s);
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+    border-width: 1px;
+    border-top-color: var(--uap-border-subtle);
+    border-bottom-color: var(--uap-border-subtle);
+    border-left-color: var(--uap-border-subtle);
+    border-right-color: var(--uap-border-subtle);
+    background-color: var(--uap-bg-elevated);
+    color: var(--uap-text-primary);
+}
+
+.uap-settings-btn:hover {
+    background-color: var(--uap-bg-hover);
+}
+
+.uap-settings-btn:active {
+    background-color: var(--uap-bg-active);
+}
+
+.uap-settings-btn:focus {
+    border-top-color: var(--uap-focus-ring);
+    border-bottom-color: var(--uap-focus-ring);
+    border-left-color: var(--uap-focus-ring);
+    border-right-color: var(--uap-focus-ring);
+}
+
+.uap-settings-btn:disabled {
+    background-color: var(--uap-bg-elevated);
+    border-top-color: var(--uap-border-subtle);
+    border-bottom-color: var(--uap-border-subtle);
+    border-left-color: var(--uap-border-subtle);
+    border-right-color: var(--uap-border-subtle);
+    color: var(--uap-text-disabled);
+}
+
+/* Package-Manager-style suppressed link (R06 section 4.5): About's
+   CHANGELOG/GitHub actions read as text, not a boxed button, and only pick
+   up the link accent on hover -- the same restrained treatment Package
+   Manager uses for its detail-pane links. */
+.uap-settings-link-btn {
+    background-color: rgba(0, 0, 0, 0);
+    border-width: 0;
+    padding-top: 2px;
+    padding-bottom: 2px;
+    padding-left: 0;
+    padding-right: 0;
+    margin-top: 0;
+    margin-bottom: 0;
+    margin-left: 0;
+    margin-right: var(--uap-space-m);
+    font-size: var(--uap-font-size-meta);
+    color: var(--uap-text-secondary);
+}
+
+.uap-settings-link-btn:hover,
+.uap-settings-link-btn:focus,
+.uap-settings-link-btn:active {
+    background-color: rgba(0, 0, 0, 0);
+    color: var(--uap-accent-link);
+}
+
+/* Account card (docs/design-notes/2026-08-02-auth-in-panel.md): Submit
+   inside the inline login sub-card, same accent treatment as every other
+   primary action button (uap-card-btn--primary / uap-history-confirm-
+   btn--primary) rather than a new accent family. */
+.uap-settings-btn--primary {
+    background-color: var(--uap-accent-user);
+    color: var(--uap-on-accent);
+    border-top-color: var(--uap-accent-user);
+    border-bottom-color: var(--uap-accent-user);
+    border-left-color: var(--uap-accent-user);
+    border-right-color: var(--uap-accent-user);
+}
+
+.uap-settings-btn--primary:hover {
+    background-color: var(--uap-bg-selected);
+}
+
+.uap-settings-btn--primary:active {
+    background-color: var(--uap-bg-selected);
+    border-top-color: var(--uap-bg-selected);
+    border-bottom-color: var(--uap-bg-selected);
+    border-left-color: var(--uap-bg-selected);
+    border-right-color: var(--uap-bg-selected);
+}
+
+.uap-settings-btn--primary:focus {
+    border-top-color: var(--uap-on-accent);
+    border-bottom-color: var(--uap-on-accent);
+    border-left-color: var(--uap-on-accent);
+    border-right-color: var(--uap-on-accent);
+}
+
+.uap-settings-btn--primary:disabled {
+    background-color: var(--uap-bg-elevated);
+    border-top-color: var(--uap-border-subtle);
+    border-bottom-color: var(--uap-border-subtle);
+    border-left-color: var(--uap-border-subtle);
+    border-right-color: var(--uap-border-subtle);
+    color: var(--uap-text-disabled);
+}
+
+/* Inline "auth login" sub-card: a slightly recessed panel inside the
+   Account card's body so the in-flight login flow reads as a distinct,
+   temporary sub-step rather than blending into the surrounding fields. */
+.uap-settings-login-subcard {
+    background-color: var(--uap-bg-sunken);
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+    padding-top: var(--uap-space-m);
+    padding-bottom: var(--uap-space-m);
+    padding-left: var(--uap-space-m);
+    padding-right: var(--uap-space-m);
+    margin-top: var(--uap-space-m);
+}
+
+.uap-settings-slider {
+    flex-grow: 1;
+    flex-shrink: 1;
+    margin-top: var(--uap-space-s);
+    margin-right: var(--uap-space-m);
+}
+
+.uap-settings-slider-value {
+    width: 34px;
+    flex-shrink: 0;
+    font-size: var(--uap-font-size-meta);
+    color: var(--uap-text-secondary);
+    -unity-text-align: middle-right;
+}
+
+.uap-settings-danger-foldout {
+    margin-top: var(--uap-space-m);
+    padding-top: var(--uap-space-s);
+    padding-bottom: var(--uap-space-s);
+    padding-left: var(--uap-space-s);
+    padding-right: var(--uap-space-s);
+    background-color: var(--uap-warn-bg);
+    border-width: 1px;
+    border-top-color: var(--uap-warn-border);
+    border-bottom-color: var(--uap-warn-border);
+    border-left-color: var(--uap-warn-border);
+    border-right-color: var(--uap-warn-border);
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+}
+
+/* Foldout's own header Toggle: force checkmark-then-icon-then-label onto
+   one row (R06 section 3.5) so AddFoldoutHeaderIcon's spliced-in icon
+   (SettingsView.cs) sits inline with "Danger zone" instead of wrapping. */
+.uap-settings-danger-foldout > .unity-foldout__toggle {
+    flex-direction: row;
+    align-items: center;
+}
+
+.uap-settings-danger-icon {
+    width: 12px;
+    height: 12px;
+    margin-right: var(--uap-space-s);
+    flex-shrink: 0;
+}
+
+.uap-settings-danger-icon-glyph {
+    font-size: var(--uap-font-size-meta);
+    color: var(--uap-status-warn);
+    margin-right: var(--uap-space-s);
+    flex-shrink: 0;
+}
+
+/* HelpBox(HelpBoxMessageType.Warning) replaces the old plain Label (R06
+   section 3.7): Unity supplies the warning glyph automatically, this class
+   only re-tints the box to match the foldout's own warn surface so the two
+   do not clash. Targets the HelpBox root type directly -- AddToClassList
+   put this class there in SettingsView.cs, so no internal Unity class name
+   needs to be known. */
+.uap-settings-helpbox {
+    background-color: var(--uap-warn-bg);
+    border-width: 1px;
+    border-top-color: var(--uap-warn-border);
+    border-bottom-color: var(--uap-warn-border);
+    border-left-color: var(--uap-warn-border);
+    border-right-color: var(--uap-warn-border);
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+    margin-top: 0;
+    margin-bottom: var(--uap-space-s);
+    margin-left: 0;
+    margin-right: 0;
+}
+
+.uap-settings-diag-scroll {
+    margin-top: var(--uap-space-s);
+    max-height: var(--uap-settings-diag-max);
+    background-color: var(--uap-bg-sunken);
+    border-width: 1px;
+    border-top-color: var(--uap-border);
+    border-bottom-color: var(--uap-border);
+    border-left-color: var(--uap-border);
+    border-right-color: var(--uap-border);
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+}
+
+.uap-settings-diag-field {
+    margin: 0;
+}
+
+.uap-settings-diag-field #unity-text-input {
+    background-color: rgba(0, 0, 0, 0);
+    border-width: 0;
+    padding-top: var(--uap-space-s);
+    padding-bottom: var(--uap-space-s);
+    padding-left: var(--uap-space-s);
+    padding-right: var(--uap-space-s);
+    font-size: var(--uap-font-size-code);
+    color: var(--uap-text-primary);
+    white-space: normal;
+}
+
+/* Custom instructions (--append-system-prompt text): height-capped,
+   internally-scrolling TextField -- same shell pattern as the Diagnostics
+   stderr tail above, transparent field over a sunken scroll container. */
+.uap-settings-custom-scroll {
+    margin-top: var(--uap-space-s);
+    max-height: var(--uap-settings-custom-max);
+    background-color: var(--uap-bg-sunken);
+    border-width: 1px;
+    border-top-color: var(--uap-border);
+    border-bottom-color: var(--uap-border);
+    border-left-color: var(--uap-border);
+    border-right-color: var(--uap-border);
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+}
+
+.uap-settings-custom-field {
+    margin: 0;
+}
+
+.uap-settings-custom-field #unity-text-input {
+    background-color: rgba(0, 0, 0, 0);
+    border-width: 0;
+    padding-top: var(--uap-space-s);
+    padding-bottom: var(--uap-space-s);
+    padding-left: var(--uap-space-s);
+    padding-right: var(--uap-space-s);
+    font-size: var(--uap-font-size-meta);
+    color: var(--uap-text-primary);
+    white-space: normal;
+    min-height: 60px;
+}
+
+/* Quick actions list editor: one row per QuickAction (label + prompt +
+   remove); reordering is out of scope for v1 (design note 2026-08-01 #3). */
+.uap-settings-qa-list {
+    margin-top: var(--uap-space-s);
+}
+
+.uap-settings-qa-row {
+    /* Safety net for the trailing-control column: see
+       docs/design-notes/2026-08-03-list-row-control-alignment.md section 3.1.
+       This row already has a flex-grow child, so there is no free space to
+       distribute and this has no visible effect TODAY -- that is the point.
+       If a future edit drops that flex-grow, the trailing control still
+       lands in a straight column instead of drifting with content width. */
+    justify-content: space-between;
+    flex-direction: row;
+    align-items: flex-start;
+    margin-bottom: var(--uap-space-s);
+}
+
+.uap-settings-qa-label {
+    width: 110px;
+    flex-shrink: 0;
+    margin-top: 0;
+    margin-bottom: 0;
+    margin-left: 0;
+    margin-right: var(--uap-space-s);
+}
+
+/* Extension-profile rows (design note 2026-08-02-composer-newline-and-
+   profile-row.md section 2). Deliberately NOT the quick-action classes:
+   an SDK display name has no fixed length, so the name must shrink and
+   ellipsize instead of being clipped by a 110px non-shrinking box, and
+   the status must sit inline on the row's baseline rather than using the
+   block hint style (white-space: normal + vertical margins). The buttons
+   stay flex-shrink: 0 (.uap-settings-btn) so approve/revoke can never be
+   pushed off-screen -- the v0.9.0 model-row failure mode. */
+.uap-settings-profile-name {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 60px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 0;
+    margin-bottom: 0;
+    margin-left: 0;
+    margin-right: var(--uap-space-s);
+}
+
+.uap-settings-profile-status {
+    flex-shrink: 0;
+    font-size: var(--uap-font-size-small);
+    color: var(--uap-text-secondary);
+    white-space: nowrap;
+    margin-top: 0;
+    margin-bottom: 0;
+    margin-left: 0;
+    margin-right: var(--uap-space-s);
+}
+
+/* Stated rather than implicit, for consistency with the two fixed-width
+   siblings in this row that both declare flex-shrink explicitly. This one
+   is probably already safe -- its #unity-text-input is white-space: normal,
+   so the text wraps instead of driving an ever-growing preferred width --
+   but "probably safe by a side effect of another rule" is exactly the
+   footing the three shipped occurrences of this defect were standing on.
+   min-width keeps the field usable rather than collapsing to nothing when
+   the row is squeezed. */
+.uap-settings-qa-prompt {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 80px;
+    margin-top: 0;
+    margin-bottom: 0;
+    margin-left: 0;
+    margin-right: var(--uap-space-s);
+}
+
+.uap-settings-qa-prompt #unity-text-input {
+    min-height: 40px;
+    white-space: normal;
+}
+
+.uap-settings-qa-remove {
+    flex-shrink: 0;
+    margin-top: 0;
+    margin-right: 0;
+}
+
+/* Ignored console errors (docs/design-notes/2026-08-13-error-chip-ignore.md):
+   one row per permanently ignored message. Mirrors the quick-action row
+   shape, but the text column is a read-only Label that must ellipsize on
+   ONE line (full message lives in the tooltip) -- an SDK exception line
+   can be 500 chars and a wrapping row would push every remove button out
+   of the shared column (2026-08-03 list-row-control-alignment rule). */
+.uap-settings-errignore-list {
+    margin-top: var(--uap-space-s);
+}
+
+.uap-settings-errignore-row {
+    justify-content: space-between;
+    flex-direction: row;
+    align-items: center;
+    margin-bottom: var(--uap-space-xs);
+}
+
+.uap-settings-errignore-msg {
+    flex-grow: 1;
+    flex-shrink: 1;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    margin-right: var(--uap-space-s);
+    font-size: var(--uap-font-size-meta);
+    color: var(--uap-text-secondary);
+}
+
+.uap-settings-errignore-remove {
+    flex-shrink: 0;
+    margin-top: 0;
+    margin-right: 0;
+}
+
+/* The patterns field grows with its content but starts tall enough to
+   read as a multi-line list, matching how the tool allow/deny fields
+   present themselves. */
+.uap-settings-errignore-patterns {
+    min-height: 44px;
+}
+
+/* Subagent model override list editor (docs/design-notes/2026-08-01-
+   model-settings.md section 2): one row per AgentModelOverride (agent name
+   text field + model dropdown + remove) -- mirrors the Quick Actions list
+   layout above but the middle column is a PopupField, not a multiline
+   TextField, so it gets its own class rather than reusing uap-settings-qa-
+   prompt's #unity-text-input rule (which would simply never match). */
+.uap-settings-model-row {
+    /* Safety net for the trailing-control column: see
+       docs/design-notes/2026-08-03-list-row-control-alignment.md section 3.1.
+       This row already has a flex-grow child, so there is no free space to
+       distribute and this has no visible effect TODAY -- that is the point.
+       If a future edit drops that flex-grow, the trailing control still
+       lands in a straight column instead of drifting with content width. */
+    justify-content: space-between;
+    flex-direction: row;
+    align-items: center;
+    margin-bottom: var(--uap-space-s);
+}
+
+/* Row layout fix (docs/design-notes/2026-08-01-model-settings-rework.md
+   section 4.3): UITK/Yoga defaults flex-shrink to 0 (unlike web CSS's 1).
+   With the name field fixed-width/no-shrink and the picker flex-grow:1
+   at the DEFAULT shrink (0), a long model display name in the picker
+   could never shrink to fit -- the row overflowed and pushed the
+   trailing remove button off-screen. Both the name and picker columns
+   now explicitly opt into shrinking (with a floor so neither collapses
+   to zero width); the remove button stays flex-shrink:0 so it can never
+   be the one pushed out. Guarded by UssHygieneTests. */
+.uap-settings-model-name {
+    width: 160px;
+    flex-shrink: 1;
+    min-width: 80px;
+    margin-top: 0;
+    margin-bottom: 0;
+    margin-left: 0;
+    margin-right: var(--uap-space-s);
+}
+
+.uap-settings-model-picker {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 80px;
+    overflow: hidden;
+    margin-top: 0;
+    margin-bottom: 0;
+    margin-left: 0;
+    margin-right: var(--uap-space-s);
+}
+
+.uap-settings-model-remove {
+    flex-shrink: 0;
+    margin-top: 0;
+    margin-right: 0;
+}
+
+/* Advanced per-type overrides Foldout (v0.9.0, docs/design-notes/
+   2026-08-01-model-settings-rework.md section 4.2): a neutral (non-warn)
+   collapsed-by-default container, unlike .uap-settings-danger-foldout's
+   warn-tinted surface -- this table is power-user detail, not a hazard. */
+.uap-settings-advanced-foldout {
+    margin-top: var(--uap-space-m);
+}
+
+/* UXIA-2: advanced settings sections render as collapsed foldout cards;
+   the foldout's own label doubles as the card title, so it borrows
+   .uap-settings-card-title's look. */
+.uap-settings-section-foldout > .unity-foldout__toggle .unity-toggle__label {
+    font-size: var(--uap-font-size-body);
+    -unity-font-style: bold;
+    color: var(--uap-text-primary);
+}
+
+/* 2026-09-06 settings review: the collapsible card's header row wears the
+   same strip as a plain card header (recessed fill, hairline below), so
+   the page has ONE header grammar instead of two. The strip is the whole
+   foldout toggle row, so its hover (defined next to .uap-settings-card)
+   and its click target coincide. */
+.uap-settings-section-foldout > .unity-foldout__toggle {
+    flex-direction: row;
+    align-items: center;
+    margin-top: 0;
+    margin-bottom: 0;
+    margin-left: 0;
+    margin-right: 0;
+    padding-top: var(--uap-space-s);
+    padding-bottom: var(--uap-space-s);
+    padding-left: var(--uap-space-m);
+    padding-right: var(--uap-space-m);
+    background-color: var(--uap-settings-card-header-bg);
+    border-bottom-width: 1px;
+    border-bottom-color: var(--uap-border-subtle);
+}
+
+/* Module switches under a master switch: indented one step, and their
+   hints with them, so the parent/child relation reads without a label. */
+.uap-settings-field--child,
+.uap-settings-hint--child {
+    margin-left: var(--uap-space-xl);
+}
+
+/* Status lines ("Running on port", "Resolved:", detected font) are facts,
+   not help: same size, but the hint's leading indent and a quieter tone
+   set them apart from the explanatory hints around them. */
+.uap-settings-status {
+    color: var(--uap-text-secondary);
+    -unity-font-style: italic;
+}
+
+/* Font-size slider: SliderInt's own label carries a default left inset
+   that put "Font size" 3px right of every other label in the card. */
+.uap-settings-slider > .unity-base-field__label {
+    margin-left: 0;
+    padding-left: 0;
+}
+
+/* ---- Help mark (HelpAffordance) --------------------------------------
+   The third copy layer made visible: rows whose tooltip is a paragraph
+   get Unity's own component-header "?" at their end. Icon family (22px
+   square, transparent, four states). */
+.uap-helpmark {
+    width: var(--uap-icon-btn-size);
+    height: var(--uap-control-h);
+    margin-top: 0;
+    margin-bottom: 0;
+    margin-left: var(--uap-space-s);
+    margin-right: 0;
+    padding: 0;
+    background-color: rgba(0, 0, 0, 0);
+    border-width: 0;
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+    justify-content: center;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.uap-helpmark:hover {
+    background-color: var(--uap-bg-hover);
+}
+
+.uap-helpmark:active {
+    background-color: var(--uap-bg-active);
+}
+
+.uap-helpmark:focus {
+    border-width: 1px;
+    border-top-color: var(--uap-focus-ring);
+    border-bottom-color: var(--uap-focus-ring);
+    border-left-color: var(--uap-focus-ring);
+    border-right-color: var(--uap-focus-ring);
+}
+
+.uap-helpmark-icon {
+    width: 14px;
+    height: 14px;
+}
+
+.uap-helpmark-glyph {
+    font-size: var(--uap-font-size-meta);
+    -unity-font-style: bold;
+    color: var(--uap-text-secondary);
+}
+
+.uap-helpmark:hover .uap-helpmark-glyph {
+    color: var(--uap-text-primary);
+}
+
+/* A switch row that carries a mark: the label grows and the track sits
+   right before the mark, so the switch column stays aligned with the
+   unmarked switch rows above and below it. Declared AFTER the .uap-switch
+   rules it overrides (same specificity, later wins). */
+.uap-help-popover {
+    flex-grow: 1;
+    padding-top: var(--uap-space-m);
+    padding-bottom: var(--uap-space-m);
+    padding-left: var(--uap-space-l);
+    padding-right: var(--uap-space-l);
+    background-color: var(--uap-bg-elevated);
+    border-width: 1px;
+    border-top-color: var(--uap-border);
+    border-bottom-color: var(--uap-border);
+    border-left-color: var(--uap-border);
+    border-right-color: var(--uap-border);
+}
+
+.uap-help-popover-text {
+    white-space: normal;
+    font-size: var(--uap-font-size-meta);
+    color: var(--uap-text-primary);
+}
+
+/* Toggle -> switch restyle (design-notes/2026-08-01-settings-visual-
+   refresh.md phase C; class names verified against Toggle.cs in the
+   2022.3 UnityCsReference branch -- R06 section 3.6). C# only adds the
+   "uap-switch" class to an existing Toggle (AddToClassList); everything
+   else is USS. The knob slides via `translate` (fully animatable in
+   2022.3, unlike a `left`/`justify-content` flip, which would jump
+   instead of sliding -- R06 section 3.4). */
+
+/* Label-left / switch-right regardless of label text length (live
+   feedback 2026-08-01: the switch's horizontal position tracked the
+   label's character count, increasing eye-tracking load -- see
+   docs/design-notes/2026-08-01-switch-alignment.md). Root cause: the
+   default Toggle row is `justify-content: flex-start`, and pinning
+   `.unity-toggle__input` to a fixed 32px track below (flex-grow: 0;
+   flex-shrink: 0; -- needed so the track does not inflate to the
+   default full-row-width a Toggle's input normally stretches to) means
+   the track now sits packed immediately after the label instead of
+   filling the remaining row width, so its left edge -- and therefore
+   its whole position -- shifts with however wide the label text is.
+   `justify-content: space-between` pushes the (content-width) label to
+   the row's start and the (fixed-width) track to its end regardless of
+   label length; pinning the label's own flex-grow to 0 keeps it from
+   claiming that space instead. */
+.uap-switch {
+    justify-content: space-between;
+}
+
+.uap-switch .unity-toggle__label {
+    flex-grow: 0;
+    flex-shrink: 1;
+}
+
+.uap-switch .unity-toggle__input {
+    width: 32px;
+    height: 18px;
+    /* The default .unity-toggle__input stretches to fill the control
+       column; without pinning grow/shrink the 32px track inflates to the
+       full row width and the 14px ON-translate lands mid-track. */
+    flex-grow: 0;
+    flex-shrink: 0;
+    padding: 0;
+    background-color: var(--uap-switch-track-off);
+    border-width: 1px;
+    border-top-color: var(--uap-border);
+    border-bottom-color: var(--uap-border);
+    border-left-color: var(--uap-border);
+    border-right-color: var(--uap-border);
+    border-top-left-radius: 9px;
+    border-top-right-radius: 9px;
+    border-bottom-left-radius: 9px;
+    border-bottom-right-radius: 9px;
+    transition-property: background-color;
+    transition-duration: 120ms;
+}
+
+.uap-switch .unity-toggle__checkmark {
+    /* Replaces the default checkmark glyph with a plain round knob. */
+    background-image: none;
+    width: 14px;
+    height: 14px;
+    margin-top: 2px;
+    margin-bottom: 2px;
+    margin-left: 2px;
+    margin-right: 2px;
+    background-color: var(--uap-switch-knob-off);
+    border-top-left-radius: 7px;
+    border-top-right-radius: 7px;
+    border-bottom-left-radius: 7px;
+    border-bottom-right-radius: 7px;
+    translate: 0 0;
+    transition-property: translate, background-color;
+    transition-duration: 120ms;
+    transition-timing-function: ease-out;
+}
+
+/* :checked lands on the Toggle root (the "unity-toggle" class), confirmed
+   against the Unity manual's own Pseudo-classes example -- R06 section 3.6. */
+.uap-switch:checked .unity-toggle__input {
+    background-color: var(--uap-switch-track-on);
+}
+
+.uap-switch:checked .unity-toggle__checkmark {
+    /* Track width 32 - knob 14 - the 2px margin on each side = 14px travel. */
+    translate: 14px 0;
+    background-color: var(--uap-switch-knob-on);
+}
+
+/* ---- View switch strip (back-to-chat affordance for Settings/History; see
+       AgentPanelWindow.cs class-level comment on _backButton) ---- */
+
+.uap-viewstrip {
+    flex-direction: row;
+    align-items: center;
+    flex-shrink: 0;
+    height: 24px;
+    padding-left: var(--uap-space-s);
+    padding-right: var(--uap-space-s);
+    border-bottom-width: 1px;
+    border-bottom-color: var(--uap-border);
+}
+
+.uap-viewstrip-btn {
+    flex-direction: row;
+    align-items: center;
+    padding: 1px 8px;
+    margin: 0;
+    background-color: rgba(0, 0, 0, 0);
+    border-width: 0;
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+    color: var(--uap-text-secondary);
+    font-size: var(--uap-font-size-meta);
+}
+
+.uap-viewstrip-btn:hover {
+    background-color: var(--uap-bg-hover);
+    color: var(--uap-text-primary);
+}
+
+.uap-viewstrip-btn:active {
+    background-color: var(--uap-bg-active);
+}
+
+.uap-viewstrip-btn:focus {
+    border-width: 1px;
+    border-top-color: var(--uap-focus-ring);
+    border-bottom-color: var(--uap-focus-ring);
+    border-left-color: var(--uap-focus-ring);
+    border-right-color: var(--uap-focus-ring);
+}
+
+.uap-viewstrip-icon {
+    width: 12px;
+    height: 12px;
+    margin-right: var(--uap-space-xs);
+    flex-shrink: 0;
+}
+
+.uap-viewstrip-glyph {
+    font-size: var(--uap-font-size-meta);
+    margin-right: var(--uap-space-xs);
+    flex-shrink: 0;
+}
+
+.uap-viewstrip-label {
+    font-size: var(--uap-font-size-meta);
+}
+
+/* ---- History view ---- */
+/* Structural layout only -- colors/tokens referenced via var() live in the
+   two theme sheets' matching "History view" banner. */
+
+.uap-history {
+    flex-grow: 1;
+}
+
+.uap-history > .unity-scroll-view__content-viewport {
+    padding-top: var(--uap-space-m);
+    padding-bottom: var(--uap-space-xl);
+    padding-left: var(--uap-space-m);
+    padding-right: var(--uap-space-m);
+}
+
+.uap-history-toolbar {
+    flex-direction: row;
+    align-items: center;
+    margin-bottom: var(--uap-space-l);
+}
+
+.uap-history-title {
+    font-size: var(--uap-font-size-title);
+    -unity-font-style: bold;
+}
+
+/* 2026-08-14 UI polish audit: restyled onto the .uap-header-btn
+   icon-button family (transparent, borderless, 22x22, same hover) --
+   it was the one icon-only button in the panel still carrying a bordered/
+   filled chip shell left over from before it was icon-only, out of step
+   with every other square icon button in the header row it visually
+   echoes. */
+.uap-history-refresh-btn {
+    width: var(--uap-icon-btn-size);
+    height: var(--uap-icon-btn-size);
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    padding: 0;
+    margin: 0;
+    background-color: rgba(0, 0, 0, 0);
+    border-width: 0;
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+    color: var(--uap-text-secondary);
+}
+
+.uap-history-refresh-btn:hover {
+    background-color: var(--uap-bg-hover);
+    color: var(--uap-text-primary);
+}
+
+.uap-history-refresh-btn:active {
+    background-color: var(--uap-bg-active);
+}
+
+.uap-history-refresh-btn:focus {
+    border-width: 1px;
+    border-top-color: var(--uap-focus-ring);
+    border-bottom-color: var(--uap-focus-ring);
+    border-left-color: var(--uap-focus-ring);
+    border-right-color: var(--uap-focus-ring);
+}
+
+.uap-history-empty {
+    font-size: var(--uap-font-size-meta);
+    color: var(--uap-text-secondary);
+    white-space: normal;
+    -unity-text-align: upper-left;
+    margin-top: var(--uap-space-m);
+}
+
+.uap-history-list {
+    flex-grow: 1;
+}
+
+/* -- History browsing (v0.15.0): filter bar, group headers, row actions --
+   flex-shrink is set explicitly on every child of a row: UI Toolkit's
+   default is 0 (measured, R05), so without it the "..." button is pushed
+   off-screen by a long title exactly the way the subagent model row was in
+   v0.8.0. */
+
+/* flex-wrap is load-bearing. This panel routinely docks at ~300 px, and
+   four controls do not fit on one line there. Measured before the wrap
+   was added, with the group popup on a long localized value: the bar was
+   302.5 px wide while its children ran out to x=492 -- 190 px of overflow,
+   which UI Toolkit turned into a horizontal scrollbar plus a blank strip,
+   and the ScrollView actually sat at scrollOffset.x = 189.5. Wrapping is
+   what makes the row degrade by reflowing instead of overflowing; the
+   per-control shrink/max-width rules below are the second half of it. */
+.uap-history-filterbar {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-top: var(--uap-space-s);
+    margin-bottom: var(--uap-space-s);
+}
+
+/* max-width added 2026-08-14 UI polish audit: flex-grow: 1 with no cap let
+   the search field stretch to fill the whole filter bar on a wide dock,
+   crowding the group/archived controls beside it against the wrap edge
+   with no visual reason for the field itself to be that wide. */
+.uap-history-search {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 60px;
+    max-width: 220px;
+    margin-right: var(--uap-space-s);
+}
+
+.uap-history-filter-label {
+    flex-shrink: 0;
+    font-size: var(--uap-font-size-small);
+    color: var(--uap-text-secondary);
+    margin-right: var(--uap-space-xs);
+}
+
+/* A PopupField reports a preferred width driven by its CURRENT value, and
+   the localized choices differ wildly in length -- measured 295.5 px for a
+   long Japanese choice inside a 302.5 px bar. With flex-shrink: 0 (UI
+   Toolkit's default, which the previous rule restated) it could not give
+   any of that back, so the row overflowed and everything after it was
+   pushed off-screen. This is the THIRD occurrence of the PopupField +
+   flex-shrink: 0 shape in this package, after v0.9.0's off-screen delete
+   button and the v0.15.1 history row -- hence the max-width as well as the
+   shrink: the cap bounds the damage even when a future value is longer
+   than anything we tested. */
+.uap-history-groupby {
+    flex-shrink: 1;
+    min-width: 84px;
+    max-width: 130px;
+    margin-right: var(--uap-space-s);
+    margin-bottom: 0;
+}
+
+.uap-history-archived-toggle {
+    flex-shrink: 0;
+    margin-bottom: 0;
+}
+
+.uap-history-archived-toggle .unity-label {
+    font-size: var(--uap-font-size-small);
+    color: var(--uap-text-secondary);
+    min-width: auto;
+}
+
+/* font-size raised font-size-small -> font-size-meta, 2026-08-14 UI polish
+   audit: a bold date-group header ("Today", "This week") competing with
+   row titles for attention read as too quiet at the same size the
+   panel uses for one-off metadata like a timestamp. */
+.uap-history-group-header {
+    margin-top: var(--uap-space-m);
+    margin-bottom: var(--uap-space-xs);
+    font-size: var(--uap-font-size-meta);
+    color: var(--uap-text-secondary);
+    -unity-font-style: bold;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+}
+
+.uap-history-showmore {
+    margin-top: var(--uap-space-s);
+    align-self: center;
+    font-size: var(--uap-font-size-small);
+}
+
+/* justify-content and the child's flex-grow are BOTH here on purpose --
+   they solve overlapping halves of the same problem and neither is
+   redundant:
+
+     * justify-content: space-between pins the trailing "..." button to the
+       right edge using whatever free space exists. It is the safety net:
+       if a future edit drops flex-grow from the content column, the button
+       still lands in a straight column instead of silently regressing to
+       the 139.5 px zig-zag measured in v0.15.0.
+     * flex-grow: 1 on .uap-history-row-main leaves no free space at all,
+       which is what makes the hover highlight and the click target cover
+       the whole row rather than just the text, and what gives the title's
+       text-overflow: ellipsis the full row width to work against.
+
+   With flex-grow present, justify-content has nothing to distribute and no
+   visible effect today. That is exactly the point of keeping it. */
+.uap-history-row-top {
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: space-between;
+}
+
+/* align-self is flex-start rather than center on purpose: rows differ in
+   height (only some have a sub-line), so centering would put the button at
+   a different offset from the row's top edge in every row -- the vertical
+   equivalent of the horizontal drift flex-grow above fixes. A fixed
+   min-width keeps the button's own width -- and therefore the column its
+   left edge forms -- independent of whatever glyph the label ends up
+   using. */
+.uap-history-row-menu-btn {
+    flex-shrink: 0;
+    min-width: 22px;
+    align-self: flex-start;
+    margin-top: var(--uap-space-xs);
+    margin-right: var(--uap-space-xs);
+    margin-bottom: var(--uap-space-xs);
+    margin-left: var(--uap-space-xs);
+    padding: 0 6px;
+    background-color: rgba(0, 0, 0, 0);
+    border-width: 0;
+    color: var(--uap-text-secondary);
+}
+
+.uap-history-row-menu-btn:hover {
+    color: var(--uap-text-primary);
+    background-color: var(--uap-bg-hover);
+}
+
+.uap-history-row-menu-btn:active {
+    background-color: var(--uap-bg-active);
+}
+
+.uap-history-row-menu-btn:focus {
+    border-width: 1px;
+    border-top-color: var(--uap-focus-ring);
+    border-bottom-color: var(--uap-focus-ring);
+    border-left-color: var(--uap-focus-ring);
+    border-right-color: var(--uap-focus-ring);
+}
+
+.uap-history-row-subtitle {
+    margin-top: 1px;
+    font-size: var(--uap-font-size-small);
+    color: var(--uap-text-secondary);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+}
+
+/* Archived rows stay legible but visibly de-emphasised -- they are only on
+   screen because the user asked to see them. */
+.uap-history-row--archived {
+    opacity: 0.6;
+}
+
+.uap-history-rename-field {
+    flex-grow: 1;
+    flex-shrink: 1;
+    margin-bottom: var(--uap-space-xs);
+}
+
+.uap-history-row-error {
+    padding-top: var(--uap-space-xs);
+    padding-right: var(--uap-space-m);
+    padding-bottom: var(--uap-space-s);
+    padding-left: var(--uap-space-m);
+    font-size: var(--uap-font-size-small);
+    color: var(--uap-status-error);
+    white-space: normal;
+}
+
+.uap-history-row-foreign-note {
+    padding-top: 0;
+    padding-right: var(--uap-space-m);
+    padding-bottom: var(--uap-space-s);
+    padding-left: var(--uap-space-m);
+    font-size: var(--uap-font-size-small);
+    color: var(--uap-text-secondary);
+    white-space: normal;
+}
+
+.uap-history-row {
+    margin-bottom: var(--uap-space-s);
+    background-color: var(--uap-bg-elevated);
+    border-width: 1px;
+    border-top-color: var(--uap-border-subtle);
+    border-bottom-color: var(--uap-border-subtle);
+    border-left-color: var(--uap-border-subtle);
+    border-right-color: var(--uap-border-subtle);
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+    overflow: hidden;
+}
+
+.uap-history-row--active {
+    border-left-width: 2px;
+    border-left-color: var(--uap-accent-user);
+}
+
+/* flex-grow is LOAD-BEARING here, not cosmetic. This is the content column
+   that sits beside the trailing per-row "..." button inside
+   .uap-history-row-top (flex-direction: row). UI Toolkit defaults flex-grow
+   to 0, so without this the column shrinks to its content and drags the
+   button along with it: measured in the live editor with 18 real sessions,
+   every row was 300.5 px wide while this column measured 137.0-276.5 px,
+   putting the button's X anywhere across a 139.5 px spread. A control
+   repeated once per row has to form a straight vertical column or every
+   scan of the list costs the reader an extra eye movement to find it.
+   This package has now shipped that mistake twice (v0.9.0's subagent model
+   row pushed its delete button off-screen the same way), so
+   UssHygieneTests enforces this declaration. */
+.uap-history-row-main {
+    flex-grow: 1;
+    flex-shrink: 1;
+    padding-top: var(--uap-space-s);
+    padding-right: var(--uap-space-m);
+    padding-bottom: var(--uap-space-s);
+    padding-left: var(--uap-space-m);
+    /* UXIA-1: reserved 1px ring so the :focus recolor below never
+       shifts layout. Invisible until focused. */
+    border-width: 1px;
+    border-top-color: rgba(0, 0, 0, 0);
+    border-bottom-color: rgba(0, 0, 0, 0);
+    border-left-color: rgba(0, 0, 0, 0);
+    border-right-color: rgba(0, 0, 0, 0);
+}
+
+.uap-history-row-main:hover {
+    background-color: var(--uap-bg-hover);
+}
+
+/* UXIA-1: keyboard focus on the row body -- same accent-user visual
+   language as .uap-perm-option:focus, so every focusable surface in the
+   panel says "you are here" the same way. */
+.uap-history-row-main:focus {
+    border-top-color: var(--uap-accent-user);
+    border-bottom-color: var(--uap-accent-user);
+    border-left-color: var(--uap-accent-user);
+    border-right-color: var(--uap-accent-user);
+}
+
+.uap-history-row-title-row {
+    flex-direction: row;
+    align-items: center;
+}
+
+.uap-history-row-title {
+    flex-grow: 1;
+    flex-shrink: 1;
+    font-size: var(--uap-font-size-body);
+    color: var(--uap-text-primary);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+}
+
+.uap-history-row-badge {
+    flex-shrink: 0;
+    margin-left: var(--uap-space-s);
+    padding: 1px 6px;
+    font-size: var(--uap-font-size-small);
+    color: var(--uap-on-accent);
+    background-color: var(--uap-accent-user);
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+}
+
+/* 2026-09-05 UI redesign (D7): three badges with three meanings used to
+   share one colour. Current keeps the user accent (the base rule);
+   Pinned and Archived get their own (tokens in the theme sheets). */
+.uap-history-row-badge--pinned {
+    background-color: var(--uap-badge-pinned-bg);
+}
+
+.uap-history-row-badge--archived {
+    background-color: var(--uap-badge-archived-bg);
+    color: var(--uap-badge-archived-fg);
+}
+
+.uap-history-row-meta {
+    margin-top: var(--uap-space-xs);
+    font-size: var(--uap-font-size-small);
+    color: var(--uap-text-secondary);
+}
+
+.uap-history-confirm {
+    padding-top: var(--uap-space-s);
+    padding-right: var(--uap-space-m);
+    padding-bottom: var(--uap-space-s);
+    padding-left: var(--uap-space-m);
+    background-color: var(--uap-warn-bg);
+    border-top-width: 1px;
+    border-top-color: var(--uap-warn-border);
+}
+
+.uap-history-confirm-text {
+    font-size: var(--uap-font-size-meta);
+    color: var(--uap-text-primary);
+    white-space: normal;
+    margin-bottom: var(--uap-space-s);
+}
+
+.uap-history-confirm-row {
+    flex-direction: row;
+    justify-content: flex-end;
+}
+
+.uap-history-confirm-btn {
+    font-size: var(--uap-font-size-meta);
+    padding-top: var(--uap-btn-pad-y);
+    padding-bottom: var(--uap-btn-pad-y);
+    padding-left: var(--uap-btn-pad-x);
+    padding-right: var(--uap-btn-pad-x);
+    margin-top: 0;
+    margin-right: 0;
+    margin-bottom: 0;
+    margin-left: var(--uap-space-s);
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+    border-width: 1px;
+    border-top-color: var(--uap-border-subtle);
+    border-bottom-color: var(--uap-border-subtle);
+    border-left-color: var(--uap-border-subtle);
+    border-right-color: var(--uap-border-subtle);
+    background-color: var(--uap-bg-elevated);
+    color: var(--uap-text-primary);
+}
+
+.uap-history-confirm-btn:hover {
+    background-color: var(--uap-bg-hover);
+}
+
+.uap-history-confirm-btn:active {
+    background-color: var(--uap-bg-active);
+}
+
+.uap-history-confirm-btn:focus {
+    border-top-color: var(--uap-focus-ring);
+    border-bottom-color: var(--uap-focus-ring);
+    border-left-color: var(--uap-focus-ring);
+    border-right-color: var(--uap-focus-ring);
+}
+
+.uap-history-confirm-btn:disabled {
+    background-color: var(--uap-bg-elevated);
+    color: var(--uap-text-disabled);
+}
+
+.uap-history-confirm-btn--primary {
+    background-color: var(--uap-accent-user);
+    color: var(--uap-on-accent);
+    border-top-color: var(--uap-accent-user);
+    border-bottom-color: var(--uap-accent-user);
+    border-left-color: var(--uap-accent-user);
+    border-right-color: var(--uap-accent-user);
+}
+
+.uap-history-confirm-btn--primary:hover,
+.uap-history-confirm-btn--primary:active {
+    background-color: var(--uap-bg-selected);
+}
+
+.uap-history-confirm-btn--primary:focus {
+    border-top-color: var(--uap-on-accent);
+    border-bottom-color: var(--uap-on-accent);
+    border-left-color: var(--uap-on-accent);
+    border-right-color: var(--uap-on-accent);
+}
+
+/* ---- History row-action popup (HistoryView.HistoryRowMenuPopover,
+   ShowAsDropDown; docs/design-notes/2026-08-14-history-menu-and-token-
+   hygiene.md Part 2) ----
+   Same host pattern as .uap-usage-popover above (StatusBarView.
+   UsagePopover): a borderless EditorWindow shown via ShowAsDropDown,
+   themed by AgentPanelWindow.ApplyThemeAndStyles. Placed here, beside
+   the uap-history-* row rules, since it replaces the GenericMenu those
+   rows used to open. */
+.uap-rowmenu {
+    flex-grow: 1;
+    padding-top: var(--uap-space-xs);
+    padding-right: 0;
+    padding-bottom: var(--uap-space-xs);
+    padding-left: 0;
+    background-color: var(--uap-bg-elevated);
+    border-top-width: 1px;
+    border-bottom-width: 1px;
+    border-left-width: 1px;
+    border-right-width: 1px;
+    border-top-color: var(--uap-border-subtle);
+    border-bottom-color: var(--uap-border-subtle);
+    border-left-color: var(--uap-border-subtle);
+    border-right-color: var(--uap-border-subtle);
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+}
+
+/* Paired with HistoryView.RowMenuMaxHeight (2026-08-14 review finding):
+   the group page's row count follows the user's own group count, so a
+   list taller than the capped window must scroll -- flex-grow makes the
+   ScrollView the window's designated shrinker/filler. */
+.uap-rowmenu-scroll {
+    flex-grow: 1;
+}
+
+/* color is set HERE (not on .uap-rowmenu-label) so :disabled below can
+   override it once and have it reach the label via inheritance -- a
+   color declared directly on .uap-rowmenu-label would win over an
+   inherited value from this row regardless of state, defeating that
+   override. Same trick .uap-card-btn/.uap-card-btn:disabled already use. */
+.uap-rowmenu-item {
+    flex-direction: row;
+    align-items: center;
+    padding-top: var(--uap-space-xs);
+    padding-right: var(--uap-space-m);
+    padding-bottom: var(--uap-space-xs);
+    padding-left: var(--uap-space-m);
+    margin-top: 0;
+    margin-right: 0;
+    margin-bottom: 0;
+    margin-left: 0;
+    background-color: rgba(0, 0, 0, 0);
+    border-width: 0;
+    color: var(--uap-text-primary);
+}
+
+.uap-rowmenu-item:hover {
+    background-color: var(--uap-bg-hover);
+}
+
+/* Delete on a foreign/live-session row is the only disabled state this
+   popup has; unlike GenericMenu's AddDisabledItem it can still carry a
+   real per-reason tooltip (item.Tooltip, set by HistoryRowMenuModel). */
+.uap-rowmenu-item:disabled {
+    color: var(--uap-text-disabled);
+}
+
+/* Group-page back row: a hairline separates it from the list below so
+   it reads as a distinct nav affordance rather than another entry. */
+.uap-rowmenu-item--back {
+    border-bottom-width: 1px;
+    border-bottom-color: var(--uap-border-subtle);
+    margin-bottom: var(--uap-space-xs);
+}
+
+/* Fixed-width leading slot (2026-08-03 standing rule: a repeated leading
+   control must form one column) so every row's label starts at the same
+   x whether or not that row is checked. No explicit color: it inherits
+   .uap-rowmenu-item's (and, disabled, its override) the same as the
+   label below. */
+.uap-rowmenu-check {
+    flex-shrink: 0;
+    width: 16px;
+    margin-top: 0;
+    margin-right: var(--uap-space-s);
+    margin-bottom: 0;
+    margin-left: 0;
+    font-size: var(--uap-font-size-meta);
+    -unity-text-align: middle-center;
+}
+
+.uap-rowmenu-label {
+    flex-grow: 1;
+    flex-shrink: 1;
+    font-size: var(--uap-font-size-meta);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+}
+
+.uap-rowmenu-sep {
+    height: 1px;
+    margin-top: var(--uap-space-xs);
+    margin-right: var(--uap-space-s);
+    margin-bottom: var(--uap-space-xs);
+    margin-left: var(--uap-space-s);
+    background-color: var(--uap-border-subtle);
+}
+
+/* ---- Font scale ----
+   Moved to FontScale.uss (a separate, LAST-loaded stylesheet -- see
+   AgentPanelWindow.LoadStyleSheets and
+   docs/design-notes/2026-07-31-font-scale-cascade-fix.md). Kept out of
+   this file so its cascade position (after ThemeDark.uss/ThemeLight.uss)
+   is a stylesheet-load-order fact, not something that can be silently
+   defeated by reordering rules within this single file. */
+
+
+/* ---- Narrow-width mode (docs/design-notes/2026-09-05-ui-redesign.md,
+       section 2.5) --------------------------------------------------------
+   UI Toolkit has no container queries, so AgentPanelWindow measures its own
+   root (GeometryChangedEvent) and toggles `uap-narrow` on it below
+   AgentPanelWindow.NarrowWidthThresholdPx (340px -- the "narrow" line
+   05-ux-spec.md sections 2.2/2.6 already drew). Same root-class -> USS
+   mechanism as the theme and font-scale classes. Everything folded away
+   here survives somewhere reachable: the model name in the header picker,
+   the usage figures in the usage popover, the context percentage in the
+   meter's tooltip, the composer hint in the Send button's tooltip. */
+
+.uap-narrow .uap-status-model,
+.uap-narrow .uap-status-sep,
+.uap-narrow .uap-status-usage-container,
+.uap-narrow .uap-composer-hint {
+    display: none;
+}
+
+/* The percentage stays (spec section 2.6: narrow keeps the % and drops
+   the token figures); its inline display toggle is StatusBarView's, so
+   this rule only tightens the gap the hidden separators used to fill. */
+.uap-narrow .uap-status-ctx-label {
+    margin-right: 0;
+}
+
+/* With the separators gone the meter needs its own gap from the state text. */
+.uap-narrow .uap-status-ctx-meter {
+    margin-left: var(--uap-space-m);
+}
+
+/* 2026-09-06 review fix 2: at 300px the title had shrunk to three
+   characters while the model chip kept its full text -- the priority
+   backwards. The two chips fold into one that wears the model name and
+   opens both menus; the title gets the width back. */
+.uap-narrow .uap-header-model-btn,
+.uap-narrow .uap-header-autoapprove-btn {
+    display: none;
+}
+
+.uap-narrow .uap-header-compact-btn {
+    display: flex;
+    max-width: 90px;
+}
+
+/* 2026-09-06 review fix 3: on a narrow dock the tool name was ellipsized
+   while the duration kept its full width. The name is what the row is
+   for; the duration goes first. */
+.uap-narrow .uap-toolcard-time {
+    display: none;
+}
+
+/* Settings on a narrow dock (2026-09-05 UI redesign, settings S4): a
+   BaseField's label-left / control-right row leaves a 300px dock with a
+   ~120px label column and a control squeezed into what is left. Stack
+   them instead: label above, control full width. Switches are exempt --
+   a 32px track belongs beside its label, and .uap-switch already pins
+   the pair to the row's two ends. */
+.uap-narrow .uap-settings-field,
+.uap-narrow .uap-settings-multiline {
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.uap-narrow .uap-settings-field > .unity-base-field__label,
+.uap-narrow .uap-settings-multiline > .unity-base-field__label {
+    min-width: 0;
+    margin-bottom: var(--uap-space-xs);
+}
+
+.uap-narrow .uap-settings-field.uap-switch {
+    flex-direction: row;
+    align-items: center;
+}
+
+.uap-narrow .uap-settings-card-body {
+    padding-left: var(--uap-space-s);
+    padding-right: var(--uap-settings-body-pad-r-narrow);
+}
+
+/* HelpAffordance gutter model. Every card body reserves --uap-help-gutter
+   on its right (see .uap-settings-card-body); a row that carries a "?"
+   gets .uap-helpmarked and pulls itself back over that gutter by the
+   same amount, so its control still ends where every unmarked control
+   ends and only the gutter differs (mark vs. empty). Placed last so it
+   outranks the .uap-switch label/track rules at equal specificity. */
+.uap-helpmarked {
+    margin-right: var(--uap-help-gutter-neg);
+}
+
+.uap-switch--helpmarked {
+    justify-content: flex-start;
+}
+
+.uap-switch--helpmarked .unity-toggle__label {
+    flex-grow: 1;
+}
+
+/* In a button/status row the mark keeps to the gutter, not to the last
+   button. */
+.uap-settings-row > .uap-helpmark {
+    margin-left: auto;
+}
+
+/* A lone hint that carries a mark (section-level tooltip with no field
+   row): hint and "?" share one line, the hint grows and wraps first. The
+   mark is squashed to the hint's own line height so the row is no taller
+   than an unmarked hint. */
+.uap-settings-hintrow {
+    flex-direction: row;
+    align-items: flex-start;
+}
+
+.uap-settings-hintrow > .uap-settings-hint {
+    flex-grow: 1;
+    flex-shrink: 1;
+}
+
+.uap-settings-hintrow > .uap-helpmark {
+    height: 16px;
+    margin-top: var(--uap-space-xs);
+}
+
+/* Narrow dock: fields stack label-over-control, which would drop the
+   mark under the control. A marked field wraps instead -- label on its
+   own full-width line, then control + mark on the second. */
+.uap-narrow .uap-settings-field.uap-helpmarked {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.uap-narrow .uap-settings-field.uap-helpmarked > .unity-base-field__label {
+    width: 100%;
+    min-width: 100%;
+}
+
+.uap-narrow .uap-settings-field.uap-helpmarked > .unity-base-field__input {
+    flex-grow: 1;
+    flex-shrink: 1;
+    width: auto;
+}
+
+/* ...except switches, which never stack: label, 32px track and mark stay
+   on one line (re-pinned here because the wrap rules above match them
+   at equal specificity). */
+.uap-narrow .uap-switch.uap-helpmarked {
+    flex-wrap: nowrap;
+}
+
+.uap-narrow .uap-switch.uap-helpmarked > .unity-base-field__label {
+    width: auto;
+    min-width: 0;
+}
+
+.uap-narrow .uap-switch.uap-helpmarked > .unity-base-field__input {
+    flex-grow: 0;
+    flex-shrink: 0;
+    width: 32px;
+}
+
+/* A switch label that no longer fits beside its track wraps instead of
+   being cut mid-word ("Skip ALL permission checks (dange"). */
+.uap-narrow .uap-switch .unity-toggle__label {
+    white-space: normal;
+}
+
+/* -- Image attachments (design note 2026-09-07 section 2.3.5) ------------ */
+
+.uap-attach-strip {
+    flex-direction: row;
+    flex-wrap: wrap;
+    padding-top: var(--uap-space-s);
+    padding-bottom: var(--uap-space-xs);
+    padding-left: var(--uap-space-s);
+    padding-right: var(--uap-space-s);
+}
+
+.uap-attach-thumb {
+    flex-direction: row;
+    align-items: center;
+    max-width: 220px;
+    margin-right: var(--uap-space-s);
+    margin-bottom: var(--uap-space-s);
+    padding-top: var(--uap-space-xs);
+    padding-bottom: var(--uap-space-xs);
+    padding-left: var(--uap-space-xs);
+    padding-right: var(--uap-space-xs);
+    background-color: var(--uap-bg-elevated);
+    border-width: 1px;
+    border-top-color: var(--uap-border-subtle);
+    border-bottom-color: var(--uap-border-subtle);
+    border-left-color: var(--uap-border-subtle);
+    border-right-color: var(--uap-border-subtle);
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+}
+
+.uap-attach-thumb-image {
+    width: 56px;
+    height: 40px;
+    margin-right: var(--uap-space-s);
+}
+
+.uap-attach-thumb-caption {
+    flex-shrink: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--uap-text-secondary);
+}
+
+.uap-msg-image {
+    align-self: flex-start;
+    margin-top: var(--uap-space-s);
+    margin-bottom: var(--uap-space-xs);
+}
+
+.uap-msg-image-thumb {
+    max-width: 320px;
+    max-height: 200px;
+    width: 320px;
+    height: 200px;
+    border-top-left-radius: var(--uap-radius-card);
+    border-top-right-radius: var(--uap-radius-card);
+    border-bottom-left-radius: var(--uap-radius-card);
+    border-bottom-right-radius: var(--uap-radius-card);
+}
+
+.uap-msg-image-caption {
+    color: var(--uap-text-secondary);
+    margin-top: var(--uap-space-xs);
+}
+
+.uap-msg-image-missing {
+    color: var(--uap-text-secondary);
+}

@@ -1,0 +1,2 @@
+{"type":"control_request","request_id":"req_1","request":{"subtype":"initialize"}}
+{"type":"user","message":{"role":"user","content":[{"type":"text","text":"Run this exact bash command: echo AGENT_PANEL_E2E_OK\nThen reply with only the word DONE. 日本語テスト:こんにちは。"}]}}

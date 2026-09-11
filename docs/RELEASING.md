@@ -1,0 +1,139 @@
+# リリース手順
+
+本リポジトリのバージョン管理規約と、新バージョンを切る手順。
+
+## 規約
+
+- **Semantic Versioning**(`X.Y.Z`)。0.x 期は **minor = 機能フェーズ(新機能のまとまり)**、
+  **patch = 修正のみ** のリリース。1.0.0 は「他プロジェクトへの配布に耐える」と判断した時点。
+- git タグは **`vX.Y.Z`**(annotated)。`jp.colloid.unity-agent-panel/package.json` の
+  `version` とタグは常に一致させる(v0.2.0 以前はタグのみの遡及マイルストーンで、
+  当時の package.json は 0.1.0 のまま — 歴史的例外)。
+- CHANGELOG は **`jp.colloid.unity-agent-panel/CHANGELOG.md`**(Package Manager が表示する場所)。
+  [Keep a Changelog](https://keepachangelog.com/) 形式・英語。日々の変更は `[Unreleased]` に
+  積み、リリース時に切り出す。
+
+## 手順
+
+1. `[Unreleased]` の内容を確認し、`## [X.Y.Z] - YYYY-MM-DD` として切り出す
+   (`[Unreleased]` は `(nothing yet)` で残す)。
+2. `jp.colloid.unity-agent-panel/package.json` の `version` を同じ値に上げる。
+3. 検証用サンドボックスプロジェクト(CONTRIBUTING.md 参照)でコンパイル+EditModeテストが全緑であることを確認する。
+4. コミット(例: `Release v0.3.0`)。
+5. タグ付け: **`.github/workflows/tag-release.yml` が自動で行う。**
+   `jp.colloid.unity-agent-panel/package.json` の変更が main に入ると、
+   そのバージョンを**導入したコミット**(マージコミットでも push の先頭でもなく、
+   `Release vX.Y.Z` のコミット自体)に annotated タグを打って push する。
+   同名タグが既にあれば何もしない(冪等)ので、再実行やバージョンを変えない
+   package.json の編集は無害。手で打つ必要はない。
+
+   自動化以前のリリース(v0.25.0 / v0.26.0 / v0.27.0)は付け忘れているため、
+   遡って手で打つ場合のみ:
+
+```bash
+git tag -a vX.Y.Z -m "vX.Y.Z" <リリースコミット>
+git push origin vX.Y.Z
+```
+
+6. 他プロジェクトからは Git URL でタグを固定して導入できる:
+
+```
+https://github.com/c-colloid/UnityAgentPanel.git?path=jp.colloid.unity-agent-panel#vX.Y.Z
+```
+
+## Agent Panel Pro(`jp.colloid.agent-panel-pro`)のバージョニング
+
+Core とは別系統。CHANGELOG は `jp.colloid.agent-panel-pro/CHANGELOG.md`、
+バージョンは同パッケージの `package.json`。**Pro に変更があったときだけ**
+上げる(Core だけの変更ではバンプしない)。リリースコミットのメッセージは
+`Release pro-vX.Y.Z: <概要>` とし(`Release vX.Y.Z` と紛れないよう接頭辞
+`pro-` を付ける)、Pro 単独では git タグを打たない(`tag-release.yml` は
+Core の package.json しか見ていない)。Core と Pro を同じ作業ブランチで
+同時に変更した場合は、この手順のとおり Core のリリースコミットを切った
+あと、続けて Pro のリリースコミットを別コミットとして積む
+(1 コミットに両方を混在させない)。
+
+## 公開ミラー(`.github/workflows/mirror-core.yml`)
+
+`v*` タグの push(またはワークフロー手動実行)で、Core だけを
+`ci/public-mirror/allowlist.txt` の許可リストに従って抽出し、公開リポジトリ
+`${{ vars.PUBLIC_MIRROR_REPO }}`(例: `c-colloid/AgentPanelForUnity`)へ
+1スカッシュコミット「`Release <tag>`」として `main` と同じタグを push する。
+セットアップ:
+
+- リポジトリ変数 `PUBLIC_MIRROR_REPO`: `owner/repo` 形式で公開リポジトリを指定。
+- リポジトリシークレット `PUBLIC_MIRROR_TOKEN`: 公開リポジトリへの push 権限を
+  持つ Personal Access Token(このプライベートリポジトリの `GITHUB_TOKEN` では
+  別リポジトリへ push できないため)。
+- 初回のミラー push が公開側の履歴を v1.0.0 相当からゼロ地点として作る
+  (それ以前のタグをまとめて後追いで流す運用ではない)。
+- Pro に関するドキュメントを Core 側の許可対象ファイル(`docs/*.md`・
+  design-notes 等)に追記するときは、必ず `allowlist.txt` も見直すこと
+  (Pro 固有の内容が公開ミラーに漏れないよう、design-notes は個別の
+  `!`除外行が必要)。
+
+## 既存タグ
+
+| タグ | 内容 |
+|---|---|
+| v0.1.0 | Phase 1 MVP スケルトン+Core(2026-07-29) |
+| v0.2.0 | Phase 2〜3(Markdown/許可カード/履歴/設定/モデルピッカー)+安定化(2026-07-31) |
+| v0.3.0 | Phase 4 サブエージェント表示+README/スクリーンショット+圧壊・リーク修正(2026-08-01) |
+| v0.4.0 | 設定画面の充実(カスタム指示/表示/クイックアクション/通知/About)(2026-08-01) |
+| v0.5.0 | 多言語化(L10n機構+全UI文字列の日英スイープ)(2026-08-01) |
+| v0.6.0 | UI修正ラウンド(スイッチ右揃え/フォントスライダー安定化/About CLI Version)(2026-08-01) |
+| v0.7.0 | Thinking本文の確定時消失の修正+設定の自動適用(アイドル時自動再接続)(2026-08-01) |
+| v0.8.0 | モデル設定(Defaultモデル+サブエージェントモデル詳細設定)(2026-08-01) |
+| v0.9.0 | モデル設定リワーク(デフォルト/使用中の分離+サブエージェント一括モデル)(2026-08-01) |
+| v0.10.0 | パネル内ログイン/ログアウト(claude auth 統合)(2026-08-02) |
+| v0.11.0 | サブエージェントモデル優先順位リワーク+Default表記の正直化(2026-08-02) |
+| v0.12.0 | Phase 5a: UapOps MCPサーバ基盤+coreツール+スクリプト検証ゲート(2026-08-02) |
+| v0.12.1 | Phase 5a 後の修正(2026-08-02) |
+| v0.12.2 | 復元セッションでサブエージェントカードが開けない問題の修正(2026-08-02) |
+| v0.13.0 | Phase 5b: prefab override/anim/material/importer ツール+SDK別プロファイル(2026-08-02) |
+| v0.13.1 | 絵文字がフォント警告でコンソールを埋める問題の修正(2026-08-02) |
+| v0.13.2 | Shift+Enter で改行が入らない問題への最初の対処(2026-08-02) |
+| v0.13.3 | Shift+Enter の改行を実際に修正(v0.13.2 は原因を外していた)(2026-08-02) |
+| v0.14.0 | 実作業セッション由来の3件(ノイズ/権限/uloop優先)(2026-08-03) |
+| v0.14.1 | NewScene がフォントアトラスを破棄する不具合の修正(2026-08-03) |
+| v0.15.0 | 履歴リワーク(使用状況の復元+一覧の実用化)(2026-08-03) |
+| v0.15.1 | リスト行のコントロール整列(標準ルール化+全体監査+ガード)(2026-08-03) |
+| v0.15.2 | 履歴フィルタバーの横溢れと同種の罠の修正(2026-08-03) |
+| v0.15.3 | uap_material_set が何も設定せずに成功を返す問題の修正(2026-08-03) |
+| v0.16.0 | 自動承認レベル(CLIの各モードを実測して不採用と判断した上で)(2026-08-03) |
+| v0.17.0 | サブエージェントカードの状態保持・進捗表示・ターン中の入力(2026-08-03) |
+| v0.18.0 | Phase 5c: UI Toolkit 自動操作/uLoop 連携/コンパイル後の自動継続(2026-08-04) |
+| v0.18.1 | Phase 5c の敵対的レビュー + 初回導入実行で出た欠陥の修正(2026-08-04) |
+| v0.18.2 | レビュー指摘の残り4件(includeInternal 不一致/窓の識別/改行コード)(2026-08-04) |
+| v0.19.0 | 設定UIの注釈過多を実測して解消(長文はツールチップへ、警告は残す)(2026-08-04) |
+| v0.20.0 | AskUserQuestion のステッパー表示(タブ+1問ずつ)+ウィンドウの高さ鎖修正(2026-08-05) |
+| v0.20.1 | 起動直後にモデル別使用状況が空になる問題の修正(キャッシュに永続化)(2026-08-05) |
+| v0.20.2 | 使用状況ポップオーバーの空表示文言を状態に応じて正直に(2026-08-05) |
+| v0.20.3 | 起動時にトランスクリプトから内訳をバックフィル(ユーザー指摘による却下撤回)(2026-08-05) |
+| v0.21.0 | uLoop導入のライブ進捗表示+確認カードの整理(222px→99px)(2026-08-12) |
+| v0.21.1 | 常に許可が ruleContent を捨てていた問題の修正(スコープ拡大と蒸発の両方)(2026-08-12) |
+| v0.22.0 | scripts_commit の CS0012 修正+エラーチップの恒久無視+AskUserQuestion 自由入力(2026-08-14) |
+| v0.23.0 | UI監査ラウンド: AAコントラスト/警告の音量配分/カード磨き/履歴・設定整理(2026-08-14) |
+| v0.24.0 | 履歴メニューのパネル様式化(GenericMenu廃止)+トークン衛生(束E)(2026-08-14) |
+| v0.24.1 | 履歴メニューの過大サイズと、ページ切替で左上へ飛ぶバグの修正(実測値化+開き直し方式)(2026-08-14) |
+| v0.25.0 | パッケージ全体レビューのフェーズ1是正: セキュリティ/データ整合/ハブ生存期間/許可UX 16件+CI安全網の新設(2026-08-23) |
+| v0.26.0 | フェーズ2是正: 許可面・情報設計・UI正確性/性能・クライアント堅牢性・コミット経路の安全性 18件(2026-08-23) |
+| v0.27.0 | フェーズ3是正: UapOpsの偽成功一掃/CLIトランスポート競合/ハブの正直さ/トランスクリプト上限/UX操作性 9束(2026-08-26) |
+| v0.28.0 | UI再設計フェーズ1(統一コントロール語彙/状態/狭幅対応)+設定画面の再設計とレビュー是正(ヘルプマーク)+UITK Font Fix 連携(2026-09-06) |
+| v0.29.0 | ドメインリロード耐性の再点検: 復帰順序の冪等化/ゾンビ記録の保持/実リロード E2E テスト/中断ターンの自動継続(opt-in)/Play モード非フォーカス時の uap_* タイムアウト文面/InitializeOnLoadMethod 化(2026-09-06) |
+| v0.30.0 | uap_lightmap_bake(非同期ライトベイク。同期 Bake による Hold on 固まりの回避)+リロード前の終了猶予 500→150 ms(2026-09-06) |
+| v0.31.0 | Scene ビュー 3D マーカー(uap_marker_* + ユーザーピン + メッシュ判定)/ 画像添付(ファイル・ドロップ・画面・クリップボード・履歴復元)/ uap_editor_screenshot の window 撮影と return_image / エラーチップ送信の一致修正 / Console Clear 同期(2026-09-07) |
+| v0.32.0 | スラッシュコマンド入力(候補ポップアップ・補完・/clear のパネル内処理)/ コンテキスト圧縮の可視化(compact_boundary ノート・履歴復元・メーターの「圧縮済み」表示)(2026-09-07) |
+| v0.33.0 | Bakery GPU Lightmapper 連携(uap_bakery_bake: 設定の取得/変更/シーン保存・プリセット・full/selected/probes スコープ・Lighting 設定の preflight)/ bakery 拡張プロファイル / フォントアトラス保護の自己修復(2026-09-08) |
+| v0.34.0 | uap_transform_set / uap_editor_execute_menu の status / uap_property_set のサブアセット参照と LayerMask / 遅延 uap_* ツールへの誘導 / ライトマップベイクのメモリ preflight・自動最適化・Scale In Lightmap・最適化ガイド / ステータスバーのコンテキスト計とトークン量をターン途中でも更新 / メインスレッドタイムアウトの文面 / EditMode 全体実行時の順序依存修正(2026-09-09) |
+| v0.35.0 | uap_job_status(待ちを超えた呼び出しのジョブ化・Editor ブロック中も応答)/ 破壊的ツールの confirm・dry_run ゲート(uap_asset_delete / uap_prefab_apply_overrides)(2026-09-09) |
+| v0.36.0 | 権限面(全ツール自動承認レベル / ツール単位の常に許可 / キュー深さ表示)+リロード(簡潔な自動継続 / 破棄された許可要求のノート / Play モード読み出し)+会話更新で折りたたみが閉じる問題の修正(2026-09-10) |
+| v0.37.0 | Claude 以外のサブスク型 AI: ACP(Agent Client Protocol)ブリッジで Gemini CLI / Codex(codex-acp)/ 任意の ACP エージェントをバックエンドに選択可能 + 公開向けドキュメント再編(2026-09-10) |
+| v0.37.1 | 会話圧縮中の進行表示(system/status の compacting を配線。ステータスバー「コンテキスト圧縮中...」+会話欄のスピナー行。/compact 送信直後から表示)(2026-09-10) |
+| v0.38.0 | 導入のパネル内完結(CLI の「インストール」ボタン + ACP エージェントのブラウザサインイン)+ Unity 公式プラグイン連携(検出 / ワンクリック導入 / 誘導行)+ uap_search(2026-09-10) |
+| v0.39.0 | Grok Build バックエンド(`grok agent stdio` + 公式インストーラ)+ ACP サインインの修正: 認証メソッドの順位付け(API キーより ChatGPT/Google ログインを優先)・失敗時の次候補フォールバック・サインイン/ハンドシェイク失敗後の再接続ループ停止(2026-09-10) |
+| v0.39.1 | ACP バックエンド(Codex / Gemini CLI / Grok Build)でトークン量とコンテキストメーターが表示されない問題の修正(usage_update / PromptResponse.usage / _meta.quota / Grok の _meta をパネルの result.usage・modelUsage に変換)+ UI 文言のエージェント名・スパーク記号・アクセント色を選択中のバックエンドに追従(`{agent}` プレースホルダ / `uap-agent--*`)+ 会話中のエージェント切替で再接続が無限に続く問題の修正(セッション id の所有バックエンドを記録し他バックエンドでは resume しない / クラッシュカウンタのリセット猶予)(2026-09-10) |
+| v0.39.2 | 製品名を「Agent Panel for Unity」に変更(表示名・空状態タイトル・ACP clientInfo.title・スクリプトゲート拒否文・README。package 名 / 名前空間 / メニュー / リポジトリ URL は据え置き)(2026-09-10) |
+| v0.40.0 | ANTHROPIC_API_KEY のブロックを廃止(Claude Code 利用条件対応): 既定を Auto(環境変数に一切触れず CLI 自身の認証選択に委ねる)に反転し、従来の無条件除去は設定 > アカウントの「APIキー認証」を Subscription only にしたときだけの明示オプトインに。API キー認証中はアカウントカードの常時ノート+会話ログの一度きりの system note で可視化(2026-09-10) |
+| v0.41.0 | ACP バックエンドの認証案内の是正と可視化: Gemini CLI の個人向け Google ログイン終了(2026-06-18)に合わせて説明を「Gemini API キー(`GEMINI_API_KEY` / `~/.gemini/.env`)または Code Assist Standard/Enterprise の Google ログイン」に訂正し、サインイン全滅時の会話ノートに環境変数名と設定場所を明記 + Codex(`CODEX_API_KEY` / `OPENAI_API_KEY`)/ Grok Build(`XAI_API_KEY`)の API キー経路を併記 + ACP で実際に認証に通った方式をアカウントカードに常時表示(API キー系なら課金先の注記と会話ログへの一度きりの注記)。パネルは API キーを保存しない方針を明文化(2026-09-10) |
+| v0.42.0 | Core/Pro 分割: prefab・アニメーション・UI 自動操作の全モジュールとライトマップ/Bakery ベイクツール、同梱 Extension Profiles 5件を新パッケージ `jp.colloid.agent-panel-pro`(プロプライエタリ)へ切り出し。Core に `IUapToolProvider`/`IExtensionProfileProvider` の登録シームを新設し、Pro 導入時は挙動無変化。Pro 不在時は該当モジュールのトグルを無効化してヒント表示(2026-09-11) |

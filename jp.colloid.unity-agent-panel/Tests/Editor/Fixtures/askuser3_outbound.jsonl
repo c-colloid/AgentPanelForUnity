@@ -1,0 +1,3 @@
+{"type":"control_request","request_id":"req_1","request":{"subtype":"initialize"}}
+{"type":"user","message":{"role":"user","content":[{"type":"text","text":"Use the AskUserQuestion tool to ask me one question: which color do I prefer? Options: Red, Blue. Then reply with exactly: ANSWER=<the answer you received>"}]}}
+{"type":"control_response","response":{"subtype":"success","request_id":"3955e450-31a0-4c91-be8b-4abb4c31e502","response":{"behavior":"allow","updatedInput":{"questions":[{"question":"Which color do you prefer?","header":"Color","options":[{"label":"Red","description":"Prefer red."},{"label":"Blue","description":"Prefer blue."}],"multiSelect":false}],"answers":{"Which color do you prefer?":"Red"}}}}}

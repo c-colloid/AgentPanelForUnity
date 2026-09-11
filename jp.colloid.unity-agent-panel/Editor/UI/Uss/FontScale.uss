@@ -1,0 +1,142 @@
+/* ---- Font scale (Settings: Appearance -> font size slider) ----
+   One root class per selectable step (PanelSettings.MinFontSizePx..
+   MaxFontSizePx), toggled by AgentPanelWindow.ApplyFontScale.
+
+   This file is loaded by AgentPanelWindow.LoadStyleSheets AFTER
+   ThemeDark.uss/ThemeLight.uss (which is why it lives in its own file
+   instead of at the end of AgentPanel.uss, which loads BEFORE the theme
+   sheets). Every rule below redefines the SAME --uap-font-size-* custom
+   properties the active uap-theme-dark/light class also defines, at the
+   SAME specificity (both are single-class selectors on the shared content
+   root) -- on a specificity tie, Unity USS (like CSS) resolves in
+   cascade/load order, last declaration wins. Loading this sheet last is
+   therefore what makes the font-scale class win over the theme class,
+   with no priority-flag CSS keyword anywhere (Unity USS does not support
+   that keyword as a priority mechanism -- see
+   docs/design-notes/2026-07-31-font-scale-cascade-fix.md for the
+   before/after measurements that prove both halves of this: the OLD
+   priority-flag-based version was completely inert whenever a theme class
+   was present -- which is always, in production -- and this load-order
+   version is not). Regression guard: UssHygieneTests bans that keyword
+   from every .uss file in this folder, so do not reintroduce it here
+   even in a comment. */
+
+.uap-fontscale-11 {
+    --uap-font-size-body: 11px;
+    --uap-font-size-meta: 10px;
+    --uap-font-size-code: 10px;
+    --uap-font-size-small: 9px;
+    --uap-font-size-title: 13px;
+    --uap-font-size-spark: 12px;
+    --uap-font-size-h1: 13px;
+    --uap-font-size-h2: 12px;
+    --uap-font-size-h3: 11px;
+}
+
+.uap-fontscale-12 {
+    --uap-font-size-body: 12px;
+    --uap-font-size-meta: 11px;
+    --uap-font-size-code: 11px;
+    --uap-font-size-small: 10px;
+    --uap-font-size-title: 14px;
+    --uap-font-size-spark: 13px;
+    --uap-font-size-h1: 14px;
+    --uap-font-size-h2: 13px;
+    --uap-font-size-h3: 12px;
+}
+
+.uap-fontscale-13 {
+    --uap-font-size-body: 13px;
+    --uap-font-size-meta: 12px;
+    --uap-font-size-code: 12px;
+    --uap-font-size-small: 11px;
+    --uap-font-size-title: 15px;
+    --uap-font-size-spark: 14px;
+    --uap-font-size-h1: 15px;
+    --uap-font-size-h2: 14px;
+    --uap-font-size-h3: 13px;
+}
+
+.uap-fontscale-14 {
+    --uap-font-size-body: 14px;
+    --uap-font-size-meta: 13px;
+    --uap-font-size-code: 13px;
+    --uap-font-size-small: 12px;
+    --uap-font-size-title: 16px;
+    --uap-font-size-spark: 15px;
+    --uap-font-size-h1: 16px;
+    --uap-font-size-h2: 15px;
+    --uap-font-size-h3: 14px;
+}
+
+.uap-fontscale-15 {
+    --uap-font-size-body: 15px;
+    --uap-font-size-meta: 14px;
+    --uap-font-size-code: 14px;
+    --uap-font-size-small: 13px;
+    --uap-font-size-title: 17px;
+    --uap-font-size-spark: 16px;
+    --uap-font-size-h1: 17px;
+    --uap-font-size-h2: 16px;
+    --uap-font-size-h3: 15px;
+}
+
+.uap-fontscale-16 {
+    --uap-font-size-body: 16px;
+    --uap-font-size-meta: 15px;
+    --uap-font-size-code: 15px;
+    --uap-font-size-small: 14px;
+    --uap-font-size-title: 18px;
+    --uap-font-size-spark: 17px;
+    --uap-font-size-h1: 18px;
+    --uap-font-size-h2: 17px;
+    --uap-font-size-h3: 16px;
+}
+
+.uap-fontscale-17 {
+    --uap-font-size-body: 17px;
+    --uap-font-size-meta: 16px;
+    --uap-font-size-code: 16px;
+    --uap-font-size-small: 15px;
+    --uap-font-size-title: 19px;
+    --uap-font-size-spark: 18px;
+    --uap-font-size-h1: 19px;
+    --uap-font-size-h2: 18px;
+    --uap-font-size-h3: 17px;
+}
+
+.uap-fontscale-18 {
+    --uap-font-size-body: 18px;
+    --uap-font-size-meta: 17px;
+    --uap-font-size-code: 17px;
+    --uap-font-size-small: 16px;
+    --uap-font-size-title: 20px;
+    --uap-font-size-spark: 19px;
+    --uap-font-size-h1: 20px;
+    --uap-font-size-h2: 19px;
+    --uap-font-size-h3: 18px;
+}
+
+.uap-fontscale-19 {
+    --uap-font-size-body: 19px;
+    --uap-font-size-meta: 18px;
+    --uap-font-size-code: 18px;
+    --uap-font-size-small: 17px;
+    --uap-font-size-title: 21px;
+    --uap-font-size-spark: 20px;
+    --uap-font-size-h1: 21px;
+    --uap-font-size-h2: 20px;
+    --uap-font-size-h3: 19px;
+}
+
+.uap-fontscale-20 {
+    --uap-font-size-body: 20px;
+    --uap-font-size-meta: 19px;
+    --uap-font-size-code: 19px;
+    --uap-font-size-small: 18px;
+    --uap-font-size-title: 22px;
+    --uap-font-size-spark: 21px;
+    --uap-font-size-h1: 22px;
+    --uap-font-size-h2: 21px;
+    --uap-font-size-h3: 20px;
+}

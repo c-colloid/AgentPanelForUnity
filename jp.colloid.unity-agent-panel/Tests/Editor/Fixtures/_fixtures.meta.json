@@ -1,0 +1,30 @@
+{
+  "comment": "Provenance record for the captured CLI fixtures (INFRA-2e). Every fixture in this directory was captured from a REAL claude CLI run; the panel's protocol tests replay these bytes, so when the CLI is upgraded the captures must be re-taken and this record updated. Re-capture procedure: docs/design-notes/2026-08-23-phase2-batch-e-access-and-coverage.md. Exact per-file capture dates were not recorded at capture time (the files predate this record); capturedEra bounds them via the research/design-note timeline.",
+  "cliVersion": "2.1.218",
+  "verifiedOn": "2026-08-23",
+  "capturedEra": "2026-07 to 2026-08 (protocol research phase; see docs/research/02-claude-cli-protocol.md and 02b/02c)",
+  "fixtures": {
+    "askuser3_inbound.jsonl": { "source": "live capture, AskUserQuestion three-question turn (inbound)" },
+    "askuser3_outbound.jsonl": { "source": "live capture, AskUserQuestion three-question turn (outbound)" },
+    "askuser_inbound.jsonl": { "source": "live capture, AskUserQuestion single-question turn" },
+    "auth_login_stdout.txt": { "source": "live capture, claude auth login stdout" },
+    "init_plugins.json": { "source": "live capture 2026-09-10 on claude 2.1.267 (NOT the 2.1.218 era): system/init of a spawn using the panel's exact argument list with Unity's official plugin installed -- plugins[] carries one entry {name, path, source, version}; docs/verify/2026-09-10-unity-plugin-verification-report.md section 1" },
+    "init_flags.json": { "source": "live capture, system/init flags payload" },
+    "out1.jsonl": { "source": "live capture, print-mode turn output" },
+    "out2.jsonl": { "source": "live capture, print-mode turn output" },
+    "out3.jsonl": { "source": "live capture, print-mode turn output" },
+    "out_bidi.jsonl": { "source": "live capture, bidirectional stream-json session" },
+    "permission_inbound.jsonl": { "source": "live capture, can_use_tool permission turn (inbound)" },
+    "permission_outbound.jsonl": { "source": "live capture, can_use_tool permission turn (outbound)" },
+    "resume_out.json": { "source": "live capture, --resume spawn output" },
+    "session_usage_disk.jsonl": { "source": "live capture, on-disk transcript with usage records" },
+    "subagent_sidechain.jsonl": { "source": "live capture, subagent sidechain transcript" },
+    "subagent_sidechain.meta.json": { "source": "live capture, the CLI's sidecar metadata written next to the sidechain transcript (agentType/toolUseId)" },
+    "subagent_toolresult_disk.jsonl": { "source": "live capture, subagent tool_result on-disk form" },
+    "success_bidi_inbound.jsonl": { "source": "live capture, successful bidi turn (inbound)" },
+    "success_bidi_outbound.jsonl": { "source": "live capture, successful bidi turn (outbound)" },
+    "task_subagent_inbound.jsonl": { "source": "live capture, Task subagent turn (inbound)" },
+    "task_subagent_outbound.jsonl": { "source": "live capture, Task subagent turn (outbound)" },
+    "terminal_session_disk.jsonl": { "source": "hand-authored (MODEL-6 canary), modeled line-for-line on a real CLI terminal-session transcript observed 2026-08-23: bare-string user content carrying <command-name>/<command-message>/<command-args> wrappers plus <local-command-stdout> and <local-command-caveat> blocks. NOT a byte capture -- it pins the panel's PARSING of that format; if the CLI changes the wrapper tags, TranscriptLoaderTests' canary assertions fail and this file must be re-modeled." }
+  }
+}

@@ -1,0 +1,3 @@
+{"type":"control_request","request_id":"req_1","request":{"subtype":"initialize"}}
+{"type":"user","message":{"role":"user","content":[{"type":"text","text":"Use the Write tool to create a file named panel_permission_test.txt containing exactly: PERMISSION_ROUNDTRIP_OK. Then reply with only the word DONE."}]}}
+{"type":"control_response","response":{"subtype":"success","request_id":"be4de54a-f21c-46a8-a6c5-075c83c7067a","response":{"behavior":"allow","updatedInput":{"file_path":"C:\\Users\\colloid\\AppData\\Local\\Temp\\claude\\C--Users-colloid-Dev-UnityAgentPanel\\2449ec47-d696-4a62-b24e-19275bad5486\\scratchpad\\cli-e2e\\workdir\\panel_permission_test.txt","content":"PERMISSION_ROUNDTRIP_OK"}}}}

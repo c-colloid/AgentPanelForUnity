@@ -1,0 +1,11 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements">
+    <!-- Three-region root (ARCHITECTURE.md D6 / R05 section 6.1):
+         Header (28px) / ViewContainer (flex) / StatusBar (20px).
+         The regions are populated from C# (HeaderView, IAgentPanelView,
+         StatusBarView); this file only fixes the skeleton. -->
+    <ui:VisualElement name="uap-root" class="uap-root">
+        <ui:VisualElement name="uap-header" class="uap-header" />
+        <ui:VisualElement name="uap-view-container" class="uap-view-container" />
+        <ui:VisualElement name="uap-status-bar" class="uap-status-bar" />
+    </ui:VisualElement>
+</ui:UXML>

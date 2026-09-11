@@ -1,0 +1,2 @@
+{"type":"control_request","request_id":"req_1","request":{"subtype":"initialize"}}
+{"type":"user","message":{"role":"user","content":[{"type":"text","text":"Use the Task tool with subagent_type general-purpose to run this exact bash command: echo SUBAGENT_FIXTURE_OK\nThe subagent should run the command and report its output back. After the Task tool returns, reply with exactly: DONE"}]}}

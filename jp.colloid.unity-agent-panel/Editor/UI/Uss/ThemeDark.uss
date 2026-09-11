@@ -1,0 +1,201 @@
+/* Dark (Pro skin) values for the --uap-* token set.
+   Source of truth: docs/research/05-ux-spec.md section 5.1/5.2.
+   Structure styles must reference these vars only -- no hardcoded colors
+   outside the two theme sheets (ARCHITECTURE.md D6). */
+
+.uap-theme-dark {
+    /* Backgrounds */
+    --uap-bg-base: #383838;
+    --uap-bg-elevated: #404040;
+    --uap-bg-sunken: #2A2A2A;
+    --uap-bg-hover: #464646;
+    --uap-bg-selected: #2C5D87;
+
+    /* Borders */
+    --uap-border: #232323;
+    --uap-border-subtle: #4A4A4A;
+
+    /* Text */
+    --uap-text-primary: #D2D2D2;
+    /* 2026-08-14 UI polish audit: #909090 measured at only ~3.25:1 against
+       --uap-bg-elevated (#404040), below WCAG AA's 4.5:1 floor for normal
+       text. The audit's own suggested #A8A8A8 was re-measured here and
+       still falls short on that surface (~4.36:1) -- #ACACAC clears both
+       --uap-bg-elevated (~4.57:1) and --uap-bg-base (~5.17:1) with margin.
+       Computed via the standard WCAG relative-luminance formula, not
+       eyeballed (per the audit's "compute, do not guess" instruction). */
+    --uap-text-secondary: #ACACAC;
+    --uap-text-disabled: #6A6A6A;
+
+    /* Accents (max 2 accent families visible at once) */
+    --uap-accent-agent: #CC785C; /* Claude; per-agent overrides at the end of this file */
+    --uap-accent-user: #5A7CB8;
+    --uap-accent-link: #4C7EFF;
+    --uap-on-accent: #F2F2F2;
+
+    /* Status dots */
+    --uap-status-idle: #6CC46C;
+    --uap-status-busy: #4C9EE8;
+    --uap-status-warn: #E8C34C;
+    --uap-status-error: #E86A6A;
+    /* Hover shade for error-colored controls (Stop button). */
+    --uap-status-error-hover: #D95858;
+    /* 2026-08-14 UI polish audit: standing-policy caution tone for the
+       auto-approve header chip's relaxed/open tiers, distinct from
+       --uap-status-warn (yellow) and --uap-status-error (red) so ERROR red
+       goes back to meaning "something is wrong right now" instead of
+       tinting a standing setting. Named --uap-accent-caution (not
+       --uap-status-*) because it tints a persistent control state rather
+       than a transient status dot; it never appears alongside
+       --uap-accent-agent/--uap-accent-user on the same surface, so it does
+       not count against the Accents section's 2-family budget above. */
+    --uap-accent-caution: #C98A4B;
+
+    /* Special surfaces */
+    --uap-permission-bg: #46422E;
+    --uap-diff-add-bg: #2E4436;
+    --uap-diff-del-bg: #4A3032;
+
+    /* Spacing scale (4px grid) and shape */
+    --uap-space-xs: 2px;
+    --uap-space-s: 4px;
+    --uap-space-m: 8px;
+    --uap-space-l: 12px;
+    --uap-space-xl: 16px;
+    --uap-radius: 3px;
+
+    /* Hybrid permission card layout floors (must exist in BOTH themes):
+       usability floor for the expanded capped card, summary-row height and
+       the guaranteed minimum visible transcript height. */
+    --uap-perm-card-min: 96px;
+    --uap-perm-summary-min: 24px;
+    --uap-msg-list-min: 60px;
+
+    /* Typography scale. NO font-family/-unity-font here: the monospace
+       font for code surfaces is assigned in C# by FontLoader (editor
+       bundled RobotoMono first; USS-referenced OS fonts like Consolas
+       fail to load a TextCore face and render nothing). */
+    --uap-font-size-body: 12px;
+    --uap-font-size-meta: 11px;
+    --uap-font-size-code: 11px;
+    --uap-font-size-small: 10px;
+    --uap-font-size-title: 14px;
+    --uap-font-size-spark: 13px;
+    --uap-font-size-spark-xl: 26px;
+
+    /* ---- Markdown & tool cards ---- */
+    /* Heading scale (R05 5.3: 14/13/12, no giant headings in a panel).
+       Inline link/inline-code colors are rich-text literals configured in
+       MarkdownRenderer (rich text cannot read USS vars). */
+    --uap-font-size-h1: 14px;
+    --uap-font-size-h2: 13px;
+    --uap-font-size-h3: 12px;
+    /* Height cap for tool-card input/result previews (scrolls inside). */
+    --uap-tool-preview-max: 160px;
+
+    /* Markdown table zebra rows (transparent disables striping). */
+    --uap-md-zebra-bg: rgba(0, 0, 0, 0.10);
+
+    /* ---- Context bar ---- */
+    /* Max width of one context chip before its label ellipsizes. */
+    --uap-ctx-chip-max: 180px;
+
+    /* ---- Attachment chips ---- */
+    /* Height cap for the expanded attachment payload (scrolls inside). */
+    --uap-attach-pre-max: 140px;
+
+    /* ---- Subagent cards (Phase 4) ---- */
+    /* Height cap for the expanded nested subagent transcript (scrolls inside). */
+    --uap-subcard-nested-max: 260px;
+
+    /* ---- Drag & drop overlay ---- */
+    /* Dim wash over the panel while a valid drag hovers, and the frame/
+       box border family (solid stand-in for a dashed border; USS 2022.3
+       has no dashed border style). */
+    --uap-drop-overlay-bg: rgba(30, 30, 30, 0.72);
+    --uap-drop-border: #5A7CB8;
+
+    /* ---- Settings view ---- */
+    /* Danger-zone foldout (dangerouslySkipPermissions): a distinct
+       reddish-warning surface so it reads differently from the
+       permission-card's yellow --uap-permission-bg (different severity --
+       this is a standing setting, not a one-time prompt). */
+    --uap-warn-bg: #4A2E2E;
+    --uap-warn-border: #7A4A4A;
+    /* Height cap for the Diagnostics stderr tail (scrolls inside). */
+    --uap-settings-diag-max: 220px;
+    /* Height cap for the Custom instructions text field (scrolls inside). */
+    --uap-settings-custom-max: 160px;
+
+    /* ---- Settings view: section cards (2026-08-01 visual refresh) ---- */
+    /* Slightly larger than --uap-radius (3px) so cards read as a distinct
+       shape from buttons/inputs without looking out of place in Unity's
+       flat editor chrome (R06 section 3.2). */
+    --uap-radius-card: 6px;
+    /* One token for every fully-rounded "pill" end (2026-08-14
+       token-hygiene note): before this, four chip classes hardcoded 10px
+       and .uap-pill alone hardcoded 8px -- an unexplained drift, not a
+       design decision. */
+    --uap-radius-pill: 10px;
+    /* Card body: "raised" surface -- same value as --uap-bg-elevated today,
+       kept as its own token so the Settings card surface can be tuned
+       independently of every other "elevated" usage in the panel. */
+    --uap-settings-card-bg: #404040;
+    /* Card header strip: same value as --uap-bg-sunken today, likewise
+       decoupled into its own token (recessed input wells reuse
+       --uap-bg-sunken directly and should not move if this is retuned). */
+    --uap-settings-card-header-bg: #2A2A2A;
+
+    /* ---- Settings view: toggle-switch restyle (phase C) ---- */
+    /* Off state is neutral gray, matching the existing --uap-bg-sunken /
+       --uap-text-secondary values. On state reuses the SAME accent family
+       as --uap-accent-link/--uap-on-accent (05-ux-spec.md section 5.2 caps
+       a screen at 2 accent families -- this is not a new one). */
+    --uap-switch-track-off: #2A2A2A;
+    /* var(), not a literal copy of the hex (2026-08-14 token-hygiene
+       note): the comment above PROMISES this tracks the link accent, and
+       a literal would silently desync the switch the first time
+       --uap-accent-link is ever retuned. */
+    --uap-switch-track-on: var(--uap-accent-link);
+    --uap-switch-knob-off: #909090;
+    --uap-switch-knob-on: #F2F2F2;
+
+    /* ---- Control vocabulary (docs/design-notes/2026-09-05-ui-redesign.md
+       section 2). Four families -- icon / chip / button / primary -- share
+       these dimensions so one edit here moves every member together
+       instead of six copy-pasted "3px 10px" declarations drifting apart. */
+    --uap-control-h: 20px;
+    --uap-icon-btn-size: 22px;
+    /* HelpAffordance gutter: every settings card body reserves this much
+       on the right so a "?" never changes the width of the row it sits
+       in. USS has no calc(), so the padded widths are spelled out:
+       card-body padding (space-m 8 / narrow space-s 4) + gutter 26. */
+    --uap-help-gutter: 26px;
+    --uap-help-gutter-neg: -26px;
+    --uap-settings-body-pad-r: 34px;
+    --uap-settings-body-pad-r-narrow: 30px;
+    --uap-btn-pad-y: 3px;
+    --uap-btn-pad-x: 10px;
+    /* Pressed state (:active): one step SUNKEN from the surface, the
+       inverse of --uap-bg-hover's one step raised, so a click reads as a
+       physical press rather than a second hover. */
+    --uap-bg-active: #303030;
+    /* Keyboard-focus ring. var(), not a literal, for the same reason as
+       --uap-switch-track-on: it PROMISES to track the user accent. */
+    --uap-focus-ring: var(--uap-accent-user);
+    /* History row badges: Current keeps the user accent (existing);
+       Pinned = standing preference -> caution amber (same "your policy"
+       meaning the auto-approve chip gives it); Archived = out of the way
+       -> neutral. Text said the difference before; colour now does too. */
+    --uap-badge-pinned-bg: var(--uap-accent-caution);
+    --uap-badge-archived-bg: var(--uap-border-subtle);
+    --uap-badge-archived-fg: var(--uap-text-secondary);
+}
+
+/* Per-agent accent (design note 2026-09-10-agent-name-in-ui.md section 4):
+   AgentPanelWindow puts exactly one uap-agent--* class on the root next to
+   the theme class. Claude keeps the base value above. */
+.uap-theme-dark.uap-agent--gemini { --uap-accent-agent: #6FA4F9; }
+.uap-theme-dark.uap-agent--codex { --uap-accent-agent: #3CC39B; }
+.uap-theme-dark.uap-agent--grok { --uap-accent-agent: #B4BCC8; }
+.uap-theme-dark.uap-agent--custom { --uap-accent-agent: #A78BFA; }
