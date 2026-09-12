@@ -126,6 +126,14 @@ namespace Colloid.AgentPanel.UI
         private Toggle _uapOpsEditorModuleToggle;
         private Toggle _uapOpsAnimModuleToggle;
         private Toggle _uapOpsMarkersModuleToggle;
+        private Toggle _uapOpsUiModuleToggle;
+        // Modules whose toggle AddModuleHint disabled because no add-on
+        // registered any tool for them (Agent Panel Pro absent). Consulted
+        // by RefreshUapOpsStatus, which otherwise re-enabled every module
+        // switch whenever the master switch was on -- including, since the
+        // 2026-09-11 split, the Pro-only ones it had just been told to
+        // grey out (2026-09-12 core-only wording note, section 3).
+        private readonly HashSet<string> _uapOpsModulesWithoutTools = new HashSet<string>(System.StringComparer.Ordinal);
         private Toggle _uapOpsGateEnabledToggle;
         private Toggle _uapOpsAutoContinueToggle;
         private Toggle _autoContinueInterruptedToggle;
@@ -2341,6 +2349,23 @@ namespace Colloid.AgentPanel.UI
             section.Add(_uapOpsAnimModuleToggle);
             AddModuleHint(section, _uapOpsAnimModuleToggle, "anim", L10n.S.SettingsUapOpsModuleAnimHint);
 
+            // Phase 5c "ui" module (UI Toolkit window automation), default
+            // OFF like anim. The module existed at the ToolRegistry /
+            // PanelSettings.uapOpsModules level since Phase 5c but never had
+            // a switch here (the 2026-09-11 core/pro split note recorded
+            // that gap and left it for a later task); USER-GUIDE section 12
+            // has described this row all along. Since the split its tools
+            // ship in Agent Panel Pro, so with Pro absent it is disabled
+            // with the same explanatory hint as prefab/anim.
+            _uapOpsUiModuleToggle = new Toggle(L10n.S.SettingsUapOpsModuleUiLabel);
+            _uapOpsUiModuleToggle.AddToClassList("uap-settings-field");
+            _uapOpsUiModuleToggle.AddToClassList("uap-switch");
+            _uapOpsUiModuleToggle.AddToClassList("uap-settings-field--child");
+            _uapOpsUiModuleToggle.SetValueWithoutNotify(PanelStateStore.instance.Settings.uapOpsModules.Contains("ui"));
+            _uapOpsUiModuleToggle.RegisterValueChangedCallback(OnUapOpsUiModuleToggleChanged);
+            section.Add(_uapOpsUiModuleToggle);
+            AddModuleHint(section, _uapOpsUiModuleToggle, "ui", L10n.S.SettingsUapOpsModuleUiHint);
+
             // Script validation gate (design section 7.4/8.2 B1). Warning-
             // styled (AddWarning, not AddHint) per design-notes/2026-08-04-
             // settings-annotation-load.md section 4: one of the three
@@ -2453,20 +2478,66 @@ namespace Colloid.AgentPanel.UI
         /// docs/design-notes/2026-09-11-core-pro-split.md "seam 4"):
         /// when <see cref="UapOpsServer.Registry"/> currently has zero
         /// tools registered for <paramref name="module"/> (Agent Panel Pro
-        /// not installed), the toggle is disabled and shows
-        /// SettingsUapOpsProAbsentHint instead of its normal hint; a fresh
-        /// domain reload after installing Pro re-evaluates this the next
-        /// time the Settings view is built.
+        /// not installed), the toggle is disabled, its hint keeps the
+        /// normal "what these tools do" sentence and appends that the
+        /// add-on is required (<see cref="ResolveModuleHint"/>), and the
+        /// row carries a tooltip saying what Pro is and how the toggle
+        /// comes back (2026-09-12 core-only wording note: the previous
+        /// "Provided by Agent Panel Pro (not installed)." told a reader who
+        /// had only ever seen the Core package neither what the module did
+        /// nor what "Pro" was). A fresh domain reload after installing Pro
+        /// re-evaluates this the next time the Settings view is built.
         /// </summary>
-        private static void AddModuleHint(VisualElement section, Toggle moduleToggle, string module, string normalHint)
+        private void AddModuleHint(VisualElement section, Toggle moduleToggle, string module, string normalHint)
         {
             bool hasTools = UapOpsServer.Registry.HasToolsInModule(module);
             if (!hasTools)
             {
+                _uapOpsModulesWithoutTools.Add(module);
                 moduleToggle.SetEnabled(false);
+                moduleToggle.tooltip = L10n.S.SettingsUapOpsProAbsentTooltip;
             }
-            AddHint(section, hasTools ? normalHint : L10n.S.SettingsUapOpsProAbsentHint)
-                .AddToClassList("uap-settings-hint--child");
+            else
+            {
+                _uapOpsModulesWithoutTools.Remove(module);
+            }
+            Label hint = AddHint(section, ResolveModuleHint(hasTools, normalHint));
+            hint.AddToClassList("uap-settings-hint--child");
+            if (!hasTools)
+            {
+                hint.tooltip = L10n.S.SettingsUapOpsProAbsentTooltip;
+            }
+        }
+
+        /// <summary>
+        /// Pure text rule behind <see cref="AddModuleHint"/>: the module's
+        /// own hint when its tools are registered, otherwise that same
+        /// hint followed by the Pro-required sentence -- never the Pro
+        /// sentence alone, so the reader still learns what the disabled
+        /// toggle would enable.
+        /// </summary>
+        internal static string ResolveModuleHint(bool hasTools, string normalHint)
+        {
+            if (hasTools)
+            {
+                return normalHint;
+            }
+            return L10n.F(L10n.S.SettingsUapOpsProAbsentHintFmt, normalHint ?? string.Empty).Trim();
+        }
+
+        /// <summary>
+        /// A module switch is interactive only while the master switch is
+        /// on AND some package registered tools for it; see
+        /// <see cref="ResolveModuleToggleEnabled"/> for the pure rule.
+        /// </summary>
+        private bool ModuleToggleEnabled(bool masterEnabled, string module)
+        {
+            return ResolveModuleToggleEnabled(masterEnabled, !_uapOpsModulesWithoutTools.Contains(module));
+        }
+
+        internal static bool ResolveModuleToggleEnabled(bool masterEnabled, bool moduleHasTools)
+        {
+            return masterEnabled && moduleHasTools;
         }
 
         private void OnUapOpsEnabledChanged(ChangeEvent<bool> evt)
@@ -2562,6 +2633,26 @@ namespace Colloid.AgentPanel.UI
             else
             {
                 modules.Remove("anim");
+            }
+            PanelStateStore.instance.SaveNow();
+            AgentHub.ApplyUapOpsModulesChanged();
+            RefreshReconnectHint();
+            AgentHub.RequestAutoApplyReconnect();
+        }
+
+        private void OnUapOpsUiModuleToggleChanged(ChangeEvent<bool> evt)
+        {
+            List<string> modules = PanelStateStore.instance.Settings.uapOpsModules;
+            if (evt.newValue)
+            {
+                if (!modules.Contains("ui"))
+                {
+                    modules.Add("ui");
+                }
+            }
+            else
+            {
+                modules.Remove("ui");
             }
             PanelStateStore.instance.SaveNow();
             AgentHub.ApplyUapOpsModulesChanged();
@@ -2678,12 +2769,16 @@ namespace Colloid.AgentPanel.UI
             }
             RefreshWarningTones();
             bool enabledSetting = PanelStateStore.instance.Settings.uapOpsEnabled;
-            // The four module switches are children of the master switch:
+            // The module switches are children of the master switch:
             // greyed while it is off, so the hierarchy reads without a hint.
-            _uapOpsCoreModuleToggle?.SetEnabled(enabledSetting);
-            _uapOpsPrefabModuleToggle?.SetEnabled(enabledSetting);
-            _uapOpsEditorModuleToggle?.SetEnabled(enabledSetting);
-            _uapOpsAnimModuleToggle?.SetEnabled(enabledSetting);
+            // A module whose tools are not installed (AddModuleHint) stays
+            // greyed regardless -- this refresh used to re-enable it.
+            _uapOpsCoreModuleToggle?.SetEnabled(ModuleToggleEnabled(enabledSetting, "core"));
+            _uapOpsPrefabModuleToggle?.SetEnabled(ModuleToggleEnabled(enabledSetting, "prefab"));
+            _uapOpsEditorModuleToggle?.SetEnabled(ModuleToggleEnabled(enabledSetting, "editor"));
+            _uapOpsMarkersModuleToggle?.SetEnabled(ModuleToggleEnabled(enabledSetting, "markers"));
+            _uapOpsAnimModuleToggle?.SetEnabled(ModuleToggleEnabled(enabledSetting, "anim"));
+            _uapOpsUiModuleToggle?.SetEnabled(ModuleToggleEnabled(enabledSetting, "ui"));
             _uapOpsStatusLabel.text = !enabledSetting
                 ? L10n.S.SettingsUapOpsStatusDisabled
                 : (UapOpsServer.IsRunning
@@ -2723,7 +2818,7 @@ namespace Colloid.AgentPanel.UI
             VisualElement section = AddCollapsibleSection(parent, L10n.S.SettingsSectionExtensionProfiles,
                 "d_ScriptableObject Icon", IconLoader.GlyphFile, "profiles");
             AddHint(AddHintScope(section), L10n.A(L10n.S.SettingsExtensionProfilesHint),
-                L10n.S.SettingsExtensionProfilesTooltip);
+                L10n.A(L10n.S.SettingsExtensionProfilesTooltip));
 
             _extensionProfilesEnabledToggle = new Toggle(L10n.S.SettingsExtensionProfilesEnabledLabel);
             _extensionProfilesEnabledToggle.AddToClassList("uap-settings-field");
@@ -2772,8 +2867,10 @@ namespace Colloid.AgentPanel.UI
             List<ExtensionProfileStatus> statuses = ExtensionProfileService.BuildStatuses(
                 AgentHub.ProjectRoot, PanelStateStore.instance.Settings.approvedProfileHashes);
             bool anyDetected = false;
+            bool anyBundled = false;
             for (int i = 0; i < statuses.Count; i++)
             {
+                anyBundled |= statuses[i].IsBundled;
                 if (!statuses[i].Detected)
                 {
                     continue;
@@ -2783,7 +2880,21 @@ namespace Colloid.AgentPanel.UI
             }
             if (!anyDetected)
             {
-                AddHint(_extensionProfilesHost, L10n.S.SettingsExtensionProfilesEmptyHint);
+                // 2026-09-12 core-only wording: "nothing detected" is only
+                // an honest summary when there was something to detect
+                // WITH. The Core package ships no bundled profile of its
+                // own (2026-09-11 core/pro split), so with no add-on
+                // installed the empty list is explained by what is missing
+                // -- the bundled profiles -- not by the project's contents.
+                if (anyBundled)
+                {
+                    AddHint(_extensionProfilesHost, L10n.S.SettingsExtensionProfilesEmptyHint);
+                }
+                else
+                {
+                    AddHint(_extensionProfilesHost, L10n.S.SettingsExtensionProfilesNoBundledHint)
+                        .tooltip = L10n.S.SettingsExtensionProfilesNoBundledTooltip;
+                }
             }
         }
 
@@ -4819,7 +4930,11 @@ namespace Colloid.AgentPanel.UI
 
         // -- (e) About ------------------------------------------------------------------
 
-        private const string GitHubRepoUrl = "https://github.com/c-colloid/UnityAgentPanel";
+        // The PUBLIC repository (the Core mirror; see the public-mirror section of docs/RELEASING.md).
+        // The development monorepo is private, so a link there is a 404 for
+        // every user who installed the package from the mirror -- which is
+        // every user but the author (2026-09-12 core-only wording note, P0).
+        internal const string GitHubRepoUrl = "https://github.com/c-colloid/AgentPanelForUnity";
 
         private void BuildAboutSection(VisualElement parent)
         {

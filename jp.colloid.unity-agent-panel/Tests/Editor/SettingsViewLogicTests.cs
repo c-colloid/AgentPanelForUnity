@@ -1370,5 +1370,59 @@ namespace Colloid.AgentPanel.Tests
                 SettingsView.ResolveAccountLoginFeedback(inFlight, waiting, submitted).ToString());
         }
 
+        // -- 2026-09-12 core-only wording: Pro-absent module hint ----------
+        // (docs/design-notes/2026-09-12-core-only-wording.md)
+
+        [Test]
+        public void ResolveModuleHint_WithTools_IsTheModuleHintAlone()
+        {
+            Assert.AreEqual("Prefab tools.", SettingsView.ResolveModuleHint(true, "Prefab tools."));
+        }
+
+        [Test]
+        public void ResolveModuleHint_WithoutTools_KeepsTheModuleHint_AndNamesTheAddOn()
+        {
+            string hint = SettingsView.ResolveModuleHint(false, "Prefab tools.");
+
+            StringAssert.StartsWith("Prefab tools.", hint,
+                "the reader must still learn what the disabled toggle would enable");
+            StringAssert.Contains("Agent Panel Pro", hint,
+                "and which package supplies it");
+            Assert.AreEqual(
+                Colloid.AgentPanel.UI.L10n.F(
+                    Colloid.AgentPanel.UI.L10n.S.SettingsUapOpsProAbsentHintFmt, "Prefab tools."),
+                hint);
+        }
+
+        [Test]
+        public void ResolveModuleHint_WithoutTools_NullModuleHint_StillReadsCleanly()
+        {
+            string hint = SettingsView.ResolveModuleHint(false, null);
+
+            Assert.IsFalse(hint.StartsWith(" "), "no leading space left behind by the empty {0}");
+            StringAssert.Contains("Agent Panel Pro", hint);
+        }
+
+        // The About card's GitHub button must open the PUBLIC mirror: the
+        // development monorepo is private and a 404 for everyone else.
+        [Test]
+        public void AboutGitHubLink_PointsAtThePublicMirror_NotThePrivateMonorepo()
+        {
+            StringAssert.StartsWith("https://github.com/c-colloid/AgentPanelForUnity", SettingsView.GitHubRepoUrl);
+            StringAssert.DoesNotContain("UnityAgentPanel", SettingsView.GitHubRepoUrl);
+        }
+
+        // A Pro-only module switch must stay greyed while its tools are
+        // absent even when the master switch is on -- RefreshUapOpsStatus
+        // used to re-enable every module switch from the master alone.
+        [TestCase(true, true, true)]
+        [TestCase(true, false, false)]
+        [TestCase(false, true, false)]
+        [TestCase(false, false, false)]
+        public void ResolveModuleToggleEnabled_RequiresMasterOnAndToolsPresent(
+            bool master, bool hasTools, bool expected)
+        {
+            Assert.AreEqual(expected, SettingsView.ResolveModuleToggleEnabled(master, hasTools));
+        }
     }
 }

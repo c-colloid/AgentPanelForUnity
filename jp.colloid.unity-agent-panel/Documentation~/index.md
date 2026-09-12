@@ -13,7 +13,7 @@ Enterprise -- Google ended "Login with Google" for individuals on 2026-06-18.
 The panel stores no API keys; Settings > Account reports which method the
 connection actually used.
 Full documentation (installation options, usage, troubleshooting) lives in
-the repository README: https://github.com/c-colloid/UnityAgentPanel
+the repository README: https://github.com/c-colloid/AgentPanelForUnity
 
 ## Setup
 

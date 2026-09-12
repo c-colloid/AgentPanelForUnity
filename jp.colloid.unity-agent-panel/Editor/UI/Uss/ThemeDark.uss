@@ -68,6 +68,9 @@
        usability floor for the expanded capped card, summary-row height and
        the guaranteed minimum visible transcript height. */
     --uap-perm-card-min: 96px;
+    /* Floor for the expanded AskUserQuestion card (2026-09-12): summary
+       row + three-line pinned prompt + about two option buttons. */
+    --uap-perm-question-min: 220px;
     --uap-perm-summary-min: 24px;
     --uap-msg-list-min: 60px;
 

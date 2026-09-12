@@ -2,10 +2,19 @@
 
 *English summary at the end.*
 
+> **公開リポジトリ([c-colloid/AgentPanelForUnity](https://github.com/c-colloid/AgentPanelForUnity))で読んでいる方へ**
+> 公開版には Core パッケージ(`jp.colloid.unity-agent-panel/`)と Core に関するドキュメントだけが
+> 含まれます。本書のうち別売パッケージ Agent Panel Pro(`jp.colloid.agent-panel-pro/`)、
+> `ci/`、`.github/workflows/`、`docs/research/`、`docs/verify/` に触れる箇所は開発用モノレポの
+> 説明で、公開版には該当ファイルがありません。Core だけで開発・テストする手順(サンドボックス
+> プロジェクトへのリンク、Test Runner)はそのまま使えます。Issue / Pull Request は公開
+> リポジトリで受け付けています。
+
 ## リポジトリ構成
 
 ```
-├── jp.colloid.unity-agent-panel/   # UPM パッケージ本体(Editor 専用・依存ゼロ)
+├── jp.colloid.unity-agent-panel/   # Core: UPM パッケージ本体(Editor 専用・依存ゼロ・MIT)
+├── jp.colloid.agent-panel-pro/     # Pro: 別売の追加ツール(プロプライエタリ。公開版には無い)
 │   ├── Editor/Core/                # プロセス管理・stream-json プロトコル・JSON(Unity 非依存)
 │   ├── Editor/Model/               # セッション/メッセージのデータモデル・永続化
 │   ├── Editor/UI/                  # UI Toolkit ビュー・テーマ
@@ -87,6 +96,7 @@ Pro のツールを書くときは、Core 側のコードやテストに Pro の
 
 ## English summary
 
+- **Reading this in the public repository (c-colloid/AgentPanelForUnity)?** It carries only the Core package (`jp.colloid.unity-agent-panel/`) and Core's docs; every mention of Agent Panel Pro (`jp.colloid.agent-panel-pro/`), `ci/`, `.github/workflows/`, `docs/research/` or `docs/verify/` describes the private development monorepo. The Core-only development loop (sandbox project + Test Runner) works as written.
 - The repository is a UPM **package** (`jp.colloid.unity-agent-panel/`), not a Unity project. Develop by junction-linking the package folder into a throwaway sandbox project's `Packages/` and running the Editor in batch mode (`-batchmode -runTests -testPlatform EditMode ...`), or use `Window > General > Test Runner`.
 - `LiveCli` tests need a logged-in CLI and `UAP_LIVE_CLI=1`; reload E2E tests need `UAP_FAKE_CLI=<path to ci/FakeCli/claude>`.
 - CI: `dotnet-smoke.yml` (no Unity needed), `editmode-tests.yml` (needs `UNITY_EMAIL` / `UNITY_PASSWORD` secrets, so it does not run on forks until configured), `tag-release.yml` (tags automatically). See [ci/README.md](ci/README.md).

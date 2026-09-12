@@ -36,7 +36,7 @@ Claude Code CLI を Unity エディタにドッキング可能なチャットパ
 - **インライン権限カード** — ファイル編集やシェル実行などツール呼び出し前に、許可(1 回のみ / セッション中は常に許可) / 拒否+理由を選べるカードを表示します。パネル幅が狭い場合は自動でフローティングウィンドウに切り替わります。
 - **自動承認レベル** — 「読み取りのみ」から「全ツール」まで段階的に自動承認の範囲を選べます(既定は毎回確認)。
 - **スクリプト検証ゲート** — エージェントが書く C# は一旦ステージングに置かれ、コンパイル検証を通ったものだけが Assets に入ります。壊れたコードでドメインリロードが起きることはなく、コンパイルエラーはそのままエージェントに返って自己修正されます(フック層は Windows のみ。他 OS では権限カード側の事前フィルタだけが働きます)。
-- **破壊的操作の確認ゲート** — `uap_asset_delete` / `uap_prefab_apply_overrides` のような取り消せない操作は `confirm:true` なしでは拒否され、影響範囲だけを返します(`dry_run:true` でプレビューのみ)。
+- **破壊的操作の確認ゲート** — `uap_asset_delete`(Pro では `uap_prefab_apply_overrides` も)のような取り消せない操作は `confirm:true` なしでは拒否され、影響範囲だけを返します(`dry_run:true` でプレビューのみ)。
 
 ### Unity 連携
 
@@ -51,13 +51,16 @@ Claude Code CLI を Unity エディタにドッキング可能なチャットパ
 
 パネル内蔵の MCP サーバ経由で、エージェントが C# を書かずに Unity エディタを型付きツールとして操作できます(ローカルループバック限定+トークン認証)。1 ターン分の操作は Undo 1 回でまとめて巻き戻せます。
 
+**(Pro)** と付いた項目は別売の追加パッケージ Agent Panel Pro が必要です([Core と Pro](#core-と-pro))。印のない項目は、この README の手順で導入する Core だけで使えます。
+
 - **シーン / アセット操作** — オブジェクト作成・コンポーネント追加・プロパティ変更・Transform・アセット操作・メニュー実行・エディタスクリーンショット。
 - **検索(`uap_search`)** — Unity Search のクエリ(`t:prefab ref:Player.prefab`、`t:Light -isstatic` など)をアセットとシーンに対して実行し、他のツールにそのまま渡せるパスで結果を返します。Unity 公式プラグインの検索スキルが組み立てたクエリを、Search ウィンドウを開かずにチャット内で処理できます。
-- **プレハブ差分** — オーバーライド一覧・Apply・Revert(全体/個別)。
-- **アニメーション / マテリアル** — AnimationClip 作成、AnimatorController 編集、シェーダプロパティ探索付きのマテリアル設定、インポータ設定の変更(既定 OFF)。
-- **ライトマップベイク** — Unity 標準ライトマッパー(`uap_lightmap_bake`: メモリ preflight・自動最適化・最適化ガイド)と [Bakery GPU Lightmapper](https://assetstore.unity.com/packages/tools/level-design/bakery-gpu-lightmapper-122218)(`uap_bakery_bake`: 設定取得/変更・プリセット・スコープ指定)の両方を、Editor をブロックせずに開始・進捗確認・中止できます。
+- **プレハブ差分(Pro)** — プレハブ作成、オーバーライド一覧・Apply・Revert(全体/個別)。
+- **アニメーション / マテリアル(Pro)** — AnimationClip 作成、AnimatorController 編集、シェーダプロパティ探索付きのマテリアル設定、インポータ設定の変更(既定 OFF)。
+- **UI 操作(Pro)** — UI Toolkit のエディタウィンドウの一覧・ダンプ・クリック・値設定によるエディタ UI 自動操作(既定 OFF)。
+- **ライトマップベイク(Pro)** — Unity 標準ライトマッパー(`uap_lightmap_bake`: メモリ preflight・自動最適化・最適化ガイド)と [Bakery GPU Lightmapper](https://assetstore.unity.com/packages/tools/level-design/bakery-gpu-lightmapper-122218)(`uap_bakery_bake`: 設定取得/変更・プリセット・スコープ指定)の両方を、Editor をブロックせずに開始・進捗確認・中止できます。
 - **ジョブ化** — メインスレッドの待ち時間を超えた呼び出しはジョブとして保持され、`uap_job_status` で後から結果を取得できます。
-- **拡張プロファイル** — VRChat SDK3 / UniVRM / MagicaCloth2 / Final IK / Bakery / RPG Maker Unite を自動検出し、その SDK の要点を Claude の指示に追加します(同梱プロファイルのみ自動、プロジェクト独自プロファイルは全文確認と承認が必要)。
+- **拡張プロファイル** — 検出したサードパーティ SDK の要点を Claude の指示に追加します。プロジェクト独自のプロファイル(`.uap-profiles/*.json`、全文確認と承認が必要)は Core だけで使えます。VRChat SDK3 / UniVRM / MagicaCloth2 / Final IK / Bakery / RPG Maker Unite を自動検出する同梱プロファイルは **Pro** に収録されています。
 
 各ツールの詳細は [docs/design-notes/](docs/design-notes/) の該当ノートを参照してください。
 
@@ -71,17 +74,17 @@ Claude Code CLI を Unity エディタにドッキング可能なチャットパ
 
 ## Core と Pro
 
-このリポジトリは 2 つのパッケージで構成されています。
+Agent Panel for Unity は 2 つのパッケージで構成されています。**この README が説明し、上記の手順で導入されるのは Core です。** Pro が無くても Core は全機能が動作し、Pro を後から追加しても Core 側の設定や手順は変わりません。
 
-- **`jp.colloid.unity-agent-panel`(Core、MIT)** — このリポジトリの本体。チャット・権限確認・スクリプト検証ゲート・履歴・ACP バックエンド、および基本的な UapOps ツール(シーン/コンポーネント/プロパティ/アセット操作、検索、スクリーンショット、Editor メニュー実行など)を含みます。
-- **`jp.colloid.agent-panel-pro`(Pro、プロプライエタリ、別売)** — 以下の高度な UapOps ツールと、主要拡張アセット向けの Extension Profiles を追加します。Core と組み合わせて初めて動作します(Core 単体でも動きますが、下記機能は使えません)。
+- **`jp.colloid.unity-agent-panel`(Core、MIT)** — チャット・権限確認・AskUserQuestion カード・スクリプト検証ゲート・履歴・ACP バックエンド・Scene ビューのマーカー、および基本的な UapOps ツール(シーン/コンポーネント/プロパティ/アセット操作、検索、スクリーンショット、Editor メニュー実行、スクリプトのステージングとコミットなど)を含みます。上の「特徴」で **(Pro)** の印が無いものはすべて Core の機能です。
+- **`jp.colloid.agent-panel-pro`(Pro、プロプライエタリ、別売)** — 以下の高度な UapOps ツールと、主要拡張アセット向けの Extension Profiles を追加します。Core と組み合わせて初めて動作します。
   - **prefab** — プレハブ作成・オーバーライドの取得/適用/差し戻し
   - **editor(ライトマップ/Bakery)** — 非同期ライトマップベイク・プリフライト診断・Bakery GPU Lightmapper 連携
   - **anim** — アニメーションクリップ/AnimatorController編集・マテリアル設定・アセットプロパティ設定・アバターインポーター設定
   - **ui** — UI Toolkit ウィンドウの一覧・ダンプ・クリック・値設定によるエディタ UI 自動操作
-  - Bakery / Final IK / Magica Cloth 2 / UniVRM / VRChat SDK3 向けの Extension Profiles
+  - Bakery / Final IK / Magica Cloth 2 / UniVRM / VRChat SDK3 / RPG Maker Unite 向けの Extension Profiles
 
-Pro 未導入でも Core は問題なく動作し、設定画面の該当モジュールのトグルには「Agent Panel Pro(未導入)で提供」と表示されます。Pro は BOOTH/Gumroad で配布される zip をプロジェクトの `Packages/` フォルダ直下に展開してインストールします(配布リンクは追って掲載します)。
+Pro の有無はパネルの設定画面で分かります。未導入のプロジェクトでは、設定 > Unity操作(UapOps) の該当モジュール(プレハブ / アニメーション / UI 操作)のトグルが無効化され、ヒントに「…別売の Agent Panel Pro 拡張パッケージが必要です(未導入)」と表示されます(ホバーで入手方法を表示)。設定 > 拡張プロファイル には「同梱の SDK プロファイルは未導入です。プロジェクトの `.uap-profiles/*.json` は引き続き使えます。」と表示されます。Pro は BOOTH/Gumroad で配布される zip をプロジェクトの `Packages/` フォルダ直下に展開してインストールし、次のドメインリロード後にこれらのトグルが有効になります(配布リンクは追って掲載します)。
 
 ## 必要要件
 
@@ -104,16 +107,16 @@ Pro 未導入でも Core は問題なく動作し、設定画面の該当モジ�
 
 `Window > Package Manager > + > Add package from git URL...` を開き、次の形式で入力します。
 
-[https://github.com/c-colloid/UnityAgentPanel.git?path=jp.colloid.unity-agent-panel](https://github.com/c-colloid/UnityAgentPanel.git?path=jp.colloid.unity-agent-panel#v0.42.4)
+[https://github.com/c-colloid/AgentPanelForUnity.git?path=jp.colloid.unity-agent-panel](https://github.com/c-colloid/AgentPanelForUnity.git?path=jp.colloid.unity-agent-panel#v0.42.5)
 
-上記のリンク先は最新のリリースタグ(`#v0.42.4`)を指しています。URL 末尾にタグを付けるとそのバージョンに固定でき、省略すると main の最新を取得します。タグの一覧は [CHANGELOG](jp.colloid.unity-agent-panel/CHANGELOG.md) を参照してください。
+上記のリンク先は最新のリリースタグ(`#v0.42.5`)を指しています。URL 末尾にタグを付けるとそのバージョンに固定でき、省略すると main の最新を取得します。タグの一覧は [CHANGELOG](jp.colloid.unity-agent-panel/CHANGELOG.md) を参照してください。
 
 ### 方法 2: `Packages` フォルダへ配置(embedded パッケージ)
 
 リポジトリを任意の場所に clone し、`jp.colloid.unity-agent-panel` フォルダを Unity プロジェクトの `Packages/` 直下にコピーするか、シンボリックリンク/ジャンクションを張ります。
 
 ```
-git clone https://github.com/c-colloid/UnityAgentPanel.git
+git clone https://github.com/c-colloid/AgentPanelForUnity.git
 ```
 
 ```

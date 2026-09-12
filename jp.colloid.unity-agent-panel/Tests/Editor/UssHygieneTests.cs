@@ -164,6 +164,24 @@ namespace Colloid.AgentPanel.Tests
         /// shrinking with a floor; the remove button must stay
         /// flex-shrink:0 so it can never be the one pushed out.
         /// </summary>
+        /// <summary>
+        /// Measured 2026-09-12 (design note 2026-09-12-compacting-row-crush.md):
+        /// at a 500px-tall panel with a long transcript the compacting row
+        /// shrank from 24px to 16px and its label to 9px, painting its text
+        /// over the message list and the context bar. The message list is
+        /// the designated shrinker; this one-line status row is not.
+        /// </summary>
+        [Test]
+        public void SourceScan_CompactingRow_NeverShrinks()
+        {
+            string file = Path.Combine(Path.GetFullPath(PackageUssDir), "AgentPanel.uss");
+            string text = File.ReadAllText(file);
+
+            string row = ExtractRuleBlock(text, ".uap-compacting-row");
+            StringAssert.Contains("flex-shrink: 0", row,
+                ".uap-compacting-row must never give height back -- see the 2026-09-12 crush note");
+        }
+
         [Test]
         public void SourceScan_SettingsModelRow_KeepsShrinkGuards()
         {

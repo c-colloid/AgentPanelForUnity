@@ -3643,7 +3643,12 @@ namespace Colloid.AgentPanel.Integration
             // profiles section. Pure/module-list-driven -- see
             // ComposeUapOpsSteeringSection's own doc comment.
             string uapOpsSteeringSection = ComposeUapOpsSteeringSection(
-                settings.uapOpsEnabled, settings.uapOpsModules);
+                settings.uapOpsEnabled, settings.uapOpsModules,
+                // The lightmap/Bakery paragraph names tools that ship in
+                // Agent Panel Pro; with Core alone they are not registered
+                // and the agent should not be told to look for them
+                // (2026-09-12 core-only wording note, P2).
+                UapOpsServer.Registry.Find("uap_lightmap_bake") != null);
             // Stream C (docs/design-notes/2026-09-10-unity-official-plugin-
             // integration.md section 3): when Unity's official plugin is
             // installed in the CLI's user config, steer toward its /unity:*
@@ -4171,7 +4176,7 @@ namespace Colloid.AgentPanel.Integration
         /// fell back to dynamic code instead of retrying correctly.
         /// </summary>
         internal static string ComposeUapOpsSteeringSection(bool uapOpsEnabled,
-            IEnumerable<string> enabledModules)
+            IEnumerable<string> enabledModules, bool lightmapToolsAvailable = true)
         {
             if (!uapOpsEnabled)
             {
@@ -4225,7 +4230,8 @@ namespace Colloid.AgentPanel.Integration
                     : string.Empty)
                 + "uloop or raw dynamic code is for what those tools cannot express"
                 + " -- it works, but is the slower, confirmation-heavy path.\n"
-                + "Never run Lightmapping.Bake() (synchronous) through uloop or dynamic code: it"
+                + (lightmapToolsAvailable
+                    ? "Never run Lightmapping.Bake() (synchronous) through uloop or dynamic code: it"
                 + " blocks the Unity main thread for the whole bake, the Editor shows \"Hold on\","
                 + " and every tool call stalls until it ends. Use uap_lightmap_bake (start, then poll"
                 + " status) when that tool is available; its start runs a memory preflight and, by"
@@ -4241,6 +4247,7 @@ namespace Colloid.AgentPanel.Integration
                 + " use uap_bakery_bake instead (get_settings/set_settings for bounces, samples,"
                 + " texelsPerUnit, renderMode, renderDirMode; start with scope full/selected/probes;"
                 + " never click through Bakery's window).\n"
+                    : string.Empty)
                 + (enabledSet.Contains("markers")
                     ? "When you need to show the user WHERE something is in the scene, add a Scene-view"
                       + " marker with uap_marker_add and refer to it as [n] in your reply instead of"

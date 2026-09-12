@@ -266,6 +266,25 @@ namespace Colloid.AgentPanel.Tests
             StringAssert.DoesNotContain("screenshots", section);
         }
 
+        /// <summary>
+        /// Core alone registers no uap_lightmap_bake / uap_bakery_bake (they
+        /// ship in Agent Panel Pro), so the steering text must not send the
+        /// agent looking for them; the rest of the section is unchanged.
+        /// </summary>
+        [Test]
+        public void ComposeUapOpsSteeringSection_LightmapParagraph_OnlyWhenTheToolsExist()
+        {
+            string withTools = AgentHub.ComposeUapOpsSteeringSection(true, new[] { "core", "editor" }, true);
+            string without = AgentHub.ComposeUapOpsSteeringSection(true, new[] { "core", "editor" }, false);
+
+            StringAssert.Contains("uap_lightmap_bake", withTools);
+            StringAssert.DoesNotContain("uap_lightmap_bake", without);
+            StringAssert.DoesNotContain("uap_bakery_bake", without);
+            StringAssert.DoesNotContain("Lightmapping.Bake", without);
+            StringAssert.Contains("uap_ping", without, "the liveness line after the paragraph must survive");
+            StringAssert.Contains("uap_property_set", without);
+        }
+
         [Test]
         public void SteeringSection_AnimModuleOff_NeverMentionsAnimationFamily()
         {

@@ -507,6 +507,14 @@
 .uap-compacting-row {
     flex-direction: row;
     align-items: center;
+    /* Measured 2026-09-12 (docs/design-notes/2026-09-12-compacting-row-
+       crush.md): with a transcript taller than the panel this row was
+       the element Yoga shrank -- 24px -> 16px at a 500px-tall panel, its
+       16px label squeezed to 9px -- so the text painted over the message
+       list above and the context bar below. The message list is the
+       designated shrinker (it has its own min-height floor); this row is
+       one line of status and must never give height back. */
+    flex-shrink: 0;
     background-color: var(--uap-bg-elevated);
     padding-top: var(--uap-space-s);
     padding-bottom: var(--uap-space-s);
@@ -1154,6 +1162,33 @@
     min-height: var(--uap-perm-card-min);
 }
 
+/* AskUserQuestion variant (2026-09-12 prompt-visibility note, measured):
+   the expanded card shrinks below its 40 percent cap whenever the
+   transcript is taller than the panel -- at a 560px-tall panel a
+   three-question card came out 138px: summary 49 + tab strip 23 + prompt
+   41 left an 11px options viewport, ZERO options visible. The pinned
+   prompt made the question readable but the answers unreachable without
+   scrolling an 11px strip. A question needs an answer, so its floor is
+   higher than a tool card's: summary + a three-line prompt + about two
+   options. Same specificity as .uap-perm--expanded, later in the file,
+   so this floor wins while both classes apply; the transcript above keeps
+   its own --uap-msg-list-min floor and still fits at the 380px inline
+   minimum (380 - context bar 28 - composer 68 = 284 >= 220 + 60).
+
+   flex-shrink: 0 as well (second measurement, same day): with any
+   transcript taller than the panel -- the normal state of a conversation
+   -- the expanded card never actually reached its 40 percent cap; Yoga
+   shrank it straight down to its floor (a 600x860 panel gave 220px, not
+   the 325px cap, once the session had a few exchanges). The cap already
+   bounds the card (C# max-height), so shrinking buys nothing for a
+   question and costs its options: 40% + 96px of bars + the transcript's
+   60px floor fit in any panel taller than 260px, and inline cards need
+   380px. Tool cards (.uap-perm--expanded alone) keep shrinking as before. */
+.uap-perm--question {
+    flex-shrink: 0;
+    min-height: var(--uap-perm-question-min);
+}
+
 .uap-perm-body {
     flex-shrink: 1;
     min-height: 0;
@@ -1635,22 +1670,46 @@
     border-bottom-color: var(--uap-accent-user);
 }
 
+/* Options-only section (one per question) inside the scrolling details.
+   The question's header/text are NOT here -- see .uap-perm-qprompt. */
 .uap-perm-question {
-    margin-top: var(--uap-space-s);
+    margin-top: 0;
     margin-bottom: var(--uap-space-s);
+}
+
+/* Pinned question prompt (2026-09-12 design note): sits in the card body
+   between the summary row / tab strip and the scrolling details, so the
+   question stays readable however far its options scroll. Before this the
+   question text was the first row INSIDE the details ScrollView, at body
+   size and regular weight -- one scroll step (or the 40 percent inline
+   cap alone, with the wrapped two-line summary row above it) pushed it
+   out of view, and what remained looked like a list of options with no
+   question. flex-shrink: 0 for the same reason as .uap-perm-qtabs: the
+   details area below is the designated shrinker. */
+.uap-perm-qprompt {
+    flex-shrink: 0;
+    padding-top: var(--uap-space-xs);
+    padding-bottom: var(--uap-space-s);
+    padding-left: var(--uap-space-m);
+    padding-right: var(--uap-space-m);
 }
 
 .uap-perm-qheader {
     font-size: var(--uap-font-size-meta);
     -unity-font-style: bold;
     color: var(--uap-text-secondary);
+    white-space: normal;
+    margin-bottom: var(--uap-space-xs);
 }
 
+/* Bold on purpose: the option labels below are body size at regular
+   weight, so weight (not size) is what tells the question apart from its
+   answers without making the card taller. */
 .uap-perm-qtext {
     font-size: var(--uap-font-size-body);
+    -unity-font-style: bold;
     color: var(--uap-text-primary);
     white-space: normal;
-    margin-bottom: var(--uap-space-s);
 }
 
 .uap-perm-option {

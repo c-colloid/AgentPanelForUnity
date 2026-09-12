@@ -39,13 +39,19 @@ namespace Colloid.AgentPanel.UI
     ///   from permission_suggestions and is sent as updatedPermissions.
     ///   Starts COLLAPSED inline.
     /// - AskUserQuestion (requires_user_interaction): summary actions are
-    ///   [Submit] [Skip]; details hold one section per question. With 2+
-    ///   questions a Claude Desktop-style stepper shows ONE question at a
-    ///   time behind a clickable tab strip (QuestionStepperModel;
-    ///   2026-08-05 design note -- a 4-question request measured 736px
-    ///   stacked, ~175px per question, so one-at-a-time is what fits the
-    ///   hosts). Starts EXPANDED (interaction required) but obeys the same
-    ///   height cap with internal scrolling. Submit sends allow with
+    ///   [Submit] [Skip]; the CURRENT question's header + text sit in a
+    ///   pinned prompt block (uap-perm-qprompt) between the summary row
+    ///   and the scrolling details, and the details hold one options
+    ///   section per question (2026-09-12 design note: with the wrapped
+    ///   summary row and the 40 percent cap the question text scrolled
+    ///   out of view with the options and read like one more option, so
+    ///   it now never scrolls and is set in bold). With 2+ questions a
+    ///   Claude Desktop-style stepper shows ONE question at a time behind
+    ///   a clickable tab strip (QuestionStepperModel; 2026-08-05 design
+    ///   note -- a 4-question request measured 736px stacked, ~175px per
+    ///   question, so one-at-a-time is what fits the hosts). Starts
+    ///   EXPANDED (interaction required) but obeys the same height cap
+    ///   with internal scrolling. Submit sends allow with
     ///   answers keyed by QUESTION TEXT (the only verified key; 02b
     ///   section 5); Skip sends allow with an empty answers object.
     ///   Every question also offers a synthetic "Other..." option with a
@@ -137,6 +143,14 @@ namespace Colloid.AgentPanel.UI
         private VisualElement _questionTabsStrip;
         private List<Button> _questionTabs;
         private List<VisualElement> _questionSections;
+        // Pinned prompt block (2026-09-12 design note): the current
+        // question's header + text, inserted into _body between the
+        // summary row (or the tab strip) and the scrolling _details, so
+        // the question itself never scrolls away with its options.
+        // Rebuilt per request like the tab strip (ResetStepperState).
+        private VisualElement _questionPrompt;
+        private Label _questionPromptHeader;
+        private Label _questionPromptText;
 
         /// <summary>Inline host: the open-in-window button was clicked.</summary>
         public event Action OpenInWindowRequested;
@@ -462,6 +476,10 @@ namespace Colloid.AgentPanel.UI
             {
                 BuildToolVariant();
             }
+            // Higher usability floor for a question (USS .uap-perm--question,
+            // 2026-09-12 note): measured at a 560px panel, the three-question
+            // card shrank to 138px and showed zero options.
+            _root.EnableInClassList("uap-perm--question", _isQuestionVariant);
 
             // AskUserQuestion needs its options visible to be answerable, so
             // it starts EXPANDED (same cap, internal scrolling). Plain tool
@@ -1221,6 +1239,7 @@ namespace Colloid.AgentPanel.UI
             {
                 BuildQuestionTabs(questionCount);
             }
+            BuildQuestionPrompt();
 
             // ALL question sections are built up front (they are cheap:
             // a handful of labels/buttons each, ~175px of layout per
@@ -1234,14 +1253,11 @@ namespace Colloid.AgentPanel.UI
             for (int q = 0; q < questionCount; q++)
             {
                 AskUserQuestionInput.Question question = _questions.Questions[q];
+                // Options only: the header and question text live in the
+                // pinned prompt block above (_questionPrompt), never in
+                // the scrolling section -- see BuildQuestionPrompt.
                 var section = new VisualElement();
                 section.AddToClassList("uap-perm-question");
-
-                if (!string.IsNullOrEmpty(question.Header))
-                {
-                    section.Add(PlainLabel(question.Header, "uap-perm-qheader"));
-                }
-                section.Add(PlainLabel(question.QuestionText, "uap-perm-qtext"));
 
                 var selected = new HashSet<int>();
                 var buttons = new List<Button>();
@@ -1382,6 +1398,59 @@ namespace Colloid.AgentPanel.UI
         }
 
         /// <summary>
+        /// Builds the pinned prompt block (2026-09-12 design note): one
+        /// header Label + one question-text Label, inserted into _body
+        /// directly above _details (below the tab strip when there is
+        /// one). It is the only place the question text is rendered --
+        /// the per-question sections in _details hold options only -- so
+        /// however far the options scroll, the question stays readable.
+        /// flex-shrink: 0 in USS, same reasoning as the tab strip: the
+        /// details area is the designated shrinker. Text is filled per
+        /// current question by RefreshQuestionPrompt.
+        /// </summary>
+        private void BuildQuestionPrompt()
+        {
+            _questionPrompt = new VisualElement();
+            _questionPrompt.AddToClassList("uap-perm-qprompt");
+            _questionPromptHeader = PlainLabel(string.Empty, "uap-perm-qheader");
+            _questionPromptHeader.style.display = DisplayStyle.None;
+            _questionPrompt.Add(_questionPromptHeader);
+            _questionPromptText = PlainLabel(string.Empty, "uap-perm-qtext");
+            _questionPrompt.Add(_questionPromptText);
+            _body.Insert(_body.IndexOf(_details), _questionPrompt);
+        }
+
+        /// <summary>
+        /// Mirrors the current question into the prompt block. The header
+        /// is shown only for a SINGLE question: with 2+ questions the
+        /// current tab already carries it (bold, underlined) directly
+        /// above, and repeating it would push the question text -- the
+        /// part that was hard to see -- one line further down.
+        /// </summary>
+        private void RefreshQuestionPrompt()
+        {
+            if (_questionPrompt == null || _stepper == null || _questions == null)
+            {
+                return;
+            }
+            int index = _stepper.CurrentIndex;
+            if (index < 0 || index >= _questions.Questions.Count)
+            {
+                return;
+            }
+            AskUserQuestionInput.Question question = _questions.Questions[index];
+            // Model-controlled strings: same sanitize chokepoint as every
+            // other label this card renders (PlainLabel does it at build
+            // time; these labels are re-filled per navigation).
+            string header = IconLoader.SanitizeForDisplay(question.Header);
+            bool showHeader = _questions.Questions.Count == 1 && !string.IsNullOrEmpty(header);
+            _questionPromptHeader.text = showHeader ? header : string.Empty;
+            _questionPromptHeader.style.display = showHeader
+                ? DisplayStyle.Flex : DisplayStyle.None;
+            _questionPromptText.text = IconLoader.SanitizeForDisplay(question.QuestionText);
+        }
+
+        /// <summary>
         /// Free navigation to one question (tab click; also the seam the
         /// EditMode tests drive, because a detached Clickable never fires
         /// -- see UapUiClickDispatcherTests' class comment for why click
@@ -1442,6 +1511,7 @@ namespace Colloid.AgentPanel.UI
                         _stepper.IsAnswered(i));
                 }
             }
+            RefreshQuestionPrompt();
         }
 
         /// <summary>
@@ -1476,6 +1546,15 @@ namespace Colloid.AgentPanel.UI
                 _questionTabsStrip.RemoveFromHierarchy();
                 _questionTabsStrip = null;
             }
+            // Same hygiene for the prompt block: it lives in _body too, so
+            // _details.Clear() never removes it.
+            if (_questionPrompt != null)
+            {
+                _questionPrompt.RemoveFromHierarchy();
+                _questionPrompt = null;
+            }
+            _questionPromptHeader = null;
+            _questionPromptText = null;
             _stepper = null;
             _questionTabs = null;
             _questionSections = null;

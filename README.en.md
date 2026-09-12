@@ -36,7 +36,7 @@ Inspired by [ComfyUI Agent Panel](https://github.com/artokun/comfyui-mcp-panel).
 - **Inline permission cards** -- allow once / always allow (with scope) / deny with a reason, before any file edit or shell command. Narrow panels switch to a floating window automatically.
 - **Auto-approve levels** -- from "read-only tools" up to "all tools" (never the default).
 - **Script validation gate** -- C# the agent writes is staged and compiled first; only code that compiles reaches `Assets/`. Compile errors go straight back to the agent for self-correction. (The hook layer is Windows-only; other platforms keep the permission-card pre-filter.)
-- **Destructive-operation gate** -- irreversible tools such as `uap_asset_delete` and `uap_prefab_apply_overrides` are refused without `confirm:true` and only report their blast radius (`dry_run:true` previews).
+- **Destructive-operation gate** -- irreversible tools such as `uap_asset_delete` (and, with Pro, `uap_prefab_apply_overrides`) are refused without `confirm:true` and only report their blast radius (`dry_run:true` previews).
 
 ### Unity integration
 
@@ -50,12 +50,15 @@ Inspired by [ComfyUI Agent Panel](https://github.com/artokun/comfyui-mcp-panel).
 
 A built-in MCP server (loopback only, token-authenticated) lets the agent drive the Editor through typed tools instead of writing C#. Everything one turn does is undone with a single Undo.
 
+Items marked **(Pro)** need the separately sold Agent Panel Pro add-on (see [Core and Pro](#core-and-pro)). Everything else works with the Core package this README installs.
+
 - **Scene / asset ops** -- create objects, add components, set properties and transforms, manipulate assets, execute menu items, take Editor screenshots.
-- **Prefab overrides** -- list, apply, revert (all or per property).
-- **Animation / materials** -- create AnimationClips, edit AnimatorControllers, set material properties with shader-property discovery, change importer settings (off by default).
-- **Lightmap baking** -- both the built-in lightmapper (`uap_lightmap_bake`: memory preflight, automatic optimisation, an optimisation playbook) and [Bakery GPU Lightmapper](https://assetstore.unity.com/packages/tools/level-design/bakery-gpu-lightmapper-122218) (`uap_bakery_bake`: read/write settings, presets, scopes), without blocking the Editor.
+- **Prefab overrides (Pro)** -- create prefabs; list, apply, revert overrides (all or per property).
+- **Animation / materials (Pro)** -- create AnimationClips, edit AnimatorControllers, set material properties with shader-property discovery, change importer settings (off by default).
+- **UI automation (Pro)** -- list, dump, click and set values in UI Toolkit Editor windows (off by default).
+- **Lightmap baking (Pro)** -- both the built-in lightmapper (`uap_lightmap_bake`: memory preflight, automatic optimisation, an optimisation playbook) and [Bakery GPU Lightmapper](https://assetstore.unity.com/packages/tools/level-design/bakery-gpu-lightmapper-122218) (`uap_bakery_bake`: read/write settings, presets, scopes), without blocking the Editor.
 - **Jobs** -- calls that outlive the main-thread wait are kept as jobs; `uap_job_status` fetches the result later, even while the Editor is blocked.
-- **Extension profiles** -- VRChat SDK3, UniVRM, MagicaCloth2, Final IK, Bakery and RPG Maker Unite are auto-detected and their essentials are added to Claude's instructions (bundled profiles only; project-specific profiles require review and approval).
+- **Extension profiles** -- essentials of detected third-party SDKs are added to Claude's instructions. Project-specific profiles (`.uap-profiles/*.json`, reviewed and approved in full) work with Core alone; the bundled profiles that auto-detect VRChat SDK3, UniVRM, MagicaCloth2, Final IK, Bakery and RPG Maker Unite ship with **Pro**.
 
 See the notes under [docs/design-notes/](docs/design-notes/) for details on each tool.
 
@@ -69,17 +72,17 @@ See the notes under [docs/design-notes/](docs/design-notes/) for details on each
 
 ## Core and Pro
 
-This repository holds two packages.
+Agent Panel for Unity comes as two packages. **This README describes, and the steps above install, Core.** Core is complete without Pro, and adding Pro later changes nothing about Core's setup or settings.
 
-- **`jp.colloid.unity-agent-panel` (Core, MIT)** — the package this README describes: chat, permissions, the script validation gate, history, ACP backends, and the basic UapOps tools (scene/component/property/asset operations, search, screenshots, Editor menu execution, and more).
-- **`jp.colloid.agent-panel-pro` (Pro, proprietary, sold separately)** — adds the following advanced UapOps tools plus bundled Extension Profiles for popular extension assets. It only works alongside Core (Core works fine on its own, just without these).
+- **`jp.colloid.unity-agent-panel` (Core, MIT)** — chat, permissions, the AskUserQuestion card, the script validation gate, history, ACP backends, Scene-view markers, and the basic UapOps tools (scene/component/property/asset operations, search, screenshots, Editor menu execution, script staging and commit, and more). Every feature above without a **(Pro)** mark is Core.
+- **`jp.colloid.agent-panel-pro` (Pro, proprietary, sold separately)** — adds the following advanced UapOps tools plus bundled Extension Profiles for popular extension assets. It only works alongside Core.
   - **prefab** — prefab creation and getting/applying/reverting overrides
   - **editor (lightmap/Bakery)** — async lightmap baking, preflight diagnostics, Bakery GPU Lightmapper integration
   - **anim** — animation clip/AnimatorController editing, material settings, asset property settings, avatar importer settings
   - **ui** — UI Toolkit window automation (list/dump/click/set value)
-  - Extension Profiles for Bakery / Final IK / Magica Cloth 2 / UniVRM / VRChat SDK3
+  - Extension Profiles for Bakery / Final IK / Magica Cloth 2 / UniVRM / VRChat SDK3 / RPG Maker Unite
 
-Core works fully without Pro installed; the Settings toggle for an affected module shows "Provided by Agent Panel Pro (not installed)" instead. Pro is distributed as a zip on BOOTH/Gumroad, extracted directly under your project's `Packages/` folder (a distribution link will be added later).
+The panel's Settings tell you which one you have. Without Pro, the Prefab / Anim / UI automation module toggles under Settings > Unity operations (UapOps) are disabled and their hint ends with "Requires the Agent Panel Pro add-on (sold separately; not installed)" (hover for how to get it), and Settings > Extension profiles reads "No bundled SDK profiles are installed. Project profiles in `.uap-profiles/*.json` still work." Pro is distributed as a zip on BOOTH/Gumroad, extracted directly under your project's `Packages/` folder; the toggles become available after the next domain reload (a distribution link will be added later).
 
 ## Requirements
 
@@ -102,9 +105,9 @@ The package lives in `jp.colloid.unity-agent-panel/` and has no package dependen
 
 `Window > Package Manager > + > Add package from git URL...`:
 
-[https://github.com/c-colloid/UnityAgentPanel.git?path=jp.colloid.unity-agent-panel](https://github.com/c-colloid/UnityAgentPanel.git?path=jp.colloid.unity-agent-panel#v0.42.4)
+[https://github.com/c-colloid/AgentPanelForUnity.git?path=jp.colloid.unity-agent-panel](https://github.com/c-colloid/AgentPanelForUnity.git?path=jp.colloid.unity-agent-panel#v0.42.5)
 
-The link above points at the latest release tag (`#v0.42.4`). Append a tag to pin a version; omit it to track `main`. Tags are listed in the [CHANGELOG](jp.colloid.unity-agent-panel/CHANGELOG.md).
+The link above points at the latest release tag (`#v0.42.5`). Append a tag to pin a version; omit it to track `main`. Tags are listed in the [CHANGELOG](jp.colloid.unity-agent-panel/CHANGELOG.md).
 
 ### Option 2: embedded package under `Packages/`
 

@@ -1199,6 +1199,151 @@ namespace Colloid.AgentPanel.Tests
             AssertDeclaration(details, "min-height", "0");
         }
 
+        // ------------------------------------------------------------------
+        // Pinned question prompt (design note
+        // docs/design-notes/2026-09-12-askuserquestion-prompt-visibility.md):
+        // the question text lives in the body, above the scrolling details,
+        // never inside a section.
+        // ------------------------------------------------------------------
+
+        private static VisualElement Prompt(PermissionCard card)
+        {
+            return card.Root.Q<VisualElement>(className: "uap-perm-qprompt");
+        }
+
+        [Test]
+        public void QuestionPrompt_IsPinnedInBody_DirectlyAboveTheDetails()
+        {
+            PermissionCard card = BuildCard(ThreeSingleSelectQuestions("qp1"));
+
+            VisualElement prompt = Prompt(card);
+            Assert.IsNotNull(prompt, "question card must render the pinned prompt block");
+            VisualElement body = card.Root.Q<VisualElement>(className: "uap-perm-body");
+            VisualElement details = card.Root.Q<VisualElement>(className: "uap-perm-details");
+            VisualElement tabs = card.Root.Q<VisualElement>(className: "uap-perm-qtabs");
+            Assert.AreSame(body, prompt.parent, "the prompt lives in the body, not in the scroll view");
+            Assert.AreEqual(body.IndexOf(details) - 1, body.IndexOf(prompt),
+                "the prompt is the element directly above the details");
+            Assert.Less(body.IndexOf(tabs), body.IndexOf(prompt),
+                "with 2+ questions the tab strip stays above the prompt");
+            Assert.IsNull(details.Q<Label>(className: "uap-perm-qtext"),
+                "the scrolling sections must not carry a second copy of the question text");
+        }
+
+        [Test]
+        public void QuestionPrompt_SingleQuestion_ShowsHeaderAndBoldText()
+        {
+            PermissionCard card = BuildCard(BuildQuestionRequest("qp2",
+                QuestionJson("Which colour?", "Colour", false, 2)));
+
+            VisualElement prompt = Prompt(card);
+            Label header = prompt.Q<Label>(className: "uap-perm-qheader");
+            Label text = prompt.Q<Label>(className: "uap-perm-qtext");
+            Assert.AreEqual("Colour", header.text);
+            Assert.AreNotEqual(DisplayStyle.None, header.style.display.value,
+                "a single question has no tab to carry its header, so the prompt shows it");
+            Assert.AreEqual("Which colour?", text.text);
+        }
+
+        [Test]
+        public void QuestionPrompt_FollowsNavigation_AndLeavesTheHeaderToTheTab()
+        {
+            PermissionCard card = BuildCard(ThreeSingleSelectQuestions("qp3"));
+            VisualElement prompt = Prompt(card);
+            Label header = prompt.Q<Label>(className: "uap-perm-qheader");
+            Label text = prompt.Q<Label>(className: "uap-perm-qtext");
+
+            Assert.AreEqual("Pick A", text.text);
+            Assert.AreEqual(DisplayStyle.None, header.style.display.value,
+                "with 2+ questions the current tab already shows the header");
+
+            card.NavigateToQuestion(2);
+
+            Assert.AreEqual("Pick C", text.text, "the prompt mirrors the current question");
+            Assert.AreEqual(DisplayStyle.None, header.style.display.value);
+        }
+
+        [Test]
+        public void QuestionPrompt_IsRebuiltPerRequest_NeverStacked()
+        {
+            var card = new PermissionCard();
+            card.Refresh(ThreeSingleSelectQuestions("qp4a"));
+            card.Refresh(BuildQuestionRequest("qp4b", QuestionJson("Only one", "H", false, 2)));
+
+            Assert.AreEqual(1, card.Root.Query<VisualElement>(className: "uap-perm-qprompt").ToList().Count,
+                "a second request must replace the prompt block, not stack another under it");
+            Assert.AreEqual("Only one", Prompt(card).Q<Label>(className: "uap-perm-qtext").text);
+        }
+
+        [Test]
+        public void QuestionVariant_CarriesTheHigherFloorClass_ToolVariantDoesNot()
+        {
+            var card = new PermissionCard();
+            card.Refresh(BuildQuestionRequest("qf1", QuestionJson("Only one", "H", false, 2)));
+            Assert.IsTrue(card.Root.ClassListContains("uap-perm--question"));
+
+            card.Refresh(BuildToolRequest("qf2"));
+            Assert.IsFalse(card.Root.ClassListContains("uap-perm--question"),
+                "the same card instance serves the next tool request; the floor must not stick");
+        }
+
+        /// <summary>
+        /// Measured 2026-09-12 at a 560px-tall panel: a three-question card
+        /// shrank to 138px and its options viewport to 11px (zero options
+        /// visible). The question variant's floor must sit above the tool
+        /// card's, and must be declared AFTER .uap-perm--expanded so it wins
+        /// while both classes apply.
+        /// </summary>
+        [Test]
+        public void SourceScan_QuestionFloor_OutranksTheToolCardFloor()
+        {
+            string text = File.ReadAllText(Path.GetFullPath(PackageUssPath));
+
+            string question = ExtractRuleBlock(text, ".uap-perm--question");
+            AssertDeclaration(question, "min-height", "var(--uap-perm-question-min)");
+            AssertDeclaration(question, "flex-shrink", "0",
+                "measured: with a long transcript the card shrank to its floor instead of "
+                + "using its 40 percent cap; the cap already bounds it, so a question never shrinks");
+            Assert.Less(text.IndexOf(".uap-perm--expanded {", System.StringComparison.Ordinal),
+                text.IndexOf(".uap-perm--question {", System.StringComparison.Ordinal),
+                "same specificity: the later rule wins, so the question floor must follow the expanded floor");
+
+            foreach (string theme in new[] { "ThemeDark.uss", "ThemeLight.uss" })
+            {
+                string themeText = File.ReadAllText(Path.Combine(
+                    Path.GetDirectoryName(Path.GetFullPath(PackageUssPath)), theme));
+                var question_min = new Regex(@"--uap-perm-question-min:\s*(\d+)px");
+                var card_min = new Regex(@"--uap-perm-card-min:\s*(\d+)px");
+                Match q = question_min.Match(themeText);
+                Match c = card_min.Match(themeText);
+                Assert.IsTrue(q.Success && c.Success, theme + " must define both floors");
+                Assert.Greater(int.Parse(q.Groups[1].Value), int.Parse(c.Groups[1].Value),
+                    theme + ": a question needs more room than a collapsed-able tool card");
+            }
+        }
+
+        /// <summary>
+        /// The prompt block must never be the element that gives height
+        /// back either (same contract as the tab strip below), and its text
+        /// must wrap: a nowrap question would ellipsize away the very
+        /// content the block exists to keep visible.
+        /// </summary>
+        [Test]
+        public void SourceScan_QuestionPrompt_KeepsPinnedAndWrapping()
+        {
+            string text = File.ReadAllText(Path.GetFullPath(PackageUssPath));
+
+            string prompt = ExtractRuleBlock(text, ".uap-perm-qprompt");
+            AssertDeclaration(prompt, "flex-shrink", "0",
+                "the details area below is the designated shrinker; a shrinking "
+                + "prompt would hide the question again under height pressure");
+
+            string question = ExtractRuleBlock(text, ".uap-perm-qtext");
+            AssertDeclaration(question, "white-space", "normal");
+            AssertDeclaration(question, "-unity-font-style", "bold",
+                "weight is what separates the question from its body-size options");
+        }
+
         /// <summary>
         /// The stepper strip must never be the element that gives height
         /// back -- the details area below it is the designated shrinker --

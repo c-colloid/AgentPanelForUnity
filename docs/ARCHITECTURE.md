@@ -424,6 +424,14 @@ Tests の SubagentGroupingTests / task_subagent フィクスチャ再生。
 
 **設計書**: `docs/design-notes/2026-08-01-phase5-unity-ops-design.md`(根拠: R08〜R11 実測)。
 
+> **2026-09-11 以降の注記**: 本節は Phase 5 当時の記述で、prefab / anim / UI 自動操作の
+> 各モジュール、ライトマップ・Bakery ベイク、同梱の拡張プロファイルを一体のパッケージ
+> として扱っている。Core/Pro 分割(v0.42.0)で、これらは別売の `jp.colloid.agent-panel-pro`
+> に移り、Core(公開版)には L1 の基盤・core/editor(スクリーンショット・メニュー実行)/
+> markers モジュール・検索・拡張プロファイルの枠組み(ユーザー定義プロファイル)だけが
+> 残っている。Core は `IUapToolProvider` / `IExtensionProfileProvider` の 2 つのシームで
+> 追加パッケージを受け入れる。分割前の機能一覧は README の「Core と Pro」を参照。
+
 3層アーキテクチャ: **L1 = パネル内蔵MCPサーバ「UapOps」**(Streamable HTTP + Bearer、
 `mcp_reconnect` 制御リクエストでリロード復旧、型付きツール群を SerializedProperty/ObjectFactory/
 PrefabUtility/AnimatorController 等のエディタAPIで実行 — コンパイルゼロ・ターン単位Undo・

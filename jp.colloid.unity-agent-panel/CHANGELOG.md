@@ -9,6 +9,83 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (nothing yet)
 
+## [0.42.5] - 2026-09-12
+
+### Changed
+
+- **Settings explain the Core/Pro line to someone who only has Core**
+  (design note `docs/design-notes/2026-09-12-core-only-wording.md`). A
+  module toggle whose tools ship in the separately sold Agent Panel Pro
+  add-on now keeps its own "what these tools do" hint and appends
+  "Requires the Agent Panel Pro add-on (sold separately; not installed)."
+  instead of the bare "Provided by Agent Panel Pro (not installed).", with
+  a hover tooltip on the row saying what Pro is, that the panel is
+  complete without it, and that the toggle comes back after the next
+  domain reload once Pro sits under `Packages/`. The Extension profiles
+  card no longer claims "No supported SDK detected" when there was
+  nothing to detect with: with no bundled profile installed it reads "No
+  bundled SDK profiles are installed. Project profiles in
+  `.uap-profiles/*.json` still work." (tooltip names the SDKs whose
+  bundled profiles ship with Pro), and its tooltip now says bundled
+  profiles come from add-on packages. README / README.en / USER-GUIDE mark
+  every Pro-only feature with **(Pro)** in the feature list, state that
+  everything unmarked works with Core alone, and describe what the
+  Settings show without Pro.
+- **Every link a Core user can reach now points at the public repository**
+  (`https://github.com/c-colloid/AgentPanelForUnity`): the README install
+  URL and `git clone` line, the Package Manager documentation page, the
+  USER-GUIDE's issue-tracker link and the GitHub button in Settings > About
+  used to open the private development monorepo -- a 404 for anyone who
+  installed the package from the mirror. `docs/README.md`, CONTRIBUTING and
+  the architecture document now say which folders and features exist only
+  in the monorepo (Pro, `ci/`, `docs/research/`, `docs/verify/`), and the
+  agent steering text no longer mentions `uap_lightmap_bake` /
+  `uap_bakery_bake` when those Pro tools are not registered.
+- **A "UI automation" module toggle (default OFF) joins Settings > Unity
+  operations (UapOps).** The `ui` module (UI Toolkit window list / dump /
+  click / set value, `uap_editor_ui_*`) has existed since Phase 5c and is
+  documented in USER-GUIDE section 12, but never had a switch; it now has
+  one shaped like Anim, disabled with the Pro-absent hint when the add-on
+  is not installed.
+
+### Fixed
+
+- **The question in an AskUserQuestion card is readable again** (design
+  note `docs/design-notes/2026-09-12-askuserquestion-prompt-visibility.md`).
+  Since the summary row started wrapping (v0.28.0 review fix), the
+  question text -- the first row INSIDE the scrolling details, body size,
+  regular weight, identical to the option labels -- left the 40 percent
+  inline cap's viewport after one scroll step and was hard to tell from
+  its own options even before that. The current question's header and
+  text now sit in a pinned block (`uap-perm-qprompt`, never shrinks)
+  between the summary row / tab strip and the scrolling options, the
+  text is bold, and with 2+ questions the block follows the stepper
+  (the header is left to the tab that already shows it).
+- **A question card holds its size while the conversation is long.**
+  Measured on a real editor: once the transcript was taller than the
+  panel, the expanded AskUserQuestion card never reached its 40 percent
+  cap -- Yoga shrank it to the tool card's 96px floor, so a three-question
+  card at a 560px-tall panel was 138px with an 11px options viewport and
+  zero options visible. The question variant now carries
+  `uap-perm--question`: a 220px floor (summary + three-line question +
+  two options; still leaves the transcript its own floor at the 380px
+  inline minimum) and no shrinking (the cap already bounds it). Tool cards
+  are unchanged.
+- **The "Compacting the context..." row no longer paints over its
+  neighbours** (design note
+  `docs/design-notes/2026-09-12-compacting-row-crush.md`). With a long
+  transcript in a short panel the row was the element Yoga shrank (24px
+  to 16px, its 16px label to 9px), so its text bled into the message list
+  above and the context bar below. It now keeps `flex-shrink: 0`; the
+  message list, which has its own minimum, gives the height back.
+- **Pro-only module toggles were clickable with Pro absent.** The
+  Settings card disabled them when built, but `RefreshUapOpsStatus`
+  (called at the end of the same build and on every master-switch
+  change) re-enabled every module switch from the master switch alone.
+  A switch now stays greyed while no package registers tools for its
+  module; the Scene-view markers switch also greys out with the master
+  switch like the others.
+
 ## [0.42.4] - 2026-09-12
 
 ### Fixed

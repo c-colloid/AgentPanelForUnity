@@ -1676,7 +1676,7 @@ namespace Colloid.AgentPanel.UI
         public readonly string SettingsExtensionProfilesHint =
             "Detected third-party SDKs add a short knowledge block to {agent}'s system prompt.";
         public readonly string SettingsExtensionProfilesTooltip =
-            "Detected third-party SDKs (VRChat SDK3, UniVRM, MagicaCloth2, FinalIK and others) get a short knowledge block appended to Claude's system prompt, so it already knows their component types. Bundled profiles are injected automatically; user-supplied profiles from .uap-profiles/*.json require your explicit approval below.";
+            "Detected third-party SDKs (VRChat SDK3, UniVRM, MagicaCloth2, FinalIK and others) get a short knowledge block appended to {agent}'s system prompt, so it already knows their component types. Bundled profiles (shipped by add-on packages such as Agent Panel Pro) are injected automatically; user-supplied profiles from .uap-profiles/*.json require your explicit approval below.";
 
         public readonly string SettingsExtensionProfilesEnabledLabel = "Enable extension profiles";
 
@@ -1994,8 +1994,39 @@ namespace Colloid.AgentPanel.UI
         // also disabled in that state.
         // ==================================================================
 
-        public readonly string SettingsUapOpsProAbsentHint =
-            "Provided by Agent Panel Pro (not installed).";
+        /// <summary>{0} = the module's normal hint (what its tools do), kept so the reader still learns what the disabled toggle WOULD enable.</summary>
+        public readonly string SettingsUapOpsProAbsentHintFmt =
+            "{0} Requires the Agent Panel Pro add-on (sold separately; not installed).";
+
+        /// <summary>Hover tooltip on a disabled Pro-only module toggle: what Pro is, that Core is complete without it, and how the toggle comes back.</summary>
+        public readonly string SettingsUapOpsProAbsentTooltip =
+            "These tools ship in the separately sold Agent Panel Pro package (jp.colloid.agent-panel-pro),"
+            + " which is not installed in this project. The panel works fully without it. To add them, extract"
+            + " the Pro package under the project's Packages/ folder; this toggle becomes available after the"
+            + " next domain reload. See README > Core and Pro.";
+
+        // 2026-09-12 core-only wording (docs/design-notes/2026-09-12-core-
+        // only-wording.md): shown in the Extension profiles card instead of
+        // "No supported SDK detected" when NO bundled profile is installed
+        // at all -- with only the Core package present nothing can be
+        // detected, and saying so is what tells a Core-only user why the
+        // list is empty even though their project has VRChat SDK3 in it.
+        public readonly string SettingsExtensionProfilesNoBundledHint =
+            "No bundled SDK profiles are installed. Project profiles in .uap-profiles/*.json still work.";
+
+        // Phase 5c "ui" module toggle, added 2026-09-12 (the module existed
+        // since Phase 5c but had no Settings row -- see the 2026-09-11
+        // core/pro split note's "Deliberately NOT done" list).
+        public readonly string SettingsUapOpsModuleUiLabel = "UI automation";
+
+        public readonly string SettingsUapOpsModuleUiHint =
+            "Lists, dumps, clicks and sets values in UI Toolkit Editor windows (uap_editor_ui_*). Default OFF.";
+
+        public readonly string SettingsExtensionProfilesNoBundledTooltip =
+            "The bundled profiles for VRChat SDK3, UniVRM, MagicaCloth2, Final IK, Bakery and RPG Maker Unite"
+            + " ship in the separately sold Agent Panel Pro package (jp.colloid.agent-panel-pro). Without it"
+            + " this list only shows profiles you add yourself as .uap-profiles/*.json under the project root,"
+            + " each approved below before it is injected.";
 
         // ==================================================================
         // Constructors
@@ -2670,7 +2701,12 @@ namespace Colloid.AgentPanel.UI
             string settingsAccountAcpAuthMethodStored = null,
             string settingsAccountAcpApiKeyAuthNoteFmt = null,
             string hubAcpApiKeyAuthNoteFmt = null,
-            string settingsUapOpsProAbsentHint = null)
+            string settingsUapOpsProAbsentHintFmt = null,
+            string settingsUapOpsProAbsentTooltip = null,
+            string settingsExtensionProfilesNoBundledHint = null,
+            string settingsExtensionProfilesNoBundledTooltip = null,
+            string settingsUapOpsModuleUiLabel = null,
+            string settingsUapOpsModuleUiHint = null)
         {
             FirstRunCliNotFoundTitle = firstRunCliNotFoundTitle;
             FirstRunCliNotFoundBody = firstRunCliNotFoundBody;
@@ -3391,9 +3427,29 @@ namespace Colloid.AgentPanel.UI
             {
                 HubAcpApiKeyAuthNoteFmt = hubAcpApiKeyAuthNoteFmt;
             }
-            if (settingsUapOpsProAbsentHint != null)
+            if (settingsUapOpsProAbsentHintFmt != null)
             {
-                SettingsUapOpsProAbsentHint = settingsUapOpsProAbsentHint;
+                SettingsUapOpsProAbsentHintFmt = settingsUapOpsProAbsentHintFmt;
+            }
+            if (settingsUapOpsProAbsentTooltip != null)
+            {
+                SettingsUapOpsProAbsentTooltip = settingsUapOpsProAbsentTooltip;
+            }
+            if (settingsExtensionProfilesNoBundledHint != null)
+            {
+                SettingsExtensionProfilesNoBundledHint = settingsExtensionProfilesNoBundledHint;
+            }
+            if (settingsExtensionProfilesNoBundledTooltip != null)
+            {
+                SettingsExtensionProfilesNoBundledTooltip = settingsExtensionProfilesNoBundledTooltip;
+            }
+            if (settingsUapOpsModuleUiLabel != null)
+            {
+                SettingsUapOpsModuleUiLabel = settingsUapOpsModuleUiLabel;
+            }
+            if (settingsUapOpsModuleUiHint != null)
+            {
+                SettingsUapOpsModuleUiHint = settingsUapOpsModuleUiHint;
             }
         }
     }
