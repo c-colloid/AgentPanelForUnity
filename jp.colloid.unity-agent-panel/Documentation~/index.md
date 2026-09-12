@@ -44,7 +44,7 @@ the repository README: https://github.com/c-colloid/UnityAgentPanel
   authenticated) and the typed Unity operation tools it exposes. Since the
   2026-09-11 core/pro split, the prefab-overrides, lightmap/Bakery baking,
   animation/material editing and UI Toolkit automation tools -- plus the
-  five bundled Extension Profiles -- live in the separate, proprietary
+  six bundled Extension Profiles -- live in the separate, proprietary
   `jp.colloid.agent-panel-pro` package; this package registers them through
   two seams, `IUapToolProvider` (`Editor/Ops/IUapToolProvider.cs`) and
   `IExtensionProfileProvider` (`Editor/Ops/Profiles/IExtensionProfileProvider.cs`),

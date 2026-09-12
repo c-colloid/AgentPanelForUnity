@@ -558,6 +558,54 @@ namespace Colloid.AgentPanel.Tests
         }
 
         [Test]
+        public void Load_MissingFile_ReportsNotUnreadable()
+        {
+            // "No cache" and "could not read the cache" are opposites on
+            // the write side (design note 2026-09-12): the first is a normal
+            // first save, the second would destroy the transcript. Both
+            // return null, so the flag is the only thing telling them apart.
+            Dictionary<string, ModelUsage> usage;
+            bool unreadable;
+            Assert.IsNull(_cache.Load(out usage, out unreadable));
+            Assert.IsFalse(unreadable, "nothing to lose: saving over this is correct");
+        }
+
+        [Test]
+        public void Load_ExclusivelyLockedFile_ReportsUnreadable_AndKeepsTheFile()
+        {
+            _cache.Save(BuildPoisonSession());
+            Dictionary<string, ModelUsage> usage;
+            bool unreadable;
+            using (new FileStream(_path, FileMode.Open, FileAccess.Read, FileShare.None))
+            {
+                Assert.IsNull(_cache.Load(out usage, out unreadable));
+                Assert.IsTrue(unreadable,
+                    "the transcript is right there on disk -- the caller must NOT save over it");
+            }
+            Assert.IsTrue(File.Exists(_path), "MODEL-1: a lock never deletes the cache");
+            Assert.AreEqual(1, _logs.Count, "exactly one log line, no spam");
+
+            // ...and once the lock clears, the very same file loads fine.
+            Assert.IsNotNull(_cache.Load(out usage, out unreadable));
+            Assert.IsFalse(unreadable);
+        }
+
+        [Test]
+        public void Load_CorruptFile_ReportsNotUnreadable()
+        {
+            // Corrupt is NOT "unreadable": the file was read, found bad and
+            // deleted, so there is no longer a transcript to protect and
+            // the next save must be allowed through.
+            Directory.CreateDirectory(_dir);
+            File.WriteAllText(_path, "[1,2,3]");
+            Dictionary<string, ModelUsage> usage;
+            bool unreadable;
+            Assert.IsNull(_cache.Load(out usage, out unreadable));
+            Assert.IsFalse(unreadable);
+            Assert.IsFalse(File.Exists(_path));
+        }
+
+        [Test]
         public void Load_TruncatedJson_ReturnsNullDeletesFileLogsOnce()
         {
             _cache.Save(BuildPoisonSession());

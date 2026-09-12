@@ -9,6 +9,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (nothing yet)
 
+## [0.42.3] - 2026-09-12
+
+### Fixed
+
+- **The conversation no longer disappears when Unity compiles.** Reported
+  as "every compile switches the panel to a new session and the history is
+  gone", and measured in the wild: six `Sharing violation` failures in one
+  editor session, one per domain reload, every one of them on
+  `SessionCache.json` right after the pre-reload save had rewritten it.
+  Three things were wrong and all three are fixed (design note
+  docs/design-notes/2026-09-12-session-cache-transient-read-failure.md):
+  - `AtomicFile.ReadAllText` now opens with
+    `FileShare.ReadWrite | FileShare.Delete` and briefly retries (MODEL-3).
+    The old `File.ReadAllText` refused to open a file that any other handle
+    held with WRITE access -- which is exactly what an antivirus, search
+    indexer or sync agent does to a file we just replaced. Every sidecar
+    (session meta, quick actions, custom instructions, the Ops generated
+    files) reads through this helper, so all of them gain it.
+  - **A cache that could not be READ is never overwritten.**
+    `SessionCacheFile.Load` now reports *why* it returned null, and every
+    save in `AgentHub` goes through a single guarded path, so a lock that
+    lasts milliseconds can no longer be turned into permanent transcript
+    loss by the next save.
+  - The panel recovers within the same domain: the load is retried and the
+    restored transcript is spliced back in front of whatever arrived while
+    the cache was unreadable (nothing is dropped). If it still cannot be
+    read, the transcript now says so, instead of leaving an empty panel
+    that is indistinguishable from deleted history.
+
 ## [0.42.2] - 2026-09-11
 
 ### Fixed

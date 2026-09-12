@@ -55,7 +55,7 @@ A built-in MCP server (loopback only, token-authenticated) lets the agent drive 
 - **Animation / materials** -- create AnimationClips, edit AnimatorControllers, set material properties with shader-property discovery, change importer settings (off by default).
 - **Lightmap baking** -- both the built-in lightmapper (`uap_lightmap_bake`: memory preflight, automatic optimisation, an optimisation playbook) and [Bakery GPU Lightmapper](https://assetstore.unity.com/packages/tools/level-design/bakery-gpu-lightmapper-122218) (`uap_bakery_bake`: read/write settings, presets, scopes), without blocking the Editor.
 - **Jobs** -- calls that outlive the main-thread wait are kept as jobs; `uap_job_status` fetches the result later, even while the Editor is blocked.
-- **Extension profiles** -- VRChat SDK3, UniVRM, MagicaCloth2, Final IK and Bakery are auto-detected and their essentials are added to Claude's instructions (bundled profiles only; project-specific profiles require review and approval).
+- **Extension profiles** -- VRChat SDK3, UniVRM, MagicaCloth2, Final IK, Bakery and RPG Maker Unite are auto-detected and their essentials are added to Claude's instructions (bundled profiles only; project-specific profiles require review and approval).
 
 See the notes under [docs/design-notes/](docs/design-notes/) for details on each tool.
 
@@ -102,9 +102,9 @@ The package lives in `jp.colloid.unity-agent-panel/` and has no package dependen
 
 `Window > Package Manager > + > Add package from git URL...`:
 
-[https://github.com/c-colloid/UnityAgentPanel.git?path=jp.colloid.unity-agent-panel](https://github.com/c-colloid/UnityAgentPanel.git?path=jp.colloid.unity-agent-panel#v0.42.2)
+[https://github.com/c-colloid/UnityAgentPanel.git?path=jp.colloid.unity-agent-panel](https://github.com/c-colloid/UnityAgentPanel.git?path=jp.colloid.unity-agent-panel#v0.42.3)
 
-The link above points at the latest release tag (`#v0.42.2`). Append a tag to pin a version; omit it to track `main`. Tags are listed in the [CHANGELOG](jp.colloid.unity-agent-panel/CHANGELOG.md).
+The link above points at the latest release tag (`#v0.42.3`). Append a tag to pin a version; omit it to track `main`. Tags are listed in the [CHANGELOG](jp.colloid.unity-agent-panel/CHANGELOG.md).
 
 ### Option 2: embedded package under `Packages/`
 

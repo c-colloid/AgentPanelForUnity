@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Text;
+using System.Threading;
 
 namespace Colloid.AgentPanel.Core.FileIo
 {
@@ -39,6 +40,15 @@ namespace Colloid.AgentPanel.Core.FileIo
     /// exception types count as NOT corruption -- the data-safe default
     /// (the load still returns null for this attempt; nothing is wedged).
     ///
+    /// <see cref="ReadAllText"/> is share-tolerant (MODEL-3, design note
+    /// 2026-09-12-session-cache-transient-read-failure.md): it opens with
+    /// FileShare.ReadWrite | FileShare.Delete and retries an IO failure a
+    /// few times, because the write half of this very class provokes the
+    /// read half's most common failure -- the antivirus/indexer/cloud-sync
+    /// agent that opens every freshly replaced file makes a plain
+    /// File.ReadAllText (FileShare.Read) fail with "Sharing violation" for
+    /// a few milliseconds afterwards.
+    ///
     /// Pure System.IO + System.Text (no Unity), so it compiles in the
     /// license-free smoke harness (ci/SmokeTests) alongside its Ops
     /// consumers and is unit tested there and in EditMode against real
@@ -51,6 +61,18 @@ namespace Colloid.AgentPanel.Core.FileIo
 
         /// <summary>Suffix the fallback path parks the previous generation under.</summary>
         public const string BackupSuffix = ".bak";
+
+        /// <summary>
+        /// Attempts one <see cref="ReadAllText"/> makes before letting the
+        /// IO failure through (MODEL-3). Four attempts with the step below
+        /// spend at most 15+30+45 = 90 ms of the calling (main) thread --
+        /// enough for a scanner's exclusive window, short enough that a
+        /// genuinely wedged file never feels like a hang.
+        /// </summary>
+        private const int ReadAttempts = 4;
+
+        /// <summary>Base backoff between read attempts; multiplied by the attempt number.</summary>
+        private const int ReadRetryStepMs = 15;
 
         private static readonly UTF8Encoding Utf8NoBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
 
@@ -177,7 +199,7 @@ namespace Colloid.AgentPanel.Core.FileIo
         {
             if (File.Exists(path))
             {
-                return File.ReadAllText(path, Encoding.UTF8);
+                return ReadShared(path);
             }
             string bakPath = path + BackupSuffix;
             if (!File.Exists(bakPath))
@@ -191,16 +213,67 @@ namespace Colloid.AgentPanel.Core.FileIo
             try
             {
                 File.Move(bakPath, path);
-                return File.ReadAllText(path, Encoding.UTF8);
+                return ReadShared(path);
             }
             catch (Exception)
             {
                 // Restore raced or failed; try the backup in place before
                 // giving up (an IO failure here throws to the caller, same
                 // as a primary-read failure).
-                return File.Exists(bakPath) ? File.ReadAllText(bakPath, Encoding.UTF8)
-                    : File.Exists(path) ? File.ReadAllText(path, Encoding.UTF8)
+                return File.Exists(bakPath) ? ReadShared(bakPath)
+                    : File.Exists(path) ? ReadShared(path)
                     : null;
+            }
+        }
+
+        /// <summary>
+        /// MODEL-3 (design note 2026-09-12-session-cache-transient-read-
+        /// failure.md): the read every caller above goes through.
+        ///
+        /// `File.ReadAllText` opens with FileShare.Read, which on Windows
+        /// refuses -- "Sharing violation" -- whenever another handle already
+        /// holds the file with WRITE access, even though that handle is
+        /// perfectly happy to let us read. Something holds exactly such a
+        /// handle, routinely, in the milliseconds after this class's own
+        /// File.Replace lands: the antivirus / search-indexer / cloud-sync
+        /// agent that scans every freshly written file. Measured in the
+        /// wild (Editor.log, one Unity session): six failures, one per
+        /// domain reload, every one of them on SessionCache.json right
+        /// after the pre-reload save rewrote it.
+        ///
+        /// FileShare.ReadWrite | FileShare.Delete makes our open COMPATIBLE
+        /// with such a handle rather than racing it, which removes the
+        /// failure outright; the short bounded retry then covers the
+        /// narrower window where the other party denies sharing altogether
+        /// (a scanner that has the file open exclusively mid-scan). A
+        /// vanished file is never retried -- it is not a lock, and the
+        /// budget is main-thread time. Anything still failing after that
+        /// throws exactly as before, so <see cref="IsCorruption"/> keeps
+        /// classifying real failures for the caller.
+        /// </summary>
+        private static string ReadShared(string path)
+        {
+            for (int attempt = 1; ; attempt++)
+            {
+                try
+                {
+                    using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read,
+                        FileShare.ReadWrite | FileShare.Delete))
+                    using (var reader = new StreamReader(stream, Encoding.UTF8, true))
+                    {
+                        return reader.ReadToEnd();
+                    }
+                }
+                catch (IOException ex)
+                {
+                    if (attempt >= ReadAttempts
+                        || ex is FileNotFoundException
+                        || ex is DirectoryNotFoundException)
+                    {
+                        throw;
+                    }
+                    Thread.Sleep(ReadRetryStepMs * attempt);
+                }
             }
         }
 

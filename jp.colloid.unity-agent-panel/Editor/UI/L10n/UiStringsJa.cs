@@ -250,6 +250,10 @@ namespace Colloid.AgentPanel.UI
                 hubReloadDroppedPermissionFmt:
                     "{0} の許可要求はドメインリロードで破棄されました。許可も拒否もされておらず、ツールは実行されていません。"
                     + "必要であればエージェントが改めて要求します。",
+                hubSessionCacheUnreadable:
+                    "保存済みの会話ログを読み込めなかったため(他のプログラムがファイルをロックしています)、"
+                    + "空の会話を表示しています。失われたものはありません。ファイルを保護するため保存を一時停止しており、"
+                    + "次のドメインリロードで会話ログは元に戻ります。会話自体にも影響はなく、エージェントは文脈をすべて保持しています。",
                 settingsUloopSectionTitle: "uLoop連携",
                 settingsUloopStatusInstalled: "導入済み",
                 settingsUloopStatusMissing: "未導入",

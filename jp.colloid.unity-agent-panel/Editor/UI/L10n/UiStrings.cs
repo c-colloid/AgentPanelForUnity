@@ -500,6 +500,19 @@ namespace Colloid.AgentPanel.UI
             "The permission request for {0} was discarded by the domain reload. It was neither"
             + " allowed nor denied, and the tool did not run; the agent will ask again if it still"
             + " needs it.";
+        /// <summary>
+        /// Design note 2026-09-12: the panel is showing an empty transcript
+        /// because the saved one could not be READ (a lock that outlived
+        /// every retry), not because anything was lost. Says so, and says
+        /// that saving is suspended -- otherwise an empty panel after a
+        /// compile is indistinguishable from "my history was deleted",
+        /// which is exactly how this defect was reported.
+        /// </summary>
+        public readonly string HubSessionCacheUnreadable =
+            "The saved transcript could not be read (the file is locked by another program) and the"
+            + " panel is showing an empty conversation. Nothing was lost: saving is suspended so the"
+            + " file stays intact, and the transcript comes back on the next domain reload. The"
+            + " conversation itself is unaffected -- the agent still has its full context.";
 
         public readonly string SettingsUloopSectionTitle = "uLoop integration";
         public readonly string SettingsUloopStatusInstalled = "Installed";
@@ -2178,6 +2191,7 @@ namespace Colloid.AgentPanel.UI
             string hubAutoContinueSendAbandonedFmt,
             string hubAutoContinueInterruptedResuming,
             string hubReloadDroppedPermissionFmt,
+            string hubSessionCacheUnreadable,
             string settingsUloopSectionTitle,
             string settingsUloopStatusInstalled,
             string settingsUloopStatusMissing,
@@ -2835,6 +2849,7 @@ namespace Colloid.AgentPanel.UI
             HubAutoContinueSendAbandonedFmt = hubAutoContinueSendAbandonedFmt;
             HubAutoContinueInterruptedResuming = hubAutoContinueInterruptedResuming;
             HubReloadDroppedPermissionFmt = hubReloadDroppedPermissionFmt;
+            HubSessionCacheUnreadable = hubSessionCacheUnreadable;
             SettingsUloopSectionTitle = settingsUloopSectionTitle;
             SettingsUloopStatusInstalled = settingsUloopStatusInstalled;
             SettingsUloopStatusMissing = settingsUloopStatusMissing;

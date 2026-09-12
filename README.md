@@ -57,7 +57,7 @@ Claude Code CLI を Unity エディタにドッキング可能なチャットパ
 - **アニメーション / マテリアル** — AnimationClip 作成、AnimatorController 編集、シェーダプロパティ探索付きのマテリアル設定、インポータ設定の変更(既定 OFF)。
 - **ライトマップベイク** — Unity 標準ライトマッパー(`uap_lightmap_bake`: メモリ preflight・自動最適化・最適化ガイド)と [Bakery GPU Lightmapper](https://assetstore.unity.com/packages/tools/level-design/bakery-gpu-lightmapper-122218)(`uap_bakery_bake`: 設定取得/変更・プリセット・スコープ指定)の両方を、Editor をブロックせずに開始・進捗確認・中止できます。
 - **ジョブ化** — メインスレッドの待ち時間を超えた呼び出しはジョブとして保持され、`uap_job_status` で後から結果を取得できます。
-- **拡張プロファイル** — VRChat SDK3 / UniVRM / MagicaCloth2 / Final IK / Bakery を自動検出し、その SDK の要点を Claude の指示に追加します(同梱プロファイルのみ自動、プロジェクト独自プロファイルは全文確認と承認が必要)。
+- **拡張プロファイル** — VRChat SDK3 / UniVRM / MagicaCloth2 / Final IK / Bakery / RPG Maker Unite を自動検出し、その SDK の要点を Claude の指示に追加します(同梱プロファイルのみ自動、プロジェクト独自プロファイルは全文確認と承認が必要)。
 
 各ツールの詳細は [docs/design-notes/](docs/design-notes/) の該当ノートを参照してください。
 
@@ -104,9 +104,9 @@ Pro 未導入でも Core は問題なく動作し、設定画面の該当モジ�
 
 `Window > Package Manager > + > Add package from git URL...` を開き、次の形式で入力します。
 
-[https://github.com/c-colloid/UnityAgentPanel.git?path=jp.colloid.unity-agent-panel](https://github.com/c-colloid/UnityAgentPanel.git?path=jp.colloid.unity-agent-panel#v0.42.2)
+[https://github.com/c-colloid/UnityAgentPanel.git?path=jp.colloid.unity-agent-panel](https://github.com/c-colloid/UnityAgentPanel.git?path=jp.colloid.unity-agent-panel#v0.42.3)
 
-上記のリンク先は最新のリリースタグ(`#v0.42.2`)を指しています。URL 末尾にタグを付けるとそのバージョンに固定でき、省略すると main の最新を取得します。タグの一覧は [CHANGELOG](jp.colloid.unity-agent-panel/CHANGELOG.md) を参照してください。
+上記のリンク先は最新のリリースタグ(`#v0.42.3`)を指しています。URL 末尾にタグを付けるとそのバージョンに固定でき、省略すると main の最新を取得します。タグの一覧は [CHANGELOG](jp.colloid.unity-agent-panel/CHANGELOG.md) を参照してください。
 
 ### 方法 2: `Packages` フォルダへ配置(embedded パッケージ)
 

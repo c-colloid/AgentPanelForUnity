@@ -143,7 +143,34 @@ namespace Colloid.AgentPanel.Model
         public ChatSession Load(
             out Dictionary<string, ModelUsage> modelUsage)
         {
+            bool unreadable;
+            return Load(out modelUsage, out unreadable);
+        }
+
+        /// <summary>
+        /// Load overload that also reports WHY a null came back (design note
+        /// 2026-09-12-session-cache-transient-read-failure.md):
+        /// <paramref name="unreadable"/> is true ONLY for the transient
+        /// branch below -- the cache file is there, holds the user's
+        /// transcript, and this attempt simply could not read it. It is
+        /// false for the two nulls that mean "there is no transcript to
+        /// lose": no file at all, and a corrupt file this method just
+        /// deleted.
+        ///
+        /// Every caller that may later PERSIST the session it got back has
+        /// to branch on this, because the two nulls are opposites on the
+        /// write side: saving over "no cache" is the normal first save,
+        /// while saving over "could not read" replaces the user's whole
+        /// transcript with whatever empty session the caller substituted --
+        /// turning a lock that lasts milliseconds into permanent data loss.
+        /// That is exactly the defect this out-parameter exists to make
+        /// impossible to write by accident (AgentHub.SaveSessionCache).
+        /// </summary>
+        public ChatSession Load(
+            out Dictionary<string, ModelUsage> modelUsage, out bool unreadable)
+        {
             modelUsage = new Dictionary<string, ModelUsage>(StringComparer.Ordinal);
+            unreadable = false;
             try
             {
                 string json = AtomicFile.ReadAllText(_filePath, _log);
@@ -182,7 +209,12 @@ namespace Colloid.AgentPanel.Model
                 {
                     // MODEL-1: a transient IO failure (cloud-sync/antivirus
                     // lock) is NOT corruption -- keep the file so the next
-                    // load can still restore the transcript.
+                    // load can still restore the transcript. Keeping the
+                    // file is only half the promise, though: the caller is
+                    // told through `unreadable` so it does not hand the
+                    // file back to Save() with an empty session and undo
+                    // the rescue (2026-09-12).
+                    unreadable = true;
                     Log("Session cache '" + _filePath
                         + "' is temporarily unreadable (keeping the file): " + ex.Message);
                 }

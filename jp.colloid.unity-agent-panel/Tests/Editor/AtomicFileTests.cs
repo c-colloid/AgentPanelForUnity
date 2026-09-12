@@ -108,6 +108,54 @@ namespace Colloid.AgentPanel.Tests
                 + " for the next write to clean");
         }
 
+        [Test]
+        public void ReadAllText_WhileAnotherHandleHoldsTheFileForWriting_StillReads()
+        {
+            // MODEL-3 regression (design note 2026-09-12-session-cache-
+            // transient-read-failure.md). THE defect: a writer handle that
+            // explicitly permits readers (FileShare.Read) -- an antivirus
+            // scanner, an indexer, a cloud-sync agent on a file we just
+            // replaced -- still made the old File.ReadAllText fail, because
+            // ITS OWN share request (FileShare.Read) refuses to coexist with
+            // the holder's WRITE access. The panel read that failure as "no
+            // cache" and eventually wrote an empty session over the user's
+            // transcript. Opening with ReadWrite|Delete is what makes the
+            // two handles compatible.
+            AtomicFile.WriteAllText(_path, "{\"transcript\":\"mine\"}");
+            using (new FileStream(_path, FileMode.Open, FileAccess.Write, FileShare.Read))
+            {
+                Assert.AreEqual("{\"transcript\":\"mine\"}", AtomicFile.ReadAllText(_path));
+            }
+        }
+
+        [Test]
+        public void ReadAllText_ExclusivelyLockedFile_StillThrowsIoException_ForTheCallerToClassify()
+        {
+            // The retry is bounded, not infinite: a holder that denies ALL
+            // sharing must still surface as an IOException so the sidecars'
+            // IsCorruption branch can keep the file instead of deleting it.
+            AtomicFile.WriteAllText(_path, "locked-out");
+            using (new FileStream(_path, FileMode.Open, FileAccess.Read, FileShare.None))
+            {
+                IOException thrown = Assert.Throws<IOException>(
+                    delegate { AtomicFile.ReadAllText(_path); });
+                Assert.IsFalse(AtomicFile.IsCorruption(thrown),
+                    "a lock is not content damage -- the file must be kept");
+            }
+        }
+
+        [Test]
+        public void ReadAllText_MissingFile_IsNotRetried()
+        {
+            // A vanished file is not a lock, and the retry budget is
+            // main-thread time: the miss must come back immediately.
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            Assert.IsNull(AtomicFile.ReadAllText(_path));
+            clock.Stop();
+            Assert.Less(clock.ElapsedMilliseconds, 50,
+                "a missing file must not spend the read-retry backoff");
+        }
+
         // -- IsCorruption (MODEL-1) -----------------------------------------
 
         [Test]

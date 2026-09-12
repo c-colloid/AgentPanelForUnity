@@ -323,7 +323,7 @@ namespace Colloid.AgentPanel.Integration
                 AcpProtocolBridge.DescribeAuthMethod(AcpAuthMethodId, AcpAuthMethodName));
             Log(text);
             AppendSystemNote(text, false);
-            SessionCache.Save(Session, _lastModelUsage);
+            SaveSessionCache();
         }
 
         /// <summary>
@@ -721,50 +721,280 @@ namespace Colloid.AgentPanel.Integration
             }
         }
 
-        /// <summary>The active session display cache (never null).</summary>
+        /// <summary>
+        /// The active session display cache (never null).
+        ///
+        /// 2026-09-12 (design note 2026-09-12-session-cache-transient-read-
+        /// failure.md): the load below can fail WITHOUT the cache being
+        /// gone -- a "Sharing violation" while an antivirus/indexer holds
+        /// the file the pre-reload save just rewrote. This getter used to
+        /// fold that into `loaded ?? new ChatSession()`, i.e. cache the
+        /// failure as a brand-new empty session for the rest of the domain;
+        /// the next save then wrote that empty session over the user's
+        /// transcript and the loss became permanent. Observed as "every
+        /// compile switches the panel to a new session and the history is
+        /// gone". The failure is now carried as
+        /// <see cref="_sessionCacheUnreadable"/>: saving is blocked while it
+        /// is set (<see cref="SaveSessionCache"/>), and every later read of
+        /// this property retries the load and splices the transcript back
+        /// in (<see cref="TryRecoverUnreadableSessionCache"/>).
+        /// </summary>
         public static ChatSession Session
         {
             get
             {
-                if (_session == null)
+                if (_session != null)
                 {
-                    // The per-model snapshot is restored WITH the session.
-                    // It used to live only in the plain static above, so
-                    // every editor start rendered restored token totals
-                    // next to an empty usage popover and a dead context
-                    // meter until the first turn completed (measured
-                    // 2026-08-05, planted cache + fresh process: FormatUsage
-                    // '19.1k tok', LastModelUsage 0 entries). Restoring from
-                    // History was never affected -- SwitchToSession rebuilds
-                    // the snapshot from the transcript -- which is why the
-                    // asymmetry read as 'tokens gone at first open'.
-                    Dictionary<string, ModelUsage> restoredUsage;
-                    ChatSession loaded = SessionCache.Load(out restoredUsage);
-                    _session = loaded ?? new ChatSession();
-                    if (loaded != null && restoredUsage.Count > 0)
+                    if (_sessionCacheUnreadable)
                     {
-                        _lastModelUsage = restoredUsage;
+                        TryRecoverUnreadableSessionCache();
                     }
-                    else if (loaded != null)
-                    {
-                        // Cache has turns but no per-model key: a cache
-                        // written before v0.20.1 persisted the breakdown.
-                        // The user's own observation forced this path into
-                        // existence -- switching to another History entry
-                        // and back DID show the breakdown, because
-                        // SwitchToSession rebuilds it from the transcript.
-                        // The data and the rebuild code both already
-                        // existed; only the boot path declined to use them,
-                        // on a "not worth a file scan" judgment the
-                        // workaround's mere discovery refuted. The scan
-                        // runs only when the breakdown is missing, and the
-                        // save below makes the next boot take the fast
-                        // path, so steady state pays nothing.
-                        TryBackfillModelUsageFromTranscript(loaded);
-                    }
+                    return _session;
+                }
+                // The per-model snapshot is restored WITH the session.
+                // It used to live only in the plain static above, so
+                // every editor start rendered restored token totals
+                // next to an empty usage popover and a dead context
+                // meter until the first turn completed (measured
+                // 2026-08-05, planted cache + fresh process: FormatUsage
+                // '19.1k tok', LastModelUsage 0 entries). Restoring from
+                // History was never affected -- SwitchToSession rebuilds
+                // the snapshot from the transcript -- which is why the
+                // asymmetry read as 'tokens gone at first open'.
+                Dictionary<string, ModelUsage> restoredUsage;
+                bool unreadable;
+                ChatSession loaded = SessionCache.Load(out restoredUsage, out unreadable);
+                _sessionCacheUnreadable = unreadable;
+                _session = loaded ?? new ChatSession();
+                if (loaded != null && restoredUsage.Count > 0)
+                {
+                    _lastModelUsage = restoredUsage;
+                }
+                else if (loaded != null)
+                {
+                    // Cache has turns but no per-model key: a cache
+                    // written before v0.20.1 persisted the breakdown.
+                    // The user's own observation forced this path into
+                    // existence -- switching to another History entry
+                    // and back DID show the breakdown, because
+                    // SwitchToSession rebuilds it from the transcript.
+                    // The data and the rebuild code both already
+                    // existed; only the boot path declined to use them,
+                    // on a "not worth a file scan" judgment the
+                    // workaround's mere discovery refuted. The scan
+                    // runs only when the breakdown is missing, and the
+                    // save below makes the next boot take the fast
+                    // path, so steady state pays nothing.
+                    TryBackfillModelUsageFromTranscript(loaded);
                 }
                 return _session;
             }
+        }
+
+        // -- Session-cache read failure: block, retry, splice (2026-09-12,
+        // design note 2026-09-12-session-cache-transient-read-failure.md) --
+
+        /// <summary>
+        /// True while the last <see cref="SessionCacheFile.Load"/> came back
+        /// "unreadable" -- the transcript IS on disk, this domain just could
+        /// not read it. Two things hang off it: <see cref="SaveSessionCache"/>
+        /// refuses to write (so the file the panel failed to read is never
+        /// replaced by the empty session standing in for it), and the
+        /// <see cref="Session"/> getter keeps retrying the load.
+        /// </summary>
+        private static bool _sessionCacheUnreadable;
+        private static int _sessionCacheRecoveryAttempts;
+        private static long _sessionCacheNextRetryUtcTicks;
+
+        /// <summary>
+        /// Retries to attempt before leaving the panel on the empty
+        /// stand-in session for the rest of this domain. Saving stays
+        /// blocked either way, so giving up costs the DISPLAY only: the
+        /// file is intact and the next domain reload restores it.
+        /// </summary>
+        private const int SessionCacheMaxRecoveryAttempts = 5;
+
+        /// <summary>
+        /// Minimum gap between retries. The getter runs on every ChatView
+        /// refresh, and a locked read costs AtomicFile's own ~90 ms retry
+        /// budget, so an unthrottled retry-per-repaint would be felt as a
+        /// stutter for as long as the lock lasts.
+        /// </summary>
+        private const int SessionCacheRetryIntervalMs = 250;
+
+        /// <summary>
+        /// Re-reads a cache whose first read failed and, on success, puts
+        /// the user's transcript back in front of them WITHOUT dropping
+        /// whatever arrived in the meantime: the stand-in session's messages
+        /// are appended to the restored ones (see
+        /// <see cref="MergeRecoveredCache"/>). Called only from the
+        /// <see cref="Session"/> getter, i.e. from the panel's own refresh,
+        /// so no extra update hook has to exist or be unhooked.
+        ///
+        /// Re-entrancy: the AppendSystemNote below goes through the Session
+        /// getter again, which lands back here -- the retry clock is
+        /// advanced FIRST, so that inner call returns immediately.
+        /// </summary>
+        private static void TryRecoverUnreadableSessionCache()
+        {
+            long now = DateTime.UtcNow.Ticks;
+            if (now < _sessionCacheNextRetryUtcTicks)
+            {
+                return;
+            }
+            _sessionCacheNextRetryUtcTicks = now
+                + SessionCacheRetryIntervalMs * TimeSpan.TicksPerMillisecond;
+            if (_sessionCacheRecoveryAttempts >= SessionCacheMaxRecoveryAttempts)
+            {
+                return;
+            }
+            _sessionCacheRecoveryAttempts++;
+            Dictionary<string, ModelUsage> restoredUsage;
+            bool unreadable;
+            ChatSession restored = SessionCache.Load(out restoredUsage, out unreadable);
+            if (unreadable)
+            {
+                if (_sessionCacheRecoveryAttempts >= SessionCacheMaxRecoveryAttempts)
+                {
+                    // The one thing the user must not be left guessing at:
+                    // an empty panel that looks exactly like "my history was
+                    // deleted" when in fact nothing was. Warn-styled, never
+                    // persisted (saving is blocked), so it disappears with
+                    // the domain that could not read the file.
+                    AppendSystemNote(L10n.S.HubSessionCacheUnreadable, true);
+                    RaiseChanged();
+                }
+                return;
+            }
+            // Readable again: whatever happens below, persisting is safe
+            // from here on.
+            _sessionCacheUnreadable = false;
+            if (restored == null)
+            {
+                // Not a lock after all -- there genuinely is no cache (or it
+                // was corrupt and has just been discarded). The stand-in
+                // session IS the session.
+                return;
+            }
+            _session = MergeRecoveredCache(restored, _session);
+            if (restoredUsage.Count > 0 && _lastModelUsage.Count == 0)
+            {
+                _lastModelUsage = restoredUsage;
+            }
+            RaiseChanged();
+        }
+
+        /// <summary>
+        /// Folds the stand-in session a failed load produced (<paramref
+        /// name="live"/>) into the transcript a later load recovered
+        /// (<paramref name="restored"/>), and returns what the panel should
+        /// show. Internal + pure so the EditMode suite can pin the arithmetic
+        /// without a locked file.
+        ///
+        /// The stand-in starts at zero and is only ever appended to, so its
+        /// messages are exactly the ones that arrived after the failed read
+        /// (chronologically last) and its counters are exactly the deltas
+        /// accrued in that window -- which is why appending and summing is
+        /// right here and double-counts nothing. Message objects are moved
+        /// by REFERENCE, so a streaming assistant message or an open tool
+        /// call the Hub is still holding keeps pointing at the same object
+        /// it did before the splice. Cost follows ChatSession.AccumulateTurn's
+        /// monotonic rule (Max, not sum: it is the CLI's own running total,
+        /// not a delta).
+        /// </summary>
+        internal static ChatSession MergeRecoveredCache(ChatSession restored, ChatSession live)
+        {
+            if (restored == null)
+            {
+                return live;
+            }
+            if (live == null)
+            {
+                return restored;
+            }
+            restored.messages.AddRange(live.messages);
+            if (!string.IsNullOrEmpty(live.sessionId))
+            {
+                // The live id is the one the post-reload --resume actually
+                // reconnected to; the cached one may be a generation old.
+                restored.sessionId = live.sessionId;
+                restored.agentBackend = live.agentBackend;
+            }
+            restored.totalInputTokens += live.totalInputTokens;
+            restored.totalOutputTokens += live.totalOutputTokens;
+            restored.totalCacheReadInputTokens += live.totalCacheReadInputTokens;
+            restored.totalCacheCreationInputTokens += live.totalCacheCreationInputTokens;
+            restored.totalCostUsd = Math.Max(restored.totalCostUsd, live.totalCostUsd);
+            restored.completedTurns += live.completedTurns;
+            if (!string.IsNullOrEmpty(live.lastActivityTimestamp))
+            {
+                restored.lastActivityTimestamp = live.lastActivityTimestamp;
+            }
+            if (string.IsNullOrEmpty(restored.title))
+            {
+                restored.title = live.title;
+            }
+            return restored;
+        }
+
+        /// <summary>
+        /// The ONE session-cache write path. Every persist in this class
+        /// goes through here so the 2026-09-12 invariant -- NEVER overwrite
+        /// a cache this domain failed to read -- cannot be lost by adding a
+        /// call site later. Reading <see cref="Session"/> first is
+        /// deliberate: it gives the recovery retry one more chance to clear
+        /// the block, so a save is only skipped while the file really is
+        /// still unreadable.
+        ///
+        /// Internal rather than private purely as the EditMode test seam
+        /// (the block is otherwise only observable through a locked file).
+        /// The two paths that DELIBERATELY replace the session -- StartFresh
+        /// and SwitchToSession -- call
+        /// <see cref="ForgetUnreadableSessionCache"/> and save directly
+        /// instead: the user chose that content, so writing it over an
+        /// unread cache is intended rather than accidental.
+        /// </summary>
+        internal static void SaveSessionCache()
+        {
+            ChatSession session = Session;
+            if (_sessionCacheUnreadable)
+            {
+                return;
+            }
+            SessionCache.Save(session, _lastModelUsage);
+        }
+
+        /// <summary>
+        /// Drops the unreadable-cache block and its retry budget. For the
+        /// deliberate session replacements only (see
+        /// <see cref="SaveSessionCache"/>), plus ResetForTests.
+        /// </summary>
+        private static void ForgetUnreadableSessionCache()
+        {
+            _sessionCacheUnreadable = false;
+            _sessionCacheRecoveryAttempts = 0;
+            _sessionCacheNextRetryUtcTicks = 0;
+        }
+
+        /// <summary>Test-only: true while saving is blocked by an unreadable cache.</summary>
+        internal static bool SessionCacheUnreadableForTests
+        {
+            get { return _sessionCacheUnreadable; }
+        }
+
+        /// <summary>
+        /// Test-only: points the Hub at a cache file of the test's choosing
+        /// (a temp directory it can lock) and drops the current session so
+        /// the next <see cref="Session"/> read loads from it. Callers MUST
+        /// pass null in their teardown to restore the real project cache --
+        /// AgentHub statics are shared across the whole EditMode run, same
+        /// caveat as SetClientForTests.
+        /// </summary>
+        internal static void SetSessionCacheForTests(SessionCacheFile cache)
+        {
+            _sessionCache = cache;
+            _session = null;
+            ForgetUnreadableSessionCache();
         }
 
         /// <summary>True when the last reload interrupted a running turn (resume nudge).</summary>
@@ -1415,6 +1645,10 @@ namespace Colloid.AgentPanel.Integration
             _contextUnknownAfterCompaction = false;
             _compacting = false;
             _lastReloadDroppedPermissionTool = null;
+            // Same shared-statics rationale again (2026-09-12): a fixture
+            // that left the save block armed would silently turn every
+            // LATER test's SaveSessionCache into a no-op.
+            ForgetUnreadableSessionCache();
         }
 
         /// <summary>Test-only: true when an auto-continuation message is queued waiting for a sendable client (Phase 5c L3 item 3).</summary>
@@ -1655,6 +1889,11 @@ namespace Colloid.AgentPanel.Integration
             _pendingCompactTrigger = null;
             _contextUnknownAfterCompaction = false;
             _compacting = false;
+            // "New chat" is the user deliberately replacing the transcript,
+            // so it is allowed to write over a cache this domain never
+            // managed to read (2026-09-12) -- unlike every save that goes
+            // through SaveSessionCache.
+            ForgetUnreadableSessionCache();
             SessionCache.Save(_session, _lastModelUsage);
             SessionStateBridge.CurrentSessionId = string.Empty;
             SessionStateBridge.HandoverPendingFrom = -1;
@@ -1738,6 +1977,9 @@ namespace Colloid.AgentPanel.Integration
             _lastModelUsage = usage != null
                 ? new Dictionary<string, ModelUsage>(usage.LastTurnModelUsage, StringComparer.Ordinal)
                 : new Dictionary<string, ModelUsage>();
+            // Same deliberate-replacement exemption as StartFresh above
+            // (2026-09-12): the user picked this session out of History.
+            ForgetUnreadableSessionCache();
             SessionCache.Save(_session, _lastModelUsage);
             SessionStateBridge.CurrentSessionId = sessionId;
             _resumedMidTurn = false;
@@ -1992,7 +2234,7 @@ namespace Colloid.AgentPanel.Integration
         {
             TerminateLoginSessionIfAny();
             TearDownClient(true);
-            SessionCache.Save(Session, _lastModelUsage);
+            SaveSessionCache();
             RaiseChanged();
         }
 
@@ -2085,7 +2327,7 @@ namespace Colloid.AgentPanel.Integration
             // (Shutdown) still clears: there is no post-quit tick to verify
             // in, and the next editor start reaps whatever it finds.
             TearDownClient(false, ReloadStopGraceMillis);
-            SessionCache.Save(Session, _lastModelUsage);
+            SaveSessionCache();
             RaiseChanged();
         }
 
@@ -2294,7 +2536,7 @@ namespace Colloid.AgentPanel.Integration
                 note.Add(ChatMessageBlock.MakeSystemNote(
                     L10n.F(L10n.S.HubReloadDroppedPermissionFmt, tool), true));
                 Session.AddMessage(note);
-                SessionCache.Save(Session, _lastModelUsage);
+                SaveSessionCache();
                 RaiseChanged();
             }
             return tool;
@@ -2547,7 +2789,7 @@ namespace Colloid.AgentPanel.Integration
                 ? L10n.S.HubAutoContinueInterruptedResuming
                 : L10n.S.HubAutoContinueResuming));
             Session.AddMessage(note);
-            SessionCache.Save(Session, _lastModelUsage);
+            SaveSessionCache();
             RaiseChanged();
         }
 
@@ -2573,7 +2815,7 @@ namespace Colloid.AgentPanel.Integration
             };
             note.Add(ChatMessageBlock.MakeSystemNote(L10n.S.HubScriptGateInertWarning, true));
             Session.AddMessage(note);
-            SessionCache.Save(Session, _lastModelUsage);
+            SaveSessionCache();
             RaiseChanged();
         }
 
@@ -2621,7 +2863,7 @@ namespace Colloid.AgentPanel.Integration
             note.Add(ChatMessageBlock.MakeError(
                 L10n.F(L10n.S.HubAutoContinueSendAbandonedFmt, reasonForLog)));
             Session.AddMessage(note);
-            SessionCache.Save(Session, _lastModelUsage);
+            SaveSessionCache();
             RaiseChanged();
         }
 
@@ -2976,7 +3218,7 @@ namespace Colloid.AgentPanel.Integration
                         ? DescribeDeniedPermission(request)
                         : transcriptNote));
                 Session.AddMessage(note);
-                SessionCache.Save(Session, _lastModelUsage);
+                SaveSessionCache();
             }
             // Re-arm the queued-send drain: text typed while the card was
             // up ("deny + type an alternative") is queued by CompileGate,
@@ -4891,7 +5133,7 @@ namespace Colloid.AgentPanel.Integration
             note.Add(ChatMessageBlock.MakeSystemNote(
                 L10n.F(L10n.S.HubScriptGateAutoDeniedFmt, offendingPath ?? string.Empty)));
             Session.AddMessage(note);
-            SessionCache.Save(Session, _lastModelUsage);
+            SaveSessionCache();
             RaiseChanged();
             return true;
         }
@@ -4948,7 +5190,7 @@ namespace Colloid.AgentPanel.Integration
             note.Add(ChatMessageBlock.MakeSystemNote(
                 CompactionNote.Describe(message.Trigger, message.PreTokens)));
             Session.AddMessage(note);
-            SessionCache.Save(Session, _lastModelUsage);
+            SaveSessionCache();
             RaiseChanged();
         }
 
@@ -5080,7 +5322,7 @@ namespace Colloid.AgentPanel.Integration
             {
                 UnityEditor.EditorApplication.Beep();
             }
-            SessionCache.Save(Session, _lastModelUsage);
+            SaveSessionCache();
             if (_autoApplyPending && _autoApplyDeferred)
             {
                 // Re-checks busy/idle fresh: a queued mid-turn send can
@@ -5240,7 +5482,7 @@ namespace Colloid.AgentPanel.Integration
             var note = new ChatMessage { role = ChatMessage.RoleSystem };
             note.Add(ChatMessageBlock.MakeSystemNote(L10n.S.HubTurnStalledNote));
             Session.AddMessage(note);
-            SessionCache.Save(Session, _lastModelUsage);
+            SaveSessionCache();
             RaiseChanged();
         }
 
@@ -5367,7 +5609,7 @@ namespace Colloid.AgentPanel.Integration
             string text = L10n.F(L10n.S.HubApiKeyAuthNoteFmt, message.ApiKeySource);
             Log(text);
             AppendSystemNote(text, false);
-            SessionCache.Save(Session, _lastModelUsage);
+            SaveSessionCache();
         }
 
         /// <summary>
