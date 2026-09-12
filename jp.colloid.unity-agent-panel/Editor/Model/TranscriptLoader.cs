@@ -628,6 +628,7 @@ namespace Colloid.AgentPanel.Model
                 ticks = record.startedAtUtcTicks;
             }
             record.Complete(isError, summary, ticks);
+            record.resultImagePaths = RestoreToolResultImages(toolResultItem["content"]);
 
             if (record.subagent != null)
             {
@@ -720,8 +721,17 @@ namespace Colloid.AgentPanel.Model
             return input != null && input.IsObject && input.HasKey("subagent_type");
         }
 
-        private static string ExtractResultSummary(JsonNode content)
+        /// <summary>
+        /// One-line summary of a tool_result "content": the string itself,
+        /// or the first non-empty text block of an array. Shared with
+        /// AgentHub's live path so both spell a result the same way.
+        /// </summary>
+        public static string ExtractResultSummary(JsonNode content)
         {
+            if (content == null)
+            {
+                return string.Empty;
+            }
             if (content.IsString)
             {
                 return Truncate(content.AsString(string.Empty), SummaryMaxChars);
@@ -1121,6 +1131,31 @@ namespace Colloid.AgentPanel.Model
                 ticks = record.startedAtUtcTicks;
             }
             record.Complete(isError, summary, ticks);
+            record.resultImagePaths = RestoreToolResultImages(toolResultItem["content"]);
+        }
+
+        /// <summary>
+        /// The pictures of a restored tool_result: embedded blocks are
+        /// written back through <see cref="ImageSaver"/> (same seam as
+        /// user image blocks; nothing is restored when it is unset), a
+        /// path named in the text counts when the file still exists.
+        /// </summary>
+        private static List<string> RestoreToolResultImages(JsonNode content)
+        {
+            try
+            {
+                return ToolResultImages.Resolve(content, ImageSaver, ResolveExistingFile);
+            }
+            catch (Exception)
+            {
+                return new List<string>();
+            }
+        }
+
+        private static string ResolveExistingFile(string candidate)
+        {
+            return !string.IsNullOrEmpty(candidate) && Path.IsPathRooted(candidate) && File.Exists(candidate)
+                ? candidate : null;
         }
 
         // -- Small helpers ------------------------------------------------------------

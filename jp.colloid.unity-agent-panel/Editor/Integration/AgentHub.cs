@@ -4740,6 +4740,42 @@ namespace Colloid.AgentPanel.Integration
             }
         }
 
+        /// <summary>
+        /// The pictures a tool_result carries, as files the card can show
+        /// (design note 2026-09-12-tool-result-image-preview.md): embedded
+        /// image blocks go through the attachment store (same folder and
+        /// 7-day retention as a pasted image); a path the result text
+        /// names is accepted when the file exists, as written or relative
+        /// to the project root. Never throws -- a broken picture is not a
+        /// broken tool call.
+        /// </summary>
+        private static List<string> ResolveResultImages(JsonNode content)
+        {
+            try
+            {
+                return ToolResultImages.Resolve(content, ImageAttachmentStore.Save, ResolveExistingImageFile);
+            }
+            catch (Exception)
+            {
+                return new List<string>();
+            }
+        }
+
+        private static string ResolveExistingImageFile(string candidate)
+        {
+            if (string.IsNullOrEmpty(candidate))
+            {
+                return null;
+            }
+            if (Path.IsPathRooted(candidate))
+            {
+                return File.Exists(candidate) ? Path.GetFullPath(candidate).Replace('\\', '/') : null;
+            }
+            string projectRoot = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
+            string absolute = Path.Combine(projectRoot, candidate);
+            return File.Exists(absolute) ? Path.GetFullPath(absolute).Replace('\\', '/') : null;
+        }
+
         private static ToolCallRecord BuildToolCallRecord(ContentBlock block)
         {
             string inputJson = block.Input != null && !block.Input.IsNull
@@ -4785,10 +4821,12 @@ namespace Colloid.AgentPanel.Integration
                 return;
             }
             _openToolCalls.Remove(block.ToolUseId);
-            string summary = block.ResultContent != null && block.ResultContent.IsString
-                ? Truncate(block.ResultContent.AsString(string.Empty), SummaryMaxChars)
-                : string.Empty;
+            // The same first-text-block summary the history restore uses,
+            // so an array-shaped result (every MCP tool, Read on an image)
+            // gets a Result section instead of an empty one.
+            string summary = TranscriptLoader.ExtractResultSummary(block.ResultContent);
             record.Complete(block.IsError, summary, DateTime.UtcNow.Ticks);
+            record.resultImagePaths = ResolveResultImages(block.ResultContent);
             TryTrackScriptsCommitAttribution(record.toolName, block);
             if (record.subagent != null)
             {

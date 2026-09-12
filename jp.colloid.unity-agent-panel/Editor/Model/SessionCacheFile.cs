@@ -318,6 +318,17 @@ namespace Colloid.AgentPanel.Model
             {
                 node.Set("subagent", WriteSubagent(record.subagent));
             }
+            // Additive (2026-09-12 tool-result image preview): omitted for
+            // the text-only result so older caches stay byte-identical.
+            if (record.HasResultImages)
+            {
+                JsonNode images = JsonNode.NewArray();
+                for (int i = 0; i < record.resultImagePaths.Count; i++)
+                {
+                    images.Add(record.resultImagePaths[i] ?? string.Empty);
+                }
+                node.Set("resultImages", images);
+            }
             return node;
         }
 
@@ -444,6 +455,18 @@ namespace Colloid.AgentPanel.Model
             if (subagent.IsObject)
             {
                 record.subagent = ReadSubagent(subagent);
+            }
+            JsonNode images = node["resultImages"];
+            if (images.IsArray)
+            {
+                foreach (JsonNode image in images.Items)
+                {
+                    string path = image.AsString(null);
+                    if (!string.IsNullOrEmpty(path))
+                    {
+                        record.resultImagePaths.Add(path);
+                    }
+                }
             }
             return record;
         }

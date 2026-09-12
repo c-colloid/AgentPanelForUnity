@@ -105,9 +105,9 @@ The package lives in `jp.colloid.unity-agent-panel/` and has no package dependen
 
 `Window > Package Manager > + > Add package from git URL...`:
 
-[https://github.com/c-colloid/AgentPanelForUnity.git?path=jp.colloid.unity-agent-panel](https://github.com/c-colloid/AgentPanelForUnity.git?path=jp.colloid.unity-agent-panel#v0.42.5)
+[https://github.com/c-colloid/AgentPanelForUnity.git?path=jp.colloid.unity-agent-panel](https://github.com/c-colloid/AgentPanelForUnity.git?path=jp.colloid.unity-agent-panel#v0.43.0)
 
-The link above points at the latest release tag (`#v0.42.5`). Append a tag to pin a version; omit it to track `main`. Tags are listed in the [CHANGELOG](jp.colloid.unity-agent-panel/CHANGELOG.md).
+The link above points at the latest release tag (`#v0.43.0`). Append a tag to pin a version; omit it to track `main`. Tags are listed in the [CHANGELOG](jp.colloid.unity-agent-panel/CHANGELOG.md).
 
 ### Option 2: embedded package under `Packages/`
 

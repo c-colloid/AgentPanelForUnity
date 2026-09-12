@@ -165,6 +165,10 @@ namespace Colloid.AgentPanel.Core.Acp
             public bool Announced;
             public bool Completed;
             public readonly StringBuilder Output = new StringBuilder();
+            /// <summary>Image content the tool returned, already in the
+            /// API shape ({"type":"image","source":{"type":"base64",...}})
+            /// the panel's stream reader expects.</summary>
+            public readonly List<JsonNode> Images = new List<JsonNode>();
         }
 
         private sealed class PermissionState
@@ -1651,6 +1655,14 @@ namespace Colloid.AgentPanel.Core.Acp
                     string text = null;
                     if (type == "content")
                     {
+                        JsonNode image = ImageBlockFromAcp(item["content"]);
+                        if (image != null)
+                        {
+                            // Kept as a picture, not the "[image]" stand-in
+                            // text, so the tool card can show it.
+                            state.Images.Add(image);
+                            continue;
+                        }
                         text = ContentBlockText(item["content"]);
                     }
                     else if (type == "diff")
@@ -1680,10 +1692,56 @@ namespace Colloid.AgentPanel.Core.Acp
             }
         }
 
+        /// <summary>
+        /// An ACP image content block ({"type":"image","data":base64,
+        /// "mimeType":...}) as the API-shaped block the panel's tool_result
+        /// reader (ToolResultImages) decodes; null for anything else.
+        /// </summary>
+        internal static JsonNode ImageBlockFromAcp(JsonNode content)
+        {
+            if (content == null || !content.IsObject
+                || content["type"].AsString(string.Empty) != "image")
+            {
+                return null;
+            }
+            string data = content["data"].AsString(null);
+            if (string.IsNullOrEmpty(data))
+            {
+                return null;
+            }
+            return JsonNode.NewObject()
+                .Set("type", "image")
+                .Set("source", JsonNode.NewObject()
+                    .Set("type", "base64")
+                    .Set("media_type", content["mimeType"].AsString("image/png"))
+                    .Set("data", data));
+        }
+
         private void CompleteToolCall(ToolCallState state, bool isError, string fallbackText)
         {
             state.Completed = true;
             string text = state.Output.Length > 0 ? state.Output.ToString() : (fallbackText ?? string.Empty);
+            // A plain string when the tool produced only text (byte-for-byte
+            // what every reader expected before images); an array of blocks
+            // once a picture is involved, the same shape the Claude stream
+            // carries for Read on a PNG.
+            JsonNode resultContent;
+            if (state.Images.Count == 0)
+            {
+                resultContent = JsonNode.Of(text);
+            }
+            else
+            {
+                resultContent = JsonNode.NewArray();
+                if (!string.IsNullOrEmpty(text))
+                {
+                    resultContent.Add(JsonNode.NewObject().Set("type", "text").Set("text", text));
+                }
+                for (int i = 0; i < state.Images.Count; i++)
+                {
+                    resultContent.Add(state.Images[i]);
+                }
+            }
             EmitToPanel(JsonNode.NewObject()
                 .Set("type", "user")
                 .Set("session_id", _sessionId ?? string.Empty)
@@ -1692,7 +1750,7 @@ namespace Colloid.AgentPanel.Core.Acp
                     .Set("content", JsonNode.NewArray().Add(JsonNode.NewObject()
                         .Set("type", "tool_result")
                         .Set("tool_use_id", state.Id)
-                        .Set("content", text)
+                        .Set("content", resultContent)
                         .Set("is_error", isError)))));
         }
 

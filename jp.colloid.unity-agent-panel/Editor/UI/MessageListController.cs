@@ -403,6 +403,8 @@ namespace Colloid.AgentPanel.UI
                         hash = hash * 31 + (int)block.toolCall.durationMs;
                         hash = hash * 31 + (block.toolCall.resultSummary != null
                             ? block.toolCall.resultSummary.Length : 0);
+                        hash = hash * 31 + (block.toolCall.resultImagePaths != null
+                            ? block.toolCall.resultImagePaths.Count : 0);
                         if (block.toolCall.subagent != null)
                         {
                             // Structural fields ONLY (design note section 7b,

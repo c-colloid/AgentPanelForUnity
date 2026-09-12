@@ -5057,3 +5057,27 @@
 .uap-msg-image-missing {
     color: var(--uap-text-secondary);
 }
+
+/* Pictures a tool returned (screenshot, generated image), shown on the
+   tool card below its header and outside the collapsible details --
+   design note 2026-09-12-tool-result-image-preview.md. Smaller box than
+   the user bubble's so a card never dominates the column. */
+.uap-toolcard-images {
+    flex-direction: row;
+    flex-wrap: wrap;
+    padding-left: var(--uap-space-m);
+    padding-right: var(--uap-space-m);
+    padding-bottom: var(--uap-space-s);
+}
+
+.uap-toolcard-images .uap-msg-image {
+    margin-top: 0;
+    margin-right: var(--uap-space-s);
+}
+
+.uap-toolcard-images .uap-msg-image-thumb {
+    width: 240px;
+    height: 150px;
+    max-width: 240px;
+    max-height: 150px;
+}

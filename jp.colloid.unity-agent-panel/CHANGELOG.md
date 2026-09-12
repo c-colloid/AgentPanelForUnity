@@ -9,6 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (nothing yet)
 
+## [0.43.0] - 2026-09-12
+
+### Added
+
+- **Pictures a tool returns now show up in the conversation** (design note
+  `docs/design-notes/2026-09-12-tool-result-image-preview.md`). A
+  `uap_editor_screenshot` capture (with or without `return_image:true`),
+  a `Read` of a PNG, or an image an MCP generation tool hands back used to
+  be visible to the model only; the tool card now carries a thumbnail
+  strip under its header, outside the collapsible details, one thumbnail
+  per picture (click opens the file, file name and pixel size as the
+  caption, a "no longer available" placeholder once the store's 7-day
+  retention removed it). Embedded image blocks are decoded into
+  `Library/AgentPanel/Attachments` like a pasted image; a PNG/JPEG path
+  the result text names is shown when the file exists. Cards with a
+  picture stay out of the "N tools" fold, the pictures survive the
+  session cache and history restore, and ACP agents' image content is
+  forwarded as a picture instead of the `[image]` stand-in text.
+
+### Fixed
+
+- **Tool cards for array-shaped results show a Result section.** Every
+  MCP tool (and `Read` on an image) returns `content` as an array; the
+  live path only summarized string results, so those cards opened to an
+  Input section alone. The first text block is now the summary, the same
+  rule history restore already applied.
+
 ## [0.42.5] - 2026-09-12
 
 ### Changed

@@ -599,6 +599,13 @@ namespace Colloid.AgentPanel.UI
                 // progress/summary and must stay individually visible.
                 return false;
             }
+            if (block.toolCall.HasResultImages)
+            {
+                // A card with a picture stays out of the "N tools" fold:
+                // the thumbnail IS the outcome the user wants to see, and a
+                // collapsed group row would hide it behind a click.
+                return false;
+            }
             ToolCallStatus status = block.toolCall.status;
             return status == ToolCallStatus.Succeeded
                 || status == ToolCallStatus.Failed

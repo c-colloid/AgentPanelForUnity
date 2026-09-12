@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace Colloid.AgentPanel.Model
 {
@@ -41,6 +42,21 @@ namespace Colloid.AgentPanel.Model
         /// tool with a "subagent_type" input) -- null-object pattern for every
         /// ordinary tool call. See docs/design-notes/2026-07-31-subagent-display.md.</summary>
         public SubagentRecord subagent;
+        /// <summary>
+        /// Absolute paths of the pictures this tool returned (an embedded
+        /// image block decoded into Library/AgentPanel/Attachments, or an
+        /// existing PNG/JPEG the result text named), at most
+        /// ToolResultImages.MaxImagesPerResult, in result order. Empty for
+        /// the ordinary text-only result; ToolActivityCard shows them as
+        /// thumbnails (design note 2026-09-12-tool-result-image-preview.md).
+        /// </summary>
+        public List<string> resultImagePaths = new List<string>();
+
+        /// <summary>True when at least one result image is recorded.</summary>
+        public bool HasResultImages
+        {
+            get { return resultImagePaths != null && resultImagePaths.Count > 0; }
+        }
 
         /// <summary>Marks completion from a tool_result and computes the duration.</summary>
         public void Complete(bool error, string summary, long nowUtcTicks)

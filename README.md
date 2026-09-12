@@ -107,9 +107,9 @@ Pro の有無はパネルの設定画面で分かります。未導入のプロ�
 
 `Window > Package Manager > + > Add package from git URL...` を開き、次の形式で入力します。
 
-[https://github.com/c-colloid/AgentPanelForUnity.git?path=jp.colloid.unity-agent-panel](https://github.com/c-colloid/AgentPanelForUnity.git?path=jp.colloid.unity-agent-panel#v0.42.5)
+[https://github.com/c-colloid/AgentPanelForUnity.git?path=jp.colloid.unity-agent-panel](https://github.com/c-colloid/AgentPanelForUnity.git?path=jp.colloid.unity-agent-panel#v0.43.0)
 
-上記のリンク先は最新のリリースタグ(`#v0.42.5`)を指しています。URL 末尾にタグを付けるとそのバージョンに固定でき、省略すると main の最新を取得します。タグの一覧は [CHANGELOG](jp.colloid.unity-agent-panel/CHANGELOG.md) を参照してください。
+上記のリンク先は最新のリリースタグ(`#v0.43.0`)を指しています。URL 末尾にタグを付けるとそのバージョンに固定でき、省略すると main の最新を取得します。タグの一覧は [CHANGELOG](jp.colloid.unity-agent-panel/CHANGELOG.md) を参照してください。
 
 ### 方法 2: `Packages` フォルダへ配置(embedded パッケージ)
 

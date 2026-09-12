@@ -149,6 +149,14 @@ namespace Colloid.AgentPanel.UI
             header.Add(_chevron);
             Add(header);
 
+            if (record.HasResultImages)
+            {
+                // Always visible, outside the collapsible details: a
+                // screenshot or a generated picture is the result itself
+                // (design note 2026-09-12-tool-result-image-preview.md).
+                Add(BuildImageStrip(record));
+            }
+
             if (hasDetails)
             {
                 _details = BuildDetails(record);
@@ -237,6 +245,38 @@ namespace Colloid.AgentPanel.UI
                     record.resultSummary));
             }
             return details;
+        }
+
+        /// <summary>
+        /// Thumbnails of the pictures the tool returned, one
+        /// MessageBlockFactory image block each (same ScaleToFit box,
+        /// click opens the file, "missing" placeholder once retention
+        /// removed it), captioned with the file name. Internal so the
+        /// EditMode suite can assert on the strip.
+        /// </summary>
+        internal static VisualElement BuildImageStrip(ToolCallRecord record)
+        {
+            var strip = new VisualElement();
+            strip.AddToClassList("uap-toolcard-images");
+            for (int i = 0; i < record.resultImagePaths.Count; i++)
+            {
+                string path = record.resultImagePaths[i];
+                if (string.IsNullOrEmpty(path))
+                {
+                    continue;
+                }
+                string caption;
+                try
+                {
+                    caption = System.IO.Path.GetFileName(path);
+                }
+                catch (ArgumentException)
+                {
+                    caption = path;
+                }
+                strip.Add(MessageBlockFactory.CreateImageBlock(ChatMessageBlock.MakeImage(path, caption)));
+            }
+            return strip;
         }
 
         /// <summary>Titled preview capped by an internal ScrollView.</summary>
