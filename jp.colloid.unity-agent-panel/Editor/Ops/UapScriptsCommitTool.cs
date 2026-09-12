@@ -242,7 +242,6 @@ namespace Colloid.AgentPanel.Ops
             state.OutputDllPath = outputDll;
 
             var builder = new AssemblyBuilder(outputDll, sourceFiles.ToArray());
-            builder.additionalReferences = GatherAdditionalReferences();
             // UseEngineModules swaps the default MONOLITHIC UnityEngine.dll
             // facade for the per-module engine DLLs (UnityEngine.CoreModule
             // included). Measured 2026-08-13 (design note
@@ -258,6 +257,9 @@ namespace Colloid.AgentPanel.Ops
             // additionalReferences to stay UnityEditor-only does not return
             // (the facade in the module set carries forwarders, not types).
             builder.referencesOptions = ReferencesOptions.UseEngineModules;
+            // AFTER referencesOptions: defaultReferences is computed from it,
+            // and GatherAdditionalReferences only adds what is missing from it.
+            builder.additionalReferences = GatherAdditionalReferences(builder.defaultReferences);
             builder.buildFinished += delegate(string assemblyPath, CompilerMessage[] messages)
             {
                 state.Messages = messages;
@@ -419,24 +421,91 @@ namespace Colloid.AgentPanel.Ops
         }
 
         /// <summary>
-        /// UnityEditor.CoreModule.dll only (P1: "the only reference
+        /// UnityEditor.CoreModule.dll (P1: "the only reference
         /// AssemblyBuilder does NOT auto-resolve from the project's own
-        /// compiled assemblies"). Engine references are NOT added here:
-        /// the Phase 5a attempt to append UnityEngine.CoreModule.dll on
-        /// top of the default monolithic UnityEngine.dll produced CS0433
-        /// (MonoBehaviour defined in both), and the default set alone
-        /// produced the opposite CS0012 the moment a staged script touched
-        /// a type from an already-compiled project assembly (measured
-        /// 2026-08-13, design note 2026-08-13-scripts-commit-cs0012). The
-        /// correct lever is referencesOptions = UseEngineModules on the
-        /// builder (see BeginCommit), which REPLACES the monolithic facade
-        /// with the module set instead of stacking a duplicate onto it.
+        /// compiled assemblies"), plus every precompiled assembly the
+        /// project has that is MISSING from <paramref name="defaultReferences"/>.
+        ///
+        /// Engine references are still not added by name: the Phase 5a
+        /// attempt to append UnityEngine.CoreModule.dll on top of the
+        /// default monolithic UnityEngine.dll produced CS0433 (MonoBehaviour
+        /// defined in both). The lever for engine types stays
+        /// referencesOptions = UseEngineModules on the builder (see
+        /// BeginCommit), which REPLACES the facade with the module set
+        /// instead of stacking a duplicate onto it (design note
+        /// 2026-08-13-scripts-commit-cs0012).
+        ///
+        /// The precompiled sweep closes a DIFFERENT hole, measured
+        /// 2026-09-12 (design note 2026-09-12-scripts-commit-editor-plugin-refs):
+        /// AssemblyBuilder.defaultReferences carries a plugin DLL's RUNTIME
+        /// half but drops its EDITOR half, while Unity's own
+        /// Assembly-CSharp-Editor references both. A staged Editor script
+        /// touching a type whose base class lives in such an editor-only
+        /// plugin therefore failed CS0012 here while compiling clean in
+        /// Unity -- the gate rejecting a file the Editor accepts. Adding
+        /// only names absent from defaultReferences cannot reintroduce
+        /// CS0433, since a duplicate would by definition already be there.
         /// </summary>
-        private static string[] GatherAdditionalReferences()
+        internal static string[] GatherAdditionalReferences(string[] defaultReferences)
         {
             var refs = new List<string>();
             AddLocation(refs, typeof(UnityEditor.AssetDatabase));
+
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (defaultReferences != null)
+            {
+                foreach (string reference in defaultReferences)
+                {
+                    AddFileName(seen, reference);
+                }
+            }
+            foreach (string reference in refs)
+            {
+                AddFileName(seen, reference);
+            }
+
+            string[] precompiledNames;
+            try
+            {
+                precompiledNames = CompilationPipeline.GetPrecompiledAssemblyNames();
+            }
+            catch (Exception)
+            {
+                // Never fail a commit over the reference sweep -- the
+                // UnityEditor-only set above is still a valid build.
+                return refs.ToArray();
+            }
+
+            foreach (string name in precompiledNames)
+            {
+                string path;
+                try
+                {
+                    path = CompilationPipeline.GetPrecompiledAssemblyPathFromAssemblyName(name);
+                }
+                catch (Exception)
+                {
+                    continue;
+                }
+                if (string.IsNullOrEmpty(path))
+                {
+                    continue;
+                }
+                if (!seen.Add(Path.GetFileName(path)))
+                {
+                    continue;
+                }
+                refs.Add(path);
+            }
             return refs.ToArray();
+        }
+
+        private static void AddFileName(HashSet<string> seen, string path)
+        {
+            if (!string.IsNullOrEmpty(path))
+            {
+                seen.Add(Path.GetFileName(path));
+            }
         }
 
         private static void AddLocation(List<string> refs, Type type)

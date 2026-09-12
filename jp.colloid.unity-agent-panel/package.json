@@ -1,6 +1,6 @@
 {
   "name": "jp.colloid.unity-agent-panel",
-  "version": "0.42.3",
+  "version": "0.42.4",
   "displayName": "Agent Panel for Unity",
   "description": "Dockable Claude Code chat panel for the Unity Editor. Embeds the Claude Code CLI (subscription auth) as a resident bidirectional stream-json process. Zero package dependencies, Editor-only.",
   "unity": "2022.3",

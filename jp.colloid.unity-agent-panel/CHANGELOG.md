@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (nothing yet)
 
+## [0.42.4] - 2026-09-12
+
+### Fixed
+
+- **`uap_scripts_commit` no longer rejects a file that Unity itself
+  compiles.** The gate's `AssemblyBuilder.defaultReferences` carries a
+  project plugin's *runtime* DLL but drops its *editor-only* half (e.g.
+  `LibForUniteForEditor.dll`), so an Editor script whose base type lives
+  there failed with CS0012 in the gate while `Assembly-CSharp-Editor`
+  built clean. `GatherAdditionalReferences` now sweeps
+  `CompilationPipeline.GetPrecompiledAssemblyNames()` and appends every
+  precompiled assembly whose file name is missing from the default set
+  (never a duplicate, so the CS0433 shape cannot come back). Design note:
+  `docs/design-notes/2026-09-12-scripts-commit-editor-plugin-refs.md`.
+
 ## [0.42.3] - 2026-09-12
 
 ### Fixed

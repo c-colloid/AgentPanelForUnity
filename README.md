@@ -104,9 +104,9 @@ Pro 未導入でも Core は問題なく動作し、設定画面の該当モジ�
 
 `Window > Package Manager > + > Add package from git URL...` を開き、次の形式で入力します。
 
-[https://github.com/c-colloid/UnityAgentPanel.git?path=jp.colloid.unity-agent-panel](https://github.com/c-colloid/UnityAgentPanel.git?path=jp.colloid.unity-agent-panel#v0.42.3)
+[https://github.com/c-colloid/UnityAgentPanel.git?path=jp.colloid.unity-agent-panel](https://github.com/c-colloid/UnityAgentPanel.git?path=jp.colloid.unity-agent-panel#v0.42.4)
 
-上記のリンク先は最新のリリースタグ(`#v0.42.3`)を指しています。URL 末尾にタグを付けるとそのバージョンに固定でき、省略すると main の最新を取得します。タグの一覧は [CHANGELOG](jp.colloid.unity-agent-panel/CHANGELOG.md) を参照してください。
+上記のリンク先は最新のリリースタグ(`#v0.42.4`)を指しています。URL 末尾にタグを付けるとそのバージョンに固定でき、省略すると main の最新を取得します。タグの一覧は [CHANGELOG](jp.colloid.unity-agent-panel/CHANGELOG.md) を参照してください。
 
 ### 方法 2: `Packages` フォルダへ配置(embedded パッケージ)
 

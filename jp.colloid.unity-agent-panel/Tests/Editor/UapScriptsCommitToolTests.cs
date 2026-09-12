@@ -1,10 +1,13 @@
+using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using Colloid.AgentPanel.Core.Json;
 using Colloid.AgentPanel.Ops;
 using NUnit.Framework;
 using UnityEditor;
+using UnityEditor.Compilation;
 using UnityEngine;
 using UnityEngine.TestTools;
 
@@ -308,6 +311,79 @@ namespace Colloid.AgentPanel.Tests
             finally
             {
                 AssetDatabase.AllowAutoRefresh();
+            }
+        }
+
+        // -- Reference gathering (design note 2026-09-12-scripts-commit-editor-plugin-refs) --
+
+        [Test]
+        public void GatherAdditionalReferences_AddsPrecompiledAssembliesMissingFromDefaults()
+        {
+            // AssemblyBuilder.defaultReferences carries a plugin's RUNTIME
+            // half but drops its EDITOR half, while Unity's own
+            // Assembly-CSharp-Editor references both -- so a staged Editor
+            // script touching a type whose base class lives in an
+            // editor-only plugin failed CS0012 in the gate while compiling
+            // clean in the Editor. With an empty default set, every
+            // precompiled assembly the project has must come back.
+            string[] precompiled = CompilationPipeline.GetPrecompiledAssemblyNames();
+            if (precompiled.Length == 0)
+            {
+                Assert.Ignore("project has no precompiled assemblies to sweep.");
+            }
+
+            string[] refs = UapScriptsCommitTool.GatherAdditionalReferences(new string[0]);
+
+            var byFileName = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (string reference in refs)
+            {
+                Assert.IsTrue(byFileName.Add(Path.GetFileName(reference)),
+                    "the same assembly file name was added twice -- that is the CS0433 shape: " + reference);
+            }
+
+            foreach (string name in precompiled)
+            {
+                string path = CompilationPipeline.GetPrecompiledAssemblyPathFromAssemblyName(name);
+                if (string.IsNullOrEmpty(path))
+                {
+                    continue;
+                }
+                Assert.IsTrue(byFileName.Contains(Path.GetFileName(path)),
+                    "precompiled assembly missing from the additional references: " + path);
+            }
+        }
+
+        [Test]
+        public void GatherAdditionalReferences_SkipsNamesAlreadyPresentInDefaults()
+        {
+            // Anything already in defaultReferences must NOT be added a
+            // second time -- duplicating a reference is exactly what
+            // produced CS0433 in the Phase 5a experiment.
+            var defaults = new List<string>();
+            foreach (string name in CompilationPipeline.GetPrecompiledAssemblyNames())
+            {
+                string path = CompilationPipeline.GetPrecompiledAssemblyPathFromAssemblyName(name);
+                if (!string.IsNullOrEmpty(path))
+                {
+                    defaults.Add(path);
+                }
+            }
+            if (defaults.Count == 0)
+            {
+                Assert.Ignore("project has no precompiled assemblies to sweep.");
+            }
+
+            string[] refs = UapScriptsCommitTool.GatherAdditionalReferences(defaults.ToArray());
+
+            var defaultFileNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (string path in defaults)
+            {
+                defaultFileNames.Add(Path.GetFileName(path));
+            }
+            foreach (string reference in refs)
+            {
+                Assert.IsFalse(defaultFileNames.Contains(Path.GetFileName(reference)),
+                    "re-added a reference the default set already carries: " + reference);
             }
         }
     }
