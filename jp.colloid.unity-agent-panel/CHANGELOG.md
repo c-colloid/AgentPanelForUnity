@@ -9,6 +9,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (nothing yet)
 
+## [0.46.0] - 2026-09-13
+
+### Added
+
+- **File-change view on Write/Edit/MultiEdit tool cards** (design note
+  `docs/design-notes/2026-09-13-toolcard-vertex-limit.md`, section 4).
+  Expanding a completed file tool now shows the target path and the
+  change as `+`/`-` lines in the approval card's colors -- Edit and
+  MultiEdit reuse the same diff the permission card showed, Write
+  renders its content as an all-added block -- instead of the raw input
+  JSON with its escaped `\n` content. Long changes start at 40 lines
+  with a "Show all N lines" button; a Write card has a Copy button that
+  puts the raw file content on the clipboard.
+
+### Fixed
+
+- **Tool card details rendered blank for large inputs** (same design
+  note, sections 1-3). Expanding a Write (or any tool whose input or
+  result exceeded roughly 16,000 characters) logged
+  `A VisualElement must not allocate more than 65535 vertices` and drew
+  nothing, because the whole text sat in one Label. Tool card sections,
+  markdown code blocks and attachment payloads now stack one element
+  per 8,000-character chunk (`LongTextChunker`); a section past 200,000
+  characters shows the first part with a "... N more characters" footer
+  and a Copy button carrying the full text.
+
 ## [0.45.0] - 2026-09-13
 
 ### Added

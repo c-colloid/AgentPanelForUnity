@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Colloid.AgentPanel.Core.Json;
 using Colloid.AgentPanel.Model;
 using UnityEngine.UIElements;
 
@@ -230,13 +231,35 @@ namespace Colloid.AgentPanel.UI
 
         // -- Sections -----------------------------------------------------------
 
+        /// <summary>
+        /// Lines a file-change view shows before its "show all" button
+        /// (same budget idea as PermissionCard.PreviewMaxLines, larger
+        /// because a completed card is read, not approved).
+        /// </summary>
+        internal const int DiffPreviewMaxLines = 40;
+
+        /// <summary>
+        /// Hard ceiling on rendered diff lines: one Label per line, so a
+        /// 100k-line Write must not build 100k elements. The remainder is
+        /// announced in a footer and reachable via the Copy button.
+        /// </summary>
+        internal const int DiffHardMaxLines = 2000;
+
+        /// <summary>
+        /// Hard ceiling on characters a raw Input/Result section renders
+        /// (about 25 chunk Labels); the remainder is announced in a
+        /// footer and reachable via the Copy button.
+        /// </summary>
+        internal const int SectionMaxChars = 200000;
+
         private static VisualElement BuildDetails(ToolCallRecord record)
         {
             var details = new VisualElement();
             details.AddToClassList("uap-toolcard-details");
             if (!string.IsNullOrEmpty(record.inputJson))
             {
-                details.Add(CreateSection(L10n.S.ToolCardSectionInput, record.inputJson));
+                VisualElement fileView = TryCreateFileChangeSection(record);
+                details.Add(fileView ?? CreateSection(L10n.S.ToolCardSectionInput, record.inputJson));
             }
             if (!string.IsNullOrEmpty(record.resultSummary))
             {
@@ -245,6 +268,137 @@ namespace Colloid.AgentPanel.UI
                     record.resultSummary));
             }
             return details;
+        }
+
+        /// <summary>Test seam: the details pane exactly as the card builds it.</summary>
+        internal static VisualElement BuildDetailsForTests(ToolCallRecord record)
+        {
+            return BuildDetails(record);
+        }
+
+        /// <summary>
+        /// Write/Edit/MultiEdit: the input rendered as the file change it
+        /// is (design note 2026-09-13-toolcard-vertex-limit.md section 4)
+        /// -- path row, +/- lines in the approval card's colors, "show
+        /// all" past <see cref="DiffPreviewMaxLines"/>, and for Write a
+        /// Copy button carrying the raw content. Null when the tool is not
+        /// a file change or the input lacks the shape, so the caller shows
+        /// the raw JSON instead of a wrong diff.
+        /// </summary>
+        private static VisualElement TryCreateFileChangeSection(ToolCallRecord record)
+        {
+            if (!ToolCardFileDiff.IsFileChangeTool(record.toolName))
+            {
+                return null;
+            }
+            JsonNode input;
+            if (!ToolCardFileDiff.TryParse(record.inputJson, out input))
+            {
+                return null;
+            }
+            List<PermissionEditPreview.DiffLine> lines = ToolCardFileDiff.BuildLines(record.toolName, input);
+            if (lines.Count == 0)
+            {
+                return null;
+            }
+
+            var section = new VisualElement();
+            section.AddToClassList("uap-toolcard-section");
+
+            var titleRow = new VisualElement();
+            titleRow.AddToClassList("uap-toolcard-section-titlerow");
+            var titleLabel = new Label(L10n.S.ToolCardSectionChanges);
+            titleLabel.AddToClassList("uap-toolcard-section-title");
+            titleLabel.enableRichText = false;
+            titleRow.Add(titleLabel);
+            string copyText = ToolCardFileDiff.CopyTextOf(record.toolName, input);
+            if (copyText != null)
+            {
+                titleRow.Add(CreateCopyButton(copyText));
+            }
+            section.Add(titleRow);
+
+            string path = ToolCardFileDiff.FilePathOf(input);
+            if (path != null)
+            {
+                var pathLabel = new Label(IconLoader.SanitizeForDisplay(path));
+                pathLabel.AddToClassList("uap-toolcard-path");
+                pathLabel.enableRichText = false;
+                pathLabel.tooltip = pathLabel.text;
+                MessageBlockFactory.ApplyMonoFont(pathLabel);
+                section.Add(pathLabel);
+            }
+
+            var scroll = new ScrollView(ScrollViewMode.Vertical);
+            scroll.AddToClassList("uap-toolcard-scroll");
+            var host = new VisualElement();
+            host.AddToClassList("uap-toolcard-diff");
+            RenderDiffLines(host, lines, DiffPreviewMaxLines);
+            scroll.Add(host);
+            section.Add(scroll);
+            return section;
+        }
+
+        /// <summary>
+        /// Renders diff lines into <paramref name="host"/>: up to
+        /// <paramref name="maxLines"/> (a "show all N lines" button
+        /// re-renders in place up to <see cref="DiffHardMaxLines"/>), each
+        /// line chunked through LongTextChunker so a minified one-line
+        /// file can never overflow a single Label. Internal for the
+        /// EditMode suite (detached elements deliver no click events).
+        /// </summary>
+        internal static void RenderDiffLines(VisualElement host,
+            List<PermissionEditPreview.DiffLine> lines, int maxLines)
+        {
+            host.Clear();
+            int hardCap = Math.Min(lines.Count, DiffHardMaxLines);
+            int shown = Math.Min(hardCap, maxLines);
+            for (int i = 0; i < shown; i++)
+            {
+                string prefix;
+                string ussClass;
+                PermissionCard.DiffLineStyle(lines[i].Kind, out prefix, out ussClass);
+                List<string> chunks = LongTextChunker.Split(prefix + lines[i].Text);
+                for (int c = 0; c < chunks.Count; c++)
+                {
+                    var label = new Label(IconLoader.SanitizeForDisplay(chunks[c]));
+                    label.enableRichText = false;
+                    label.AddToClassList("uap-perm-diff-line");
+                    label.AddToClassList(ussClass);
+                    MessageBlockFactory.ApplyMonoFont(label);
+                    host.Add(label);
+                }
+            }
+            if (shown < hardCap)
+            {
+                var expand = new Button(delegate { RenderDiffLines(host, lines, DiffHardMaxLines); });
+                expand.text = L10n.F(L10n.S.PermDiffShowAllFmt, hardCap);
+                expand.AddToClassList("uap-card-btn");
+                expand.AddToClassList("uap-perm-diff-expand");
+                host.Add(expand);
+            }
+            else if (lines.Count > hardCap)
+            {
+                host.Add(CreateTruncationFooter(
+                    L10n.F(L10n.S.ToolCardMoreLinesFmt, lines.Count - hardCap)));
+            }
+        }
+
+        private static Button CreateCopyButton(string rawText)
+        {
+            var copy = new Button(delegate { UnityEditor.EditorGUIUtility.systemCopyBuffer = rawText; });
+            copy.text = L10n.S.MarkdownCodeCopyButton;
+            copy.AddToClassList("uap-card-btn");
+            copy.AddToClassList("uap-toolcard-copy");
+            return copy;
+        }
+
+        private static Label CreateTruncationFooter(string text)
+        {
+            var footer = new Label(text);
+            footer.AddToClassList("uap-toolcard-truncated");
+            footer.enableRichText = false;
+            return footer;
         }
 
         /// <summary>
@@ -279,27 +433,73 @@ namespace Colloid.AgentPanel.UI
             return strip;
         }
 
-        /// <summary>Titled preview capped by an internal ScrollView.</summary>
+        /// <summary>
+        /// Titled preview capped by an internal ScrollView. The body is
+        /// stacked as one Label per LongTextChunker chunk (never one
+        /// Label: see that class for the 65535-vertex ceiling) and hard-
+        /// capped at <see cref="SectionMaxChars"/> with a footer plus a
+        /// Copy button that carries the full raw text.
+        /// </summary>
         private static VisualElement CreateSection(string title, string body)
         {
             var section = new VisualElement();
             section.AddToClassList("uap-toolcard-section");
 
+            string text = body ?? string.Empty;
+            bool truncated = text.Length > SectionMaxChars;
+
+            var titleRow = new VisualElement();
+            titleRow.AddToClassList("uap-toolcard-section-titlerow");
             var titleLabel = new Label(title);
             titleLabel.AddToClassList("uap-toolcard-section-title");
-            section.Add(titleLabel);
+            titleLabel.enableRichText = false;
+            titleRow.Add(titleLabel);
+            if (truncated)
+            {
+                titleRow.Add(CreateCopyButton(text));
+            }
+            section.Add(titleRow);
 
             var scroll = new ScrollView(ScrollViewMode.Vertical);
             scroll.AddToClassList("uap-toolcard-scroll");
 
-            var pre = new Label(IconLoader.SanitizeForDisplay(body));
-            pre.enableRichText = false;
-            pre.AddToClassList("uap-toolcard-pre");
-            MessageBlockFactory.ApplyMonoFont(pre);
-            scroll.Add(pre);
+            int cut = SectionMaxChars;
+            if (truncated && char.IsHighSurrogate(text[cut - 1]))
+            {
+                cut--; // never split a surrogate pair at the cap
+            }
+            string shown = truncated ? text.Substring(0, cut) : text;
+            List<string> chunks = LongTextChunker.Split(shown);
+            for (int i = 0; i < chunks.Count; i++)
+            {
+                var pre = new Label(IconLoader.SanitizeForDisplay(chunks[i]));
+                pre.enableRichText = false;
+                pre.AddToClassList("uap-toolcard-pre");
+                if (i > 0)
+                {
+                    pre.AddToClassList("uap-toolcard-pre--cont");
+                }
+                if (i < chunks.Count - 1)
+                {
+                    pre.AddToClassList("uap-toolcard-pre--more");
+                }
+                MessageBlockFactory.ApplyMonoFont(pre);
+                scroll.Add(pre);
+            }
+            if (truncated)
+            {
+                scroll.Add(CreateTruncationFooter(
+                    L10n.F(L10n.S.ToolCardMoreCharsFmt, text.Length - cut)));
+            }
 
             section.Add(scroll);
             return section;
+        }
+
+        /// <summary>Test seam: a raw section exactly as the card builds it.</summary>
+        internal static VisualElement CreateSectionForTests(string title, string body)
+        {
+            return CreateSection(title, body);
         }
 
         /// <summary>

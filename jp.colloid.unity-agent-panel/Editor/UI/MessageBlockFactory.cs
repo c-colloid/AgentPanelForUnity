@@ -309,9 +309,24 @@ namespace Colloid.AgentPanel.UI
                 {
                     payloadScroll = new ScrollView(ScrollViewMode.Vertical);
                     payloadScroll.AddToClassList("uap-attach-scroll");
-                    Label payload = CreatePlainLabel(block.text, "uap-attach-pre");
-                    ApplyMonoFont(payload);
-                    payloadScroll.Add(payload);
+                    // One Label per chunk (LongTextChunker): a pasted
+                    // payload is exactly the kind of text that exceeds a
+                    // single element's 65535-vertex ceiling.
+                    List<string> chunks = LongTextChunker.Split(block.text);
+                    for (int i = 0; i < chunks.Count; i++)
+                    {
+                        Label payload = CreatePlainLabel(chunks[i], "uap-attach-pre");
+                        if (i > 0)
+                        {
+                            payload.AddToClassList("uap-attach-pre--cont");
+                        }
+                        if (i < chunks.Count - 1)
+                        {
+                            payload.AddToClassList("uap-attach-pre--more");
+                        }
+                        ApplyMonoFont(payload);
+                        payloadScroll.Add(payload);
+                    }
                     root.Add(payloadScroll);
                 }
                 if (payloadScroll != null)

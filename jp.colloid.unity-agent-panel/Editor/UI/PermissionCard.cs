@@ -1114,7 +1114,24 @@ namespace Colloid.AgentPanel.UI
         {
             string prefix;
             string ussClass;
-            switch (line.Kind)
+            DiffLineStyle(line.Kind, out prefix, out ussClass);
+            // PlainLabel sanitizes (old_string/new_string are
+            // model-controlled text).
+            Label label = PlainLabel(prefix + line.Text, "uap-perm-diff-line");
+            label.AddToClassList(ussClass);
+            MessageBlockFactory.ApplyMonoFont(label);
+            return label;
+        }
+
+        /// <summary>
+        /// The "+ "/"- " prefix and USS modifier for one diff line kind.
+        /// Shared with ToolActivityCard's file-change view so a completed
+        /// Edit card is colored exactly like the approval card was.
+        /// </summary>
+        internal static void DiffLineStyle(PermissionEditPreview.LineKind kind,
+            out string prefix, out string ussClass)
+        {
+            switch (kind)
             {
                 case PermissionEditPreview.LineKind.Remove:
                     prefix = "- ";
@@ -1137,12 +1154,6 @@ namespace Colloid.AgentPanel.UI
                     ussClass = "uap-perm-diff-ctx";
                     break;
             }
-            // PlainLabel sanitizes (old_string/new_string are
-            // model-controlled text).
-            Label label = PlainLabel(prefix + line.Text, "uap-perm-diff-line");
-            label.AddToClassList(ussClass);
-            MessageBlockFactory.ApplyMonoFont(label);
-            return label;
         }
 
         private static string BuildInputPreview(JsonNode input)

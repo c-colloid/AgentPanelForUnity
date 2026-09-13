@@ -2430,6 +2430,22 @@
     white-space: nowrap;
 }
 
+/* Chunked code body (design note 2026-09-13-toolcard-vertex-limit.md):
+   one TextField per LongTextChunker chunk stacked in a column. Inner
+   chunks drop the vertical padding so the seams are invisible. */
+.uap-code-column {
+    flex-direction: column;
+    flex-shrink: 0;
+}
+
+.uap-code-field--cont #unity-text-input {
+    padding-top: 0;
+}
+
+.uap-code-field--more #unity-text-input {
+    padding-bottom: 0;
+}
+
 /* Tool activity cards (collapsible; R05 2.4) */
 
 .uap-toolcard {
@@ -2589,6 +2605,56 @@
     font-size: var(--uap-font-size-code);
     color: var(--uap-text-primary);
     padding-top: var(--uap-space-s);
+    padding-bottom: var(--uap-space-s);
+    padding-left: var(--uap-space-s);
+    padding-right: var(--uap-space-s);
+}
+
+/* Chunked preview (design note 2026-09-13-toolcard-vertex-limit.md):
+   one Label per LongTextChunker chunk; inner chunks drop the vertical
+   padding so the stack reads as one block. */
+.uap-toolcard-pre--cont {
+    padding-top: 0;
+}
+
+.uap-toolcard-pre--more {
+    padding-bottom: 0;
+}
+
+/* Section title + optional Copy button on one row. */
+.uap-toolcard-section-titlerow {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.uap-toolcard-copy {
+    margin-right: 0;
+    margin-bottom: var(--uap-space-xs);
+}
+
+/* Target path above a Write/Edit file-change view. */
+.uap-toolcard-path {
+    white-space: normal;
+    font-size: var(--uap-font-size-small);
+    color: var(--uap-text-secondary);
+    margin-bottom: var(--uap-space-xs);
+}
+
+/* +/- lines reuse the approval card's .uap-perm-diff-* colors. */
+.uap-toolcard-diff {
+    padding-top: var(--uap-space-s);
+    padding-bottom: var(--uap-space-s);
+    padding-left: var(--uap-space-s);
+    padding-right: var(--uap-space-s);
+}
+
+/* "... N more lines/characters" footer under a hard-capped preview. */
+.uap-toolcard-truncated {
+    white-space: normal;
+    font-size: var(--uap-font-size-small);
+    color: var(--uap-text-secondary);
+    padding-top: var(--uap-space-xs);
     padding-bottom: var(--uap-space-s);
     padding-left: var(--uap-space-s);
     padding-right: var(--uap-space-s);
@@ -2889,6 +2955,15 @@
     padding-bottom: var(--uap-space-s);
     padding-left: var(--uap-space-s);
     padding-right: var(--uap-space-s);
+}
+
+/* Chunked payload (one Label per LongTextChunker chunk). */
+.uap-attach-pre--cont {
+    padding-top: 0;
+}
+
+.uap-attach-pre--more {
+    padding-bottom: 0;
 }
 
 /* ---- Drag & drop overlay ---- */

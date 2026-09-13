@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine.UIElements;
 
@@ -35,18 +36,37 @@ namespace Colloid.AgentPanel.UI.Markdown
             var scroll = new ScrollView(ScrollViewMode.Horizontal);
             scroll.AddToClassList("uap-code-scroll");
 
-            var field = new TextField();
-            field.multiline = true;
-            field.isReadOnly = true;
-            // Display is sanitized (variation selectors and other
-            // font-uncovered emoji have no glyph in any editor font); the
-            // Copy button keeps the RAW body so clipboard fidelity is
-            // untouched.
-            field.value = IconLoader.SanitizeForDisplay(body);
-            field.AddToClassList("uap-code-field");
-            MessageBlockFactory.ApplyMonoFont(field);
+            // One read-only TextField per LongTextChunker chunk, never
+            // one for the whole body: a TextField's text element shares
+            // Label's 65535-vertex ceiling (design note
+            // 2026-09-13-toolcard-vertex-limit.md), so a long code block
+            // rendered blank before this split. Display is sanitized
+            // (variation selectors and other font-uncovered emoji have no
+            // glyph in any editor font); the Copy button keeps the RAW
+            // body so clipboard fidelity is untouched.
+            var column = new VisualElement();
+            column.AddToClassList("uap-code-column");
+            List<string> chunks = LongTextChunker.Split(body);
+            for (int i = 0; i < chunks.Count; i++)
+            {
+                var field = new TextField();
+                field.multiline = true;
+                field.isReadOnly = true;
+                field.value = IconLoader.SanitizeForDisplay(chunks[i]);
+                field.AddToClassList("uap-code-field");
+                if (i > 0)
+                {
+                    field.AddToClassList("uap-code-field--cont");
+                }
+                if (i < chunks.Count - 1)
+                {
+                    field.AddToClassList("uap-code-field--more");
+                }
+                MessageBlockFactory.ApplyMonoFont(field);
+                column.Add(field);
+            }
 
-            scroll.Add(field);
+            scroll.Add(column);
             Add(scroll);
         }
     }

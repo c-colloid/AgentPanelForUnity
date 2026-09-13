@@ -683,6 +683,12 @@ namespace Colloid.AgentPanel.UI
         public readonly string ToolCardSectionInput = "Input";
         public readonly string ToolCardSectionResult = "Result";
         public readonly string ToolCardSectionError = "Error";
+        /// <summary>Title of the Write/Edit/MultiEdit file-change view (design note 2026-09-13-toolcard-vertex-limit.md).</summary>
+        public readonly string ToolCardSectionChanges = "Changes";
+        /// <summary>{0} = diff lines not rendered past ToolActivityCard.DiffHardMaxLines.</summary>
+        public readonly string ToolCardMoreLinesFmt = "... {0} more lines (Copy for the full text)";
+        /// <summary>{0} = characters not rendered past ToolActivityCard.SectionMaxChars.</summary>
+        public readonly string ToolCardMoreCharsFmt = "... {0} more characters (Copy for the full text)";
 
         /// <summary>{0} = elapsed seconds. Shared by SubagentCard via ToolActivityCard.FormatSeconds.</summary>
         public readonly string ToolCardDurationSecondsFmt = "{0}s";
@@ -2350,6 +2356,9 @@ namespace Colloid.AgentPanel.UI
             string toolCardSectionInput,
             string toolCardSectionResult,
             string toolCardSectionError,
+            string toolCardSectionChanges,
+            string toolCardMoreLinesFmt,
+            string toolCardMoreCharsFmt,
             string toolCardDurationSecondsFmt,
             string toolGroupCountFmt,
             string toolGroupCountWithDurationFmt,
@@ -3029,6 +3038,9 @@ namespace Colloid.AgentPanel.UI
             ToolCardSectionInput = toolCardSectionInput;
             ToolCardSectionResult = toolCardSectionResult;
             ToolCardSectionError = toolCardSectionError;
+            ToolCardSectionChanges = toolCardSectionChanges;
+            ToolCardMoreLinesFmt = toolCardMoreLinesFmt;
+            ToolCardMoreCharsFmt = toolCardMoreCharsFmt;
             ToolCardDurationSecondsFmt = toolCardDurationSecondsFmt;
             ToolGroupCountFmt = toolGroupCountFmt;
             ToolGroupCountWithDurationFmt = toolGroupCountWithDurationFmt;
