@@ -66,6 +66,21 @@ Core の package.json しか見ていない)。Core と Pro を同じ作業ブ�
 あと、続けて Pro のリリースコミットを別コミットとして積む
 (1 コミットに両方を混在させない)。
 
+### Pro の配信(更新レジストリ)
+
+Pro は zip の手渡しではなく、トークン認証付きの npm 互換 scoped registry
+(Cloudflare Worker、`registry/`。設計は
+`docs/design-notes/2026-09-12-pro-update-delivery.md`)から配信する。
+`Release pro-vX.Y.Z` のコミットが main に載ると
+`.github/workflows/publish-pro.yml` が `npm pack` で tgz を作り、R2 へ上げ、
+Worker の admin API に版を登録する(登録済みの版は no-op。取りこぼしたら
+workflow_dispatch で再実行)。必要なリポジトリ設定(`CLOUDFLARE_API_TOKEN`
+/ `CLOUDFLARE_ACCOUNT_ID` / `REGISTRY_ADMIN_TOKEN` のシークレットと
+`REGISTRY_URL` の変数)、Worker の初期構築、製品キーの発行コマンドは
+`registry/README.md` を参照。購入者側は パネルの 設定 > Agent Panel Pro の
+更新 にレジストリ URL と製品キーを入れるだけで、以後は Package Manager から
+更新できる。
+
 ## 公開ミラー(`.github/workflows/mirror-core.yml`)
 
 `tag-release.yml` の完了(`workflow_run`)、手で push した `v*` タグ、または
@@ -163,3 +178,4 @@ Core の package.json しか見ていない)。Core と Pro を同じ作業ブ�
 | v0.42.4 | `uap_scripts_commit` のコンパイルゲートが Unity 本体では通るファイルを CS0012 で拒否する不具合の修正: `AssemblyBuilder.defaultReferences` はプラグイン DLL の Runtime 側だけを含み Editor 専用側(`LibForUniteForEditor.dll` など)を落とすため、`CompilationPipeline.GetPrecompiledAssemblyNames()` を走査して既定集合に無いプリコンパイル済みアセンブリだけを追加参照に加える(重複追加なし、CS0433 は再発しない)(2026-09-12) |
 | v0.42.5 | AskUserQuestion カードの質問文を選択肢のスクロール領域から出し、要約行/タブ帯の直下に太字で固定表示(`uap-perm-qprompt`。要約行の折り返し以降、40% キャップの中で 1 段スクロールすると質問文が消え、選択肢ラベルとも見分けがつかなかった)。Core 単体利用者向けの文言調整: Pro 専用モジュールのトグルは本来のヒントを残して「別売の Agent Panel Pro 拡張パッケージが必要です(未導入)」を付記しツールチップで入手方法を案内、拡張プロファイル欄は同梱プロファイル無しの理由を表示、UI 操作モジュールのトグルを新設、Pro 不在で無効化したトグルが `RefreshUapOpsStatus` で再有効化されていた不具合を修正。README / USER-GUIDE の機能一覧に (Pro) 印、README・UPM ドキュメント・設定 > About の GitHub リンクを公開ミラー(`c-colloid/AgentPanelForUnity`)に統一、docs 索引 / CONTRIBUTING / ARCHITECTURE にモノレポ限定の範囲を注記。実機計測で追加: 質問カードは `uap-perm--question`(床 220px・`flex-shrink: 0`)で会話が長くてもキャップまで使う、会話圧縮中の行が押し潰されて重なる不具合を `flex-shrink: 0` で修正(2026-09-12) |
 | v0.43.0 | ツール結果の画像プレビュー: `uap_editor_screenshot` / PNG の Read / MCP 画像生成ツールが返した画像をツールカード見出し直下のサムネイル帯に常時表示(埋め込み画像は Attachments に保存、本文が名指しした既存 PNG/JPEG も採用、キャッシュ・履歴復元・ACP 経路に対応)+ 配列形式の結果でも Result 要約が出るよう修正(2026-09-12) |
+| v0.44.0 | Pro の更新配信 Phase 1: トークン認証付き npm 互換 scoped registry(Cloudflare Worker、`registry/`)と `publish-pro.yml`、設定画面の「Agent Panel Pro の更新」カード(レジストリ URL と製品キーを入力すると `~/.upmconfig.toml` と `Packages/manifest.json` を書き、以後 Package Manager から Pro を更新できる)。パネルはキーを保存しない(2026-09-12) |

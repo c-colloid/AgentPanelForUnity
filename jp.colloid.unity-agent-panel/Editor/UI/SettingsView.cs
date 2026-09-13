@@ -356,6 +356,7 @@ namespace Colloid.AgentPanel.UI
             AddGroupLabel(scroll, L10n.S.SettingsGroupUnity, false);
             BuildUapOpsSection(scroll);
             BuildExtensionProfilesSection(scroll);
+            BuildProUpdatesSection(scroll);
             BuildUloopSection(scroll);
             BuildUnityPluginSection(scroll);
 
@@ -3030,6 +3031,103 @@ namespace Colloid.AgentPanel.UI
         /// two preset buttons with their help text and one-shot "applied"
         /// confirmation labels.
         /// </summary>
+        // -- Agent Panel Pro updates (design note 2026-09-12-pro-update-
+        // delivery.md section 3.3): the purchaser pastes the product key
+        // once; ProRegistryAccess writes Unity's .upmconfig.toml and the
+        // project's manifest.json, and the Package Manager takes it from
+        // there. The key is never kept by the panel -- the field is cleared
+        // after a successful save. ------------------------------------------
+
+        private TextField _proRegistryUrlField;
+        private TextField _proKeyField;
+        private Button _proApplyButton;
+        private Label _proStatusLabel;
+
+        private void BuildProUpdatesSection(VisualElement parent)
+        {
+            VisualElement section = AddCollapsibleSection(parent, L10n.S.SettingsSectionProUpdates,
+                "d_Package Manager", IconLoader.GlyphOpenWindow, "pro");
+            AddHint(AddHintScope(section), L10n.A(L10n.S.SettingsProUpdatesHint),
+                L10n.A(L10n.S.SettingsProUpdatesTooltip));
+
+            PanelSettings settings = PanelStateStore.instance.Settings;
+            _proRegistryUrlField = new TextField(L10n.S.SettingsProUpdatesUrlLabel);
+            _proRegistryUrlField.AddToClassList("uap-settings-field");
+            _proRegistryUrlField.SetValueWithoutNotify(EffectiveProRegistryUrl(settings));
+            _proRegistryUrlField.RegisterValueChangedCallback(OnProRegistryUrlChanged);
+            section.Add(_proRegistryUrlField);
+
+            _proKeyField = new TextField(L10n.S.SettingsProUpdatesKeyLabel);
+            _proKeyField.AddToClassList("uap-settings-field");
+            _proKeyField.isPasswordField = true;
+            section.Add(_proKeyField);
+
+            VisualElement row = AddRow(section);
+            _proApplyButton = new Button(OnProApplyClicked) { text = L10n.S.SettingsProUpdatesApplyButton };
+            _proApplyButton.AddToClassList("uap-settings-btn");
+            _proApplyButton.AddToClassList("uap-settings-btn--primary");
+            row.Add(_proApplyButton);
+
+            _proStatusLabel = new Label(string.Empty);
+            _proStatusLabel.AddToClassList("uap-settings-hint");
+            _proStatusLabel.AddToClassList("uap-settings-status");
+            _proStatusLabel.enableRichText = false;
+            _proStatusLabel.style.whiteSpace = WhiteSpace.Normal;
+            _proStatusLabel.style.display = DisplayStyle.None;
+            section.Add(_proStatusLabel);
+        }
+
+        /// <summary>Settings value when set, else the built-in default.</summary>
+        internal static string EffectiveProRegistryUrl(PanelSettings settings)
+        {
+            string url = settings != null ? settings.proRegistryUrl : null;
+            return string.IsNullOrEmpty(url) ? ProRegistryAccess.DefaultRegistryUrl : url;
+        }
+
+        private void OnProRegistryUrlChanged(ChangeEvent<string> evt)
+        {
+            PanelSettings settings = PanelStateStore.instance.Settings;
+            string value = (evt.newValue ?? string.Empty).Trim();
+            settings.proRegistryUrl = value == ProRegistryAccess.DefaultRegistryUrl ? string.Empty : value;
+            PanelStateStore.instance.SaveNow();
+        }
+
+        private void OnProApplyClicked()
+        {
+            ProRegistryApplyResult result = ProRegistryAccess.Apply(
+                _proRegistryUrlField.value, _proKeyField.value);
+            _proStatusLabel.text = DescribeProApplyResult(result);
+            _proStatusLabel.EnableInClassList("uap-settings-hint--error", !result.Success);
+            _proStatusLabel.style.display = DisplayStyle.Flex;
+            if (result.Success)
+            {
+                _proKeyField.SetValueWithoutNotify(string.Empty);
+            }
+        }
+
+        /// <summary>Pure wording rule for the status line under the Save key button.</summary>
+        internal static string DescribeProApplyResult(ProRegistryApplyResult result)
+        {
+            if (result.Success)
+            {
+                return L10n.F(L10n.S.SettingsProUpdatesStatusAppliedFmt, result.UpmConfigPath);
+            }
+            switch (result.Error)
+            {
+                case ProRegistryApplyError.EmptyKey:
+                    return L10n.S.SettingsProUpdatesStatusErrorEmptyKey;
+                case ProRegistryApplyError.InvalidUrl:
+                    return L10n.S.SettingsProUpdatesStatusErrorUrl;
+                case ProRegistryApplyError.ForeignRegistry:
+                    return L10n.F(L10n.S.SettingsProUpdatesStatusErrorForeignFmt, result.Detail,
+                        ProRegistryAccess.ProPackageId);
+                case ProRegistryApplyError.ManifestUnreadable:
+                    return L10n.F(L10n.S.SettingsProUpdatesStatusErrorManifestFmt, result.Detail);
+                default:
+                    return L10n.F(L10n.S.SettingsProUpdatesStatusErrorWriteFmt, result.Detail);
+            }
+        }
+
         private void BuildUloopSection(VisualElement parent)
         {
             VisualElement section = AddCollapsibleSection(parent, L10n.S.SettingsUloopSectionTitle,

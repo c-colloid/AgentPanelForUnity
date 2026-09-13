@@ -757,6 +757,16 @@ namespace Colloid.AgentPanel.Model
         public bool unityPluginSteeringEnabled = true;
 
         /// <summary>
+        /// Origin of the Agent Panel Pro update registry the Settings card
+        /// writes into manifest.json / .upmconfig.toml (design note
+        /// docs/design-notes/2026-09-12-pro-update-delivery.md section 3.3).
+        /// Not a secret; the product key itself is never stored here --
+        /// it goes straight to Unity's .upmconfig.toml. Empty means
+        /// ProRegistryAccess.DefaultRegistryUrl.
+        /// </summary>
+        public string proRegistryUrl = string.Empty;
+
+        /// <summary>
         /// Content hashes (lowercase hex SHA-256 of the raw file bytes,
         /// Colloid.AgentPanel.Ops.Profiles.UserExtensionProfileStore.
         /// ComputeContentHash) of user-supplied profiles

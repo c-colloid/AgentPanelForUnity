@@ -2005,6 +2005,47 @@ namespace Colloid.AgentPanel.UI
             + " the Pro package under the project's Packages/ folder; this toggle becomes available after the"
             + " next domain reload. See README > Core and Pro.";
 
+        // ==================================================================
+        // SettingsView.cs -- "Agent Panel Pro updates" card (design note
+        // 2026-09-12-pro-update-delivery.md section 3.3)
+        // ==================================================================
+
+        public readonly string SettingsSectionProUpdates = "Agent Panel Pro updates";
+
+        public readonly string SettingsProUpdatesHint =
+            "Paste the product key from your purchase once; Pro then updates through the Package Manager.";
+
+        public readonly string SettingsProUpdatesTooltip =
+            "The key is written to Unity's own credential file (~/.upmconfig.toml, or the directory in"
+            + " UPM_USER_CONFIG_DIR) and the registry is added to this project's Packages/manifest.json as a"
+            + " scoped registry for jp.colloid.agent-panel-pro. The panel keeps no copy of the key. After"
+            + " that, Window > Package Manager > My Registries lists Agent Panel Pro and offers Update when a"
+            + " new version is published. The registry URL is not a secret; it came with the key.";
+
+        public readonly string SettingsProUpdatesUrlLabel = "Registry URL";
+        public readonly string SettingsProUpdatesKeyLabel = "Product key";
+        public readonly string SettingsProUpdatesApplyButton = "Save key";
+
+        /// <summary>{0} = the .upmconfig.toml path that received the token.</summary>
+        public readonly string SettingsProUpdatesStatusAppliedFmt =
+            "Saved. Key written to {0}; the registry is in manifest.json. Package Manager is resolving --"
+            + " open My Registries to see Agent Panel Pro.";
+
+        public readonly string SettingsProUpdatesStatusErrorEmptyKey = "Enter the product key first.";
+        public readonly string SettingsProUpdatesStatusErrorUrl = "Registry URL must be an https:// address.";
+
+        /// <summary>{0} = the other registry's name, {1} = the Pro package id.</summary>
+        public readonly string SettingsProUpdatesStatusErrorForeignFmt =
+            "Another scoped registry (\"{0}\") already lists {1} in manifest.json. Remove that scope, then save again.";
+
+        /// <summary>{0} = parser or IO detail.</summary>
+        public readonly string SettingsProUpdatesStatusErrorManifestFmt =
+            "Could not read Packages/manifest.json: {0}";
+
+        /// <summary>{0} = IO detail.</summary>
+        public readonly string SettingsProUpdatesStatusErrorWriteFmt =
+            "Could not write the files: {0}";
+
         // 2026-09-12 core-only wording (docs/design-notes/2026-09-12-core-
         // only-wording.md): shown in the Extension profiles card instead of
         // "No supported SDK detected" when NO bundled profile is installed
@@ -2706,7 +2747,19 @@ namespace Colloid.AgentPanel.UI
             string settingsExtensionProfilesNoBundledHint = null,
             string settingsExtensionProfilesNoBundledTooltip = null,
             string settingsUapOpsModuleUiLabel = null,
-            string settingsUapOpsModuleUiHint = null)
+            string settingsUapOpsModuleUiHint = null,
+            string settingsSectionProUpdates = null,
+            string settingsProUpdatesHint = null,
+            string settingsProUpdatesTooltip = null,
+            string settingsProUpdatesUrlLabel = null,
+            string settingsProUpdatesKeyLabel = null,
+            string settingsProUpdatesApplyButton = null,
+            string settingsProUpdatesStatusAppliedFmt = null,
+            string settingsProUpdatesStatusErrorEmptyKey = null,
+            string settingsProUpdatesStatusErrorUrl = null,
+            string settingsProUpdatesStatusErrorForeignFmt = null,
+            string settingsProUpdatesStatusErrorManifestFmt = null,
+            string settingsProUpdatesStatusErrorWriteFmt = null)
         {
             FirstRunCliNotFoundTitle = firstRunCliNotFoundTitle;
             FirstRunCliNotFoundBody = firstRunCliNotFoundBody;
@@ -3450,6 +3503,54 @@ namespace Colloid.AgentPanel.UI
             if (settingsUapOpsModuleUiHint != null)
             {
                 SettingsUapOpsModuleUiHint = settingsUapOpsModuleUiHint;
+            }
+            if (settingsSectionProUpdates != null)
+            {
+                SettingsSectionProUpdates = settingsSectionProUpdates;
+            }
+            if (settingsProUpdatesHint != null)
+            {
+                SettingsProUpdatesHint = settingsProUpdatesHint;
+            }
+            if (settingsProUpdatesTooltip != null)
+            {
+                SettingsProUpdatesTooltip = settingsProUpdatesTooltip;
+            }
+            if (settingsProUpdatesUrlLabel != null)
+            {
+                SettingsProUpdatesUrlLabel = settingsProUpdatesUrlLabel;
+            }
+            if (settingsProUpdatesKeyLabel != null)
+            {
+                SettingsProUpdatesKeyLabel = settingsProUpdatesKeyLabel;
+            }
+            if (settingsProUpdatesApplyButton != null)
+            {
+                SettingsProUpdatesApplyButton = settingsProUpdatesApplyButton;
+            }
+            if (settingsProUpdatesStatusAppliedFmt != null)
+            {
+                SettingsProUpdatesStatusAppliedFmt = settingsProUpdatesStatusAppliedFmt;
+            }
+            if (settingsProUpdatesStatusErrorEmptyKey != null)
+            {
+                SettingsProUpdatesStatusErrorEmptyKey = settingsProUpdatesStatusErrorEmptyKey;
+            }
+            if (settingsProUpdatesStatusErrorUrl != null)
+            {
+                SettingsProUpdatesStatusErrorUrl = settingsProUpdatesStatusErrorUrl;
+            }
+            if (settingsProUpdatesStatusErrorForeignFmt != null)
+            {
+                SettingsProUpdatesStatusErrorForeignFmt = settingsProUpdatesStatusErrorForeignFmt;
+            }
+            if (settingsProUpdatesStatusErrorManifestFmt != null)
+            {
+                SettingsProUpdatesStatusErrorManifestFmt = settingsProUpdatesStatusErrorManifestFmt;
+            }
+            if (settingsProUpdatesStatusErrorWriteFmt != null)
+            {
+                SettingsProUpdatesStatusErrorWriteFmt = settingsProUpdatesStatusErrorWriteFmt;
             }
         }
     }

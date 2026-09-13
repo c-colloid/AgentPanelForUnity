@@ -84,7 +84,7 @@ Agent Panel for Unity は 2 つのパッケージで構成されています。*
   - **ui** — UI Toolkit ウィンドウの一覧・ダンプ・クリック・値設定によるエディタ UI 自動操作
   - Bakery / Final IK / Magica Cloth 2 / UniVRM / VRChat SDK3 / RPG Maker Unite 向けの Extension Profiles
 
-Pro の有無はパネルの設定画面で分かります。未導入のプロジェクトでは、設定 > Unity操作(UapOps) の該当モジュール(プレハブ / アニメーション / UI 操作)のトグルが無効化され、ヒントに「…別売の Agent Panel Pro 拡張パッケージが必要です(未導入)」と表示されます(ホバーで入手方法を表示)。設定 > 拡張プロファイル には「同梱の SDK プロファイルは未導入です。プロジェクトの `.uap-profiles/*.json` は引き続き使えます。」と表示されます。Pro は BOOTH/Gumroad で配布される zip をプロジェクトの `Packages/` フォルダ直下に展開してインストールし、次のドメインリロード後にこれらのトグルが有効になります(配布リンクは追って掲載します)。
+Pro の有無はパネルの設定画面で分かります。未導入のプロジェクトでは、設定 > Unity操作(UapOps) の該当モジュール(プレハブ / アニメーション / UI 操作)のトグルが無効化され、ヒントに「…別売の Agent Panel Pro 拡張パッケージが必要です(未導入)」と表示されます(ホバーで入手方法を表示)。設定 > 拡張プロファイル には「同梱の SDK プロファイルは未導入です。プロジェクトの `.uap-profiles/*.json` は引き続き使えます。」と表示されます。Pro の導入は、購入時に受け取るレジストリ URL と製品キーを 設定 > **Agent Panel Pro の更新** に入力して「キーを保存」するだけです。パネルが Unity の資格情報ファイル(`~/.upmconfig.toml`)とプロジェクトの `Packages/manifest.json` を書き、以後は Window > Package Manager > My Registries から Pro の導入と更新ができます(パネルはキーを保存しません)。導入後、次のドメインリロードでこれらのトグルが有効になります(販売ページは追って掲載します)。
 
 ## 必要要件
 
@@ -107,9 +107,9 @@ Pro の有無はパネルの設定画面で分かります。未導入のプロ�
 
 `Window > Package Manager > + > Add package from git URL...` を開き、次の形式で入力します。
 
-[https://github.com/c-colloid/AgentPanelForUnity.git?path=jp.colloid.unity-agent-panel](https://github.com/c-colloid/AgentPanelForUnity.git?path=jp.colloid.unity-agent-panel#v0.43.0)
+[https://github.com/c-colloid/AgentPanelForUnity.git?path=jp.colloid.unity-agent-panel](https://github.com/c-colloid/AgentPanelForUnity.git?path=jp.colloid.unity-agent-panel#v0.44.0)
 
-上記のリンク先は最新のリリースタグ(`#v0.43.0`)を指しています。URL 末尾にタグを付けるとそのバージョンに固定でき、省略すると main の最新を取得します。タグの一覧は [CHANGELOG](jp.colloid.unity-agent-panel/CHANGELOG.md) を参照してください。
+上記のリンク先は最新のリリースタグ(`#v0.44.0`)を指しています。URL 末尾にタグを付けるとそのバージョンに固定でき、省略すると main の最新を取得します。タグの一覧は [CHANGELOG](jp.colloid.unity-agent-panel/CHANGELOG.md) を参照してください。
 
 ### 方法 2: `Packages` フォルダへ配置(embedded パッケージ)
 

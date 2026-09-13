@@ -841,7 +841,23 @@ namespace Colloid.AgentPanel.UI
                     + "別売の Agent Panel Pro パッケージ(jp.colloid.agent-panel-pro)に収録されています。Pro なしでは、この一覧には"
                     + "プロジェクト直下の .uap-profiles/*.json に自分で置いたプロファイルだけが表示され、それぞれ下で承認してから注入されます。",
                 settingsUapOpsModuleUiLabel: "UI 操作",
-                settingsUapOpsModuleUiHint: "UI Toolkit のエディタウィンドウの一覧・ダンプ・クリック・値設定(uap_editor_ui_*)。既定OFF。");
+                settingsUapOpsModuleUiHint: "UI Toolkit のエディタウィンドウの一覧・ダンプ・クリック・値設定(uap_editor_ui_*)。既定OFF。",
+                settingsSectionProUpdates: "Agent Panel Pro の更新",
+                settingsProUpdatesHint: "購入時の製品キーを一度貼り付けると、以後 Pro は Package Manager から更新できます。",
+                settingsProUpdatesTooltip: "キーは Unity 自身の資格情報ファイル(~/.upmconfig.toml、または UPM_USER_CONFIG_DIR のディレクトリ)に書き込み、"
+                    + "このプロジェクトの Packages/manifest.json に jp.colloid.agent-panel-pro 用の scoped registry を追加します。"
+                    + "パネルはキーを保存しません。以後は Window > Package Manager > My Registries に Agent Panel Pro が並び、"
+                    + "新しい版が公開されると Update が押せます。レジストリ URL は秘密ではなく、キーと一緒に届いたものです。",
+                settingsProUpdatesUrlLabel: "レジストリ URL",
+                settingsProUpdatesKeyLabel: "製品キー",
+                settingsProUpdatesApplyButton: "キーを保存",
+                settingsProUpdatesStatusAppliedFmt: "保存しました。キーは {0} に書き込み、レジストリは manifest.json に追加済みです。Package Manager が解決中です。"
+                    + "My Registries で Agent Panel Pro を確認してください。",
+                settingsProUpdatesStatusErrorEmptyKey: "先に製品キーを入力してください。",
+                settingsProUpdatesStatusErrorUrl: "レジストリ URL は https:// で始まるアドレスにしてください。",
+                settingsProUpdatesStatusErrorForeignFmt: "別の scoped registry(\"{0}\")が manifest.json で {1} を既に対象にしています。そのスコープを外してから保存し直してください。",
+                settingsProUpdatesStatusErrorManifestFmt: "Packages/manifest.json を読めませんでした: {0}",
+                settingsProUpdatesStatusErrorWriteFmt: "ファイルを書き込めませんでした: {0}");
         }
     }
 }

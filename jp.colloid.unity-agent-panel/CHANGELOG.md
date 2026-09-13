@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (nothing yet)
 
+## [0.44.0] - 2026-09-12
+
+### Added
+
+- **Settings > Agent Panel Pro updates** (design note
+  `docs/design-notes/2026-09-12-pro-update-delivery.md`, Phase 1). Paste the
+  registry URL and the product key that came with a Pro purchase once and
+  press Save key: the panel writes the token into Unity's own credential
+  file (`~/.upmconfig.toml`, or `UPM_USER_CONFIG_DIR`) as an
+  `[npmAuth."<registry>"]` block, adds the registry to the project's
+  `Packages/manifest.json` as a scoped registry for
+  `jp.colloid.agent-panel-pro` (an existing entry at the same URL just gains
+  the scope; another registry already claiming the scope is reported, not
+  clobbered), then asks the Package Manager to resolve. From then on Pro
+  updates through Window > Package Manager > My Registries like any other
+  package. The panel keeps no copy of the key; the URL is stored in settings
+  (`proRegistryUrl`) and is not a secret. The key field is cleared after a
+  successful save.
+
 ## [0.43.0] - 2026-09-12
 
 ### Added

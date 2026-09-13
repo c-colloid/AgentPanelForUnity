@@ -711,7 +711,7 @@ namespace Colloid.AgentPanel.Ops
         }
 
         /// <summary>True when <paramref name="scopesArray"/> (a JSON array node) already contains <paramref name="value"/> as a string element.</summary>
-        private static bool ScopesContain(JsonNode scopesArray, string value)
+        internal static bool ScopesContain(JsonNode scopesArray, string value)
         {
             string[] scopes = scopesArray.AsStringArray();
             for (int i = 0; i < scopes.Length; i++)
@@ -852,7 +852,7 @@ namespace Colloid.AgentPanel.Ops
         // LAYOUT can change.
         // ---------------------------------------------------------------------------
 
-        private static string PrettyPrintManifest(JsonNode root)
+        internal static string PrettyPrintManifest(JsonNode root)
         {
             var sb = new StringBuilder(1024);
             WritePretty(root, sb, 0);
