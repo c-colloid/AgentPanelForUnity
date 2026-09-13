@@ -87,6 +87,23 @@ workflow_dispatch で再実行)。必要なリポジトリ設定(`CLOUDFLARE_API
 `UPM_ORGANIZATION_ID` として登録すると、同ワークフローが `upm pack` で
 署名付き tarball を作る(`registry/README.md` "Signing")。
 
+### BOOTH の配布物(`.github/workflows/build-pro-bundle.yml`)
+
+BOOTH は購入者ごとにファイルを変えられないので、配布物は「Pro 本体の zip
++ 販売ロット共有の製品キー」を 1 つの zip にしたものにする。Actions の
+*Build the BOOTH bundle for Pro* を `lot`(例 `BOOTH 2026-09`)を入力して
+手動実行すると、R2 から公開済みの `jp.colloid.agent-panel-pro-<ver>.zip` を
+取り、レジストリの admin API で `kind: product, maxMajor: 1, note: <lot>` の
+キーを 1 本発行し、`ci/pro-bundle/README.{ja,en}.md` のプレースホルダを
+埋めた案内・`KEY.txt`・`LICENSE.md` と一緒に
+`AgentPanelPro-<ver>-<lot>.zip` にまとめて Actions のアーティファクトに
+出す(保持 14 日)。それをダウンロードして BOOTH に登録する。キーは発行時に
+しか返らないので、1 ロット 1 回の実行が原則。ロットを月ごと(または一定
+販売数ごと)に切り替え、流出したロットだけ `DELETE /admin/tokens/<id>`
+(id は run のサマリーに出る)で止めて、そのロットの購入者には BOOTH の
+メッセージで新キーを送る。Pro 本体は zip で手元に残るので、キーを止めても
+購入者が使えなくなることはない。
+
 ## 公開ミラー(`.github/workflows/mirror-core.yml`)
 
 `tag-release.yml` の完了(`workflow_run`)、手で push した `v*` タグ、または
