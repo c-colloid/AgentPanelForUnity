@@ -9,6 +9,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (nothing yet)
 
+## [0.47.0] - 2026-09-13
+
+### Added
+
+- **History for ACP agents** (design note
+  `docs/design-notes/2026-09-13-acp-feature-parity.md`, section 1). The panel
+  now keeps its own copy of every Gemini CLI / Codex / Grok Build / custom
+  ACP session under `UserSettings/AgentPanel/Sessions/<id>.json`
+  (`PanelSessionStore`, same format as the session cache), and History lists
+  them next to Claude Code's transcripts with the agent's name on the row.
+  Opening one resumes it through `session/load`; an agent that cannot resume
+  starts a new session, says so in the transcript, and receives the
+  conversation so far with your next message. The stored file follows the
+  new id, so an agent without `session/load` no longer leaves one row per
+  reconnect. Opening a Claude transcript while another agent is selected now
+  records the owner, so the existing cross-backend handover applies instead
+  of feeding the other agent an id it never issued.
+- **In-panel sign-in for Codex and Grok Build** (section 2). Settings >
+  Account gains a Sign in button that runs the agent's own login command
+  (`codex login` / `grok login`) inside the panel: the browser link appears
+  with Open browser / Copy, the command's last output line is shown, Cancel
+  kills it, and the panel reconnects when it exits. When the bridge reports
+  a failed sign-in for such a backend, the chat shows a "Sign in to {agent}"
+  card with the same button and a terminal fallback. The former
+  "Sign in / Reconnect" button is now "Reconnect".
+- **Subagent model settings for ACP agents** (section 3). "Force subagent
+  model" and the per-type overrides are sent to an ACP agent as instructions
+  at the start of each new session (ACP has no equivalent of
+  `CLAUDE_CODE_SUBAGENT_MODEL` / `.claude/agents`), the cost-policy line is
+  worded without Claude's tool and model names, and the Model section says
+  so while an ACP backend is selected.
+
+### Fixed
+
+- **Thinking blocks with ACP agents** (section 4) kept their order: a thought
+  streamed after a paragraph of text was folded ahead of that text. The
+  text is now folded into its own message first. The "Show thinking
+  blocks" tooltip and the ACP limitations hint no longer call thinking
+  blocks, History, in-panel login or the subagent model settings Claude
+  Code only.
+
 ## [0.46.0] - 2026-09-13
 
 ### Added

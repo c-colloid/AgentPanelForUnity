@@ -962,6 +962,46 @@ namespace Colloid.AgentPanel.Integration
                 return;
             }
             SessionCache.Save(session, _lastModelUsage);
+            PersistPanelSession(session);
+        }
+
+        private static PanelSessionStore _panelSessionStore;
+
+        /// <summary>The panel's own per-session store (History rows for ACP agents' sessions).</summary>
+        private static PanelSessionStore PanelSessions
+        {
+            get
+            {
+                if (_panelSessionStore == null)
+                {
+                    _panelSessionStore = PanelSessionStore.CreateDefault(GetProjectRoot(), Log);
+                }
+                return _panelSessionStore;
+            }
+        }
+
+        /// <summary>Test-only: points the Hub at a panel session store of the test's choosing (null restores the project default).</summary>
+        internal static void SetPanelSessionStoreForTests(PanelSessionStore store)
+        {
+            _panelSessionStore = store;
+        }
+
+        /// <summary>
+        /// Keeps a copy of an ACP agent's session in
+        /// <see cref="PanelSessionStore"/> so History can list and restore
+        /// it (design note 2026-09-13-acp-feature-parity.md section 1).
+        /// Claude Code's sessions are on the CLI's own jsonl and are NOT
+        /// written here -- History would list them twice. Called from the
+        /// single cache write path so the store can never lag the cache.
+        /// </summary>
+        private static void PersistPanelSession(ChatSession session)
+        {
+            if (session == null || session.agentBackend < 0
+                || !AgentBackends.IsAcp((AgentBackend)session.agentBackend))
+            {
+                return;
+            }
+            PanelSessions.Save(session, _lastModelUsage);
         }
 
         /// <summary>
@@ -1330,6 +1370,12 @@ namespace Colloid.AgentPanel.Integration
             {
                 return _loginSession;
             }
+            if (!IsClaudeBackend)
+            {
+                // Same button, the agent's own login command (design note
+                // 2026-09-13-acp-feature-parity.md section 2).
+                return BeginAcpLogin();
+            }
             string cliPath = ResolveAuthCliPath();
             if (cliPath == null)
             {
@@ -1346,6 +1392,144 @@ namespace Colloid.AgentPanel.Integration
             session.Exited += delegate(int exitCode) { OnLoginSessionExited(session); };
             RaiseChanged();
             return session;
+        }
+
+        /// <summary>
+        /// The login command line the panel would run for the current ACP
+        /// backend ("codex login"), or empty when it has none
+        /// (AgentBackends.HasInPanelLogin). For the Account card's hint.
+        /// </summary>
+        public static string AcpLoginCommandLine
+        {
+            get
+            {
+                AgentBackend backend = CurrentBackend;
+                if (!AgentBackends.HasInPanelLogin(backend))
+                {
+                    return string.Empty;
+                }
+                string arguments = AgentBackends.LoginArguments(backend);
+                return arguments.Length == 0
+                    ? AgentBackends.LoginExecutable(backend)
+                    : AgentBackends.LoginExecutable(backend) + " " + arguments;
+            }
+        }
+
+        /// <summary>
+        /// Why the last in-panel login could not start (the login command
+        /// was not found), or null. Kept apart from AcpSignInError, which
+        /// is the BRIDGE's verdict and also decides whether a process death
+        /// is retried (ShouldAutoReconnectAfterDeath) -- a missing login
+        /// command must not silence reconnects.
+        /// </summary>
+        public static string AcpLoginError { get; private set; }
+
+        /// <summary>
+        /// True when the ACP agent's last connection ended because its
+        /// sign-in failed AND the backend has a login command the panel can
+        /// run -- the condition under which the chat shows the "Sign in to
+        /// {agent}" card (ChatView.ResolveFirstRunMode).
+        /// </summary>
+        public static bool AcpSignInRequired
+        {
+            get
+            {
+                return !IsClaudeBackend && AcpSignInError != null
+                    && AgentBackends.HasInPanelLogin(CurrentBackend);
+            }
+        }
+
+        /// <summary>
+        /// Runs the ACP backend's own login command (`codex login`,
+        /// `grok login`) as an in-panel session (design note
+        /// 2026-09-13-acp-feature-parity.md section 2): the command's URL
+        /// shows on the Account card with Open browser / Copy, its last
+        /// output line is echoed there, and when it exits the panel
+        /// reconnects so the bridge can open a session with the fresh
+        /// credentials. Returns the in-flight session when one exists, null
+        /// when the backend has no login command or it cannot be found
+        /// (AcpSignInError then carries the reason).
+        /// </summary>
+        public static AuthLoginSession BeginAcpLogin()
+        {
+            if (_loginSession != null && !_loginSession.HasExited)
+            {
+                return _loginSession;
+            }
+            AgentBackend backend = CurrentBackend;
+            if (!AgentBackends.HasInPanelLogin(backend))
+            {
+                return null;
+            }
+            string executable = AgentBackends.LoginExecutable(backend);
+            string path = ResolveAcpLoginPath(PanelStateStore.instance.Settings, backend);
+            if (path == null)
+            {
+                AcpLoginError = L10n.F(L10n.S.HubAcpLoginCommandNotFoundFmt,
+                    AgentBackends.DisplayName(backend), executable);
+                Log(AcpLoginError);
+                AppendSystemNote(AcpLoginError, true);
+                RaiseChanged();
+                return null;
+            }
+            AuthLoginSession session = AuthLoginSession.Begin(path, CreateKiller(), Log,
+                AgentBackends.LoginArguments(backend), true);
+            if (session == null)
+            {
+                return null;
+            }
+            _loginSession = session;
+            AcpLoginError = null;
+            string commandLine = AcpLoginCommandLine;
+            session.UrlAvailable += delegate(string url)
+            {
+                AcpSignInUrl = url;
+                AppendSystemNote(L10n.F(L10n.S.HubAcpSignInUrlNoteFmt, url), false);
+                RaiseChanged();
+            };
+            session.Exited += delegate(int exitCode) { OnAcpLoginSessionExited(session, exitCode, commandLine); };
+            AppendSystemNote(L10n.F(L10n.S.HubAcpLoginStartedNoteFmt,
+                AgentBackends.DisplayName(backend), commandLine), false);
+            RaiseChanged();
+            return session;
+        }
+
+        /// <summary>
+        /// Where the login command lives: when it is the same program as
+        /// the agent itself (Grok Build's `grok`), the user's command
+        /// override and the ACP probe apply; otherwise (Codex's `codex`
+        /// next to `codex-acp`) the bare name is looked up on PATH and in
+        /// the vendors' install directories.
+        /// </summary>
+        private static string ResolveAcpLoginPath(PanelSettings settings, AgentBackend backend)
+        {
+            string executable = AgentBackends.LoginExecutable(backend);
+            if (executable.Length == 0)
+            {
+                return null;
+            }
+            if (string.Equals(executable, AgentBackends.DefaultCommand(backend), StringComparison.Ordinal))
+            {
+                return CreateCliPathProbe(settings).Resolve();
+            }
+            return new AcpCommandProbe(executable).Resolve();
+        }
+
+        /// <summary>
+        /// The ACP login command exited. Its exit code is not trusted any
+        /// more than Claude's (AuthLoginSession's class doc); the bridge
+        /// finds out on the next handshake, so reconnect and let it. The
+        /// Account card keeps showing the command's last line meanwhile.
+        /// </summary>
+        private static void OnAcpLoginSessionExited(AuthLoginSession session, int exitCode, string commandLine)
+        {
+            string lastLine = session.LatestOutputLine ?? string.Empty;
+            DisposeAndClearLoginSession(session);
+            AcpSignInUrl = null;
+            AppendSystemNote(L10n.F(L10n.S.HubAcpLoginFinishedNoteFmt,
+                AgentBackends.DisplayName(CurrentBackend), commandLine, exitCode,
+                lastLine.Length > 0 ? ": " + lastLine : string.Empty), false);
+            RecoverConnection();
         }
 
         /// <summary>
@@ -1944,13 +2128,55 @@ namespace Colloid.AgentPanel.Integration
             {
                 return;
             }
-            TearDownClient(true);
-            var session = new ChatSession { sessionId = sessionId };
+            // A CLI jsonl transcript is Claude Code's by construction
+            // (History lists them from ~/.claude/projects), so record the
+            // owner: StartClient then hands the id back to Claude, or --
+            // when another agent is selected -- starts that agent on a
+            // fresh session with the transcript handed over instead of
+            // feeding it an id it never issued.
+            var session = new ChatSession
+            {
+                sessionId = sessionId,
+                agentBackend = (int)AgentBackend.ClaudeCode
+            };
             if (restoredMessages != null)
             {
                 session.messages = restoredMessages;
             }
             ApplyRestoredUsage(session, usage);
+            Dictionary<string, ModelUsage> lastModelUsage = usage != null
+                ? new Dictionary<string, ModelUsage>(usage.LastTurnModelUsage, StringComparer.Ordinal)
+                : new Dictionary<string, ModelUsage>();
+            SwitchToSessionCore(session, lastModelUsage, titleHint);
+        }
+
+        /// <summary>
+        /// SwitchToSession for a session restored from the panel's own
+        /// store (<see cref="PanelSessionStore"/>: an ACP agent's session,
+        /// design note 2026-09-13-acp-feature-parity.md section 1). The
+        /// stored ChatSession already carries its owner backend, totals and
+        /// per-model usage, so nothing is reconstructed here.
+        /// </summary>
+        public static void SwitchToStoredSession(ChatSession stored,
+            Dictionary<string, ModelUsage> modelUsage, string titleHint)
+        {
+            if (stored == null || string.IsNullOrEmpty(stored.sessionId))
+            {
+                return;
+            }
+            SwitchToSessionCore(stored,
+                modelUsage != null
+                    ? new Dictionary<string, ModelUsage>(modelUsage, StringComparer.Ordinal)
+                    : new Dictionary<string, ModelUsage>(),
+                titleHint);
+        }
+
+        /// <summary>Shared tail of the two SwitchToSession entry points: install the session, persist it, reconnect.</summary>
+        private static void SwitchToSessionCore(ChatSession session,
+            Dictionary<string, ModelUsage> lastModelUsage, string titleHint)
+        {
+            string sessionId = session.sessionId;
+            TearDownClient(true);
             // A different session's compaction state must not linger any
             // more than its usage numbers do.
             _pendingCompactTrigger = null;
@@ -1974,9 +2200,7 @@ namespace Colloid.AgentPanel.Integration
             // HUB-3: seeded BEFORE the save -- the old order persisted the
             // switched-to session's cache still paired with the PREVIOUS
             // session's usage, exactly the lingering that comment forbids.
-            _lastModelUsage = usage != null
-                ? new Dictionary<string, ModelUsage>(usage.LastTurnModelUsage, StringComparer.Ordinal)
-                : new Dictionary<string, ModelUsage>();
+            _lastModelUsage = lastModelUsage ?? new Dictionary<string, ModelUsage>();
             // Same deliberate-replacement exemption as StartFresh above
             // (2026-09-12): the user picked this session out of History.
             ForgetUnreadableSessionCache();
@@ -3473,6 +3697,7 @@ namespace Colloid.AgentPanel.Integration
                 // Resuming the owning agent's own session: nothing to hand over.
                 SessionStateBridge.HandoverPendingFrom = -1;
             }
+            _resumeRequestedSessionId = resumeSessionId;
             // A new process may be a different agent: forget the old name
             // until the new one introduces itself.
             CurrentAcpAgentName = null;
@@ -3669,7 +3894,15 @@ namespace Colloid.AgentPanel.Integration
                 // NOT also ride AgentClientOptions -- the bridge ignores
                 // the flag string, and CORE-7's command-line-length guard
                 // would refuse a long instructions file for nothing.
-                acpSpec.SystemPrompt = appendSystemPrompt;
+                //
+                // The subagent model settings have no wire equivalent for
+                // an ACP agent (CLAUDE_CODE_SUBAGENT_MODEL and
+                // .claude/agents/*.md are Claude Code's), so they travel
+                // as instructions in the same block, and the cost-policy
+                // line is worded without Claude's tool and model names
+                // (design note 2026-09-13-acp-feature-parity.md section 3).
+                acpSpec.SystemPrompt = ComposeAcpSystemPrompt(appendSystemPrompt,
+                    settings.subagentModel, settings.agentModelOverrides);
                 appendSystemPrompt = null;
             }
 
@@ -3686,7 +3919,11 @@ namespace Colloid.AgentPanel.Integration
                     DisallowedTools = isAcp ? null : settings.disallowedTools,
                     DangerouslySkipPermissions = !isAcp && settings.dangerouslySkipPermissions,
                     AppendSystemPrompt = appendSystemPrompt,
-                    ThinkingDisplaySummarized = !isAcp && settings.showThinking,
+                    // Claude's `--thinking-display summarized` flag; the
+                    // ACP bridge ignores the flag string altogether and
+                    // streams the agent's thoughts as they come, so no
+                    // backend guard is needed here.
+                    ThinkingDisplaySummarized = settings.showThinking,
                     SubagentModel = isAcp ? null : settings.subagentModel,
                     ClaudeAuth = isAcp ? ClaudeAuthMode.Auto : settings.claudeAuth,
                     McpConfigJson = mcpConfigValue,
@@ -3947,6 +4184,72 @@ namespace Colloid.AgentPanel.Integration
         // rule-formatted imperative below is the strengthened second
         // iteration; keep the MUST + explicit parameter shape if this is
         // ever reworded.
+        /// <summary>
+        /// The ACP wording of <see cref="HaikuForSimpleTasksInstructionLine"/>:
+        /// an ACP agent has neither Claude's Agent/Task tool nor a model
+        /// called "haiku", so the same policy is stated in the agent's own
+        /// terms -- delegate simple work to the cheapest model it can pick.
+        /// </summary>
+        internal const string AcpCheapModelForSimpleTasksInstructionLine =
+            "IMPORTANT - subagent model selection rule: whenever you delegate a simple mechanical"
+            + " subtask (searching, file listing, bulk renaming, log scanning, or similar"
+            + " read-and-report work) to a subagent or helper agent and can choose its model, you"
+            + " MUST pick the cheapest / fastest model available to you. Use a stronger model only"
+            + " when the subtask genuinely needs deeper reasoning.";
+
+        /// <summary>
+        /// Pure: the system-prompt block an ACP agent receives at the start
+        /// of a new session (design note 2026-09-13-acp-feature-parity.md
+        /// section 3). Takes the Claude-worded block ComposeAppendSystemPrompt
+        /// built, swaps the cost-policy line for its ACP wording, and appends
+        /// <see cref="ComposeSubagentModelSteering"/> so the "Force subagent
+        /// model" and per-type override settings reach the agent as
+        /// instructions -- the only channel ACP offers for them.
+        /// </summary>
+        internal static string ComposeAcpSystemPrompt(string claudeWordedPrompt, string subagentModel,
+            List<AgentModelOverride> overrides)
+        {
+            string body = (claudeWordedPrompt ?? string.Empty)
+                .Replace(HaikuForSimpleTasksInstructionLine, AcpCheapModelForSimpleTasksInstructionLine);
+            return AppendSection(body, ComposeSubagentModelSteering(subagentModel, overrides));
+        }
+
+        /// <summary>
+        /// Pure: the subagent-model instructions for an ACP agent, or empty
+        /// when neither setting is in use. The blanket clamp comes first and
+        /// wins (same precedence as Claude's env var over the per-type
+        /// files); a per-type row counts only when both its name and model
+        /// are filled in (AgentDefinitionFileWriter.IsCompleteAgentOverride's
+        /// rule), so a half-typed row never reaches the agent.
+        /// </summary>
+        internal static string ComposeSubagentModelSteering(string subagentModel, List<AgentModelOverride> overrides)
+        {
+            var lines = new List<string>();
+            string forced = (subagentModel ?? string.Empty).Trim();
+            if (forced.Length > 0)
+            {
+                lines.Add("Subagent model policy: whenever you delegate work to a subagent or helper agent"
+                    + " and can choose its model, use \"" + forced + "\" for every subagent, regardless of"
+                    + " the task. This is a cost cap set by the user, not a suggestion.");
+            }
+            else if (overrides != null)
+            {
+                for (int i = 0; i < overrides.Count; i++)
+                {
+                    AgentModelOverride entry = overrides[i];
+                    if (entry == null || string.IsNullOrEmpty(entry.agentName) || string.IsNullOrEmpty(entry.modelAlias)
+                        || entry.agentName.Trim().Length == 0 || entry.modelAlias.Trim().Length == 0)
+                    {
+                        continue;
+                    }
+                    lines.Add("Subagent model policy: when you delegate to a subagent of type or name \""
+                        + entry.agentName.Trim() + "\" and can choose its model, use \"" + entry.modelAlias.Trim()
+                        + "\" unless the call explicitly asks for another model.");
+                }
+            }
+            return lines.Count == 0 ? string.Empty : string.Join("\n", lines.ToArray());
+        }
+
         internal const string HaikuForSimpleTasksInstructionLine =
             "IMPORTANT - subagent model selection rule: whenever you call the Agent (Task) tool"
             + " for a simple mechanical subtask (searching, file listing, bulk renaming, log"
@@ -5585,12 +5888,69 @@ namespace Colloid.AgentPanel.Integration
             }
         }
 
+        /// <summary>
+        /// The id the current spawn asked to resume (null for a fresh
+        /// session), compared against the id the agent actually reports:
+        /// an ACP agent without `session/load` answers with a NEW id, which
+        /// is the only signal the panel gets that the conversation was not
+        /// resumed on the agent's side.
+        /// </summary>
+        private static string _resumeRequestedSessionId;
+
         private static void OnSessionIdChanged(string sessionId)
         {
+            string previousId = Session.sessionId;
+            int previousBackend = Session.agentBackend;
+            string requested = _resumeRequestedSessionId;
+            _resumeRequestedSessionId = null;
             Session.sessionId = sessionId;
             Session.agentBackend = (int)CurrentBackend;
             SessionStateBridge.CurrentSessionId = sessionId;
+            if (AgentBackends.IsAcp(CurrentBackend))
+            {
+                OnAcpSessionIdChanged(previousId, previousBackend, requested, sessionId);
+            }
             RaiseChanged();
+        }
+
+        /// <summary>
+        /// An ACP agent reported its session id (design note
+        /// 2026-09-13-acp-feature-parity.md section 1.3). Two cases matter:
+        /// the SAME conversation moved to a new id (the agent has no
+        /// `session/load`, or the load failed and the bridge fell back to
+        /// `session/new`) -- the panel-store file follows the id so History
+        /// keeps one row per conversation, and when a resume was requested
+        /// the transcript on screen is handed over with the next message,
+        /// since the agent itself starts from nothing; and a brand-new
+        /// conversation, where there is nothing to carry.
+        /// </summary>
+        private static void OnAcpSessionIdChanged(string previousId, int previousBackend,
+            string requestedResumeId, string newId)
+        {
+            if (string.IsNullOrEmpty(previousId) || string.Equals(previousId, newId, StringComparison.Ordinal))
+            {
+                return;
+            }
+            if (previousBackend == (int)CurrentBackend)
+            {
+                PanelSessions.Rename(previousId, newId);
+                SessionMetaStoreAccess.CarryOver(previousId, newId);
+            }
+            if (!string.Equals(requestedResumeId, previousId, StringComparison.Ordinal)
+                || SessionStateBridge.HandoverPendingFrom >= 0
+                || !HasHandoverContent(Session.messages))
+            {
+                return;
+            }
+            AppendSystemNote(L10n.F(L10n.S.HubAcpSessionNotResumedNoteFmt,
+                AgentBackends.DisplayName(CurrentBackend)), false);
+            SessionStateBridge.HandoverPendingFrom = (int)CurrentBackend;
+        }
+
+        /// <summary>Pure: true when the transcript holds user/assistant text worth handing over.</summary>
+        internal static bool HasHandoverContent(List<ChatMessage> messages)
+        {
+            return ConversationHandover.Build(messages, null, null) != null;
         }
 
         /// <summary>
@@ -5838,7 +6198,7 @@ namespace Colloid.AgentPanel.Integration
                 // Respawning would ask the same agent the same question and
                 // fail the same way (live report: four identical rounds),
                 // so stop here with the next step spelled out. Not counted
-                // as a crash: the user's Sign in / Reconnect starts fresh.
+                // as a crash: the user's Sign in or Reconnect starts fresh.
                 var signInNote = new ChatMessage { role = ChatMessage.RoleSystem };
                 string login = AgentBackends.LoginCommand(CurrentBackend);
                 string loginOrName = string.IsNullOrEmpty(login) ? AgentBackends.DisplayName(CurrentBackend) : login;

@@ -31,8 +31,10 @@ namespace Colloid.AgentPanel.Core.Process
     /// </summary>
     public sealed class AuthLoginSession : IDisposable
     {
-        private const string LoginArguments = "auth login";
+        /// <summary>Claude Code's login subcommand (the default when no arguments are given).</summary>
+        public const string ClaudeLoginArguments = "auth login";
         private const int ReadBufferChars = 512;
+        private const int LatestLineMaxChars = 200;
 
         /// <summary>Fired synchronously, on the caller's own thread, the moment the process is confirmed spawned.</summary>
         public event Action Starting;
@@ -49,8 +51,11 @@ namespace Colloid.AgentPanel.Core.Process
         private readonly object _outputLock = new object();
         private readonly StringBuilder _outputBuffer = new StringBuilder();
 
+        private readonly string _arguments;
+        private readonly bool _captureStderr;
         private System.Diagnostics.Process _process;
         private Stream _stdin;
+        private volatile string _latestLine = string.Empty;
         private volatile bool _running;
         private volatile bool _urlRaised;
         private volatile bool _waitingRaised;
@@ -64,6 +69,25 @@ namespace Colloid.AgentPanel.Core.Process
         public string OAuthUrl
         {
             get { return _oauthUrl; }
+        }
+
+        /// <summary>The arguments the process was (or will be) started with.</summary>
+        public string Arguments
+        {
+            get { return _arguments; }
+        }
+
+        /// <summary>
+        /// The last non-empty line the process printed (stdout, plus
+        /// stderr when captured), trimmed and capped -- what an ACP
+        /// agent's login command says while it waits ("Successfully logged
+        /// in", a device code, an error), shown on the Account card since
+        /// the exit code alone says nothing (see the class doc comment).
+        /// Empty until the process prints one.
+        /// </summary>
+        public string LatestOutputLine
+        {
+            get { return _latestLine; }
         }
 
         /// <summary>True once the promptless "paste code" tail has been observed.</summary>
@@ -89,10 +113,12 @@ namespace Colloid.AgentPanel.Core.Process
             get { return _running; }
         }
 
-        private AuthLoginSession(IProcessKiller killer, Action<string> logger)
+        private AuthLoginSession(IProcessKiller killer, Action<string> logger, string arguments, bool captureStderr)
         {
             _killer = killer;
             _logger = logger;
+            _arguments = string.IsNullOrEmpty(arguments) ? ClaudeLoginArguments : arguments;
+            _captureStderr = captureStderr;
         }
 
         /// <summary>
@@ -108,11 +134,26 @@ namespace Colloid.AgentPanel.Core.Process
         /// </summary>
         public static AuthLoginSession Begin(string cliPath, IProcessKiller killer, Action<string> logger = null)
         {
+            return Begin(cliPath, killer, logger, ClaudeLoginArguments, false);
+        }
+
+        /// <summary>
+        /// As above for ANY login command (design note
+        /// 2026-09-13-acp-feature-parity.md section 2): an ACP agent's own
+        /// CLI login (`codex login`, `grok login`), whose URL / progress
+        /// may well go to stderr -- <paramref name="captureStderr"/> merges
+        /// it into the same scanned buffer. The Claude-specific "paste
+        /// code" prompt detection stays armed but never fires for a CLI
+        /// that does not print that exact tail.
+        /// </summary>
+        public static AuthLoginSession Begin(string cliPath, IProcessKiller killer, Action<string> logger,
+            string arguments, bool captureStderr)
+        {
             if (string.IsNullOrEmpty(cliPath) || killer == null)
             {
                 return null;
             }
-            var session = new AuthLoginSession(killer, logger);
+            var session = new AuthLoginSession(killer, logger, arguments, captureStderr);
             session.Start(cliPath);
             return session;
         }
@@ -124,12 +165,12 @@ namespace Colloid.AgentPanel.Core.Process
             var psi = new System.Diagnostics.ProcessStartInfo
             {
                 FileName = cliPath,
-                Arguments = LoginArguments,
+                Arguments = _arguments,
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 RedirectStandardInput = true,
                 RedirectStandardOutput = true,
-                RedirectStandardError = false
+                RedirectStandardError = _captureStderr
             };
             var process = new System.Diagnostics.Process { StartInfo = psi, EnableRaisingEvents = true };
             process.Exited += OnProcessExited;
@@ -171,17 +212,21 @@ namespace Colloid.AgentPanel.Core.Process
             _reloadHooked = true;
 
             RaiseStarting();
-            StartReadThread(process.StandardOutput.BaseStream);
+            StartReadThread(process.StandardOutput.BaseStream, "AuthLoginSession-stdout");
+            if (_captureStderr)
+            {
+                StartReadThread(process.StandardError.BaseStream, "AuthLoginSession-stderr");
+            }
         }
 
         // -- Output reading (dedicated background thread; see the class doc
         // comment for why BeginOutputReadLine cannot be used here) -------------
 
-        private void StartReadThread(Stream stdoutStream)
+        private void StartReadThread(Stream stream, string name)
         {
-            var thread = new System.Threading.Thread(delegate() { ReadLoop(stdoutStream); });
+            var thread = new System.Threading.Thread(delegate() { ReadLoop(stream); });
             thread.IsBackground = true;
-            thread.Name = "AuthLoginSession-stdout";
+            thread.Name = name;
             thread.Start();
         }
 
@@ -212,6 +257,11 @@ namespace Colloid.AgentPanel.Core.Process
             {
                 _outputBuffer.Append(chunk);
                 accumulated = _outputBuffer.ToString();
+                string latest = LastNonEmptyLine(accumulated);
+                if (latest.Length > 0)
+                {
+                    _latestLine = latest;
+                }
             }
             if (!_urlRaised)
             {
@@ -228,6 +278,27 @@ namespace Colloid.AgentPanel.Core.Process
                 _waitingRaised = true;
                 AuthCli.EnqueueCallback(delegate { RaiseWaitingForCode(); });
             }
+        }
+
+        /// <summary>Pure: the last non-empty line of <paramref name="text"/>, trimmed and capped; empty when there is none.</summary>
+        internal static string LastNonEmptyLine(string text)
+        {
+            if (string.IsNullOrEmpty(text))
+            {
+                return string.Empty;
+            }
+            int end = text.Length;
+            while (end > 0)
+            {
+                int start = text.LastIndexOfAny(new[] { '\r', '\n' }, end - 1);
+                string line = text.Substring(start + 1, end - start - 1).Trim();
+                if (line.Length > 0)
+                {
+                    return line.Length > LatestLineMaxChars ? line.Substring(0, LatestLineMaxChars) : line;
+                }
+                end = start < 0 ? 0 : start;
+            }
+            return string.Empty;
         }
 
         // -- User actions --------------------------------------------------------
@@ -474,7 +545,7 @@ namespace Colloid.AgentPanel.Core.Process
         /// </summary>
         internal static AuthLoginSession CreateForTests(Action<string> logger = null)
         {
-            return new AuthLoginSession(null, logger);
+            return new AuthLoginSession(null, logger, ClaudeLoginArguments, false);
         }
 
         /// <summary>

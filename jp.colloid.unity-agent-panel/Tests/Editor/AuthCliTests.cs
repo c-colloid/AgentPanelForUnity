@@ -391,5 +391,45 @@ namespace Colloid.AgentPanel.Tests
             Assert.IsTrue(result.IsAvailable,
                 "auth status --json should be available for a real, resolvable CLI.");
         }
+
+        // -- Any login command (design note 2026-09-13-acp-feature-parity.md
+        // section 2): the same session runs an ACP agent's `codex login` /
+        // `grok login`, scans stdout AND stderr for the link, and keeps the
+        // last printed line for the Account card. --------------------------
+
+        [Test]
+        public void Begin_WithArguments_EmptyPathOrKiller_ReturnsNull()
+        {
+            Assert.IsNull(AuthLoginSession.Begin(string.Empty, new FakeKiller(), null, "login", true));
+            Assert.IsNull(AuthLoginSession.Begin("codex", null, null, "login", true));
+        }
+
+        [Test]
+        public void FeedOutputChunk_CodexStyleStderrText_RaisesUrlAvailable_NeverWaitingForCode()
+        {
+            AuthLoginSession session = AuthLoginSession.CreateForTests();
+            string url = null;
+            bool waiting = false;
+            session.UrlAvailable += delegate (string u) { url = u; };
+            session.WaitingForCode += delegate { waiting = true; };
+            session.FeedOutputChunkForTests("Starting local login server on http://localhost:1455.\n");
+            session.FeedOutputChunkForTests("If your browser did not open, navigate to this URL to authenticate:\n\n");
+            session.FeedOutputChunkForTests("https://auth.openai.com/oauth/authorize?client_id=app_x&redirect_uri=http%3A%2F%2Flocalhost%3A1455\n");
+            AuthCli.DrainPendingForTests();
+            StringAssert.StartsWith("http", url);
+            Assert.IsFalse(waiting, "only Claude's exact paste-code tail arms the code field");
+            Assert.AreEqual("https://auth.openai.com/oauth/authorize?client_id=app_x&redirect_uri=http%3A%2F%2Flocalhost%3A1455",
+                session.LatestOutputLine);
+        }
+
+        [Test]
+        public void LastNonEmptyLine_SkipsTrailingBlankLines_TrimsAndCaps()
+        {
+            Assert.AreEqual(string.Empty, AuthLoginSession.LastNonEmptyLine(null));
+            Assert.AreEqual(string.Empty, AuthLoginSession.LastNonEmptyLine("\n \n"));
+            Assert.AreEqual("Successfully logged in", AuthLoginSession.LastNonEmptyLine("Opening browser...\r\nSuccessfully logged in\n\n"));
+            Assert.AreEqual("tail", AuthLoginSession.LastNonEmptyLine("head\n  tail  "));
+            Assert.AreEqual(200, AuthLoginSession.LastNonEmptyLine(new string('x', 500)).Length);
+        }
     }
 }

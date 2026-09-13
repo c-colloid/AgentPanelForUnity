@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -61,10 +62,23 @@ namespace Colloid.AgentPanel.Model
             }
             var sb = new StringBuilder();
             sb.Append(Header).Append('\n');
-            sb.Append("The user was talking to ").Append(previousAgent ?? "another agent")
-                .Append(" in this panel and has switched to you (").Append(newAgent ?? "this agent")
-                .Append(") mid-conversation. The transcript so far follows; continue from it")
-                .Append(" without repeating or summarizing it back.\n\n");
+            if (!string.IsNullOrEmpty(previousAgent) && string.Equals(previousAgent, newAgent, StringComparison.Ordinal))
+            {
+                // Same agent, new session: the agent could not resume its
+                // own earlier session (no session/load), so it starts from
+                // nothing while the user sees the whole conversation.
+                sb.Append("The user was talking to you (").Append(newAgent)
+                    .Append(") in this panel in an earlier session that could not be resumed.")
+                    .Append(" The transcript so far follows; continue from it")
+                    .Append(" without repeating or summarizing it back.\n\n");
+            }
+            else
+            {
+                sb.Append("The user was talking to ").Append(previousAgent ?? "another agent")
+                    .Append(" in this panel and has switched to you (").Append(newAgent ?? "this agent")
+                    .Append(") mid-conversation. The transcript so far follows; continue from it")
+                    .Append(" without repeating or summarizing it back.\n\n");
+            }
             if (first > 0)
             {
                 sb.Append(OmittedMarker).Append("\n\n");

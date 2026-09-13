@@ -455,7 +455,7 @@ namespace Colloid.AgentPanel.Core.Acp
                     + (string.IsNullOrEmpty(AgentBackends.LoginCommand(_spec.Backend))
                         ? string.Empty
                         : " (" + AgentBackends.LoginCommand(_spec.Backend) + ")")
-                    + ", then press Sign in / Reconnect.");
+                    + ", then press Sign in or Reconnect (Settings > Account).");
                 return;
             }
             string methodId = _authCandidates[_authCandidateIndex++];
@@ -1395,6 +1395,15 @@ namespace Colloid.AgentPanel.Core.Acp
             if (text == null)
             {
                 return;
+            }
+            if (_textBuffer.Length > 0)
+            {
+                // Thought after text (agents that reason between
+                // paragraphs): fold what has streamed so far into its own
+                // assistant message so the transcript keeps the real order
+                // -- text, then this thinking block -- instead of one
+                // message that puts every thought before every sentence.
+                FlushAssistantText();
             }
             if (!_thinkingStarted)
             {

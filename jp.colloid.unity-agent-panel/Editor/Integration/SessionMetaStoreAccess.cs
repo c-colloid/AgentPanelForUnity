@@ -169,6 +169,38 @@ namespace Colloid.AgentPanel.Integration
             }
         }
 
+        /// <summary>
+        /// Moves a session's pin/archive/rename/group state to a new id: an
+        /// ACP agent without `session/load` re-issues the SAME conversation
+        /// under a new id on every reconnect (design note
+        /// 2026-09-13-acp-feature-parity.md section 1.3), and the user's
+        /// customization must follow it. No-op when the old id has none.
+        /// </summary>
+        public static void CarryOver(string oldSessionId, string newSessionId)
+        {
+            if (string.IsNullOrEmpty(oldSessionId) || string.IsNullOrEmpty(newSessionId)
+                || string.Equals(oldSessionId, newSessionId, StringComparison.Ordinal))
+            {
+                return;
+            }
+            SessionMeta old;
+            if (!Store.bySessionId.TryGetValue(oldSessionId, out old) || old == null)
+            {
+                return;
+            }
+            SessionMeta target = Store.Edit(newSessionId);
+            target.pinned = old.pinned;
+            target.archived = old.archived;
+            target.titleOverride = old.titleOverride;
+            target.customGroupId = old.customGroupId;
+            if (string.IsNullOrEmpty(target.recordedScenePath))
+            {
+                target.recordedScenePath = old.recordedScenePath;
+            }
+            Store.bySessionId.Remove(oldSessionId);
+            Save();
+        }
+
         /// <summary>Where <see cref="MoveTranscriptToDeleted"/> puts transcripts (shown in the confirm bar).</summary>
         public static string DeletedSessionsDirectory()
         {

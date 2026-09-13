@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using Colloid.AgentPanel.Core.Acp;
 using Colloid.AgentPanel.Core.Client;
+using Colloid.AgentPanel.Core.Protocol;
 using Colloid.AgentPanel.Integration;
 using Colloid.AgentPanel.Model;
 using UnityEditor;
@@ -490,6 +492,7 @@ namespace Colloid.AgentPanel.UI
                     row.Preview = source.Entry.FirstUserTextPreview;
                     row.Cwd = source.Entry.Cwd;
                     row.ModelName = source.Entry.ModelName;
+                    row.AgentBackend = source.Entry.AgentBackend;
                 }
             }
         }
@@ -516,6 +519,7 @@ namespace Colloid.AgentPanel.UI
                 Preview = withText ? entry.FirstUserTextPreview : string.Empty,
                 LastModifiedUtc = entry.LastModifiedUtc,
                 SizeBytes = entry.SizeBytes,
+                AgentBackend = entry.IsPanelStore && withText ? entry.AgentBackend : (entry.IsPanelStore ? -1 : 0),
                 Cwd = withText ? entry.Cwd : string.Empty,
                 ModelName = withText ? entry.ModelName : string.Empty,
                 Pinned = m.pinned,
@@ -760,7 +764,8 @@ namespace Colloid.AgentPanel.UI
             var meta = new Label(FormatRowMeta(
                 FormatRelativeTime(nowUtc, data.LastModifiedUtc),
                 FormatSize(data.SizeBytes),
-                SettingsView.ShortenResolvedModel(data.ModelName)));
+                SettingsView.ShortenResolvedModel(data.ModelName),
+                AgentLabelFor(data.AgentBackend)));
             meta.AddToClassList("uap-history-row-meta");
             meta.enableRichText = false;
             main.Add(meta);
@@ -1501,6 +1506,34 @@ namespace Colloid.AgentPanel.UI
             }
             SessionIndexEntry entry = source.Entry;
             _pendingSwitchSessionId = string.Empty;
+            string titleHint = SessionMetaStoreAccess.Store.Get(sessionId).titleOverride;
+            if (string.IsNullOrEmpty(titleHint))
+            {
+                titleHint = !string.IsNullOrEmpty(entry.AiTitle)
+                    ? entry.AiTitle : entry.FirstUserTextPreview;
+            }
+            if (entry.IsPanelStore)
+            {
+                // An ACP agent's session: the panel's own store already
+                // holds the ChatSession as it was displayed (design note
+                // 2026-09-13-acp-feature-parity.md section 1). A file that
+                // fails to load restores as an empty transcript, same
+                // tolerance as the jsonl path below.
+                Dictionary<string, ModelUsage> modelUsage;
+                ChatSession stored = new SessionCacheFile(entry.FilePath, AgentHub.Log)
+                    .Load(out modelUsage);
+                if (stored == null)
+                {
+                    stored = new ChatSession { sessionId = sessionId, agentBackend = entry.AgentBackend };
+                }
+                if (string.IsNullOrEmpty(stored.sessionId))
+                {
+                    stored.sessionId = sessionId;
+                }
+                AgentHub.SwitchToStoredSession(stored, modelUsage, titleHint);
+                AgentPanelWindow.ShowChat();
+                return;
+            }
             // TranscriptLoader.Load never throws (missing/unreadable/
             // malformed file all degrade to an empty list) -- the
             // missing-file race documented in the design note section 1.5
@@ -1509,12 +1542,6 @@ namespace Colloid.AgentPanel.UI
             // and the usage popover from resetting to zero on restore.
             TranscriptUsage usage;
             List<ChatMessage> messages = TranscriptLoader.Load(entry.FilePath, out usage);
-            string titleHint = SessionMetaStoreAccess.Store.Get(sessionId).titleOverride;
-            if (string.IsNullOrEmpty(titleHint))
-            {
-                titleHint = !string.IsNullOrEmpty(entry.AiTitle)
-                    ? entry.AiTitle : entry.FirstUserTextPreview;
-            }
             AgentHub.SwitchToSession(sessionId, messages, titleHint, usage);
             AgentPanelWindow.ShowChat();
         }
@@ -1577,9 +1604,42 @@ namespace Colloid.AgentPanel.UI
         /// </summary>
         internal static string FormatRowMeta(string relativeTime, string size, string modelShort)
         {
+            return FormatRowMeta(relativeTime, size, modelShort, null);
+        }
+
+        /// <summary>
+        /// As above, with the owning agent's name appended when given: an
+        /// ACP agent's session sits in the same list as Claude Code's, so
+        /// the row says whose it is (design note
+        /// 2026-09-13-acp-feature-parity.md section 1).
+        /// </summary>
+        internal static string FormatRowMeta(string relativeTime, string size, string modelShort, string agentLabel)
+        {
             string gap = "  " + IconLoader.GlyphBullet + "  ";
             string meta = relativeTime + gap + size;
-            return string.IsNullOrEmpty(modelShort) ? meta : meta + gap + modelShort;
+            if (!string.IsNullOrEmpty(modelShort))
+            {
+                meta += gap + modelShort;
+            }
+            if (!string.IsNullOrEmpty(agentLabel))
+            {
+                meta += gap + agentLabel;
+            }
+            return meta;
+        }
+
+        /// <summary>
+        /// Pure: the agent label for a row's backend -- empty for Claude
+        /// Code (the historical default, its rows are unchanged) and for an
+        /// unknown backend, the backend's display name otherwise.
+        /// </summary>
+        internal static string AgentLabelFor(int agentBackend)
+        {
+            if (agentBackend <= 0)
+            {
+                return string.Empty;
+            }
+            return AgentBackends.DisplayName((AgentBackend)agentBackend);
         }
 
         public static string FormatRelativeTime(DateTime nowUtc, DateTime whenUtc)

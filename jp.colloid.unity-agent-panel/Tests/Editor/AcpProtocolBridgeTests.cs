@@ -538,6 +538,32 @@ namespace Colloid.AgentPanel.Tests
         }
 
         [Test]
+        public void ThoughtAfterText_FoldsTheTextFirst_SoTheOrderOnScreenIsTheAgents()
+        {
+            // Design note 2026-09-13-acp-feature-parity.md section 4: an
+            // agent that reasons between paragraphs must not end up with
+            // every thought hoisted above every sentence.
+            CompleteHandshake();
+            SendUser("hello");
+            Notify("{\"sessionUpdate\":\"agent_message_chunk\",\"content\":{\"type\":\"text\",\"text\":\"First.\"}}");
+            Notify("{\"sessionUpdate\":\"agent_thought_chunk\",\"content\":{\"type\":\"text\",\"text\":\"then think\"}}");
+            List<StreamJsonMessage> messages = PanelMessages();
+            var folded = messages[messages.Count - 3] as AssistantMessage;
+            Assert.IsNotNull(folded, "the streamed text is folded into its own assistant message before the thought");
+            Assert.AreEqual(ContentBlockType.Text, folded.Content[0].Type);
+            Assert.AreEqual("First.", folded.Content[0].Text);
+            var start = messages[messages.Count - 2] as StreamEventMessage;
+            Assert.IsTrue(start.IsThinkingBlockStart());
+            Notify("{\"sessionUpdate\":\"agent_message_chunk\",\"content\":{\"type\":\"text\",\"text\":\"Second.\"}}");
+            Respond(AgentLine("session/prompt"), JsonNode.NewObject().Set("stopReason", "end_turn"));
+            AssistantMessage last = LastPanel<AssistantMessage>();
+            Assert.AreEqual(ContentBlockType.Thinking, last.Content[0].Type);
+            Assert.AreEqual("then think", last.Content[0].Thinking);
+            Assert.AreEqual("Second.", last.Content[1].Text);
+            Assert.AreEqual("First.Second.", LastPanel<ResultMessage>().ResultText, "the turn text is still the whole reply");
+        }
+
+        [Test]
         public void ThoughtChunks_OpenAThinkingBlockThenStreamThinkingDeltas()
         {
             CompleteHandshake();

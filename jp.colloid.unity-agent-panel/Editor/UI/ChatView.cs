@@ -266,7 +266,7 @@ namespace Colloid.AgentPanel.UI
 
             FirstRunView.Mode mode = ResolveFirstRunMode(
                 AgentHub.LastError, client, session, AgentHub.CurrentAuthStatus,
-                AgentHub.IsClaudeBackend);
+                AgentHub.IsClaudeBackend, AgentHub.AcpSignInRequired);
             _firstRun.SetMode(mode, AgentHub.LastError);
 
             bool chatVisible = mode == FirstRunView.Mode.Hidden;
@@ -419,6 +419,23 @@ namespace Colloid.AgentPanel.UI
         internal static FirstRunView.Mode ResolveFirstRunMode(string lastError,
             AgentClient client, ChatSession session, AuthStatus auth, bool claudeBackend)
         {
+            return ResolveFirstRunMode(lastError, client, session, auth, claudeBackend, false);
+        }
+
+        /// <summary>
+        /// As above, with the ACP sign-in state (design note
+        /// 2026-09-13-acp-feature-parity.md section 2): an ACP agent whose
+        /// sign-in failed AND whose backend has a login command the panel
+        /// can run (<paramref name="acpSignInRequired"/> =
+        /// AgentHub.AcpSignInRequired) gets the same NotLoggedIn card,
+        /// worded for that agent. Claude's `auth status` cache and the
+        /// transcript's auth-error heuristic stay Claude-only: an ACP
+        /// agent's sign-in error is reported by the bridge itself.
+        /// </summary>
+        internal static FirstRunView.Mode ResolveFirstRunMode(string lastError,
+            AgentClient client, ChatSession session, AuthStatus auth, bool claudeBackend,
+            bool acpSignInRequired)
+        {
             if (!string.IsNullOrEmpty(lastError)
                 && (client == null || client.State == AgentClientState.NotStarted
                     || client.State == AgentClientState.Errored))
@@ -427,7 +444,7 @@ namespace Colloid.AgentPanel.UI
             }
             if (!claudeBackend)
             {
-                return FirstRunView.Mode.Hidden;
+                return acpSignInRequired ? FirstRunView.Mode.NotLoggedIn : FirstRunView.Mode.Hidden;
             }
             if (HasRecentAuthError(session))
             {

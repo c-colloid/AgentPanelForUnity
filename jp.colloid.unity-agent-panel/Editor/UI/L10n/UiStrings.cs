@@ -1023,7 +1023,7 @@ namespace Colloid.AgentPanel.UI
         /// thinking-content-loss.md section 7).
         /// </summary>
         public readonly string SettingsShowThinkingTooltip =
-            "Visibility itself applies immediately. Showing the real thinking text rather than an empty block requires CLI v2.1.218 or later, and takes effect through a quick automatic reconnect.";
+            "Visibility itself applies immediately. With Claude Code, showing the real thinking text rather than an empty block requires CLI v2.1.218 or later and takes effect through a quick automatic reconnect; ACP agents stream their thoughts as they come.";
         public readonly string SettingsExpandSubagentLabel = "Expand subagent cards by default";
 
         public readonly string SettingsExpandSubagentHint =
@@ -1441,6 +1441,18 @@ namespace Colloid.AgentPanel.UI
         /// </summary>
         public readonly string SettingsSubagentModelSameAsDefaultLabel = "(same as default)";
 
+        /// <summary>{0} = backend display name. Shown under the subagent model fields while an ACP backend is selected (design note 2026-09-13-acp-feature-parity.md section 3).</summary>
+        public readonly string SettingsSubagentModelAcpHintFmt =
+            "With {0}, this is sent as an instruction at the start of each new session; hover for details.";
+
+        /// <summary>Hover half of SettingsSubagentModelAcpHintFmt.</summary>
+        public readonly string SettingsSubagentModelAcpTooltip =
+            "An ACP agent has no equivalent of Claude Code's CLAUDE_CODE_SUBAGENT_MODEL or .claude/agents files,"
+            + " so the panel puts the forced model and the per-type overrides into the standing instructions it"
+            + " sends with the first prompt of a new session. The agent follows them when it can choose a"
+            + " subagent's model; an agent without subagents ignores them. A change takes effect from the next"
+            + " new session.";
+
         public readonly string SettingsAgentOverridesFoldoutTitle = "Per-type overrides (advanced)";
 
         /// <summary>
@@ -1747,21 +1759,37 @@ namespace Colloid.AgentPanel.UI
         public readonly string HubAcpCommandNotFoundErrorFmt =
             "{0} command '{1}' not found. Checked: {2}. Set the command in Settings > CLI.";
 
+        /// <summary>{0} = backend display name, {1} = login executable name.</summary>
+        public readonly string HubAcpLoginCommandNotFoundFmt =
+            "{0}'s login command '{1}' was not found on PATH. Install the CLI, or sign in from a terminal and press Reconnect.";
+
         /// <summary>{0} = backend display name, {1} = error detail.</summary>
         public readonly string HubAcpStartFailedFmt = "Failed to start {0}: {1}";
 
         /// <summary>{0} = backend display name.</summary>
         public readonly string FirstRunAcpNotFoundTitleFmt = "{0} not found";
 
+        /// <summary>{0} = backend display name.</summary>
+        public readonly string FirstRunAcpLoginTitleFmt =
+            "Sign in to {0}";
+
         public readonly string FirstRunAcpNotFoundBody =
             "The Agent Panel runs this agent as a subprocess over the Agent Client"
             + " Protocol (ACP). Install it, or enter the command below (a bare name"
             + " on PATH, or a full path).";
 
+        /// <summary>{0} = backend display name, {1} = the login command line.</summary>
+        public readonly string FirstRunAcpLoginLeadFmt =
+            "{0} is installed but reported that it is not signed in. Press Sign in to run `{1}` inside the panel: the Settings Account card shows the browser link, and the panel reconnects on its own once the command finishes.";
+
         /// <summary>{0} = terminal login command.</summary>
         public readonly string FirstRunAcpLoginHintFmt =
             "When the agent needs you to sign in, it opens your browser and the"
             + " panel continues on its own. Terminal fallback: {0}";
+
+        /// <summary>Terminal-path instructions inside the ACP login card's foldout.</summary>
+        public readonly string FirstRunAcpLoginAltBody =
+            "Run the command below in a terminal, then press Check again here when it is done.";
 
         public readonly string SettingsBackendLabel = "Agent";
 
@@ -1828,38 +1856,60 @@ namespace Colloid.AgentPanel.UI
         public readonly string HubAcpSignInStartedNoteFmt =
             "{0} needs you to sign in ({1}). Complete it in the browser window it opened;"
             + " the panel continues on its own.";
+
+        /// <summary>{0} = backend display name, {1} = the login command line.</summary>
+        public readonly string HubAcpLoginStartedNoteFmt =
+            "Running `{1}` for {0}. Finish the sign-in in your browser; the panel reconnects when the command exits.";
         /// <summary>{0} = URL.</summary>
         public readonly string HubAcpSignInUrlNoteFmt = "If no browser window opened, open this link: {0}";
         /// <summary>{0} = backend display name, {1} = error.</summary>
         public readonly string HubAcpSignInFailedNoteFmt = "{0} sign-in failed: {1}";
+
+        /// <summary>{0} = backend display name, {1} = the login command line, {2} = exit code, {3} = ": " + the command's last output line, or empty.</summary>
+        public readonly string HubAcpLoginFinishedNoteFmt =
+            "`{1}` finished (exit code {2}){3}. Reconnecting to {0}...";
         public readonly string StatusWaitingSignIn = "Waiting for sign-in in your browser...";
         /// <summary>{0} = backend display name.</summary>
         public readonly string SettingsAccountAcpConnectedFmt = "Connected to {0}.";
         public readonly string SettingsAccountAcpNotConnected = "Not connected.";
         /// <summary>{0} = backend display name.</summary>
         public readonly string SettingsAccountAcpSignInPendingFmt = "Waiting for the {0} sign-in in your browser...";
-        public readonly string SettingsAccountAcpSignInButton = "Sign in / Reconnect";
+
+        /// <summary>{0} = backend display name, {1} = the login command line.</summary>
+        public readonly string SettingsAccountAcpLoginRunningFmt =
+            "Running `{1}` for {0}... finish the sign-in in your browser; the panel reconnects when the command exits.";
+        public readonly string SettingsAccountAcpSignInButton = "Reconnect";
+
+        /// <summary>In-panel sign-in for an ACP backend that has a login command (design note 2026-09-13-acp-feature-parity.md section 2).</summary>
+        public readonly string SettingsAccountAcpLoginButton =
+            "Sign in";
         public readonly string SettingsAccountAcpHint =
             "The agent signs in through its own browser flow; press the button if it did not start.";
+
+        /// <summary>{0} = the login command line. Replaces SettingsAccountAcpHint for backends with an in-panel login.</summary>
+        public readonly string SettingsAccountAcpLoginHintFmt =
+            "Sign in runs `{0}` in the panel and shows its link here; Reconnect restarts the agent as signed in.";
         /// <summary>{0} = backend display name, {1} = terminal login command.</summary>
         public readonly string HubAcpSignInRequiredNoteFmt =
-            "{0} is not signed in, so the connection was not retried. Press Sign in / Reconnect"
-            + " (Settings > Account) to try the browser sign-in again, or run `{1}` in a terminal"
-            + " and then reconnect.";
+            "{0} is not signed in, so the connection was not retried. Sign in from Settings > Account"
+            + " (or run `{1}` in a terminal), then press Reconnect there.";
         /// <summary>{0} = backend display name, {1} = exit detail, {2} = terminal login command.</summary>
         public readonly string HubAcpHandshakeDeathNoteFmt =
             "{0} exited before the connection was established ({1}), so it was not retried"
             + " automatically. Make sure it is installed and signed in (`{2}`), then press"
-            + " Sign in / Reconnect (Settings > Account).";
+            + " Reconnect (Settings > Account).";
 
         public readonly string SettingsAcpLimitationsHint =
-            "Some features are Claude Code only; hover for the list.";
+            "Some features work differently with an ACP agent; hover for the details.";
 
         public readonly string SettingsAcpLimitationsTooltip =
-            "With an ACP agent, the session history browser, in-panel login,"
-            + " subagent model settings and the script-gate hook are unavailable"
-            + " (Claude Code only). Custom instructions are sent at the start of each"
-            + " new session. Permission cards and Unity ops work the same.";
+            "With an ACP agent: the script-gate hook is unavailable (Claude Code only)."
+            + " Custom instructions and the subagent model settings are sent as instructions"
+            + " at the start of each new session. History lists the panel's own copy of each"
+            + " conversation; an agent that cannot resume a session starts a new one and"
+            + " receives the transcript with your next message. Sign in (Settings > Account)"
+            + " runs the agent's own login command inside the panel where it has one."
+            + " Permission cards, thinking blocks and Unity ops work the same.";
 
         /// <summary>
         /// What `{agent}` expands to for a custom ACP agent that has not
@@ -1871,6 +1921,10 @@ namespace Colloid.AgentPanel.UI
         /// <summary>{0} = the agent that owns the cached session, {1} = the agent being started. SystemNote on a backend switch.</summary>
         public readonly string HubSessionNotResumedAcrossBackendsNoteFmt =
             "The conversation so far was with {0}. {1} starts a new session and receives the transcript above with your next message.";
+
+        /// <summary>{0} = backend display name. An ACP agent could not resume its earlier session (no session/load), so the transcript is handed over with the next message.</summary>
+        public readonly string HubAcpSessionNotResumedNoteFmt =
+            "{0} could not resume this session and started a new one. The conversation above is sent along with your next message so it can continue from here.";
 
         public readonly string HubScriptGateInertWarning =
             "The script validation gate is ON but cannot block anything in this configuration:"
@@ -2787,7 +2841,19 @@ namespace Colloid.AgentPanel.UI
             string settingsProUpdatesVccButton = null,
             string settingsProUpdatesVccTooltip = null,
             string settingsProUpdatesStatusVccOpenedFmt = null,
-            string settingsProUpdatesStatusErrorVccNoKey = null)
+            string settingsProUpdatesStatusErrorVccNoKey = null,
+            string hubAcpSessionNotResumedNoteFmt = null,
+            string settingsSubagentModelAcpHintFmt = null,
+            string settingsAccountAcpLoginButton = null,
+            string settingsAccountAcpLoginHintFmt = null,
+            string settingsAccountAcpLoginRunningFmt = null,
+            string hubAcpLoginCommandNotFoundFmt = null,
+            string hubAcpLoginStartedNoteFmt = null,
+            string hubAcpLoginFinishedNoteFmt = null,
+            string firstRunAcpLoginTitleFmt = null,
+            string firstRunAcpLoginLeadFmt = null,
+            string firstRunAcpLoginAltBody = null,
+            string settingsSubagentModelAcpTooltip = null)
         {
             FirstRunCliNotFoundTitle = firstRunCliNotFoundTitle;
             FirstRunCliNotFoundBody = firstRunCliNotFoundBody;
@@ -3598,6 +3664,54 @@ namespace Colloid.AgentPanel.UI
             if (settingsProUpdatesStatusErrorVccNoKey != null)
             {
                 SettingsProUpdatesStatusErrorVccNoKey = settingsProUpdatesStatusErrorVccNoKey;
+            }
+            if (hubAcpSessionNotResumedNoteFmt != null)
+            {
+                HubAcpSessionNotResumedNoteFmt = hubAcpSessionNotResumedNoteFmt;
+            }
+            if (settingsSubagentModelAcpHintFmt != null)
+            {
+                SettingsSubagentModelAcpHintFmt = settingsSubagentModelAcpHintFmt;
+            }
+            if (settingsAccountAcpLoginButton != null)
+            {
+                SettingsAccountAcpLoginButton = settingsAccountAcpLoginButton;
+            }
+            if (settingsAccountAcpLoginHintFmt != null)
+            {
+                SettingsAccountAcpLoginHintFmt = settingsAccountAcpLoginHintFmt;
+            }
+            if (settingsAccountAcpLoginRunningFmt != null)
+            {
+                SettingsAccountAcpLoginRunningFmt = settingsAccountAcpLoginRunningFmt;
+            }
+            if (hubAcpLoginCommandNotFoundFmt != null)
+            {
+                HubAcpLoginCommandNotFoundFmt = hubAcpLoginCommandNotFoundFmt;
+            }
+            if (hubAcpLoginStartedNoteFmt != null)
+            {
+                HubAcpLoginStartedNoteFmt = hubAcpLoginStartedNoteFmt;
+            }
+            if (hubAcpLoginFinishedNoteFmt != null)
+            {
+                HubAcpLoginFinishedNoteFmt = hubAcpLoginFinishedNoteFmt;
+            }
+            if (firstRunAcpLoginTitleFmt != null)
+            {
+                FirstRunAcpLoginTitleFmt = firstRunAcpLoginTitleFmt;
+            }
+            if (firstRunAcpLoginLeadFmt != null)
+            {
+                FirstRunAcpLoginLeadFmt = firstRunAcpLoginLeadFmt;
+            }
+            if (firstRunAcpLoginAltBody != null)
+            {
+                FirstRunAcpLoginAltBody = firstRunAcpLoginAltBody;
+            }
+            if (settingsSubagentModelAcpTooltip != null)
+            {
+                SettingsSubagentModelAcpTooltip = settingsSubagentModelAcpTooltip;
             }
         }
     }

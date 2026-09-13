@@ -36,6 +36,14 @@ namespace Colloid.AgentPanel.Model
         public DateTime LastModifiedUtc;
         public long SizeBytes;
 
+        /// <summary>
+        /// The AgentBackend (as int) that owns the session: 0 for a Claude
+        /// Code transcript, the stored backend for an ACP agent's session
+        /// (panel session store), -1 when unknown. Drives the agent label
+        /// on the row and which agent a resume is handed to.
+        /// </summary>
+        public int AgentBackend;
+
         /// <summary>Absolute working directory the session ran in, or empty
         /// for a malformed/ancient transcript that never recorded one.</summary>
         public string Cwd;

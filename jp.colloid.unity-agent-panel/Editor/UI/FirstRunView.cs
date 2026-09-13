@@ -12,7 +12,9 @@ namespace Colloid.AgentPanel.UI
     /// The two setup cards that replace the chat until the CLI is usable:
     /// "CLI not found" (with the in-panel installer, design note
     /// docs/design-notes/2026-09-10-in-panel-install-and-sign-in.md
-    /// section 1) and Claude Code's "not logged in". Backend-aware: title,
+    /// section 1) and "not logged in" (Claude Code's `auth login`, or an ACP
+    /// agent's own login command -- design note 2026-09-13-acp-feature-
+    /// parity.md section 2). Backend-aware: title,
     /// body, install command and the path field's target setting follow
     /// PanelSettings.agentBackend (design note 2026-09-10-acp-backends.md
     /// section 4).
@@ -39,6 +41,13 @@ namespace Colloid.AgentPanel.UI
         private readonly Foldout _manualFoldout;
         private readonly VisualElement _manualCommandHost;
         private readonly Label _acpLoginHint;
+        private readonly Label _loginTitle;
+        private readonly Label _loginLead;
+        private readonly Label _loginBody2;
+        private readonly Label _loginAltBody;
+        private readonly VisualElement _loginAltCommandHost;
+        private AgentBackend _loginCardBackend = AgentBackend.ClaudeCode;
+        private bool _loginCardBuiltOnce;
         private IVisualElementScheduledItem _installTick;
         private Mode _mode = Mode.Hidden;
         private AgentBackend _cardBackend = AgentBackend.ClaudeCode;
@@ -124,7 +133,8 @@ namespace Colloid.AgentPanel.UI
             _cliCard.Add(_probeDetail);
             _root.Add(_cliCard);
 
-            // -- Card B: not logged in (Claude Code only) -----------------------
+            // -- Card B: not logged in (Claude Code, or an ACP agent with a
+            // login command the panel can run) ------------------------------
             _loginCard = new VisualElement();
             _loginCard.AddToClassList("uap-card");
 
@@ -136,9 +146,12 @@ namespace Colloid.AgentPanel.UI
             // real but secondary, so it lives in a collapsed foldout with
             // its Check-again button; a first-run user should not have to
             // read shell instructions to find the one-click path.
-            _loginCard.Add(MakeTitle(L10n.S.FirstRunLoginTitle));
-            _loginCard.Add(MakeBody(L10n.S.FirstRunLoginLead));
-            _loginCard.Add(MakeBody(L10n.S.FirstRunLoginBody2));
+            _loginTitle = MakeTitle(L10n.S.FirstRunLoginTitle);
+            _loginCard.Add(_loginTitle);
+            _loginLead = MakeBody(L10n.S.FirstRunLoginLead);
+            _loginCard.Add(_loginLead);
+            _loginBody2 = MakeBody(L10n.S.FirstRunLoginBody2);
+            _loginCard.Add(_loginBody2);
 
             var loginRow = new VisualElement();
             loginRow.AddToClassList("uap-card-row");
@@ -154,8 +167,11 @@ namespace Colloid.AgentPanel.UI
 
             var alt = new Foldout { text = L10n.S.FirstRunLoginAltFoldout, value = false };
             alt.AddToClassList("uap-card-foldout");
-            alt.Add(MakeBody(L10n.S.FirstRunLoginAltBody));
-            alt.Add(MessageBlockFactory.CreateCodeBlock("claude\n/login", "shell"));
+            _loginAltBody = MakeBody(L10n.S.FirstRunLoginAltBody);
+            alt.Add(_loginAltBody);
+            _loginAltCommandHost = new VisualElement();
+            _loginAltCommandHost.Add(MessageBlockFactory.CreateCodeBlock("claude\n/login", "shell"));
+            alt.Add(_loginAltCommandHost);
             var altRow = new VisualElement();
             altRow.AddToClassList("uap-card-row");
             var recheck = new Button(OnRecheckClicked) { text = L10n.S.FirstRunCheckAgainButton };
@@ -173,6 +189,10 @@ namespace Colloid.AgentPanel.UI
                 _probeDetail.text = probeDetail ?? string.Empty;
                 ApplyCardBackend(AgentHub.CurrentBackend);
                 RefreshInstallState();
+            }
+            if (mode == Mode.NotLoggedIn)
+            {
+                ApplyLoginCardBackend(AgentHub.CurrentBackend);
             }
             if (_mode == mode)
             {
@@ -241,6 +261,45 @@ namespace Colloid.AgentPanel.UI
             _acpLoginHint.tooltip = L10n.AcpAuthTooltip(backend, L10n.S.FirstRunAcpLoginHintFmt);
             _acpLoginHint.style.display = string.IsNullOrEmpty(authHint)
                 ? DisplayStyle.None : DisplayStyle.Flex;
+        }
+
+        /// <summary>
+        /// The login card's copy for the selected backend (design note
+        /// 2026-09-13-acp-feature-parity.md section 2): Claude Code's
+        /// original text, or "Sign in to {agent}" around the agent's own
+        /// login command -- which the primary button runs in the panel and
+        /// the foldout shows for a terminal.
+        /// </summary>
+        private void ApplyLoginCardBackend(AgentBackend backend)
+        {
+            if (backend == _loginCardBackend && _loginCardBuiltOnce)
+            {
+                return;
+            }
+            _loginCardBackend = backend;
+            _loginCardBuiltOnce = true;
+            _loginAltCommandHost.Clear();
+            if (!AgentBackends.IsAcp(backend))
+            {
+                _loginTitle.text = L10n.S.FirstRunLoginTitle;
+                _loginLead.text = L10n.S.FirstRunLoginLead;
+                _loginBody2.text = L10n.S.FirstRunLoginBody2;
+                _loginBody2.style.display = DisplayStyle.Flex;
+                _loginAltBody.text = L10n.S.FirstRunLoginAltBody;
+                _loginAltCommandHost.Add(MessageBlockFactory.CreateCodeBlock("claude\n/login", "shell"));
+                return;
+            }
+            string name = AgentBackends.DisplayName(backend);
+            string command = AgentBackends.LoginExecutable(backend);
+            string arguments = AgentBackends.LoginArguments(backend);
+            string commandLine = arguments.Length == 0 ? command : command + " " + arguments;
+            _loginTitle.text = L10n.F(L10n.S.FirstRunAcpLoginTitleFmt, name);
+            _loginLead.text = L10n.F(L10n.S.FirstRunAcpLoginLeadFmt, name, commandLine);
+            string authHint = L10n.AcpAuthSummary(backend);
+            _loginBody2.text = authHint;
+            _loginBody2.style.display = authHint.Length == 0 ? DisplayStyle.None : DisplayStyle.Flex;
+            _loginAltBody.text = L10n.S.FirstRunAcpLoginAltBody;
+            _loginAltCommandHost.Add(MessageBlockFactory.CreateCodeBlock(commandLine, "shell"));
         }
 
         // -- Install state ------------------------------------------------------

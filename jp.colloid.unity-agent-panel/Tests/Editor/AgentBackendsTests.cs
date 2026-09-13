@@ -349,10 +349,95 @@ namespace Colloid.AgentPanel.Tests
             session.AddMessage(message);
             Assert.AreEqual(FirstRunView.Mode.NotLoggedIn,
                 ChatView.ResolveFirstRunMode(null, null, session, null, true));
+            // Claude's transcript heuristic and auth cache mean nothing to
+            // an ACP agent: only the bridge's own sign-in verdict does.
             Assert.AreEqual(FirstRunView.Mode.Hidden,
                 ChatView.ResolveFirstRunMode(null, null, session, null, false));
             Assert.AreEqual(FirstRunView.Mode.CliNotFound,
                 ChatView.ResolveFirstRunMode("Gemini CLI command 'gemini' not found", null, session, null, false));
+        }
+
+        // -- In-panel sign-in for ACP backends (design note
+        // docs/design-notes/2026-09-13-acp-feature-parity.md section 2) --
+
+        [Test]
+        public void FirstRunMode_AcpBackend_ShowsTheLoginCardOnlyWhenSignInIsRequired()
+        {
+            var session = new ChatSession();
+            Assert.AreEqual(FirstRunView.Mode.NotLoggedIn,
+                ChatView.ResolveFirstRunMode(null, null, session, null, false, true));
+            Assert.AreEqual(FirstRunView.Mode.Hidden,
+                ChatView.ResolveFirstRunMode(null, null, session, null, false, false));
+            Assert.AreEqual(FirstRunView.Mode.CliNotFound,
+                ChatView.ResolveFirstRunMode("codex-acp not found", null, session, null, false, true),
+                "a missing CLI still wins over the sign-in card");
+            Assert.AreEqual(FirstRunView.Mode.Hidden,
+                ChatView.ResolveFirstRunMode(null, null, session, null, true, true),
+                "the flag is ACP-only; Claude keeps its own auth-status rules");
+        }
+
+        [Test]
+        public void LoginExecutable_IsTheCliTheLoginCommandRuns_EmptyWithoutOne()
+        {
+            Assert.AreEqual("codex", AgentBackends.LoginExecutable(AgentBackend.CodexAcp));
+            Assert.AreEqual("login", AgentBackends.LoginArguments(AgentBackend.CodexAcp));
+            Assert.AreEqual("grok", AgentBackends.LoginExecutable(AgentBackend.GrokBuild));
+            Assert.AreEqual("login", AgentBackends.LoginArguments(AgentBackend.GrokBuild));
+            // Gemini CLI signs in inside its own TUI; a custom agent's
+            // command is unknown; Claude has its own flow.
+            Assert.AreEqual(string.Empty, AgentBackends.LoginExecutable(AgentBackend.GeminiCli));
+            Assert.AreEqual(string.Empty, AgentBackends.LoginExecutable(AgentBackend.AcpCustom));
+            Assert.AreEqual(string.Empty, AgentBackends.LoginExecutable(AgentBackend.ClaudeCode));
+            Assert.IsTrue(AgentBackends.HasInPanelLogin(AgentBackend.CodexAcp));
+            Assert.IsTrue(AgentBackends.HasInPanelLogin(AgentBackend.GrokBuild));
+            Assert.IsFalse(AgentBackends.HasInPanelLogin(AgentBackend.GeminiCli));
+            Assert.IsFalse(AgentBackends.HasInPanelLogin(AgentBackend.AcpCustom));
+        }
+
+        [Test]
+        public void LoginExecutableAndArguments_AgreeWithTheDisplayedLoginCommand()
+        {
+            foreach (AgentBackend backend in new[] { AgentBackend.CodexAcp, AgentBackend.GrokBuild })
+            {
+                string joined = AgentBackends.LoginExecutable(backend) + " " + AgentBackends.LoginArguments(backend);
+                Assert.AreEqual(AgentBackends.LoginCommand(backend), joined.Trim());
+            }
+        }
+
+        [Test]
+        public void SubagentModelSteering_ForcedModelWins_ElseCompleteOverridesOnly()
+        {
+            Assert.AreEqual(string.Empty, AgentHub.ComposeSubagentModelSteering(null, null));
+            Assert.AreEqual(string.Empty, AgentHub.ComposeSubagentModelSteering("  ", new List<AgentModelOverride>()));
+            var overrides = new List<AgentModelOverride>
+            {
+                new AgentModelOverride { agentName = "Explore", modelAlias = "gemini-2.5-flash" },
+                new AgentModelOverride { agentName = "half-typed", modelAlias = string.Empty },
+                null
+            };
+            string perType = AgentHub.ComposeSubagentModelSteering(string.Empty, overrides);
+            StringAssert.Contains("\"Explore\"", perType);
+            StringAssert.Contains("\"gemini-2.5-flash\"", perType);
+            StringAssert.DoesNotContain("half-typed", perType);
+            string forced = AgentHub.ComposeSubagentModelSteering("gemini-2.5-flash-lite", overrides);
+            StringAssert.Contains("\"gemini-2.5-flash-lite\"", forced);
+            StringAssert.DoesNotContain("Explore", forced, "the blanket clamp supersedes the per-type rows");
+        }
+
+        [Test]
+        public void AcpSystemPrompt_RewordsTheCostPolicyLine_AndAppendsTheSubagentSteering()
+        {
+            string claudeWorded = AgentHub.ComposeAppendSystemPrompt("Reply in Japanese.", SubagentCostPolicy.HaikuForSimpleTasks);
+            StringAssert.Contains("haiku", claudeWorded);
+            string acp = AgentHub.ComposeAcpSystemPrompt(claudeWorded, "flash", null);
+            StringAssert.StartsWith("Reply in Japanese.", acp);
+            StringAssert.DoesNotContain("haiku", acp);
+            StringAssert.DoesNotContain("Agent (Task) tool", acp);
+            StringAssert.Contains(AgentHub.AcpCheapModelForSimpleTasksInstructionLine, acp);
+            StringAssert.EndsWith(AgentHub.ComposeSubagentModelSteering("flash", null), acp);
+            Assert.AreEqual("Reply in Japanese.",
+                AgentHub.ComposeAcpSystemPrompt("Reply in Japanese.", string.Empty, null),
+                "nothing to add leaves the block untouched");
         }
 
         // -- API key guidance and the connected auth method (design note

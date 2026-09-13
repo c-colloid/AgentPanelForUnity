@@ -65,6 +65,8 @@ namespace Colloid.AgentPanel.UI
         private TextField _acpAuthMethodField;
         private Label _acpCommandHintLabel;
         private Label _acpLoginHintLabel;
+        /// <summary>Under the subagent model fields: how an ACP agent receives them (design note 2026-09-13-acp-feature-parity.md section 3).</summary>
+        private Label _subagentModelAcpHintLabel;
         private VisualElement _reconnectHintRow;
         private Label _reconnectHintLabel;
         private Label _reconnectPendingPillLabel;
@@ -266,6 +268,10 @@ namespace Colloid.AgentPanel.UI
         private VisualElement _accountLoginSubCard;
         private Label _accountAcpHintLabel;
         private Button _accountAcpSignInButton;
+        private Button _accountAcpLoginButton;
+        private Button _accountAcpCancelLoginButton;
+        private Button _accountAcpCopyUrlButton;
+        private Label _accountAcpLoginOutputLabel;
         private TextField _accountAcpUrlField;
         private Button _accountAcpOpenBrowserButton;
         private Button _cliInstallButton;
@@ -739,6 +745,7 @@ namespace Colloid.AgentPanel.UI
             bool acp = AgentBackends.IsAcp(settings.agentBackend);
             _claudeCliGroup.style.display = acp ? DisplayStyle.None : DisplayStyle.Flex;
             _acpCliGroup.style.display = acp ? DisplayStyle.Flex : DisplayStyle.None;
+            RefreshSubagentModelAcpHint();
             if (!acp)
             {
                 return;
@@ -752,6 +759,29 @@ namespace Colloid.AgentPanel.UI
                 L10n.AcpAuthTooltip(settings.agentBackend, L10n.S.SettingsAcpLoginHintFmt);
             _acpLoginHintLabel.style.display = string.IsNullOrEmpty(authHint)
                 ? DisplayStyle.None : DisplayStyle.Flex;
+        }
+
+        /// <summary>
+        /// The subagent model fields apply to every backend, but an ACP
+        /// agent receives them as instructions at the start of a new
+        /// session rather than through Claude's env var / agent files --
+        /// say so right under the field, only while such a backend is
+        /// selected.
+        /// </summary>
+        private void RefreshSubagentModelAcpHint()
+        {
+            if (_subagentModelAcpHintLabel == null)
+            {
+                return;
+            }
+            PanelSettings settings = PanelStateStore.instance.Settings;
+            bool acp = AgentBackends.IsAcp(settings.agentBackend);
+            _subagentModelAcpHintLabel.style.display = acp ? DisplayStyle.Flex : DisplayStyle.None;
+            if (acp)
+            {
+                _subagentModelAcpHintLabel.text = L10n.F(L10n.S.SettingsSubagentModelAcpHintFmt,
+                    AgentBackends.DisplayName(settings.agentBackend));
+            }
         }
 
         /// <summary>Pure: the hint under the ACP command field for a backend (tested directly).</summary>
@@ -1267,6 +1297,14 @@ namespace Colloid.AgentPanel.UI
 
             AddHint(subagentModelScope, L10n.S.SettingsSubagentModelHint,
                 L10n.S.SettingsSubagentModelTooltip);
+            // 2-arg AddHint on purpose: the 3-arg overload returns null for
+            // an empty text (this label is filled in per backend) and would
+            // replace the scope's SettingsSubagentModelTooltip; the label's
+            // own tooltip wins over the scope's while hovering it.
+            _subagentModelAcpHintLabel = AddHint(subagentModelScope, string.Empty);
+            _subagentModelAcpHintLabel.tooltip = L10n.S.SettingsSubagentModelAcpTooltip;
+            _subagentModelAcpHintLabel.style.display = DisplayStyle.None;
+            RefreshSubagentModelAcpHint();
 
             _subagentPrecedenceWarningLabel = new Label(L10n.S.SettingsSubagentPrecedenceWarning);
             _subagentPrecedenceWarningLabel.AddToClassList("uap-settings-hint");
@@ -4485,22 +4523,49 @@ namespace Colloid.AgentPanel.UI
             _accountAcpHintLabel = AddHint(section, L10n.S.SettingsAccountAcpHint);
             _accountAcpHintLabel.style.display = DisplayStyle.None;
             VisualElement acpRow = AddRow(section);
+            // In-panel sign-in (design note 2026-09-13-acp-feature-parity.md
+            // section 2): runs the agent's own login command; only for
+            // backends that have one (AgentBackends.HasInPanelLogin).
+            _accountAcpLoginButton = new Button(OnAccountAcpLoginClicked)
+                { text = L10n.S.SettingsAccountAcpLoginButton };
+            _accountAcpLoginButton.AddToClassList("uap-settings-btn");
+            _accountAcpLoginButton.AddToClassList("uap-settings-btn--primary");
+            _accountAcpLoginButton.style.display = DisplayStyle.None;
+            acpRow.Add(_accountAcpLoginButton);
             _accountAcpSignInButton = new Button(OnAccountAcpSignInClicked)
                 { text = L10n.S.SettingsAccountAcpSignInButton };
             _accountAcpSignInButton.AddToClassList("uap-settings-btn");
-            _accountAcpSignInButton.AddToClassList("uap-settings-btn--primary");
             _accountAcpSignInButton.style.display = DisplayStyle.None;
             acpRow.Add(_accountAcpSignInButton);
+            _accountAcpCancelLoginButton = new Button(OnAccountAcpCancelLoginClicked)
+                { text = L10n.S.SettingsAccountCancelLoginButton };
+            _accountAcpCancelLoginButton.AddToClassList("uap-settings-btn");
+            _accountAcpCancelLoginButton.style.display = DisplayStyle.None;
+            acpRow.Add(_accountAcpCancelLoginButton);
             _accountAcpOpenBrowserButton = new Button(OnAccountAcpOpenBrowserClicked)
                 { text = L10n.S.SettingsAccountOpenBrowserButton };
             _accountAcpOpenBrowserButton.AddToClassList("uap-settings-btn");
             _accountAcpOpenBrowserButton.style.display = DisplayStyle.None;
             acpRow.Add(_accountAcpOpenBrowserButton);
+            _accountAcpCopyUrlButton = new Button(OnAccountAcpCopyUrlClicked)
+                { text = L10n.S.SettingsAccountCopyButton };
+            _accountAcpCopyUrlButton.AddToClassList("uap-settings-btn");
+            _accountAcpCopyUrlButton.style.display = DisplayStyle.None;
+            acpRow.Add(_accountAcpCopyUrlButton);
             _accountAcpUrlField = new TextField(L10n.S.SettingsAccountLoginUrlLabel);
             _accountAcpUrlField.isReadOnly = true;
             _accountAcpUrlField.AddToClassList("uap-settings-field");
             _accountAcpUrlField.style.display = DisplayStyle.None;
             section.Add(_accountAcpUrlField);
+            // What the login command last printed (a device code, "logged
+            // in", an error) -- the exit code alone says nothing.
+            _accountAcpLoginOutputLabel = new Label(string.Empty);
+            _accountAcpLoginOutputLabel.AddToClassList("uap-settings-hint");
+            _accountAcpLoginOutputLabel.enableRichText = false;
+            _accountAcpLoginOutputLabel.style.whiteSpace = WhiteSpace.Normal;
+            _accountAcpLoginOutputLabel.style.display = DisplayStyle.None;
+            MessageBlockFactory.ApplyMonoFont(_accountAcpLoginOutputLabel);
+            section.Add(_accountAcpLoginOutputLabel);
 
             // UXO-6: the one place a failed login attempt becomes VISIBLE.
             // Before this, a wrong/expired code meant the sub-card simply
@@ -4714,16 +4779,33 @@ namespace Colloid.AgentPanel.UI
 
         private void RefreshAccountSectionAcp()
         {
-            string name = AgentBackends.DisplayName(AgentHub.CurrentBackend);
+            AgentBackend backend = AgentHub.CurrentBackend;
+            string name = AgentBackends.DisplayName(backend);
             AgentClient client = AgentHub.Client;
             bool connected = client != null
                 && client.State != AgentClientState.NotStarted
                 && client.State != AgentClientState.Starting
                 && client.State != AgentClientState.Errored;
-            string url = AgentHub.AcpSignInUrl;
-            if (AgentHub.AcpSignInPending)
+            // The in-panel login command, when one is running (design note
+            // 2026-09-13-acp-feature-parity.md section 2), owns the status
+            // line and the URL; otherwise the bridge's own sign-in state
+            // does, as before.
+            AuthLoginSession login = AgentHub.CurrentLoginSession;
+            bool loginRunning = login != null && !login.HasExited;
+            string commandLine = AgentHub.AcpLoginCommandLine;
+            bool loginAvailable = commandLine.Length > 0;
+            string url = loginRunning ? login.OAuthUrl : AgentHub.AcpSignInUrl;
+            if (loginRunning)
+            {
+                _accountStatusLabel.text = L10n.F(L10n.S.SettingsAccountAcpLoginRunningFmt, name, commandLine);
+            }
+            else if (AgentHub.AcpSignInPending)
             {
                 _accountStatusLabel.text = L10n.F(L10n.S.SettingsAccountAcpSignInPendingFmt, name);
+            }
+            else if (!string.IsNullOrEmpty(AgentHub.AcpLoginError))
+            {
+                _accountStatusLabel.text = AgentHub.AcpLoginError;
             }
             else if (!string.IsNullOrEmpty(AgentHub.AcpSignInError))
             {
@@ -4737,14 +4819,27 @@ namespace Colloid.AgentPanel.UI
             {
                 _accountStatusLabel.text = L10n.S.SettingsAccountAcpNotConnected;
             }
-            bool hasUrl = AgentHub.AcpSignInPending && !string.IsNullOrEmpty(url);
+            _accountAcpHintLabel.text = loginAvailable
+                ? L10n.F(L10n.S.SettingsAccountAcpLoginHintFmt, commandLine)
+                : L10n.S.SettingsAccountAcpHint;
+            bool hasUrl = (loginRunning || AgentHub.AcpSignInPending) && !string.IsNullOrEmpty(url);
             SetDisplay(_accountAcpOpenBrowserButton, hasUrl);
+            SetDisplay(_accountAcpCopyUrlButton, hasUrl);
             SetDisplay(_accountAcpUrlField, hasUrl);
             if (hasUrl)
             {
                 _accountAcpUrlField.SetValueWithoutNotify(url);
             }
-            _accountAcpSignInButton.SetEnabled(!AgentHub.AcpSignInPending);
+            SetDisplay(_accountAcpLoginButton, loginAvailable);
+            _accountAcpLoginButton.SetEnabled(!loginRunning && !AgentHub.AcpSignInPending);
+            SetDisplay(_accountAcpCancelLoginButton, loginRunning);
+            string lastLine = loginRunning ? (login.LatestOutputLine ?? string.Empty) : string.Empty;
+            SetDisplay(_accountAcpLoginOutputLabel, lastLine.Length > 0);
+            if (lastLine.Length > 0)
+            {
+                _accountAcpLoginOutputLabel.text = IconLoader.SanitizeForDisplay(lastLine);
+            }
+            _accountAcpSignInButton.SetEnabled(!AgentHub.AcpSignInPending && !loginRunning);
 
             // Which method got us in, and -- when it is a key/gateway one --
             // that the bill lands on that key rather than a subscription.
@@ -4790,13 +4885,45 @@ namespace Colloid.AgentPanel.UI
             RefreshAccountSection();
         }
 
+        /// <summary>The URL to open/copy: the in-panel login command's when one runs, else the bridge's.</summary>
+        private static string CurrentAcpSignInUrl()
+        {
+            AuthLoginSession login = AgentHub.CurrentLoginSession;
+            if (login != null && !login.HasExited && !string.IsNullOrEmpty(login.OAuthUrl))
+            {
+                return login.OAuthUrl;
+            }
+            return AgentHub.AcpSignInUrl;
+        }
+
         private static void OnAccountAcpOpenBrowserClicked()
         {
-            string url = AgentHub.AcpSignInUrl;
+            string url = CurrentAcpSignInUrl();
             if (!string.IsNullOrEmpty(url))
             {
                 Application.OpenURL(url);
             }
+        }
+
+        private static void OnAccountAcpCopyUrlClicked()
+        {
+            string url = CurrentAcpSignInUrl();
+            if (!string.IsNullOrEmpty(url))
+            {
+                EditorGUIUtility.systemCopyBuffer = url;
+            }
+        }
+
+        private void OnAccountAcpLoginClicked()
+        {
+            AgentHub.BeginAcpLogin();
+            RefreshAccountSection();
+        }
+
+        private void OnAccountAcpCancelLoginClicked()
+        {
+            AgentHub.CancelLogin();
+            RefreshAccountSection();
         }
 
         private void RefreshAccountSection()
@@ -4826,6 +4953,10 @@ namespace Colloid.AgentPanel.UI
                 return;
             }
             SetDisplay(_accountAcpOpenBrowserButton, false);
+            SetDisplay(_accountAcpCopyUrlButton, false);
+            SetDisplay(_accountAcpLoginButton, false);
+            SetDisplay(_accountAcpCancelLoginButton, false);
+            SetDisplay(_accountAcpLoginOutputLabel, false);
             SetDisplay(_accountAcpUrlField, false);
             SetDisplay(_accountAcpAuthMethodLabel, false);
             SetDisplay(_claudeAuthField, true);

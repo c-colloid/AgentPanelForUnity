@@ -146,6 +146,47 @@ namespace Colloid.AgentPanel.Core.Acp
         }
 
         /// <summary>
+        /// The executable half of <see cref="LoginCommand"/>: the program
+        /// the panel runs for an in-panel sign-in (design note
+        /// 2026-09-13-acp-feature-parity.md section 2). Empty when the
+        /// backend has no non-interactive login command the panel can
+        /// drive -- Gemini CLI signs in inside its own TUI, and a custom
+        /// agent's command is unknown -- in which case the Account card
+        /// offers Reconnect only.
+        /// </summary>
+        public static string LoginExecutable(AgentBackend backend)
+        {
+            switch (backend)
+            {
+                case AgentBackend.CodexAcp:
+                    return "codex";
+                case AgentBackend.GrokBuild:
+                    return "grok";
+                default:
+                    return string.Empty;
+            }
+        }
+
+        /// <summary>The argument half of <see cref="LoginCommand"/> for <see cref="LoginExecutable"/>.</summary>
+        public static string LoginArguments(AgentBackend backend)
+        {
+            switch (backend)
+            {
+                case AgentBackend.CodexAcp:
+                case AgentBackend.GrokBuild:
+                    return "login";
+                default:
+                    return string.Empty;
+            }
+        }
+
+        /// <summary>True when the panel can run the backend's login command itself (Sign in button).</summary>
+        public static bool HasInPanelLogin(AgentBackend backend)
+        {
+            return LoginExecutable(backend).Length > 0;
+        }
+
+        /// <summary>
         /// The environment variable(s) the backend's own CLI reads an API
         /// key from. The panel never stores API keys (design note
         /// docs/design-notes/2026-09-10-acp-auth-guidance-and-method-display.md

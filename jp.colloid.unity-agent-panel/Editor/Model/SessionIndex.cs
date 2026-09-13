@@ -17,18 +17,25 @@ namespace Colloid.AgentPanel.Model
     public sealed class SessionIndex
     {
         private readonly string _projectsRoot;
+        private readonly string _panelSessionsDirOverride;
         private List<SessionIndexEntry> _entries = new List<SessionIndexEntry>();
 
         /// <summary>
         /// projectsRootOverride lets tests point at a temp directory instead
         /// of the real "~/.claude/projects"; production code should pass
         /// null (or omit the argument) to use the default.
+        /// panelSessionsDirOverride does the same for the panel's own
+        /// <see cref="PanelSessionStore"/> (ACP agents' sessions, design
+        /// note 2026-09-13-acp-feature-parity.md section 1); null derives
+        /// it from the cwd passed to <see cref="Refresh"/>.
         /// </summary>
-        public SessionIndex(string projectsRootOverride = null)
+        public SessionIndex(string projectsRootOverride = null, string panelSessionsDirOverride = null)
         {
             _projectsRoot = string.IsNullOrEmpty(projectsRootOverride)
                 ? DefaultProjectsRoot()
                 : projectsRootOverride;
+            _panelSessionsDirOverride = string.IsNullOrEmpty(panelSessionsDirOverride)
+                ? null : panelSessionsDirOverride;
         }
 
         /// <summary>Default "~/.claude/projects" for the current user.</summary>
@@ -97,6 +104,13 @@ namespace Colloid.AgentPanel.Model
         /// are skipped, never thrown). Does not read message content --
         /// callers access SessionIndexEntry.FirstUserTextPreview lazily
         /// per-row only when the UI actually needs it.
+        ///
+        /// Also lists the panel's own store of ACP-agent sessions for the
+        /// same working directory (<see cref="PanelSessionStore"/>, under
+        /// the project's UserSettings), as entries whose
+        /// <see cref="SessionIndexEntry.IsPanelStore"/> is true. A Claude
+        /// session is only ever on the CLI's jsonl and an ACP session only
+        /// ever in the panel store, so no id appears twice.
         /// </summary>
         public void Refresh(string cwd)
         {
@@ -106,6 +120,16 @@ namespace Colloid.AgentPanel.Model
             {
                 string sessionDir = Path.Combine(_projectsRoot, dirName);
                 TryEnumerate(sessionDir, found);
+            }
+            string panelDir = _panelSessionsDirOverride
+                ?? (string.IsNullOrEmpty(cwd) ? null : PanelSessionStore.DefaultDirectory(cwd));
+            if (panelDir != null)
+            {
+                List<PanelSessionEntry> stored = new PanelSessionStore(panelDir).Enumerate();
+                for (int i = 0; i < stored.Count; i++)
+                {
+                    found.Add(new SessionIndexEntry(stored[i], cwd));
+                }
             }
             found.Sort(delegate (SessionIndexEntry a, SessionIndexEntry b)
             {
@@ -208,6 +232,8 @@ namespace Colloid.AgentPanel.Model
         private const int PreviewMaxChars = 80;
 
         private readonly string _filePath;
+        private readonly PanelSessionEntry _panelEntry;
+        private readonly string _panelCwd;
         private string _preview;
         private string _aiTitle;
         private string _cwd;
@@ -221,6 +247,39 @@ namespace Colloid.AgentPanel.Model
             _filePath = filePath;
             LastModifiedUtc = lastModifiedUtc;
             SizeBytes = sizeBytes;
+        }
+
+        /// <summary>
+        /// An entry backed by the panel's own session store (an ACP
+        /// agent's session) rather than a CLI jsonl. The lazy fields are
+        /// answered from the stored JSON: the panel's title stands in for
+        /// the ai-title, the working directory is the project itself.
+        /// </summary>
+        internal SessionIndexEntry(PanelSessionEntry panelEntry, string cwd)
+        {
+            _panelEntry = panelEntry;
+            _panelCwd = cwd ?? string.Empty;
+            SessionId = panelEntry.SessionId;
+            _filePath = panelEntry.FilePath;
+            LastModifiedUtc = panelEntry.LastModifiedUtc;
+            SizeBytes = panelEntry.SizeBytes;
+        }
+
+        /// <summary>True when the transcript is a PanelSessionStore file (feed <see cref="FilePath"/> to SessionCacheFile, not TranscriptLoader).</summary>
+        public bool IsPanelStore
+        {
+            get { return _panelEntry != null; }
+        }
+
+        /// <summary>
+        /// The backend (AgentBackend as int) that owns the session: 0
+        /// (Claude Code) for a CLI jsonl, the stored value for a panel-store
+        /// file (-1 when the file does not say). Read lazily for the panel
+        /// store.
+        /// </summary>
+        public int AgentBackend
+        {
+            get { return _panelEntry != null ? _panelEntry.AgentBackend : 0; }
         }
 
         /// <summary>The session uuid (the jsonl file name without extension).</summary>
@@ -324,6 +383,15 @@ namespace Colloid.AgentPanel.Model
         {
             if (_computed)
             {
+                return;
+            }
+            if (_panelEntry != null)
+            {
+                _preview = _panelEntry.FirstUserTextPreview ?? string.Empty;
+                _aiTitle = _panelEntry.Title ?? string.Empty;
+                _cwd = _panelCwd;
+                _modelName = _panelEntry.ModelName ?? string.Empty;
+                _computed = true;
                 return;
             }
             string preview;
