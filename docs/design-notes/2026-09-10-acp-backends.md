@@ -183,7 +183,8 @@ Claude と同じに働く。
 ## 6. 見送ったもの
 
 - ACP エージェントの履歴ブラウザ(ACP に `session/list` が無い。Gemini CLI は
-  独自形式で保存)。
+  独自形式で保存)。→ v0.47.0 で解消: 2026-09-13-acp-feature-parity.md(パネル側の
+  セッション保存で一覧化。パネル内ログイン・サブエージェントのモデル設定も同ノート)。
 - ACP 側のサブエージェント表示(`tool_call` の `kind:think` 程度しか手掛かりが無い)。
 - 使用量/コスト表示(ACP に usage が無い。result は 0 で埋める)。→ v0.39.1 で解消: 2026-09-10-acp-usage-display.md(usage_update / PromptResponse.usage を変換)。
 - 中継プロセスによるホットリロード(前ノートの判断どおり)。
