@@ -4,7 +4,7 @@
 
 *日本語: [README.md](README.md)*
 
-A chat panel that puts a coding agent inside the Unity Editor. Claude Code is the default, and Codex, Gemini CLI, Grok Build and other ACP-capable CLIs can be selected instead. From a docked panel you can ask the agent to write code, fix files and work on the scene. A permission card appears before every tool runs, and the conversation survives script recompiles.
+A chat panel that puts a coding agent inside the Unity Editor. Claude Code is the default, and Codex, Grok Build and other ACP-capable CLIs can be selected instead. From a docked panel you can ask the agent to write code, fix files and work on the scene. A permission card appears before every tool runs, and the conversation survives script recompiles.
 
 | Chat | Permission card | Settings |
 |---|---|---|
@@ -19,7 +19,7 @@ A chat panel that puts a coding agent inside the Unity Editor. Claude Code is th
 - **Script verification gate** — C# written by the agent reaches Assets only after it compiles (Windows).
 - **Domain-reload resilience** — the same session reconnects after a recompile or an editor restart.
 - **History, model picker, in-panel login** — restore past sessions, switch models and log the CLI in without leaving the panel.
-- **Other agents** — switch to Codex, Gemini CLI, Grok Build or any ACP-capable CLI.
+- **Other agents** — switch to Codex, Grok Build or any ACP-capable CLI.
 - **English / Japanese** — the UI follows the OS language and can be switched in Settings.
 
 See the [user guide](docs/USER-GUIDE.md) for details (Japanese).
@@ -33,7 +33,7 @@ See the [user guide](docs/USER-GUIDE.md) for details (Japanese).
 | Claude Code CLI | Latest release recommended; the panel can install it for you |
 | Claude account | Subscription login recommended (an API key also works) |
 
-Authentication for Codex / Gemini CLI / Grok Build is covered in the [user guide, section 1](docs/USER-GUIDE.md#1-パネルを開く初回セットアップ).
+Installing and signing in to Codex / Grok Build and other non-Claude agents is covered in the [user guide, section 1.1](docs/USER-GUIDE.md#11-claude-以外のエージェントを使う).
 
 ## Installation
 

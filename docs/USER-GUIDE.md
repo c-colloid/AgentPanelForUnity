@@ -1,12 +1,13 @@
 # Agent Panel for Unity 操作ガイド
 
-Unity エディタ内でコーディングエージェント(Claude Code、Codex、Gemini CLI、Grok Build などの ACP 対応 CLI)を使うパネルの操作説明です。インストールと必要要件は
-[README](../README.md) を参照してください。本文は既定の Claude Code を前提に書いています。他のエージェントでも権限カード・チップ・Unity 操作ツールは同じように動きますが、履歴ブラウザ・パネル内ログイン・サブエージェントのモデル設定・思考ブロックは Claude Code 専用です。本文中の「」内はパネルに表示される日本語 UI の文言です
+Unity エディタ内でコーディングエージェント(Claude Code、Codex、Grok Build などの ACP 対応 CLI)を使うパネルの操作説明です。インストールと必要要件は
+[README](../README.md) を参照してください。本文は既定の Claude Code を前提に書いています。他のエージェントへの切り替えは [1.1 節](#11-claude-以外のエージェントを使う) を参照してください。本文中の「」内はパネルに表示される日本語 UI の文言です
 (設定 > About > 言語 で English に切り替えられます)。
 
 ## 目次
 
 1. [パネルを開く・初回セットアップ](#1-パネルを開く初回セットアップ)
+   - [1.1 Claude 以外のエージェントを使う](#11-claude-以外のエージェントを使う)
 2. [画面の構成](#2-画面の構成)
 3. [チャットの基本操作](#3-チャットの基本操作)
 4. [Unity のコンテキストを渡す(チップと添付)](#4-unity-のコンテキストを渡すチップと添付)
@@ -37,15 +38,23 @@ Unity エディタ内でコーディングエージェント(Claude Code、Codex
 
 > サブスクリプションログインを推奨します。エディタの環境に `ANTHROPIC_API_KEY` があると CLI 自身の判断でそちらが使われ、従量課金の API 経由になります -- 設定 > アカウントに実際に使われている認証方式が表示されます。常にサブスクリプションを使いたい場合は同じ場所の「APIキー認証」を「サブスクリプションのみ」にしてください。
 
-> Claude 以外のエージェントは 設定 > CLI > エージェント で選びます。未導入なら「インストール」(npm 系は Node.js が必要)、サインインが必要なら「サインイン」(エージェントがブラウザを開きます)をパネルから実行できます。認証情報はそれぞれの CLI 自身のものを使います。
-> **Codex** は ChatGPT アカウント(推奨)、または `CODEX_API_KEY` / `OPENAI_API_KEY`。
-> **Grok Build** は SuperGrok / X Premium+ のログイン(推奨)、または `XAI_API_KEY`。
-> **Gemini CLI** は Gemini API キー(`GEMINI_API_KEY`、または `~/.gemini/.env`)、または
-> Gemini Code Assist Standard / Enterprise の Google ログイン — 個人向けの「Login with Google」
-> (Gemini Code Assist for individuals / Google AI Pro / Ultra)は 2026-06-18 に終了しました。
-> パネルは API キーを保存しません。キーは各 CLI 自身の環境変数か設定ファイルに置いてください
-> (OS の環境変数はエディタを再起動しないと反映されません)。接続後は設定 > アカウントに、
-> 実際に認証に使われた方式が表示されます。
+### 1.1 Claude 以外のエージェントを使う
+
+Claude Code の代わりに、ACP(Agent Client Protocol)対応の CLI をパネルから使えます。切り替えは次の 3 ステップです。
+
+1. 設定 > CLI > **エージェント** で使うエージェントを選びます。
+2. CLI が入っていなければ同じカードの **「インストール」** を押します(npm で入るものは Node.js が必要です。実行するコマンドは押す前に表示されます)。
+3. サインインが必要なら **「サインイン」** を押します。エージェントがブラウザを開くので、そこでログインします。終わるとパネルが再接続し、設定 > アカウント に実際に使われた方式が表示されます。
+
+| エージェント | サインイン | API キーで使う場合 |
+|---|---|---|
+| **Codex** | ChatGPT アカウント(推奨) | 環境変数 `CODEX_API_KEY` または `OPENAI_API_KEY` |
+| **Grok Build** | SuperGrok / X Premium+ のアカウント(推奨) | 環境変数 `XAI_API_KEY` |
+| **その他の ACP 対応 CLI**(Qwen Code、Kimi CLI など) | CLI ごとの方法 | 起動コマンドと引数を設定 > CLI に手入力します |
+
+- API キーはパネルには保存しません。OS の環境変数か、各 CLI 自身の設定ファイルに置いてください。OS の環境変数はエディタを再起動しないと反映されません。
+- 他のエージェントでも、権限カード・チップと添付・Unity 操作ツール・スクリプト検証ゲートは同じように動きます。履歴ブラウザ・パネル内ログイン・サブエージェントのモデル設定・思考ブロックは Claude Code 専用です。
+- **Gemini CLI** は 2026-06-18 に個人向け(Google AI Pro / Ultra / 無料枠)の提供が終了し、Google は後継の Antigravity CLI への移行を案内しています。パネルの「Gemini CLI」プリセットは、Gemini API キー(`GEMINI_API_KEY` または `~/.gemini/.env`)か Gemini Code Assist Standard / Enterprise のライセンスを持っている場合にだけ使えます。新しく使い始める用途にはおすすめしません。
 
 ## 2. 画面の構成
 
