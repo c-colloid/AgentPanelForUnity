@@ -37,7 +37,8 @@
 本リポジトリは Unity **パッケージ**であり、単体では Unity プロジェクトとして開けません。
 変更は、検証専用の使い捨て Unity プロジェクト(サンドボックス)の `Packages/` 直下に
 `jp.colloid.unity-agent-panel` をジャンクション/シンボリックリンクで配置して確認します
-(README の「方法 2」と同じ配置)。開発中の実プロジェクトに直接リンクすることは推奨しません。
+(Windows: `mklink /J <サンドボックス>\Packages\jp.colloid.unity-agent-panel <clone先>\jp.colloid.unity-agent-panel`)。
+開発中の実プロジェクトに直接リンクすることは推奨しません。
 
 ### コンパイル確認と EditMode テスト(バッチモード)
 

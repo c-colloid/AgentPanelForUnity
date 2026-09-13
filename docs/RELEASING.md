@@ -48,7 +48,9 @@ git tag -a vX.Y.Z -m "vX.Y.Z" <リリースコミット>
 git push origin vX.Y.Z
 ```
 
-6. 他プロジェクトからは Git URL でタグを固定して導入できる:
+6. README の導入 URL はタグ無し(公開ミラーの `main` は常に最新リリースと
+   一致するので、Package Manager の Update で追従できる)。特定の版に固定
+   したいプロジェクトだけ、末尾にタグを付ける:
 
 ```
 https://github.com/c-colloid/AgentPanelForUnity.git?path=jp.colloid.unity-agent-panel#vX.Y.Z
@@ -106,6 +108,31 @@ workflow_dispatch で再実行)。必要なリポジトリ設定(`CLOUDFLARE_API
   あれば何もしない(冪等)ので無害。
 - 初回のミラー push が公開側の履歴を v1.0.0 相当からゼロ地点として作る
   (それ以前のタグをまとめて後追いで流す運用ではない)。
+- タグ push の後、公開リポジトリに **GitHub Release** を作り、
+  `jp.colloid.unity-agent-panel-<version>.zip`(パッケージルートが zip の
+  ルート)と `package.json` を添付する。これは統合 VPM リスティング
+  `c-colloid/vpm`(`scripts/build_listing.py`)が Release を走査して拾う
+  形式で、VCC / ALCOM から Core を導入・更新できるようにするためのもの
+  (`docs/design-notes/2026-09-13-core-vpm-listing.md`)。Release が既に
+  あれば足りないアセットだけ追加する(冪等)。`PUBLIC_MIRROR_TOKEN` は
+  push 権限(Contents: write)を持っているので Release 作成にも使える。
+- 最後に `c-colloid/vpm` へ `repository_dispatch`(`package-released`)を
+  送って即時再生成を促す。リポジトリシークレット `VPM_DISPATCH_TOKEN`
+  (`c-colloid/vpm` の Contents: read/write だけに絞った fine-grained PAT。
+  NDMFDeform 等と同じもの)が無ければ警告だけ出して終わり、リスティング側の
+  6 時間ごとの cron が拾う。リスティング先を変えるときは変数
+  `VPM_LISTING_REPO`(既定 `c-colloid/vpm`)。
+- リスティング側の設定は `c-colloid/vpm` の `source.json` に
+  `githubRepos` へ `c-colloid/AgentPanelForUnity`、`packagesMeta` へ
+  `jp.colloid.unity-agent-panel` を足す(1 回だけ)。
+- **ドキュメントだけの同期**: `main` への push が `README.md` /
+  `README.en.md` / `CONTRIBUTING.md` / `LICENSE` / `docs/**` /
+  `allowlist.txt` に触れると、同じワークフローが docs モードで動き、
+  許可リストのうちパッケージディレクトリ以外を公開側に上書きして
+  「`Docs: sync from <sha>`」としてコミットする(タグ・Release・dispatch
+  は無し。パッケージは直前のリリースのまま)。リリースを切らない docs
+  タスクでも公開側の README が古くならない。手動で流すときは
+  *Mirror Core to public repo* を `docs_only` にチェックして実行する。
 - Pro に関するドキュメントを Core 側の許可対象ファイル(`docs/*.md`・
   design-notes 等)に追記するときは、必ず `allowlist.txt` も見直すこと
   (Pro 固有の内容が公開ミラーに漏れないよう、design-notes は個別の
