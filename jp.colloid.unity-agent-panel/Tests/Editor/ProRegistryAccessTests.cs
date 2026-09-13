@@ -377,6 +377,78 @@ namespace Colloid.AgentPanel.Tests
             StringAssert.Contains("disk full", texts[5]);
         }
 
+        // -- VPM (VCC / ALCOM) ----------------------------------------------------
+
+        [Test]
+        public void ReadUpmConfigToken_FindsTheBlockForTheUrl_OnlyThatBlock()
+        {
+            string toml = ProRegistryAccess.UpsertUpmConfig(
+                ProRegistryAccess.UpsertUpmConfig(string.Empty, "https://other.example/npm", "apu_pk_otherkey0000"),
+                Url, Key);
+            Assert.AreEqual(Key, ProRegistryAccess.ReadUpmConfigToken(toml, Url));
+            Assert.AreEqual("apu_pk_otherkey0000", ProRegistryAccess.ReadUpmConfigToken(toml, "https://other.example/npm"));
+            Assert.IsNull(ProRegistryAccess.ReadUpmConfigToken(toml, "https://absent.example/npm"));
+            Assert.IsNull(ProRegistryAccess.ReadUpmConfigToken(string.Empty, Url));
+            Assert.IsNull(ProRegistryAccess.ReadUpmConfigToken(null, Url));
+        }
+
+        [Test]
+        public void ReadUpmConfigToken_RoundTripsEscapes_AndCrlf()
+        {
+            string toml = ProRegistryAccess.UpsertUpmConfig(string.Empty, Url, "a\"b\\c").Replace("\n", "\r\n");
+            Assert.AreEqual("a\"b\\c", ProRegistryAccess.ReadUpmConfigToken(toml, Url));
+        }
+
+        [TestCase("https://updates.example.test/npm", "https://updates.example.test/vpm/index.json")]
+        [TestCase("https://updates.example.test/npm/", "https://updates.example.test/vpm/index.json")]
+        [TestCase("https://updates.example.test/NPM", "https://updates.example.test/vpm/index.json")]
+        [TestCase("https://updates.example.test", "https://updates.example.test/vpm/index.json")]
+        [TestCase("http://localhost:8787/npm", "http://localhost:8787/vpm/index.json")]
+        public void VpmListingUrl_DerivesFromTheRegistryUrl(string registry, string expected)
+        {
+            Assert.AreEqual(expected, ProRegistryAccess.VpmListingUrl(registry));
+        }
+
+        [Test]
+        public void VpmListingUrl_IsNullForAnInvalidRegistryUrl()
+        {
+            Assert.IsNull(ProRegistryAccess.VpmListingUrl("not a url"));
+            Assert.IsNull(ProRegistryAccess.VpmListingUrl(""));
+        }
+
+        [Test]
+        public void BuildVccDeepLink_EncodesUrlAndHeader()
+        {
+            string link = ProRegistryAccess.BuildVccDeepLink("https://updates.example.test/vpm/index.json", " " + Key + " ");
+            Assert.AreEqual(
+                "vcc://vpm/addRepo?url=https%3A%2F%2Fupdates.example.test%2Fvpm%2Findex.json"
+                + "&headers[]=Authorization%3ABearer%20" + Key, link);
+        }
+
+        [Test]
+        public void ResolveTokenForVcc_PrefersTheField_ElseReadsUpmConfig()
+        {
+            var fs = new FakeFs();
+            fs.Files[TomlPath] = ProRegistryAccess.UpsertUpmConfig(string.Empty, Url, "apu_pk_savedkey00000");
+            Assert.AreEqual(Key, ProRegistryAccess.ResolveTokenForVcc(" " + Key + " ", Url, fs.Read, TomlPath));
+            Assert.AreEqual("apu_pk_savedkey00000", ProRegistryAccess.ResolveTokenForVcc("", Url + "/", fs.Read, TomlPath));
+            Assert.IsNull(ProRegistryAccess.ResolveTokenForVcc("", "https://absent.example/npm", fs.Read, TomlPath));
+            Assert.IsNull(ProRegistryAccess.ResolveTokenForVcc("", "not a url", fs.Read, TomlPath));
+            Assert.IsNull(ProRegistryAccess.ResolveTokenForVcc("", Url, new FakeFs().Read, TomlPath), "missing file is not an error, just no token");
+        }
+
+        [Test]
+        public void DescribeVccAttempt_CoversEveryOutcome()
+        {
+            UI.L10n.OverrideForTests(null);
+            string badUrl = UI.SettingsView.DescribeProVccAttempt(null, null);
+            string noKey = UI.SettingsView.DescribeProVccAttempt("https://updates.example.test/vpm/index.json", null);
+            string opened = UI.SettingsView.DescribeProVccAttempt("https://updates.example.test/vpm/index.json", Key);
+            Assert.AreEqual(3, new HashSet<string> { badUrl, noKey, opened }.Count);
+            StringAssert.Contains("https://updates.example.test/vpm/index.json", opened);
+            StringAssert.DoesNotContain(Key, opened, "the key never appears in the status line");
+        }
+
         private static int CountOccurrences(string text, string needle)
         {
             int count = 0;

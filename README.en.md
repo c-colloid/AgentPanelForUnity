@@ -82,7 +82,7 @@ Agent Panel for Unity comes as two packages. **This README describes, and the st
   - **ui** — UI Toolkit window automation (list/dump/click/set value)
   - Extension Profiles for Bakery / Final IK / Magica Cloth 2 / UniVRM / VRChat SDK3 / RPG Maker Unite
 
-The panel's Settings tell you which one you have. Without Pro, the Prefab / Anim / UI automation module toggles under Settings > Unity operations (UapOps) are disabled and their hint ends with "Requires the Agent Panel Pro add-on (sold separately; not installed)" (hover for how to get it), and Settings > Extension profiles reads "No bundled SDK profiles are installed. Project profiles in `.uap-profiles/*.json` still work." To install Pro, enter the registry URL and product key from your purchase under Settings > **Agent Panel Pro updates** and press Save key: the panel writes Unity's credential file (`~/.upmconfig.toml`) and the project's `Packages/manifest.json`, and from then on Window > Package Manager > My Registries installs and updates Pro (the panel keeps no copy of the key). The toggles become available after the next domain reload (a store link will be added later).
+The panel's Settings tell you which one you have. Without Pro, the Prefab / Anim / UI automation module toggles under Settings > Unity operations (UapOps) are disabled and their hint ends with "Requires the Agent Panel Pro add-on (sold separately; not installed)" (hover for how to get it), and Settings > Extension profiles reads "No bundled SDK profiles are installed. Project profiles in `.uap-profiles/*.json` still work." To install Pro, enter the registry URL and product key from your purchase under Settings > **Agent Panel Pro updates** and press Save key: the panel writes Unity's credential file (`~/.upmconfig.toml`) and the project's `Packages/manifest.json`, and from then on Window > Package Manager > My Registries installs and updates Pro (the panel keeps no copy of the key). VRChat Creator Companion / ALCOM users can press **Add to VCC / ALCOM** on the same card to register the Pro VPM repository and update from there. The toggles become available after the next domain reload (a store link will be added later).
 
 ## Requirements
 
@@ -105,9 +105,9 @@ The package lives in `jp.colloid.unity-agent-panel/` and has no package dependen
 
 `Window > Package Manager > + > Add package from git URL...`:
 
-[https://github.com/c-colloid/AgentPanelForUnity.git?path=jp.colloid.unity-agent-panel](https://github.com/c-colloid/AgentPanelForUnity.git?path=jp.colloid.unity-agent-panel#v0.44.0)
+[https://github.com/c-colloid/AgentPanelForUnity.git?path=jp.colloid.unity-agent-panel](https://github.com/c-colloid/AgentPanelForUnity.git?path=jp.colloid.unity-agent-panel#v0.45.0)
 
-The link above points at the latest release tag (`#v0.44.0`). Append a tag to pin a version; omit it to track `main`. Tags are listed in the [CHANGELOG](jp.colloid.unity-agent-panel/CHANGELOG.md).
+The link above points at the latest release tag (`#v0.45.0`). Append a tag to pin a version; omit it to track `main`. Tags are listed in the [CHANGELOG](jp.colloid.unity-agent-panel/CHANGELOG.md).
 
 ### Option 2: embedded package under `Packages/`
 

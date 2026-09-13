@@ -207,6 +207,126 @@ namespace Colloid.AgentPanel.Integration
             return sb.ToString();
         }
 
+        /// <summary>
+        /// Reads the token back out of the <c>[npmAuth."registryUrl"]</c> block
+        /// (the reverse of <see cref="UpsertUpmConfig"/>), so the VCC / ALCOM
+        /// button works after the key field was cleared. Null when absent.
+        /// </summary>
+        internal static string ReadUpmConfigToken(string toml, string registryUrl)
+        {
+            if (string.IsNullOrEmpty(toml))
+            {
+                return null;
+            }
+            string header = "[npmAuth.\"" + registryUrl + "\"]";
+            string[] lines = toml.Replace("\r\n", "\n").Split('\n');
+            bool inBlock = false;
+            foreach (string raw in lines)
+            {
+                string line = raw.Trim();
+                if (line.StartsWith("[", StringComparison.Ordinal))
+                {
+                    inBlock = line == header;
+                    continue;
+                }
+                if (!inBlock || !line.StartsWith("token", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+                int eq = line.IndexOf('=');
+                if (eq < 0)
+                {
+                    continue;
+                }
+                string value = line.Substring(eq + 1).Trim();
+                if (value.Length >= 2 && value[0] == '"' && value[value.Length - 1] == '"')
+                {
+                    return UnescapeTomlBasicString(value.Substring(1, value.Length - 2));
+                }
+                return value;
+            }
+            return null;
+        }
+
+        internal static string UnescapeTomlBasicString(string value)
+        {
+            var sb = new StringBuilder(value.Length);
+            for (int i = 0; i < value.Length; i++)
+            {
+                char c = value[i];
+                if (c == '\\' && i + 1 < value.Length)
+                {
+                    i++;
+                    sb.Append(value[i]);
+                    continue;
+                }
+                sb.Append(c);
+            }
+            return sb.ToString();
+        }
+
+        // -- VPM (VCC / ALCOM) -----------------------------------------------
+
+        /// <summary>
+        /// The VPM listing served next to the npm registry: the registry URL
+        /// minus its <c>/npm</c> path plus <c>/vpm/index.json</c>
+        /// (design note section 3.2).
+        /// </summary>
+        internal static string VpmListingUrl(string registryUrl)
+        {
+            string url;
+            if (!TryNormalizeRegistryUrl(registryUrl, out url))
+            {
+                return null;
+            }
+            if (url.EndsWith("/npm", StringComparison.OrdinalIgnoreCase))
+            {
+                url = url.Substring(0, url.Length - "/npm".Length);
+            }
+            return url + "/vpm/index.json";
+        }
+
+        /// <summary>
+        /// The <c>vcc://vpm/addRepo</c> deep link both VCC and ALCOM open:
+        /// the listing URL plus one <c>headers[]</c> entry carrying the
+        /// bearer token, so the listing and its zips authenticate the same
+        /// way the npm routes do.
+        /// </summary>
+        internal static string BuildVccDeepLink(string listingUrl, string token)
+        {
+            return "vcc://vpm/addRepo?url=" + Uri.EscapeDataString(listingUrl)
+                + "&headers[]=" + Uri.EscapeDataString("Authorization:Bearer " + token.Trim());
+        }
+
+        /// <summary>
+        /// Resolves the token for the VCC / ALCOM button: the key field when
+        /// filled, else what an earlier Save key wrote to .upmconfig.toml.
+        /// </summary>
+        internal static string ResolveTokenForVcc(string keyFieldValue, string registryUrl,
+            Func<string, string> readText, string upmConfigPath)
+        {
+            if (IsPlausibleKey(keyFieldValue))
+            {
+                return keyFieldValue.Trim();
+            }
+            string url;
+            if (!TryNormalizeRegistryUrl(registryUrl, out url))
+            {
+                return null;
+            }
+            string toml;
+            try
+            {
+                toml = readText(upmConfigPath);
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+            string token = ReadUpmConfigToken(toml, url);
+            return IsPlausibleKey(token) ? token.Trim() : null;
+        }
+
         internal static string EscapeTomlBasicString(string value)
         {
             var sb = new StringBuilder(value.Length + 4);

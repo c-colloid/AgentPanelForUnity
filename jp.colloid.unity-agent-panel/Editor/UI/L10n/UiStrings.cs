@@ -2046,6 +2046,21 @@ namespace Colloid.AgentPanel.UI
         public readonly string SettingsProUpdatesStatusErrorWriteFmt =
             "Could not write the files: {0}";
 
+        public readonly string SettingsProUpdatesVccButton = "Add to VCC / ALCOM";
+
+        public readonly string SettingsProUpdatesVccTooltip =
+            "Opens a vcc:// link that registers the Pro VPM repository in VRChat Creator Companion or ALCOM,"
+            + " with your product key as the repository's Authorization header. If nothing opens, add the"
+            + " repository by hand: Settings > Packages > Add Repository, paste the listing URL shown in the"
+            + " status line, and under the header settings add Authorization: Bearer <your key>.";
+
+        /// <summary>{0} = the VPM listing URL.</summary>
+        public readonly string SettingsProUpdatesStatusVccOpenedFmt =
+            "Opened VCC / ALCOM to add the repository. Listing URL (for a manual add): {0}";
+
+        public readonly string SettingsProUpdatesStatusErrorVccNoKey =
+            "Enter the product key first, or press Save key so it can be read back from .upmconfig.toml.";
+
         // 2026-09-12 core-only wording (docs/design-notes/2026-09-12-core-
         // only-wording.md): shown in the Extension profiles card instead of
         // "No supported SDK detected" when NO bundled profile is installed
@@ -2759,7 +2774,11 @@ namespace Colloid.AgentPanel.UI
             string settingsProUpdatesStatusErrorUrl = null,
             string settingsProUpdatesStatusErrorForeignFmt = null,
             string settingsProUpdatesStatusErrorManifestFmt = null,
-            string settingsProUpdatesStatusErrorWriteFmt = null)
+            string settingsProUpdatesStatusErrorWriteFmt = null,
+            string settingsProUpdatesVccButton = null,
+            string settingsProUpdatesVccTooltip = null,
+            string settingsProUpdatesStatusVccOpenedFmt = null,
+            string settingsProUpdatesStatusErrorVccNoKey = null)
         {
             FirstRunCliNotFoundTitle = firstRunCliNotFoundTitle;
             FirstRunCliNotFoundBody = firstRunCliNotFoundBody;
@@ -3551,6 +3570,22 @@ namespace Colloid.AgentPanel.UI
             if (settingsProUpdatesStatusErrorWriteFmt != null)
             {
                 SettingsProUpdatesStatusErrorWriteFmt = settingsProUpdatesStatusErrorWriteFmt;
+            }
+            if (settingsProUpdatesVccButton != null)
+            {
+                SettingsProUpdatesVccButton = settingsProUpdatesVccButton;
+            }
+            if (settingsProUpdatesVccTooltip != null)
+            {
+                SettingsProUpdatesVccTooltip = settingsProUpdatesVccTooltip;
+            }
+            if (settingsProUpdatesStatusVccOpenedFmt != null)
+            {
+                SettingsProUpdatesStatusVccOpenedFmt = settingsProUpdatesStatusVccOpenedFmt;
+            }
+            if (settingsProUpdatesStatusErrorVccNoKey != null)
+            {
+                SettingsProUpdatesStatusErrorVccNoKey = settingsProUpdatesStatusErrorVccNoKey;
             }
         }
     }

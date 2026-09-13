@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (nothing yet)
 
+## [0.45.0] - 2026-09-13
+
+### Added
+
+- **Add to VCC / ALCOM** button on the Agent Panel Pro updates card
+  (design note `docs/design-notes/2026-09-12-pro-update-delivery.md`,
+  Phase 2). The update registry now also serves a VPM repository
+  (`<registry origin>/vpm/index.json` plus per-version zips) behind the
+  same product key, so VRChat Creator Companion and ALCOM users can install
+  and update Pro from their package manager. The button opens a
+  `vcc://vpm/addRepo` deep link carrying the listing URL and the key as
+  the repository's `Authorization` header; the key comes from the key
+  field, or is read back from `.upmconfig.toml` after a Save key. The
+  status line shows the listing URL for a manual add and never the key.
+
 ## [0.44.0] - 2026-09-12
 
 ### Added

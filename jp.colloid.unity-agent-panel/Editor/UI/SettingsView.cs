@@ -3041,6 +3041,7 @@ namespace Colloid.AgentPanel.UI
         private TextField _proRegistryUrlField;
         private TextField _proKeyField;
         private Button _proApplyButton;
+        private Button _proVccButton;
         private Label _proStatusLabel;
 
         private void BuildProUpdatesSection(VisualElement parent)
@@ -3067,6 +3068,13 @@ namespace Colloid.AgentPanel.UI
             _proApplyButton.AddToClassList("uap-settings-btn");
             _proApplyButton.AddToClassList("uap-settings-btn--primary");
             row.Add(_proApplyButton);
+
+            // Phase 2 (design note section 3.3 item 2): the same key, handed
+            // to VCC / ALCOM as the repository's Authorization header.
+            _proVccButton = new Button(OnProVccClicked) { text = L10n.S.SettingsProUpdatesVccButton };
+            _proVccButton.AddToClassList("uap-settings-btn");
+            _proVccButton.tooltip = L10n.S.SettingsProUpdatesVccTooltip;
+            row.Add(_proVccButton);
 
             _proStatusLabel = new Label(string.Empty);
             _proStatusLabel.AddToClassList("uap-settings-hint");
@@ -3103,6 +3111,39 @@ namespace Colloid.AgentPanel.UI
             {
                 _proKeyField.SetValueWithoutNotify(string.Empty);
             }
+        }
+
+        private void OnProVccClicked()
+        {
+            string registryUrl = _proRegistryUrlField.value;
+            string listingUrl = ProRegistryAccess.VpmListingUrl(registryUrl);
+            string token = listingUrl == null
+                ? null
+                : ProRegistryAccess.ResolveTokenForVcc(_proKeyField.value, registryUrl,
+                    System.IO.File.ReadAllText, ProRegistryAccess.UpmConfigPath());
+            string status = DescribeProVccAttempt(listingUrl, token);
+            bool ok = listingUrl != null && token != null;
+            if (ok)
+            {
+                Application.OpenURL(ProRegistryAccess.BuildVccDeepLink(listingUrl, token));
+            }
+            _proStatusLabel.text = status;
+            _proStatusLabel.EnableInClassList("uap-settings-hint--error", !ok);
+            _proStatusLabel.style.display = DisplayStyle.Flex;
+        }
+
+        /// <summary>Pure wording rule for the VCC / ALCOM button's status line.</summary>
+        internal static string DescribeProVccAttempt(string listingUrl, string token)
+        {
+            if (listingUrl == null)
+            {
+                return L10n.S.SettingsProUpdatesStatusErrorUrl;
+            }
+            if (token == null)
+            {
+                return L10n.S.SettingsProUpdatesStatusErrorVccNoKey;
+            }
+            return L10n.F(L10n.S.SettingsProUpdatesStatusVccOpenedFmt, listingUrl);
         }
 
         /// <summary>Pure wording rule for the status line under the Save key button.</summary>

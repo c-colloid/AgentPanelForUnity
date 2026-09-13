@@ -857,7 +857,13 @@ namespace Colloid.AgentPanel.UI
                 settingsProUpdatesStatusErrorUrl: "レジストリ URL は https:// で始まるアドレスにしてください。",
                 settingsProUpdatesStatusErrorForeignFmt: "別の scoped registry(\"{0}\")が manifest.json で {1} を既に対象にしています。そのスコープを外してから保存し直してください。",
                 settingsProUpdatesStatusErrorManifestFmt: "Packages/manifest.json を読めませんでした: {0}",
-                settingsProUpdatesStatusErrorWriteFmt: "ファイルを書き込めませんでした: {0}");
+                settingsProUpdatesStatusErrorWriteFmt: "ファイルを書き込めませんでした: {0}",
+                settingsProUpdatesVccButton: "VCC / ALCOM に追加",
+                settingsProUpdatesVccTooltip: "VRChat Creator Companion または ALCOM に Pro の VPM リポジトリを登録する vcc:// リンクを開きます。"
+                    + "製品キーはリポジトリの Authorization ヘッダーとして渡されます。何も開かない場合は手動で追加してください: "
+                    + "Settings > Packages > Add Repository にステータス行の listing URL を貼り、ヘッダー設定に Authorization: Bearer <キー> を追加します。",
+                settingsProUpdatesStatusVccOpenedFmt: "VCC / ALCOM を開いてリポジトリを追加します。手動追加用の listing URL: {0}",
+                settingsProUpdatesStatusErrorVccNoKey: "先に製品キーを入力するか、「キーを保存」を押して .upmconfig.toml から読み戻せるようにしてください。");
         }
     }
 }
