@@ -648,7 +648,7 @@ namespace Colloid.AgentPanel.UI
         public readonly string SettingsAutoContinueInterruptedHelp =
             "Off by default. Sends \"continue\" by itself when a reload or Play Mode cuts a turn short.";
         public readonly string SettingsAutoContinueInterruptedTooltip =
-            "When a domain reload the agent did not cause -- you saved a script and came back, recompiled, or entered Play Mode -- interrupts a running turn, the panel resumes the session and sends the same \"continue\" the banner button would, instead of waiting for the click. At most three times in a row without a turn completing, never while the connection is suspended, and always announced in the transcript.";
+            "When a domain reload the agent did not cause -- you saved a script and came back, recompiled, or entered Play Mode -- interrupts a running turn, the panel resumes the session and sends the same \"continue\" the banner button would, instead of waiting for the click. No fixed limit on how many times: it stops only while the connection is suspended after repeated CLI exits, or when you press Interrupt, and it is always announced in the transcript.";
 
         /// <summary>
         /// Design note 2026-09-10 section 4: live readout of the project's

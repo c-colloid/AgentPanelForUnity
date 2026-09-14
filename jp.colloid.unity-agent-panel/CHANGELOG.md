@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (nothing yet)
 
+## [0.47.1] - 2026-09-14
+
+### Changed
+
+- **"Continue automatically after an interruption" no longer claims a
+  three-in-a-row cap.** The Settings tooltip (English and Japanese) and
+  the user guide still described the limit that v0.36 removed (design note
+  `docs/design-notes/2026-09-10-auto-approve-all-tools-and-lean-auto-continue.md`
+  section 3); the behaviour did not change. Both now say what actually
+  stops the automatic continuation: the crash-loop suspension after
+  repeated CLI exits, or your own Interrupt. Core and Pro share this code
+  path; Pro adds no reload logic of its own.
+- **User guide screenshots.** `docs/USER-GUIDE.md` now carries captures
+  for the setup cards, the panel layout, chips and attachments, the
+  permission card, the auto-approve menu, the question card, tool and
+  subagent cards, the history browser, the model picker, slash-command
+  completion, the Unity-tools settings, the resume banner and the
+  reconnect banner (`docs/images/guide/`, captured with the
+  `ci/shop-images/` kit on Unity 6000.0).
+
 ## [0.47.0] - 2026-09-13
 
 ### Added
