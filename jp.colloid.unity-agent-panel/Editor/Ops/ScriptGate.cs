@@ -43,10 +43,59 @@ namespace Colloid.AgentPanel.Ops
         private static readonly HashSet<string> GatedToolNames =
             new HashSet<string>(StringComparer.Ordinal) { "Write", "Edit", "MultiEdit" };
 
-        /// <summary>True for the CLI's own Write/Edit/MultiEdit tools -- the only ones this gate ever touches.</summary>
+        /// <summary>
+        /// The CLI's shell tools, whose `command` string the gate inspects
+        /// for a script write (<see cref="TryFindGatedBashTarget"/>). "Bash"
+        /// is the tool on macOS/Linux (and Git Bash on Windows); "PowerShell"
+        /// is the tool the CLI exposes on Windows, which is where most of
+        /// this panel's users run -- until 2026-09-15 the pre-filter compared
+        /// against "Bash" alone, so every `Set-Content Assets/Foo.cs` went
+        /// through ungated (design note 2026-09-15-script-gate-steering-and-
+        /// powershell.md). "Shell" is the generic name ToolCardDescriber
+        /// already accepts.
+        /// </summary>
+        private static readonly HashSet<string> ShellToolNames =
+            new HashSet<string>(StringComparer.Ordinal) { "Bash", "PowerShell", "Shell" };
+
+        /// <summary>
+        /// PowerShell cmdlets (and their built-in aliases) whose first
+        /// positional argument, or whose -Path/-LiteralPath/-FilePath
+        /// argument, names the file they write. Matched case-insensitively
+        /// (PowerShell command names are).
+        /// </summary>
+        private static readonly HashSet<string> PowerShellContentWriters =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "Set-Content", "Add-Content", "Out-File", "New-Item", "ac", "ni"
+            };
+
+        /// <summary>PowerShell copy/move cmdlets: the destination is -Destination or the second positional argument.</summary>
+        private static readonly HashSet<string> PowerShellCopyMovers =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "Copy-Item", "Move-Item", "cpi", "mi", "copy", "move"
+            };
+
+        /// <summary>
+        /// Matches a .NET file-writing call in a PowerShell (or any) command
+        /// string -- `[IO.File]::WriteAllText("Assets/Foo.cs", ...)`,
+        /// `[System.IO.File]::WriteAllLines('...')`, `WriteAllBytes(...)` --
+        /// capturing the first (path) argument.
+        /// </summary>
+        private static readonly Regex DotNetFileWritePattern = new Regex(
+            "::WriteAll(?:Text|Lines|Bytes)\\s*\\(\\s*(?:\"(?<dq>[^\"]*)\"|'(?<sq>[^']*)')",
+            RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+        /// <summary>True for the CLI's own Write/Edit/MultiEdit tools -- the file-path half of the gate.</summary>
         public static bool IsGatedToolName(string toolName)
         {
             return toolName != null && GatedToolNames.Contains(toolName);
+        }
+
+        /// <summary>True for the CLI's shell tools (Bash, PowerShell, Shell) -- the command-string half of the gate.</summary>
+        public static bool IsShellToolName(string toolName)
+        {
+            return toolName != null && ShellToolNames.Contains(toolName);
         }
 
         /// <summary>
@@ -265,6 +314,14 @@ namespace Colloid.AgentPanel.Ops
                     yield return target;
                 }
             }
+            foreach (Match match in DotNetFileWritePattern.Matches(command))
+            {
+                string target = FirstGroupValue(match);
+                if (target != null)
+                {
+                    yield return target;
+                }
+            }
             foreach (string target in ExtractCommandWriteTargets(command))
             {
                 yield return target;
@@ -345,7 +402,123 @@ namespace Colloid.AgentPanel.Ops
                         }
                     }
                 }
+                else if (PowerShellContentWriters.Contains(cmd))
+                {
+                    // `Set-Content Assets/Foo.cs -Value ...`, `"..." | Out-File
+                    // -FilePath Assets/Foo.cs`, `New-Item -Path Assets/Foo.cs
+                    // -ItemType File`: the target is the named path parameter
+                    // when present, else the first positional argument (a
+                    // token that neither starts with '-' nor is the value of
+                    // some other -Parameter).
+                    string named = NamedParameterValue(tokens,
+                        "-Path", "-LiteralPath", "-FilePath", "-PSPath");
+                    if (named != null)
+                    {
+                        yield return named;
+                        continue;
+                    }
+                    string positional = FirstPositionalArgument(tokens);
+                    if (positional != null)
+                    {
+                        yield return positional;
+                    }
+                }
+                else if (PowerShellCopyMovers.Contains(cmd))
+                {
+                    // `Copy-Item src -Destination Assets/Foo.cs` or
+                    // `Move-Item src Assets/Foo.cs`: -Destination when named,
+                    // else the SECOND positional argument (the first is the
+                    // source, which may legitimately be a gated path being
+                    // copied OUT of Assets/).
+                    string named = NamedParameterValue(tokens, "-Destination");
+                    if (named != null)
+                    {
+                        yield return named;
+                        continue;
+                    }
+                    string positional = NthPositionalArgument(tokens, 1);
+                    if (positional != null)
+                    {
+                        yield return positional;
+                    }
+                }
             }
+        }
+
+        /// <summary>
+        /// The token following the first occurrence of any of
+        /// <paramref name="names"/> (case-insensitive, PowerShell parameter
+        /// names are), or the value after ':' in the `-Path:value` form;
+        /// null when none is present or the parameter has no value.
+        /// </summary>
+        private static string NamedParameterValue(string[] tokens, params string[] names)
+        {
+            for (int i = 1; i < tokens.Length; i++)
+            {
+                string token = tokens[i];
+                for (int n = 0; n < names.Length; n++)
+                {
+                    if (string.Equals(token, names[n], StringComparison.OrdinalIgnoreCase))
+                    {
+                        return i + 1 < tokens.Length ? tokens[i + 1] : null;
+                    }
+                    if (token.StartsWith(names[n] + ":", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return token.Substring(names[n].Length + 1);
+                    }
+                }
+            }
+            return null;
+        }
+
+        private static string FirstPositionalArgument(string[] tokens)
+        {
+            return NthPositionalArgument(tokens, 0);
+        }
+
+        /// <summary>
+        /// The <paramref name="index"/>-th (0-based) argument that is neither
+        /// a `-Parameter` nor the value bound to the preceding `-Parameter`.
+        /// A switch-vs-value ambiguity is resolved conservatively: every
+        /// `-Parameter` is assumed to consume the next token, so a positional
+        /// path can only be missed (fail-open), never mis-taken from a
+        /// parameter value.
+        /// </summary>
+        private static string NthPositionalArgument(string[] tokens, int index)
+        {
+            int seen = 0;
+            for (int i = 1; i < tokens.Length; i++)
+            {
+                string token = tokens[i];
+                if (token.Length > 0 && token[0] == '-')
+                {
+                    // `-Path:value` binds inline; a bare `-Path` binds the
+                    // next token. Known switches (no value) are skipped alone.
+                    if (token.IndexOf(':') < 0 && !IsPowerShellSwitch(token))
+                    {
+                        i++;
+                    }
+                    continue;
+                }
+                if (seen == index)
+                {
+                    return token;
+                }
+                seen++;
+            }
+            return null;
+        }
+
+        private static readonly HashSet<string> PowerShellSwitches =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "-Force", "-NoNewline", "-Append", "-NoClobber", "-Recurse", "-PassThru",
+                "-Confirm", "-WhatIf", "-Raw", "-AsByteStream", "-Container"
+            };
+
+        private static bool IsPowerShellSwitch(string token)
+        {
+            return PowerShellSwitches.Contains(token);
         }
 
         /// <summary>
@@ -434,11 +607,12 @@ namespace Colloid.AgentPanel.Ops
         }
 
         /// <summary>
-        /// True when a Bash <paramref name="command"/> writes (via
-        /// redirection or `tee`) to a gated script path -- the Bash
-        /// counterpart of <see cref="ShouldAutoDeny"/>. Does not check the
-        /// tool name; callers must already know they are looking at a Bash
-        /// tool_use.
+        /// True when a shell <paramref name="command"/> (Bash or PowerShell
+        /// syntax -- both tools' commands flow through the same scan) writes
+        /// to a gated script path -- the shell counterpart of
+        /// <see cref="ShouldAutoDeny"/>. Does not check the tool name;
+        /// callers must already know they are looking at a shell tool_use
+        /// (<see cref="IsShellToolName"/>).
         /// </summary>
         public static bool ShouldAutoDenyBashCommand(string command)
         {

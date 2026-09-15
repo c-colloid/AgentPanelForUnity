@@ -3884,6 +3884,15 @@ namespace Colloid.AgentPanel.Integration
                 UnityPluginProbe.ReadStatic(true), settings.unityPluginSteeringEnabled,
                 settings.uapOpsEnabled, Application.unityVersion);
 
+            // The script validation gate used to be "mechanism, not
+            // instruction": the agent learned about UapStaging/ only from
+            // the deny message after its first Assets/ write failed, once
+            // per session, compaction or resume. The staging rule now rides
+            // the system prompt too (design note 2026-09-15-script-gate-
+            // steering-and-powershell.md section 2); the gate stays as the
+            // enforcement.
+            uapOpsSteeringSection = AppendSection(uapOpsSteeringSection,
+                ComposeScriptGateSteeringSection(settings.uapScriptGateEnabled));
             string appendSystemPrompt = ComposeAppendSystemPrompt(
                 customInstructions, settings.subagentCostPolicy,
                 uapOpsSteeringSection, unityPluginSteeringSection, profilesSection);
@@ -4353,6 +4362,36 @@ namespace Colloid.AgentPanel.Integration
             body = AppendSection(body, uapOpsSteeringSection);
             body = AppendSection(body, unityPluginSteeringSection);
             return AppendSection(body, profilesSection);
+        }
+
+        /// <summary>
+        /// The script validation gate's standing instruction (design note
+        /// 2026-09-15-script-gate-steering-and-powershell.md section 2):
+        /// tells the agent up front that *.cs / *.asmdef go through
+        /// UapStaging/ + uap_scripts_commit, so the first script of a
+        /// session no longer has to be denied before the agent finds the
+        /// staging folder. Empty when the gate is off -- the text would
+        /// then describe a rule nothing enforces. Wording is kept in step
+        /// with <see cref="ScriptGate.DenyMessage"/> (same folder, same
+        /// tool name) so the pre-emptive and the after-the-fact guidance
+        /// never disagree.
+        /// </summary>
+        internal static string ComposeScriptGateSteeringSection(bool uapScriptGateEnabled)
+        {
+            if (!uapScriptGateEnabled)
+            {
+                return string.Empty;
+            }
+            return "C# scripts and assembly definitions (*.cs, *.asmdef) are never written into Assets/"
+                + " directly: the script validation gate rejects Write/Edit and any shell write (Bash or"
+                + " PowerShell redirection, Set-Content, Out-File, Copy-Item, ...) that targets them, and"
+                + " dynamic-code tools must not create them either.\n"
+                + "Write each one under the '" + ScriptGate.StagingFolder + "' folder at the project root"
+                + " (outside Assets/), mirroring its intended Assets/ sub-path (" + ScriptGate.StagingFolder
+                + "Editor/Foo.cs becomes Assets/Editor/Foo.cs), then call uap_scripts_commit: it compiles"
+                + " the staged files and moves them into Assets/ only when they build, and reports the"
+                + " compiler errors otherwise. Do not trigger a compile or an asset refresh yourself for"
+                + " staged scripts; uap_scripts_commit does that.";
         }
 
         /// <summary>Convenience over the pure overload: "installed" is the detector's EnabledNotLoaded or Loaded.</summary>
@@ -5462,9 +5501,17 @@ namespace Colloid.AgentPanel.Integration
                     return false;
                 }
             }
-            else if (string.Equals(tool.ToolName, "Bash", StringComparison.Ordinal))
+            else if (ScriptGate.IsShellToolName(tool.ToolName))
             {
+                // "Bash" on macOS/Linux, "PowerShell" on Windows (design
+                // note 2026-09-15-script-gate-steering-and-powershell.md):
+                // both carry the command string in "command"; "script" is
+                // the fallback ToolCardDescriber already reads.
                 string command = tool.Input != null ? tool.Input["command"].AsString(null) : null;
+                if (string.IsNullOrEmpty(command) && tool.Input != null)
+                {
+                    command = tool.Input["script"].AsString(null);
+                }
                 if (!ScriptGate.TryFindGatedBashTarget(command, out offendingPath))
                 {
                     return false;
@@ -5475,14 +5522,29 @@ namespace Colloid.AgentPanel.Integration
                 return false;
             }
             _client.RespondToPermission(request.RequestId, PermissionDecision.DenyTool(denyMessage));
-            var note = new ChatMessage
+            ChatMessageBlock noteBlock = ChatMessageBlock.MakeSystemNote(
+                L10n.F(L10n.S.HubScriptGateAutoDeniedFmt, offendingPath ?? string.Empty));
+            if (_streamingAssistant != null)
             {
-                role = ChatMessage.RoleSystem,
-                timestamp = DateTime.UtcNow.ToString("o")
-            };
-            note.Add(ChatMessageBlock.MakeSystemNote(
-                L10n.F(L10n.S.HubScriptGateAutoDeniedFmt, offendingPath ?? string.Empty)));
-            Session.AddMessage(note);
+                // The denial happens mid-turn, right after the tool_use
+                // block it answers. Appending a separate system message
+                // would render it AFTER the whole assistant turn (the
+                // streaming assistant is one ChatMessage that keeps
+                // growing), which made the block look like it fired after
+                // the agent's later tool calls; placing it as a block of
+                // that message keeps it next to the denied call.
+                _streamingAssistant.Add(noteBlock);
+            }
+            else
+            {
+                var note = new ChatMessage
+                {
+                    role = ChatMessage.RoleSystem,
+                    timestamp = DateTime.UtcNow.ToString("o")
+                };
+                note.Add(noteBlock);
+                Session.AddMessage(note);
+            }
             SaveSessionCache();
             RaiseChanged();
             return true;

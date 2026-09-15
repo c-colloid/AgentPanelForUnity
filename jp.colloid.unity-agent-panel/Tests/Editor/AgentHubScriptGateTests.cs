@@ -78,6 +78,15 @@ namespace Colloid.AgentPanel.Tests
             PumpAll();
         }
 
+        /// <summary>The CLI's Windows shell tool: same "command" field, different tool_name.</summary>
+        private void SendPowerShellCanUseTool(string requestId, string command)
+        {
+            _fake.ScriptLine("{\"type\":\"control_request\",\"request_id\":\"" + requestId
+                + "\",\"request\":{\"subtype\":\"can_use_tool\",\"tool_name\":\"PowerShell\""
+                + ",\"input\":{\"command\":\"" + EscapeJson(command) + "\"}}}");
+            PumpAll();
+        }
+
         private static string EscapeJson(string value)
         {
             return value.Replace("\\", "\\\\").Replace("\"", "\\\"");
@@ -180,6 +189,42 @@ namespace Colloid.AgentPanel.Tests
             StringAssert.Contains("\"behavior\":\"deny\"", written);
             StringAssert.Contains("req-gate-6", written);
             StringAssert.Contains("uap_scripts_commit", written);
+        }
+
+        /// <summary>
+        /// Regression (design note 2026-09-15-script-gate-steering-and-
+        /// powershell.md section 3): the pre-filter compared the tool name
+        /// against "Bash" alone, so on Windows -- where the CLI's shell tool
+        /// is "PowerShell" -- a `Set-Content Assets/Foo.cs` went through
+        /// ungated.
+        /// </summary>
+        [Test]
+        public void GateEnabled_PowerShellSetContentToAssetsScript_AutoDeniesWithoutShowingCard()
+        {
+            PanelStateStore.instance.Settings.uapScriptGateEnabled = true;
+            int baseline = StartReadyClient();
+
+            SendPowerShellCanUseTool("req-gate-ps1",
+                "Set-Content -Path Assets/Editor/SAMeshKit.cs -Value 'class SAMeshKit {}'");
+
+            Assert.IsNull(AgentHub.PendingPermission, "a PowerShell cmdlet write to Assets/**/*.cs must be auto-denied like a Bash redirection.");
+            Assert.AreEqual(baseline + 1, _fake.WrittenLines.Count);
+            string written = _fake.WrittenLines[_fake.WrittenLines.Count - 1];
+            StringAssert.Contains("\"behavior\":\"deny\"", written);
+            StringAssert.Contains("req-gate-ps1", written);
+            StringAssert.Contains("uap_scripts_commit", written);
+        }
+
+        [Test]
+        public void GateEnabled_PowerShellWriteIntoStagingFolder_FallsThroughToNormalCard()
+        {
+            PanelStateStore.instance.Settings.uapScriptGateEnabled = true;
+            int baseline = StartReadyClient();
+
+            SendPowerShellCanUseTool("req-gate-ps2", "Set-Content -Path UapStaging/Editor/SAMeshKit.cs -Value 'x'");
+
+            Assert.IsNotNull(AgentHub.PendingPermission, "a staging-path write must use the normal permission flow, even via PowerShell.");
+            Assert.AreEqual(baseline, _fake.WrittenLines.Count);
         }
 
         [Test]

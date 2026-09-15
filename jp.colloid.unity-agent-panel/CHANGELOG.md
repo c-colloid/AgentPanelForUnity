@@ -9,6 +9,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (nothing yet)
 
+## [0.53.0] - 2026-09-15
+
+### Added
+
+- **The script validation gate now tells the agent about staging up
+  front.** When the gate is on, the system prompt carries two lines saying
+  that `*.cs` / `*.asmdef` never go into `Assets/` directly, that they are
+  written under `UapStaging/` (mirroring the intended `Assets/` sub-path)
+  and moved in by `uap_scripts_commit`, and that no compile or refresh is
+  to be triggered by hand for them. Until now the agent learned about
+  `UapStaging/` only from the deny message after its first `Assets/` write
+  failed, once per session, compaction or resume, which read as "the agent
+  keeps ignoring staging" (design note
+  `docs/design-notes/2026-09-15-script-gate-steering-and-powershell.md`).
+  The gate itself is unchanged as the enforcement; the text is empty when
+  the gate is off.
+
+### Fixed
+
+- **The gate now catches script writes made through the CLI's PowerShell
+  tool.** On Windows the CLI's shell tool is named `PowerShell`, and the
+  can_use_tool pre-filter compared the tool name against `Bash` alone, so
+  `Set-Content -Path Assets/Foo.cs ...` went through ungated. Bash,
+  PowerShell and Shell are now treated alike, and the write-target scan
+  understands `Set-Content` / `Add-Content` / `Out-File` / `New-Item`
+  (named `-Path` / `-LiteralPath` / `-FilePath` or the first positional
+  argument), `Copy-Item` / `Move-Item` (`-Destination` or the second
+  positional argument, so moving a script OUT of `Assets/` is not gated)
+  and `[IO.File]::WriteAllText` / `WriteAllLines` / `WriteAllBytes`. The
+  generated PreToolUse hook matches `Bash|PowerShell` too and applies the
+  same scan to the command, so the gate holds even when a user's
+  "always allow" rule lets the CLI skip the permission round trip.
+- **The gate's "blocked a direct script write" note appears next to the
+  denied call.** It was appended as a separate message after the whole
+  assistant turn, so it showed up below tool calls that ran later and
+  looked as if the gate had fired late.
+
 ## [0.52.0] - 2026-09-15
 
 ### Added

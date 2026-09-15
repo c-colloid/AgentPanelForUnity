@@ -235,6 +235,45 @@ namespace Colloid.AgentPanel.Tests
         // ENABLED module list only, so a disabled module is never
         // advertised. --------------------------------------------------
 
+        // -- Script gate steering (design note 2026-09-15-script-gate-
+        // steering-and-powershell.md section 2) -----------------------------
+
+        [Test]
+        public void ScriptGateSteering_GateDisabled_ReturnsEmpty()
+        {
+            Assert.AreEqual(string.Empty, AgentHub.ComposeScriptGateSteeringSection(false));
+        }
+
+        [Test]
+        public void ScriptGateSteering_GateEnabled_NamesStagingFolderAndCommitTool()
+        {
+            string section = AgentHub.ComposeScriptGateSteeringSection(true);
+
+            StringAssert.Contains(ScriptGate.StagingFolder, section);
+            StringAssert.Contains("uap_scripts_commit", section);
+            StringAssert.Contains(".asmdef", section);
+            // The rule must cover the shell route too, or the agent reads
+            // "Write/Edit are blocked" as an invitation to Set-Content.
+            StringAssert.Contains("PowerShell", section);
+        }
+
+        [Test]
+        public void ScriptGateSteering_AgreesWithTheDenyMessage_OnFolderAndTool()
+        {
+            // Pre-emptive (system prompt) and after-the-fact (deny message)
+            // guidance name the same folder and the same tool.
+            string section = AgentHub.ComposeScriptGateSteeringSection(true);
+            StringAssert.Contains("'" + ScriptGate.StagingFolder + "'", section);
+            StringAssert.Contains("'" + ScriptGate.StagingFolder + "'", ScriptGate.DenyMessage);
+            StringAssert.Contains("uap_scripts_commit", ScriptGate.DenyMessage);
+        }
+
+        [Test]
+        public void ScriptGateSteering_StaysShort()
+        {
+            Assert.LessOrEqual(AgentHub.ComposeScriptGateSteeringSection(true).Split('\n').Length, 3);
+        }
+
         [Test]
         public void SteeringSection_UapOpsDisabled_ReturnsEmpty()
         {

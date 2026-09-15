@@ -281,6 +281,69 @@ namespace Colloid.AgentPanel.Tests
             Assert.IsFalse(ScriptGate.ShouldAutoDenyBashCommand(command));
         }
 
+        // -- PowerShell (design note 2026-09-15-script-gate-steering-and-
+        // powershell.md section 3): the CLI's shell tool on Windows is
+        // named "PowerShell" and its commands use cmdlets, not `>`/`tee`.
+        // Same scan, same gated-path resolution. ---------------------------
+
+        [TestCase("Bash")]
+        [TestCase("PowerShell")]
+        [TestCase("Shell")]
+        public void IsShellToolName_KnownShellTools_ReturnsTrue(string toolName)
+        {
+            Assert.IsTrue(ScriptGate.IsShellToolName(toolName));
+        }
+
+        [TestCase("Write")]
+        [TestCase("bash")]
+        [TestCase("")]
+        [TestCase(null)]
+        public void IsShellToolName_Others_ReturnsFalse(string toolName)
+        {
+            Assert.IsFalse(ScriptGate.IsShellToolName(toolName));
+        }
+
+        [TestCase("Set-Content -Path Assets/Editor/Foo.cs -Value \"class A {}\"")]
+        [TestCase("Set-Content Assets/Foo.cs -Value x")]
+        [TestCase("set-content -LiteralPath Assets/Foo.cs -Value x")]
+        [TestCase("Add-Content -Path:Assets/Foo.cs -Value x")]
+        [TestCase("$code | Out-File -FilePath \"H:\\Unity Projects\\Kakure House\\Assets\\Editor\\SAMeshKit.cs\" -Encoding utf8")]
+        [TestCase("$code | Out-File Assets/Foo.cs")]
+        [TestCase("New-Item -ItemType File -Path Assets/Sub/../Foo.cs -Force")]
+        [TestCase("$x | ac Assets/Foo.cs")]
+        [TestCase("Set-Content -Force Assets/Foo.cs")]
+        [TestCase("Set-Content -Encoding utf8 Assets/Foo.cs")]
+        [TestCase("Copy-Item UapStaging/Foo.cs -Destination Assets/Foo.cs")]
+        [TestCase("Move-Item UapStaging/Foo.cs Assets/Foo.cs")]
+        [TestCase("Copy-Item Assets/A.cs Assets/B.cs")]
+        [TestCase("[IO.File]::WriteAllText(\"Assets/Foo.cs\", $code)")]
+        [TestCase("[System.IO.File]::WriteAllLines('Assets/Foo.asmdef', $lines)")]
+        public void ShouldAutoDenyBashCommand_PowerShellWriteIdioms_ReturnTrue(string command)
+        {
+            Assert.IsTrue(ScriptGate.ShouldAutoDenyBashCommand(command), command);
+        }
+
+        [TestCase("Get-Content Assets/Foo.cs | Select-String x")]
+        [TestCase("Set-Content -Path Assets/Foo.txt -Value x")]
+        [TestCase("Set-Content -Path UapStaging/Foo.cs -Value x")]
+        [TestCase("Move-Item Assets/Old.cs UapStaging/Old.cs")]
+        [TestCase("Copy-Item Assets/Foo.cs -Destination UapStaging/Foo.cs")]
+        [TestCase("uloop execute-dynamic-code --code-file p0.cs")]
+        [TestCase("Test-Path Assets/Foo.cs")]
+        public void ShouldAutoDenyBashCommand_PowerShellReadsAndStagingWrites_ReturnFalse(string command)
+        {
+            Assert.IsFalse(ScriptGate.ShouldAutoDenyBashCommand(command), command);
+        }
+
+        [Test]
+        public void TryFindGatedBashTarget_OutFileNamedParameter_ReturnsThatPath()
+        {
+            string gated;
+            Assert.IsTrue(ScriptGate.TryFindGatedBashTarget(
+                "\"x\" | Out-File -Encoding utf8 -FilePath Assets/Foo.cs -Force", out gated));
+            Assert.AreEqual("Assets/Foo.cs", gated);
+        }
+
         [Test]
         public void TryFindGatedBashTarget_SedInPlace_ReturnsTheEditedFile()
         {
