@@ -218,7 +218,7 @@ Claude Code の代わりに、ACP(Agent Client Protocol)対応の CLI をパネ�
 | **コア** | シーンオブジェクトの作成・検索・inspect、コンポーネント追加、プロパティ/Transform の設定、アセット操作、メニュー実行、スクリプトのステージングとコミット |
 | **プレハブ**\*(Agent Panel Pro) | プレハブ作成、オーバーライドの一覧・適用(Apply)・巻き戻し(Revert) |
 | **エディタ** | Scene / Game ビューのスクリーンショット、任意のエディタメニューの実行。ライトマップベイク(非同期・プリフライト診断)と Bakery GPU Lightmapper 連携\*(Agent Panel Pro) |
-| **アニメーション**\*(Agent Panel Pro、既定 OFF) | AnimationClip 作成、AnimatorController 編集、マテリアル/シェーダプロパティ、アセットプロパティ設定、インポータ設定 |
+| **アニメーション**\*(Agent Panel Pro、既定 OFF) | AnimationClip 作成(float / GameObject の ON・OFF / スプライト等の差し替えカーブ、キー補間指定)、AnimatorController 編集(パラメータ/ステート/遷移/レイヤー/サブステートマシン/Entry・Exit/Write Defaults/Motion Time、遷移の詳細設定、要素の削除)、BlendTree(1D / 2D / Direct)の作成・編集、StateMachineBehaviour の付与・設定・削除、AvatarMask と AnimatorOverrideController の作成・編集、マテリアル/シェーダプロパティ、アセットプロパティ設定、インポータ設定 |
 | **UI 操作**\*(Agent Panel Pro、既定 OFF) | UI Toolkit ウィンドウの一覧・ダンプ・クリック・値設定によるエディタ UI 自動操作 |
 | **シーンビューのマーカー** | Scene ビューに番号付き 3D マーカーを置く(表示のみ。シーンは変更しない) |
 
