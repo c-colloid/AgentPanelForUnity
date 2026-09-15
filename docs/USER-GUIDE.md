@@ -218,7 +218,7 @@ Claude Code の代わりに、ACP(Agent Client Protocol)対応の CLI をパネ�
 | **コア** | シーンオブジェクトの作成・検索・inspect、コンポーネント追加、プロパティ/Transform の設定、アセット操作、メニュー実行、スクリプトのステージングとコミット |
 | **プレハブ**\*(Agent Panel Pro) | プレハブ作成、オーバーライドの一覧・適用(Apply)・巻き戻し(Revert) |
 | **エディタ** | Scene / Game ビューのスクリーンショット、任意のエディタメニューの実行。ライトマップベイク(非同期・プリフライト診断)と Bakery GPU Lightmapper 連携\*(Agent Panel Pro) |
-| **アニメーション**\*(Agent Panel Pro、既定 OFF) | AnimationClip 作成、AnimatorController 編集(パラメータ/ステート/遷移/レイヤー/Write Defaults)、BlendTree(1D / 2D / Direct)の作成・編集、StateMachineBehaviour の付与・設定・削除、マテリアル/シェーダプロパティ、アセットプロパティ設定、インポータ設定 |
+| **アニメーション**\*(Agent Panel Pro、既定 OFF) | AnimationClip 作成(float / GameObject の ON・OFF / スプライト等の差し替えカーブ、キー補間指定)、AnimatorController 編集(パラメータ/ステート/遷移/レイヤー/サブステートマシン/Entry・Exit/Write Defaults/Motion Time、遷移の詳細設定、要素の削除)、BlendTree(1D / 2D / Direct)の作成・編集、StateMachineBehaviour の付与・設定・削除、AvatarMask と AnimatorOverrideController の作成・編集、マテリアル/シェーダプロパティ、アセットプロパティ設定、インポータ設定 |
 | **UI 操作**\*(Agent Panel Pro、既定 OFF) | UI Toolkit ウィンドウの一覧・ダンプ・クリック・値設定によるエディタ UI 自動操作 |
 | **シーンビューのマーカー** | Scene ビューに番号付き 3D マーカーを置く(表示のみ。シーンは変更しない) |
 
@@ -233,7 +233,7 @@ Claude Code の代わりに、ACP(Agent Client Protocol)対応の CLI をパネ�
 - **時間のかかる操作**(Pro のライトマップベイクなど)はジョブになり、エージェントが `uap_job_status` で後から結果を取得します。Editor が処理中でも応答は返ります。
 - **拡張プロファイル**(設定 > 拡張プロファイル): 検出したサードパーティ SDK の要点をエージェントの指示に追加します。
   - プロジェクト独自のプロファイル(プロジェクト直下の `.uap-profiles/*.json`)は Core だけで使えます。「確認して承認」で全文を確認してから有効になります。
-  - VRChat SDK3 / UniVRM / MagicaCloth2 / Final IK / Bakery / RPG Maker Unite を自動検出する同梱プロファイルは Pro に収録されています。Pro 未導入のプロジェクトでは、対応 SDK が入っていても検出されず、その旨がこの欄に表示されます。
+  - VRChat SDK3 / NDMF / Modular Avatar / Avatar Optimizer / UniVRM / MagicaCloth2 / Final IK / Bakery / RPG Maker Unite を自動検出する同梱プロファイルは Pro に収録されています。Pro 未導入のプロジェクトでは、対応 SDK が入っていても検出されず、その旨がこの欄に表示されます。
 - **uLoop 連携**(設定 > uLoop連携): [uLoopMCP](https://github.com/hatayama/uLoopMCP) を導入しているプロジェクトでは、「uloopコマンドを許可」で権限ルールを、「指示スニペットを挿入」でカスタム指示を追加できます。未導入なら「uLoopを導入」から導入できます(変更内容を確認してから実行)。
 
 ## 13. Scene ビューのマーカーとピン
