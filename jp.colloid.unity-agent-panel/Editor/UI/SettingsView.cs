@@ -2360,9 +2360,9 @@ namespace Colloid.AgentPanel.UI
             _uapOpsEditorModuleToggle.SetValueWithoutNotify(PanelStateStore.instance.Settings.uapOpsModules.Contains("editor"));
             _uapOpsEditorModuleToggle.RegisterValueChangedCallback(OnUapOpsEditorModuleToggleChanged);
             section.Add(_uapOpsEditorModuleToggle);
-            // "editor" keeps uap_editor_screenshot/uap_editor_execute_menu in
-            // Core even with Pro absent (only the lightmap/Bakery bake tools
-            // moved out), so this toggle is never disabled -- always show the
+            // "editor" keeps uap_editor_screenshot/uap_editor_execute_menu/
+            // uap_editor_select in Core even with Pro absent (only the
+            // lightmap/Bakery bake tools moved out), so this toggle is never disabled -- always show the
             // ordinary hint, never the Pro-absent one.
             AddHint(section, L10n.S.SettingsUapOpsModuleEditorHint).AddToClassList("uap-settings-hint--child");
 

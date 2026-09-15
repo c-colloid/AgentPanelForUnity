@@ -701,7 +701,7 @@ namespace Colloid.AgentPanel.UI
                 settingsUapOpsModulePrefabLabel: "プレハブ",
                 settingsUapOpsModulePrefabHint: "プレハブの作成/オーバーライドの適用・巻き戻しツール一式。",
                 settingsUapOpsModuleEditorLabel: "エディタ",
-                settingsUapOpsModuleEditorHint: "スクリーンショット撮影(Scene/Gameビュー) + 任意のエディタメニューコマンド実行。",
+                settingsUapOpsModuleEditorHint: "スクリーンショット撮影(Scene/Gameビュー)、オブジェクトの選択、任意のエディタメニューコマンド実行。",
                 settingsUapOpsModuleAnimLabel: "アニメーション",
                 settingsUapOpsModuleAnimHint: "アニメーションクリップ/AnimatorControllerの編集、マテリアル/シェーダプロパティ、インポータ/アバター設定。既定OFF。",
                 settingsUapOpsModuleMarkersLabel: "シーンビューのマーカー",
@@ -727,7 +727,7 @@ namespace Colloid.AgentPanel.UI
                 settingsExtensionProfilesHint:
                     "検出されたサードパーティ SDK の知識ブロックを、{agent} のシステムプロンプトに追加します。",
                 settingsExtensionProfilesTooltip:
-                    "検出されたサードパーティ SDK(VRChat SDK3、UniVRM、MagicaCloth2、FinalIK など)について、コンポーネント型をあらかじめ把握させるための短い知識ブロックを {agent} のシステムプロンプトに追加します。同梱プロファイル(Agent Panel Pro などの拡張パッケージが提供)は自動で注入されますが、.uap-profiles/*.json に置いたユーザー定義のプロファイルは、下での明示的な承認が必要です。",
+                    "検出されたサードパーティ SDK(VRChat SDK3、NDMF、Modular Avatar、Avatar Optimizer、UniVRM、MagicaCloth2、FinalIK など)について、コンポーネント型をあらかじめ把握させるための短い知識ブロックを {agent} のシステムプロンプトに追加します。同梱プロファイル(Agent Panel Pro などの拡張パッケージが提供)は自動で注入されますが、.uap-profiles/*.json に置いたユーザー定義のプロファイルは、下での明示的な承認が必要です。",
                 settingsExtensionProfilesEnabledLabel: "拡張プロファイルを有効化",
                 settingsExtensionProfilesEnabledTooltip:
                     "次回の再接続後に適用されます。",
@@ -840,7 +840,8 @@ namespace Colloid.AgentPanel.UI
                     + "追加するには Pro パッケージをプロジェクトの Packages/ 直下に展開してください。次回のドメインリロード後に"
                     + "このトグルが有効になります。詳細は README の「Core と Pro」を参照してください。",
                 settingsExtensionProfilesNoBundledHint: "同梱の SDK プロファイルは未導入です。プロジェクトの .uap-profiles/*.json は引き続き使えます。",
-                settingsExtensionProfilesNoBundledTooltip: "VRChat SDK3 / UniVRM / MagicaCloth2 / Final IK / Bakery / RPG Maker Unite の同梱プロファイルは、"
+                settingsExtensionProfilesNoBundledTooltip: "VRChat SDK3 / NDMF / Modular Avatar / Avatar Optimizer / UniVRM / "
+                    + "MagicaCloth2 / Final IK / Bakery / RPG Maker Unite の同梱プロファイルは、"
                     + "別売の Agent Panel Pro パッケージ(jp.colloid.agent-panel-pro)に収録されています。Pro なしでは、この一覧には"
                     + "プロジェクト直下の .uap-profiles/*.json に自分で置いたプロファイルだけが表示され、それぞれ下で承認してから注入されます。",
                 settingsUapOpsModuleUiLabel: "UI 操作",

@@ -64,6 +64,13 @@ namespace Colloid.AgentPanel.Tests
             "uap_asset_delete",
             "uap_scripts_commit",
             "uap_editor_execute_menu",
+            // 2026-09-14: writes no project or scene data, but it decides
+            // what the NEXT call acts on -- auto-approving it would let an
+            // agent silently retarget a destructive uap_editor_execute_menu
+            // that the user approved while looking at a different object --
+            // and it moves the user's Hierarchy/Inspector focus. Same
+            // reasoning as the marker tools below.
+            "uap_editor_select",
             // 2026-09-07 markers module: add/clear change what is on the
             // user's screen (not the project) -- still a side effect the
             // permission card must ask about, so never auto-approved.

@@ -139,6 +139,14 @@ namespace Colloid.AgentPanel.Ops
             // IUapToolProvider discovery pass below.
             RegisterUnlessCovered(registry, new UapEditorScreenshotTool(), uloopDetected);
             RegisterUnlessCovered(registry, new UapEditorExecuteMenuTool(), uloopDetected);
+            // 2026-09-14: the other half of execute_menu -- a great many
+            // third-party menu items take no argument and act on whatever
+            // Selection holds (NDMF / Modular Avatar "Manual bake avatar",
+            // the VRChat SDK build panel, UniVRM export, Bakery's
+            // selected-scope bake), and the panel could previously only
+            // read the selection, never set it. Design note
+            // docs/design-notes/2026-09-14-selection-set-tool.md.
+            RegisterUnlessCovered(registry, new UapEditorSelectTool(), uloopDetected);
             // 2026-09-07 -- "markers" module (design note section 1.3.3):
             // Scene-view 3D markers the agent points with; default ON.
             RegisterUnlessCovered(registry, new UapMarkerAddTool(), uloopDetected);

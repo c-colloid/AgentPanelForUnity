@@ -78,6 +78,33 @@ namespace Colloid.AgentPanel.Tests
         }
 
         [Test]
+        public void IsPackageIdPresent_VpmEmbeddedPackageDirectory_ReturnsTrue()
+        {
+            // VCC/ALCOM install a VPM package by COPYING it into
+            // Packages/<id>/ and recording it in Packages/vpm-manifest.json
+            // -- it is an embedded package, so it is absent from
+            // manifest.json's dependencies and from Library/PackageCache.
+            // ExtensionProfileDetectionCache therefore feeds the Packages/
+            // listing in alongside the PackageCache one; without it the
+            // packageIds half could never fire for NDMF, Modular Avatar or
+            // the VRChat SDK itself.
+            var packageDirs = new List<string> { "nadena.dev.ndmf", "nadena.dev.modular-avatar", "com.vrchat.avatars" };
+            Assert.IsTrue(ExtensionProfileDetector.IsPackageIdPresent(
+                "nadena.dev.modular-avatar", "{ \"dependencies\": { \"com.unity.ide.rider\": \"3.0.28\" } }", packageDirs));
+        }
+
+        [Test]
+        public void IsPackageIdPresent_VpmSiblingPackage_DoesNotFalsePositive()
+        {
+            // "nadena.dev.ndmf" must not be satisfied by the separate
+            // "nadena.dev.ndmf-preview" style sibling that merely shares
+            // its prefix -- only an exact name or an "<id>@..." suffix.
+            var packageDirs = new List<string> { "nadena.dev.ndmf-experimental" };
+            Assert.IsFalse(ExtensionProfileDetector.IsPackageIdPresent(
+                "nadena.dev.ndmf", string.Empty, packageDirs));
+        }
+
+        [Test]
         public void IsPackageIdPresent_NeitherManifestNorCache_ReturnsFalse()
         {
             Assert.IsFalse(ExtensionProfileDetector.IsPackageIdPresent(

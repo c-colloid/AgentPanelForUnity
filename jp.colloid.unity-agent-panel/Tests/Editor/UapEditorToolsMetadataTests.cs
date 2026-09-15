@@ -6,7 +6,8 @@ namespace Colloid.AgentPanel.Tests
 {
     /// <summary>
     /// Per-tool pure metadata seams for the Phase 5b stream A "editor"
-    /// module (uap_editor_screenshot / uap_editor_execute_menu) -- no
+    /// module (uap_editor_screenshot / uap_editor_execute_menu /
+    /// uap_editor_select) -- no
     /// HTTP/editor-mutation involved, just Name/Module/Undoable/InputSchema
     /// shape (mirrors UapCoreToolsMetadataTests/UapPrefabToolsMetadataTests).
     ///
@@ -25,6 +26,7 @@ namespace Colloid.AgentPanel.Tests
 
         [TestCase("uap_editor_screenshot")]
         [TestCase("uap_editor_execute_menu")]
+        [TestCase("uap_editor_select")]
         public void Tool_IsNotUndoable(string toolName)
         {
             IUapTool tool = Registry().Find(toolName);
@@ -34,6 +36,7 @@ namespace Colloid.AgentPanel.Tests
 
         [TestCase("uap_editor_screenshot")]
         [TestCase("uap_editor_execute_menu")]
+        [TestCase("uap_editor_select")]
         public void Tool_IsInEditorModule(string toolName)
         {
             IUapTool tool = Registry().Find(toolName);
@@ -43,6 +46,7 @@ namespace Colloid.AgentPanel.Tests
 
         [TestCase("uap_editor_screenshot")]
         [TestCase("uap_editor_execute_menu")]
+        [TestCase("uap_editor_select")]
         public void Tool_InputSchema_IsAnObjectSchema(string toolName)
         {
             IUapTool tool = Registry().Find(toolName);
@@ -54,6 +58,7 @@ namespace Colloid.AgentPanel.Tests
 
         [TestCase("uap_editor_screenshot")]
         [TestCase("uap_editor_execute_menu")]
+        [TestCase("uap_editor_select")]
         public void Tool_Description_IsNonEmpty(string toolName)
         {
             IUapTool tool = Registry().Find(toolName);

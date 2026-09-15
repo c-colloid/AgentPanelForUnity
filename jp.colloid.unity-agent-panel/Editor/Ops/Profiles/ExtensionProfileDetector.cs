@@ -14,10 +14,11 @@ namespace Colloid.AgentPanel.Ops.Profiles
     /// <summary>
     /// Pure Extension Profile detection scanner (design section 3b, C2):
     /// a profile is DETECTED when either (a) one of its declared packageIds
-    /// appears in the project's package manifest or package cache, or (b)
-    /// one of its declared typeNames resolves to an actually-compiled type
-    /// (the fallback that lets an Assets/-installed, package-id-less SDK
-    /// like FinalIK be detected at all).
+    /// appears in the project's package manifest, its Library/PackageCache
+    /// listing or its Packages/ listing (where embedded and VPM-installed
+    /// packages live), or (b) one of its declared typeNames resolves to an
+    /// actually-compiled type (the fallback that lets an Assets/-installed,
+    /// package-id-less SDK like FinalIK be detected at all).
     ///
     /// Deliberately takes every environment fact as a plain string/
     /// interface parameter rather than reading Packages/manifest.json or
@@ -30,7 +31,7 @@ namespace Colloid.AgentPanel.Ops.Profiles
     public static class ExtensionProfileDetector
     {
         public static bool IsDetected(ExtensionProfile profile, string manifestJsonText,
-            IEnumerable<string> packageCacheDirectoryNames, IUapTypeExistenceResolver typeResolver)
+            IEnumerable<string> packageDirectoryNames, IUapTypeExistenceResolver typeResolver)
         {
             if (profile == null)
             {
@@ -40,7 +41,7 @@ namespace Colloid.AgentPanel.Ops.Profiles
             {
                 for (int i = 0; i < profile.PackageIds.Count; i++)
                 {
-                    if (IsPackageIdPresent(profile.PackageIds[i], manifestJsonText, packageCacheDirectoryNames))
+                    if (IsPackageIdPresent(profile.PackageIds[i], manifestJsonText, packageDirectoryNames))
                     {
                         return true;
                     }
@@ -61,14 +62,19 @@ namespace Colloid.AgentPanel.Ops.Profiles
 
         /// <summary>
         /// True when <paramref name="packageId"/> is either a key under
-        /// manifest.json's "dependencies" object, OR matches a
-        /// Library/PackageCache directory name exactly or as a
-        /// "&lt;id&gt;@..." prefix (the on-disk naming for a resolved
-        /// registry/git package). Either input may be null/empty (treated
-        /// as "nothing to check there").
+        /// manifest.json's "dependencies" object, OR matches one of
+        /// <paramref name="packageDirectoryNames"/> exactly or as a
+        /// "&lt;id&gt;@..." prefix. The caller supplies both the
+        /// Library/PackageCache listing (the on-disk naming for a resolved
+        /// registry/git package) and the Packages/ listing, which is where
+        /// EMBEDDED packages live -- including everything installed by
+        /// VCC/ALCOM through VPM (the VRChat SDK, NDMF, Modular Avatar,
+        /// ...), which is recorded in Packages/vpm-manifest.json and never
+        /// reaches manifest.json's dependencies at all. Either input may
+        /// be null/empty (treated as "nothing to check there").
         /// </summary>
         public static bool IsPackageIdPresent(string packageId, string manifestJsonText,
-            IEnumerable<string> packageCacheDirectoryNames)
+            IEnumerable<string> packageDirectoryNames)
         {
             if (string.IsNullOrEmpty(packageId))
             {
@@ -78,9 +84,9 @@ namespace Colloid.AgentPanel.Ops.Profiles
             {
                 return true;
             }
-            if (packageCacheDirectoryNames != null)
+            if (packageDirectoryNames != null)
             {
-                foreach (string dir in packageCacheDirectoryNames)
+                foreach (string dir in packageDirectoryNames)
                 {
                     if (string.IsNullOrEmpty(dir))
                     {

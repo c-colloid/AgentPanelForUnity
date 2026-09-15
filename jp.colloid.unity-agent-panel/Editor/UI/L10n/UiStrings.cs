@@ -1637,7 +1637,7 @@ namespace Colloid.AgentPanel.UI
         public readonly string SettingsUapOpsModuleEditorLabel = "Editor";
 
         public readonly string SettingsUapOpsModuleEditorHint =
-            "Screenshot capture (Scene/Game view) + arbitrary Editor menu command execution.";
+            "Screenshot capture (Scene/Game view), object selection, and arbitrary Editor menu command execution.";
 
         // ==================================================================
         // Phase 5b stream B -- "anim" UapOps module toggle (docs/design-
@@ -1694,7 +1694,7 @@ namespace Colloid.AgentPanel.UI
         public readonly string SettingsExtensionProfilesHint =
             "Detected third-party SDKs add a short knowledge block to {agent}'s system prompt.";
         public readonly string SettingsExtensionProfilesTooltip =
-            "Detected third-party SDKs (VRChat SDK3, UniVRM, MagicaCloth2, FinalIK and others) get a short knowledge block appended to {agent}'s system prompt, so it already knows their component types. Bundled profiles (shipped by add-on packages such as Agent Panel Pro) are injected automatically; user-supplied profiles from .uap-profiles/*.json require your explicit approval below.";
+            "Detected third-party SDKs (VRChat SDK3, NDMF, Modular Avatar, Avatar Optimizer, UniVRM, MagicaCloth2, FinalIK and others) get a short knowledge block appended to {agent}'s system prompt, so it already knows their component types. Bundled profiles (shipped by add-on packages such as Agent Panel Pro) are injected automatically; user-supplied profiles from .uap-profiles/*.json require your explicit approval below.";
 
         public readonly string SettingsExtensionProfilesEnabledLabel = "Enable extension profiles";
 
@@ -2139,8 +2139,8 @@ namespace Colloid.AgentPanel.UI
             "Lists, dumps, clicks and sets values in UI Toolkit Editor windows (uap_editor_ui_*). Default OFF.";
 
         public readonly string SettingsExtensionProfilesNoBundledTooltip =
-            "The bundled profiles for VRChat SDK3, UniVRM, MagicaCloth2, Final IK, Bakery and RPG Maker Unite"
-            + " ship in the separately sold Agent Panel Pro package (jp.colloid.agent-panel-pro). Without it"
+            "The bundled profiles for VRChat SDK3, NDMF, Modular Avatar, Avatar Optimizer, UniVRM,"
+            + " MagicaCloth2, Final IK, Bakery and RPG Maker Unite ship in the separately sold Agent Panel Pro package (jp.colloid.agent-panel-pro). Without it"
             + " this list only shows profiles you add yourself as .uap-profiles/*.json under the project root,"
             + " each approved below before it is injected.";
 

@@ -7,9 +7,10 @@ namespace Colloid.AgentPanel.Ops.Profiles
     /// <summary>
     /// Thin production wrapper around the pure <see cref="ExtensionProfileDetector"/>
     /// (design section 3b/C2 "cache per domain-load"): reads
-    /// Packages/manifest.json and the Library/PackageCache directory
-    /// listing ONCE per domain-load (plain static fields, so they reset
-    /// naturally on the next domain reload -- no explicit invalidation
+    /// Packages/manifest.json, the Library/PackageCache directory listing
+    /// and the Packages/ directory listing ONCE per domain-load (plain
+    /// static fields, so they reset naturally on the next domain reload
+    /// -- no explicit invalidation
     /// needed for the common case), then memoizes each profile's detected
     /// result by an opaque caller-supplied key (distinct per bundled
     /// profile id and per user-profile content hash, so an approved user
@@ -23,7 +24,7 @@ namespace Colloid.AgentPanel.Ops.Profiles
         private static Dictionary<string, bool> _resultCache;
         private static bool _environmentLoaded;
         private static string _manifestJsonText;
-        private static List<string> _packageCacheDirectoryNames;
+        private static List<string> _packageDirectoryNames;
 
         public static bool IsDetected(string cacheKey, ExtensionProfile profile, string projectRoot)
         {
@@ -38,7 +39,7 @@ namespace Colloid.AgentPanel.Ops.Profiles
                 return cached;
             }
             bool detected = ExtensionProfileDetector.IsDetected(
-                profile, _manifestJsonText, _packageCacheDirectoryNames, TypeResolver);
+                profile, _manifestJsonText, _packageDirectoryNames, TypeResolver);
             if (!string.IsNullOrEmpty(cacheKey))
             {
                 _resultCache[cacheKey] = detected;
@@ -53,7 +54,7 @@ namespace Colloid.AgentPanel.Ops.Profiles
                 return;
             }
             _manifestJsonText = SafeReadManifest(projectRoot);
-            _packageCacheDirectoryNames = SafeReadPackageCacheDirectoryNames(projectRoot);
+            _packageDirectoryNames = SafeReadPackageDirectoryNames(projectRoot);
             _environmentLoaded = true;
         }
 
@@ -70,28 +71,44 @@ namespace Colloid.AgentPanel.Ops.Profiles
             }
         }
 
-        private static List<string> SafeReadPackageCacheDirectoryNames(string projectRoot)
+        /// <summary>
+        /// Directory names under BOTH Library/PackageCache (resolved
+        /// registry/git packages) and Packages/ (embedded packages). The
+        /// Packages/ half is what makes package-id detection work at all
+        /// for anything installed by VCC/ALCOM through VPM -- the VRChat
+        /// SDK, NDMF, Modular Avatar and the rest of that ecosystem are
+        /// copied into Packages/&lt;id&gt;/ and tracked in
+        /// Packages/vpm-manifest.json, so they appear neither in
+        /// manifest.json's dependencies nor in Library/PackageCache.
+        /// </summary>
+        private static List<string> SafeReadPackageDirectoryNames(string projectRoot)
         {
             var result = new List<string>();
+            string root = projectRoot ?? ".";
+            AppendDirectoryNames(result, Path.Combine(root, "Library", "PackageCache"));
+            AppendDirectoryNames(result, Path.Combine(root, "Packages"));
+            return result;
+        }
+
+        private static void AppendDirectoryNames(List<string> into, string path)
+        {
             try
             {
-                string path = Path.Combine(projectRoot ?? ".", "Library", "PackageCache");
                 if (Directory.Exists(path))
                 {
                     string[] dirs = Directory.GetDirectories(path);
                     for (int i = 0; i < dirs.Length; i++)
                     {
-                        result.Add(Path.GetFileName(dirs[i]));
+                        into.Add(Path.GetFileName(dirs[i]));
                     }
                 }
             }
             catch (Exception)
             {
-                // Best-effort: an unreadable Library/PackageCache just means
-                // package-id detection falls back to the manifest.json half
-                // alone (still checked above) plus the typeNames half.
+                // Best-effort: an unreadable directory just means package-id
+                // detection falls back to the manifest.json half (still
+                // checked above), the other directory, and the typeNames half.
             }
-            return result;
         }
 
         /// <summary>Test seam: drops the cached environment snapshot and per-profile results so a test can re-run detection against a different fake environment within the same domain.</summary>
@@ -100,7 +117,7 @@ namespace Colloid.AgentPanel.Ops.Profiles
             _resultCache = null;
             _environmentLoaded = false;
             _manifestJsonText = null;
-            _packageCacheDirectoryNames = null;
+            _packageDirectoryNames = null;
         }
     }
 }

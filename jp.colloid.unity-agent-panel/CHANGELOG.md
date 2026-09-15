@@ -9,6 +9,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (nothing yet)
 
+## [0.49.0] - 2026-09-15
+
+### Added
+
+- **`uap_editor_select`** -- sets the Editor's object selection, so a menu
+  command that acts on "the current selection" gets the right target
+  (design note `docs/design-notes/2026-09-14-selection-set-tool.md`).
+  `uap_editor_execute_menu` shipped as the universal lever for third-party
+  extensions that expose no other stable API, but a great many of the menu
+  items worth driving take no argument at all and read `Selection` instead
+  -- NDMF's and Modular Avatar's "Manual bake avatar", the VRChat SDK build
+  panel, UniVRM's exporters, Bakery's selected-scope bake, RPG Maker
+  Unite's editors. Until now the panel could only read the selection
+  (the context bar), never set it, so any of those was a step the agent had
+  to ask a human to perform by hand mid-task, with no way to verify they
+  had. Takes one of `path` (one scene object), `paths` (several, max 256),
+  `assetPath` (a project asset) or `clear: true`; every path is resolved
+  before `Selection` is touched, so a bad path throws with the previous
+  selection intact instead of leaving a half-applied one for the next call
+  to act on. A single target lands in `Selection.activeGameObject`
+  specifically, which is the field those menu items read. Returns what
+  ended up selected. In the `editor` module, and **not** auto-approved as
+  read-only: it writes no project or scene data, but it decides what the
+  next call acts on.
+
+### Fixed
+
+- **Extension-profile detection now sees VPM/embedded packages.** A
+  profile's `packageIds` were only matched against `Packages/manifest.json`
+  dependencies and `Library/PackageCache` directory names. VCC / ALCOM
+  install a VPM package by copying it into `Packages/<id>/` and recording
+  it in `Packages/vpm-manifest.json`, so it appears in neither -- meaning
+  the package half of detection had never once fired for the VRChat
+  ecosystem (the VRChat SDK, NDMF, Modular Avatar, UniVRM), which was
+  reaching detection only through the `typeNames` fallback.
+  `ExtensionProfileDetectionCache` now reads the `Packages/` directory
+  listing alongside `Library/PackageCache`. The `<id>@version` prefix rule
+  is unchanged, so a sibling package that merely shares a prefix
+  (`nadena.dev.ndmf-experimental` vs `nadena.dev.ndmf`) still does not
+  match. Design note
+  `docs/design-notes/2026-09-14-ndmf-modular-avatar-profiles.md`.
+
+### Changed
+
+- **Settings > Extension profiles names NDMF, Modular Avatar and Avatar
+  Optimizer** in its tooltip and in the "no bundled profiles" note
+  (English and Japanese), alongside the SDKs already listed. Agent Panel
+  Pro ships those bundled profiles; Core's behaviour is unchanged.
+
 ## [0.48.0] - 2026-09-14
 
 ### Added
@@ -26,6 +75,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   StateMachineBehaviour-only resolver, used by the Pro package's animator
   tools. Design note
   `docs/design-notes/2026-09-14-animator-layers-blendtree-behaviours.md`.
+
 
 ## [0.47.1] - 2026-09-14
 
