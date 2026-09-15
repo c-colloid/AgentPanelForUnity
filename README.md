@@ -88,7 +88,7 @@ Git がインストールされている必要があります(無ければ [git-
 
 ## Core と Pro
 
-この README で導入するのは **Core**(`jp.colloid.unity-agent-panel`、MIT)で、単体ですべての基本機能が動きます。別売の **Agent Panel Pro**(`jp.colloid.agent-panel-pro`、[PolyForm Internal Use License 1.0.0](https://polyformproject.org/licenses/internal-use/1.0.0): 内部利用と改変は可、配布は不可)を追加すると、プレハブのオーバーライド操作、アニメーション / マテリアル編集、ライトマップベイク(Bakery 対応)、エディタ UI の自動操作、VRChat SDK3 / NDMF / Modular Avatar / VRCFury / Avatar Optimizer / lilycalInventory / lilToon / UniVRM / MagicaCloth2 / Final IK などの同梱プロファイルが使えるようになります。Pro の導入は購入時に受け取るレジストリ URL と製品キーを 設定 > **Agent Panel Pro の更新** に入力するだけで、以後は Package Manager または VCC / ALCOM から更新できます(詳細は [操作ガイド](docs/USER-GUIDE.md#15-設定画面リファレンス))。
+この README で導入するのは **Core**(`jp.colloid.unity-agent-panel`、MIT)で、単体ですべての基本機能が動きます。別売の **Agent Panel Pro**(`jp.colloid.agent-panel-pro`、[PolyForm Internal Use License 1.0.0](https://polyformproject.org/licenses/internal-use/1.0.0): 内部利用と改変は可、配布は不可)を追加すると、プレハブのオーバーライド操作、アニメーション / マテリアル編集、ライトマップベイク(Bakery 対応)、エディタ UI の自動操作、VRChat SDK3 / NDMF / Modular Avatar / VRCFury / Avatar Optimizer / lilycalInventory / lilToon / UniVRM / MagicaCloth2 / Final IK / ProBuilder などの同梱プロファイルが使えるようになります。Pro の導入は購入時に受け取るレジストリ URL と製品キーを 設定 > **Agent Panel Pro の更新** に入力するだけで、以後は Package Manager または VCC / ALCOM から更新できます(詳細は [操作ガイド](docs/USER-GUIDE.md#15-設定画面リファレンス))。
 
 ## ドキュメント
 

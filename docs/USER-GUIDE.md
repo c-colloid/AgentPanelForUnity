@@ -238,7 +238,7 @@ Claude Code の代わりに、ACP(Agent Client Protocol)対応の CLI をパネ�
 - **時間のかかる操作**(Pro のライトマップベイクなど)はジョブになり、エージェントが `uap_job_status` で後から結果を取得します。Editor が処理中でも応答は返ります。
 - **拡張プロファイル**(設定 > 拡張プロファイル): 検出したサードパーティ SDK の要点をエージェントの指示に追加します。
   - プロジェクト独自のプロファイル(プロジェクト直下の `.uap-profiles/*.json`)は Core だけで使えます。「確認して承認」で全文を確認してから有効になります。
-  - VRChat SDK3 / NDMF / Modular Avatar / VRCFury / Avatar Optimizer / lilycalInventory / lilToon / UniVRM / MagicaCloth2 / Final IK / Bakery / RPG Maker Unite を自動検出する同梱プロファイルは Pro に収録されています。Pro 未導入のプロジェクトでは、対応 SDK が入っていても検出されず、その旨がこの欄に表示されます。
+  - VRChat SDK3 / NDMF / Modular Avatar / VRCFury / Avatar Optimizer / lilycalInventory / lilToon / UniVRM / MagicaCloth2 / Final IK / Bakery / RPG Maker Unite / ProBuilder を自動検出する同梱プロファイルは Pro に収録されています。Pro 未導入のプロジェクトでは、対応 SDK が入っていても検出されず、その旨がこの欄に表示されます。
 - **uLoop 連携**(設定 > uLoop連携): [uLoopMCP](https://github.com/hatayama/uLoopMCP) を導入しているプロジェクトでは、「uloopコマンドを許可」で権限ルールを、「指示スニペットを挿入」でカスタム指示を追加できます。未導入なら「uLoopを導入」から導入できます(変更内容を確認してから実行)。
 
 ## 13. Scene ビューのマーカーとピン
