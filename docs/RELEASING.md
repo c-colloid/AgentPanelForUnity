@@ -62,7 +62,7 @@ Core とは別系統。CHANGELOG は `jp.colloid.agent-panel-pro/CHANGELOG.md`�
 バージョンは同パッケージの `package.json`。**Pro に変更があったときだけ**
 上げる(Core だけの変更ではバンプしない)。リリースコミットのメッセージは
 `Release pro-vX.Y.Z: <概要>` とし(`Release vX.Y.Z` と紛れないよう接頭辞
-`pro-` を付ける)、タグ `pro-vX.Y.Z` は `publish-pro.yml` が自動で打つ
+`pro-` を付ける)、タグ `pro-vX.Y.Z` は `build-pro-bundle.yml` が自動で打つ
 (手で打つ必要はない。`tag-release.yml` は Core の package.json しか見て
 いないので、Core のタグとは別経路)。Core と Pro を同じ作業ブランチで
 同時に変更した場合は、この手順のとおり Core のリリースコミットを切った
@@ -75,10 +75,11 @@ Pro は zip の手渡しではなく、トークン認証付きの npm 互換 sc
 (Cloudflare Worker、`registry/`。設計は
 `docs/design-notes/2026-09-12-pro-update-delivery.md`)から配信する。
 `Release pro-vX.Y.Z` のコミットが main に載ると
-`.github/workflows/publish-pro.yml` が `npm pack` で tgz を作り、R2 へ上げ、
-Worker の admin API に版を登録し、続けて下の GitHub Release も作る
-(登録済みの版・既存のタグ・既にある資産はすべて no-op。取りこぼしたら
-workflow_dispatch で再実行)。必要なリポジトリ設定(`CLOUDFLARE_API_TOKEN`
+`.github/workflows/publish-pro.yml` が `npm pack` で tgz と zip を作り、
+R2 へ上げ、Worker の admin API に版を登録する(登録済みの版は no-op。
+取りこぼしたら workflow_dispatch で再実行)。タグも Release も作らない ——
+それは下の `build-pro-bundle.yml` の仕事。必要なリポジトリ設定
+(`CLOUDFLARE_API_TOKEN`
 / `CLOUDFLARE_ACCOUNT_ID` / `REGISTRY_ADMIN_TOKEN` のシークレットと
 `REGISTRY_URL` の変数)、Worker の初期構築、製品キーの発行コマンドは
 `registry/README.md` を参照。購入者側は パネルの 設定 > Agent Panel Pro の
@@ -91,26 +92,29 @@ workflow_dispatch で再実行)。必要なリポジトリ設定(`CLOUDFLARE_API
 
 ### Pro の GitHub Release(このプライベートリポジトリ)
 
-同じ `publish-pro.yml` が、レジストリへの登録に続けて **このリポジトリ**に
-`pro-vX.Y.Z` タグと GitHub Release を作る(設計は
-`docs/design-notes/2026-09-15-pro-private-github-release.md`)。添付するのは
-R2 に上げたのと同じバイト列の 2 ファイル:
+各版に `pro-vX.Y.Z` タグと GitHub Release を作る(設計は
+`docs/design-notes/2026-09-15-pro-private-github-release.md`)。作るのは
+**`build-pro-bundle.yml`** —— Release を読む唯一のワークフローであり、
+そこに載せる中身を作る当人。`publish-pro.yml` は関与しない。
 
-- `jp.colloid.agent-panel-pro-X.Y.Z.zip` — `package.json` が zip のルートに
-  来る形。BOOTH に出す・購入者に個別に渡すのはこれ。
-- `jp.colloid.agent-panel-pro-X.Y.Z.tgz` — レジストリが配るのと同じ tarball
-  (署名設定があれば署名入り)。
-
-このあと `build-pro-bundle.yml` が同じ Release に BOOTH 用の束
-(`AgentPanelPro-<ver>-<lot>.zip`)を足すので、Release には最終的に
-「素のパッケージ 2 種 + BOOTH にそのまま上げられる 1 本」が並ぶ。
+**Release に載るのは BOOTH 用の束 `AgentPanelPro-<ver>-<lot>.zip` 1 つだけ。**
+パッケージ本体(zip / tgz)は載せない。本体は R2 に置かれ、購入者にはレジストリ
+から配られる —— GitHub に 2 つ目の置き場を作っても読む者がどこにも居ない
+(`build-pro-bundle.yml` は本体 zip を R2 から取り、Worker は GitHub を一切
+読まない)。束の中には本体 zip がそのまま入っているので、素の本体が要るときは
+そこから取り出せばよい。
 
 リリースノートは Pro の CHANGELOG の当該節。タグを打つコミットは Core と
-同じ規則(そのバージョンを導入したコミット。`ci/version-introducing-commit.sh`)
-で、push に使うトークンも同じ(`RELEASE_TAG_TOKEN` があればそれ、無ければ
-`GITHUB_TOKEN`。上の「タグ付けトークン」を参照)。Pro は公開ミラーには
-出さない: ミラーのタグトリガは `v*` で `pro-v*` に一致せず、ミラーが push
-するのは allowlist のツリーとその 1 タグだけ。
+同じ規則(そのバージョンを導入したコミット。`ci/version-introducing-commit.sh`
+を Core の `tag-release.yml` と共有)で、push に使うトークンも同じ
+(`RELEASE_TAG_TOKEN` があればそれ、無ければ `GITHUB_TOKEN`。上の
+「タグ付けトークン」を参照)。Pro は公開ミラーには出さない: ミラーのタグ
+トリガは `v*` で `pro-v*` に一致せず、ミラーが push するのは allowlist の
+ツリーとその 1 タグだけ。
+
+ロットの束がまだ 1 つも無い版には、タグも Release も作られない(載せるものが
+無いため)。通常は *Publish Pro* の直後に束が自動で組まれるので、すべての版に
+付く。
 
 ### BOOTH の配布物(`.github/workflows/build-pro-bundle.yml`)
 
@@ -154,11 +158,19 @@ BOOTH は購入者ごとにファイルを変えられないので、配布物�
 配る前に落とす)。束がまだ 1 つも無いときは、自動実行は警告だけ出して何も
 作らず(リリースを赤くしない)、手動実行はエラーで止まる。
 
+**前提条件は無い。** 本体 zip は R2 から取り、タグと Release はこの
+ワークフロー自身が作る。したがってロットを始めるのに人がする操作は
+「`new_key` にチェックして実行」の 1 回だけ。束はアーティファクトに出してから
+Release に添付する —— 添付に失敗しても、発行したてのキーが道連れにならない
+ように。
+
 **ロットの開始と切り替え**: *Build the BOOTH bundle for Pro* を、新しい
 `lot`(例 `BOOTH 2026-10`)を入れて `new_key` にチェックを入れて手動実行
-する。それだけでキーが 1 本発行され、それを含む束が Release に載るので、
-以後の実行はロット名もキーもそこから読み直す(設定する場所も、手で控える
-作業も無い)。**そのロットが現役の間は、束を載せた Release とそのアセットを
+する(Actions の入力欄は説明文しか表示しないので、各説明は入力名で始めて
+ある。`new_key` のチェックボックスは `new_key -- tick ONLY to start or
+rotate a lot...` と読める行)。それだけでキーが 1 本発行され、それを含む束が
+Release に載るので、以後の実行はロット名もキーもそこから読み直す(設定する
+場所も、手で控える作業も無い)。**そのロットが現役の間は、束を載せた Release とそのアセットを
 消さないこと** —— 消すとキーの控えが無くなり、切り替えるしかなくなる(緊急の
 逃げ道として、シークレット `BOOTH_LOT_KEY` を置けばそちらを使う)。過去の
 ロットの束を組み直したいときは、`lot` にその名前を入れて手動実行すれば、
