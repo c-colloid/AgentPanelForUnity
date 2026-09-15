@@ -62,8 +62,9 @@ Core とは別系統。CHANGELOG は `jp.colloid.agent-panel-pro/CHANGELOG.md`�
 バージョンは同パッケージの `package.json`。**Pro に変更があったときだけ**
 上げる(Core だけの変更ではバンプしない)。リリースコミットのメッセージは
 `Release pro-vX.Y.Z: <概要>` とし(`Release vX.Y.Z` と紛れないよう接頭辞
-`pro-` を付ける)、Pro 単独では git タグを打たない(`tag-release.yml` は
-Core の package.json しか見ていない)。Core と Pro を同じ作業ブランチで
+`pro-` を付ける)、タグ `pro-vX.Y.Z` は `build-pro-bundle.yml` が自動で打つ
+(手で打つ必要はない。`tag-release.yml` は Core の package.json しか見て
+いないので、Core のタグとは別経路)。Core と Pro を同じ作業ブランチで
 同時に変更した場合は、この手順のとおり Core のリリースコミットを切った
 あと、続けて Pro のリリースコミットを別コミットとして積む
 (1 コミットに両方を混在させない)。
@@ -74,9 +75,11 @@ Pro は zip の手渡しではなく、トークン認証付きの npm 互換 sc
 (Cloudflare Worker、`registry/`。設計は
 `docs/design-notes/2026-09-12-pro-update-delivery.md`)から配信する。
 `Release pro-vX.Y.Z` のコミットが main に載ると
-`.github/workflows/publish-pro.yml` が `npm pack` で tgz を作り、R2 へ上げ、
-Worker の admin API に版を登録する(登録済みの版は no-op。取りこぼしたら
-workflow_dispatch で再実行)。必要なリポジトリ設定(`CLOUDFLARE_API_TOKEN`
+`.github/workflows/publish-pro.yml` が `npm pack` で tgz と zip を作り、
+R2 へ上げ、Worker の admin API に版を登録する(登録済みの版は no-op。
+取りこぼしたら workflow_dispatch で再実行)。タグも Release も作らない ——
+それは下の `build-pro-bundle.yml` の仕事。必要なリポジトリ設定
+(`CLOUDFLARE_API_TOKEN`
 / `CLOUDFLARE_ACCOUNT_ID` / `REGISTRY_ADMIN_TOKEN` のシークレットと
 `REGISTRY_URL` の変数)、Worker の初期構築、製品キーの発行コマンドは
 `registry/README.md` を参照。購入者側は パネルの 設定 > Agent Panel Pro の
@@ -87,22 +90,94 @@ workflow_dispatch で再実行)。必要なリポジトリ設定(`CLOUDFLARE_API
 `UPM_ORGANIZATION_ID` として登録すると、同ワークフローが `upm pack` で
 署名付き tarball を作る(`registry/README.md` "Signing")。
 
+### Pro の GitHub Release(このプライベートリポジトリ)
+
+各版に `pro-vX.Y.Z` タグと GitHub Release を作る(設計は
+`docs/design-notes/2026-09-15-pro-private-github-release.md`)。作るのは
+**`build-pro-bundle.yml`** —— Release を読む唯一のワークフローであり、
+そこに載せる中身を作る当人。`publish-pro.yml` は関与しない。
+
+**Release に載るのは BOOTH 用の束 `AgentPanelPro-<ver>-<lot>.zip` 1 つだけ。**
+パッケージ本体(zip / tgz)は載せない。本体は R2 に置かれ、購入者にはレジストリ
+から配られる —— GitHub に 2 つ目の置き場を作っても読む者がどこにも居ない
+(`build-pro-bundle.yml` は本体 zip を R2 から取り、Worker は GitHub を一切
+読まない)。束の中には本体 zip がそのまま入っているので、素の本体が要るときは
+そこから取り出せばよい。
+
+リリースノートは Pro の CHANGELOG の当該節。タグを打つコミットは Core と
+同じ規則(そのバージョンを導入したコミット。`ci/version-introducing-commit.sh`
+を Core の `tag-release.yml` と共有)で、push に使うトークンも同じ
+(`RELEASE_TAG_TOKEN` があればそれ、無ければ `GITHUB_TOKEN`。上の
+「タグ付けトークン」を参照)。Pro は公開ミラーには出さない: ミラーのタグ
+トリガは `v*` で `pro-v*` に一致せず、ミラーが push するのは allowlist の
+ツリーとその 1 タグだけ。
+
+ロットの束がまだ 1 つも無い版には、タグも Release も作られない(載せるものが
+無いため)。通常は *Publish Pro* の直後に束が自動で組まれるので、すべての版に
+付く。
+
 ### BOOTH の配布物(`.github/workflows/build-pro-bundle.yml`)
 
 BOOTH は購入者ごとにファイルを変えられないので、配布物は「Pro 本体の zip
-+ 販売ロット共有の製品キー」を 1 つの zip にしたものにする。Actions の
-*Build the BOOTH bundle for Pro* を `lot`(例 `BOOTH 2026-09`)を入力して
-手動実行すると、R2 から公開済みの `jp.colloid.agent-panel-pro-<ver>.zip` を
-取り、レジストリの admin API で `kind: product, maxMajor: 1, note: <lot>` の
-キーを 1 本発行し、`ci/pro-bundle/README.{ja,en}.md` のプレースホルダを
-埋めた案内・`KEY.txt`・`LICENSE.md` と一緒に
-`AgentPanelPro-<ver>-<lot>.zip` にまとめて Actions のアーティファクトに
-出す(保持 14 日)。それをダウンロードして BOOTH に登録する。キーは発行時に
-しか返らないので、1 ロット 1 回の実行が原則。ロットを月ごと(または一定
-販売数ごと)に切り替え、流出したロットだけ `DELETE /admin/tokens/<id>`
-(id は run のサマリーに出る)で止めて、そのロットの購入者には BOOTH の
-メッセージで新キーを送る。Pro 本体は zip で手元に残るので、キーを止めても
-購入者が使えなくなることはない。
++ 販売ロット共有の製品キー」を 1 つの zip にしたものにする。中身は
+`jp.colloid.agent-panel-pro-<ver>.zip`、`KEY.txt`、
+`ci/pro-bundle/README.{ja,en}.md` のプレースホルダを埋めた案内、
+`LICENSE.md` / `LICENSE-ADDITIONAL.md` で、名前は
+`AgentPanelPro-<ver>-<lot>.zip`。
+
+**Pro のリリースごとに自動で組まれる。** *Publish Pro* の完了を
+`workflow_run` で受けて走り、その版の GitHub Release から本体 zip を取り
+(Release がまだ無い古い版は R2 にフォールバック)、束を組んで**同じ
+`pro-vX.Y.Z` の Release に添付**する(Actions のアーティファクトにも 14 日
+残す)。BOOTH に上げるときは Release ページからその zip を落とすだけ。
+アップロード自体は BOOTH 側に手段が無いので手作業のまま。
+
+**ロットの設定は無い。前の束がそのまま引き継がれる。** 実行時は、このリポジトリ
+が最後に出した `AgentPanelPro-<ver>-<lot>.zip` を見て、**同じロットを同じキーで**
+続ける。
+
+- **ロット名はファイル名そのもの。** 束は必ず「その版の Release」に添付される
+  ので、`pro-vX.Y.Z` が `<ver>` を確定させ、その後ろが丸ごとロット名になる
+  (プレリリース版のハイフンでも曖昧にならない)。したがってロットの綴りは
+  ファイル名に入る形の 1 種類だけで、手で入れた `lot` はロットを始める実行の
+  ときに一度だけその形に正規化される(`BOOTH 2026-10` → `booth-2026-10`)。
+- **キーと更新権のメジャーは束の `KEY.txt` から。** ファイル名には入れられない
+  が、購入者に渡すファイルである以上どのみち中に入っている。レジストリは
+  キーのハッシュしか持たず平文を返せないので、**この Release 群がそのロットの
+  唯一の控え**になる。
+
+変数もシークレットも要らない。
+
+実行のたびに発行してはいけない理由: `POST /admin/tokens` には重複排除が
+無く、ロット名はただのラベルなので、「同じロットなのに購入者ごとに別キー」
+になり、流出時に `DELETE /admin/tokens/<id>` で止めてもその回の zip を
+落とした人しか止まらない。
+
+組む前に `GET <registry>/npm/jp.colloid.agent-panel-pro` にそのキーで当てて、
+生きていること・その版が入手できることを確認する(失効したキーを配る事故を
+配る前に落とす)。束がまだ 1 つも無いときは、自動実行は警告だけ出して何も
+作らず(リリースを赤くしない)、手動実行はエラーで止まる。
+
+**前提条件は無い。** 本体 zip は R2 から取り、タグと Release はこの
+ワークフロー自身が作る。したがってロットを始めるのに人がする操作は
+「`new_key` にチェックして実行」の 1 回だけ。束はアーティファクトに出してから
+Release に添付する —— 添付に失敗しても、発行したてのキーが道連れにならない
+ように。
+
+**ロットの開始と切り替え**: *Build the BOOTH bundle for Pro* を、新しい
+`lot`(例 `BOOTH 2026-10`)を入れて `new_key` にチェックを入れて手動実行
+する(Actions の入力欄は説明文しか表示しないので、各説明は入力名で始めて
+ある。`new_key` のチェックボックスは `new_key -- tick ONLY to start or
+rotate a lot...` と読める行)。それだけでキーが 1 本発行され、それを含む束が
+Release に載るので、以後の実行はロット名もキーもそこから読み直す(設定する
+場所も、手で控える作業も無い)。**そのロットが現役の間は、束を載せた Release とそのアセットを
+消さないこと** —— 消すとキーの控えが無くなり、切り替えるしかなくなる(緊急の
+逃げ道として、シークレット `BOOTH_LOT_KEY` を置けばそちらを使う)。過去の
+ロットの束を組み直したいときは、`lot` にその名前を入れて手動実行すれば、
+その名前の束を持つ一番新しい Release からキーを読む。前のロットのキーは
+**流出したときだけ** `DELETE /admin/tokens/<id>` で止める。止めても Pro
+本体は購入者の手元に残るので、失うのは更新権だけ。止めたら BOOTH の
+メッセージで新キーを送る。
 
 ## 公開ミラー(`.github/workflows/mirror-core.yml`)
 
@@ -156,6 +231,9 @@ BOOTH は購入者ごとにファイルを変えられないので、配布物�
   `!`除外行が必要)。
 
 ## 既存タグ
+
+Core(`vX.Y.Z`)の一覧。Pro のタグは `pro-vX.Y.Z` で、この表には積まない
+(一覧は GitHub の Releases と `jp.colloid.agent-panel-pro/CHANGELOG.md`)。
 
 | タグ | 内容 |
 |---|---|
@@ -234,4 +312,6 @@ BOOTH は購入者ごとにファイルを変えられないので、配布物�
 | v0.48.0 | `uap_query_component_types` の各ヒットに `kind`(`component` / `stateMachineBehaviour` / `scriptableObject`)を追加。StateMachineBehaviour は ScriptableObject 派生のため以前から検索には出ていたが Component と区別できず、`uap_component_add` を試して `Unknown component type` で詰まる経路になっていた。あわせて StateMachineBehaviour 専用の型解決を `UapComponentTypeResolver` に追加(Pro の新しいアニメータツールが使用)(2026-09-14) |
 | v0.49.0 | `uap_editor_select`(エディタの選択を設定する。`uap_editor_execute_menu` で駆動したいサードパーティのメニュー項目の多くは引数を取らず `Selection` を読むが、パネルは選択を読むことしかできず設定できなかった: NDMF / Modular Avatar の 「Manual bake avatar」、VRChat SDK のビルドパネル、UniVRM のエクスポータ、Bakery の selected スコープ、RPG Maker Unite の各エディタ。`path` / `paths` / `assetPath` / `clear` のいずれか 1 つを取り、全パスを解決してから Selection に触るので途中失敗で中途半端な選択が残らない。単一指定は `Selection.activeGameObject` に確実に入る。ReadOnly ではない = 自動承認しない) + 拡張プロファイルの検出が VPM / 埋め込みパッケージを見るように修正(VCC / ALCOM は VPM パッケージを `Packages/<id>/` に実体コピーし `Packages/vpm-manifest.json` で管理するため、`Packages/manifest.json` の `dependencies` にも `Library/PackageCache` にも現れず、`packageIds` 側の判定が VRChat エコシステム全体に対して一度も当たっていなかった)。設定 > 拡張プロファイルの説明文(英/日)に NDMF / Modular Avatar を追記。Pro 側に NDMF / AAO の同梱プロファイルを追加し Modular Avatar プロファイルを書き直し(pro-v0.7.0)(2026-09-15) |
 | v0.49.1 | 実使用フィードバック 3 件(`docs/design-notes/2026-09-15-panel-ux-followups.md`)。(1) MCP 経由のコンパイルのたびに「このエラーを修正」チップが一瞬出て自分で消える問題を修正。コンパイラエラーを `assemblyCompilationFinished`(実行の途中で 1 アセンブリごとに発火)で publish していたため、次の実行の世代交代かドメインリロードで消える途中経過を表示していた。実行中はバッファに溜めて `compilationFinished` で一括 publish(HUB-8 のリロード前スナップショットが見られるよう同期 flush)、途中で世代交代した実行は何も残さない、コンパイル中は `Settling` でチップと空状態の提案を出さない。捕捉内容自体は不変なのでコンパイル後判定と無視リストは従来どおり。`uap_scripts_commit` の検証ビルド(プロジェクト外でステージ済みスクリプトをコンパイル)が吐く診断も窓で捨てる —— エージェントにはツール結果で逐語で返っており、パスは `UapStaging/` でユーザーが開けない。(2) 設定の「Agent Panel Pro の更新」カードを「Unity 連携」から「接続とアカウント」へ移動(アカウントの直後)。Unity 連携は Unity 側の機構の置き場で、購入時のレジストリ URL と製品キーを資格情報に書くカードは主題が違ううえ探しづらかった。セクション ID 据え置きで折りたたみ状態は引き継ぐ。(3) 設定のツールチップが行全体に載っていて読み進めるたびに段落が浮く問題を修正。「?」マークが付いた行はツールチップをマーク側へ移し、短いキャプションは従来どおり行ホバー。マーク付与の閾値を文字数から表示幅(CJK=2)に変更し、日本語で最も長い説明がマークをもらえていなかった逆転を解消(2026-09-15) |
-| v0.50.0 | Pro の新モジュール 3 つ(`authoring` / `avatar` / `batch`)のための設定行と受け口を追加。設定 > Unity操作(UapOps) に「プロファイル作成」「アバター計測」「一括実行」の行(いずれも既定 OFF、Core 単体ではトグルが無効化され「別売の Agent Panel Pro 拡張パッケージが必要です(未導入)」のヒントが出る)。あわせて `ToolRegistry.AllNames()`(モジュール一覧を要求せずに登録済みツール名を返す。`ListEnabled` はモジュール指定が必須で「その名前のツールが存在するか」を聞けない)と `UapOpsServer.EnabledModules()`(モジュールのフィルタは `tools/list` 構築時にしか効かず、名前で他のツールから呼ぶ経路は素通りするため、呼ぶ側が確認できる必要がある)を新設。設定 > 拡張プロファイルのツールチップと README / 操作ガイドの同梱プロファイル一覧を 9 件から 12 件へ更新。Core 自体の挙動は変わらない(2026-09-15) |
+| v0.50.0 | Pro の新モジュール 3 つ(`authoring` / `avatar` / `batch`)のための設定行と受け口を追加。設定 > Unity操作(UapOps) に「プロファイル作成」「アバター計測」「一括実行」の行(いずれも既定 OFF、Core 単体ではトグルが無効化され「別売の Agent Panel Pro 拡張パッケージが必要です(未導入)」のヒントが出る)。あわせて `ToolRegistry.AllNames()`(モジュール一覧を要求せずに登録済みツール名を返す。`ListEnabled` はモジュール指定が必須で「その名前のツールが存在するか」を聞けない)と `UapOpsServer.EnabledModules()`(モジュールのフィルタは `tools/list` 構築時にしか効かず、名前で他のツールから呼ぶ経路は素通りするため、呼ぶ側が確認できる必要がある)を新設。設定 > 拡張プロファイルのツールチップと README / 操作ガイドの同梱プロファイル一覧を 9 件から 12 件へ更新。設定 > 拡張プロファイルに「プロファイルが無い導入済みパッケージ」の一覧と「下書きを頼む文をコピー」ボタンを追加(Pro の authoring モジュールがある時だけ表示。依頼文は composer ではなくクリップボードへ — 打ちかけの本文を壊さないため)。あわせて Pro の EditMode テスト実行ツール(`uap_test_run`)のための「テスト実行」行(既定 OFF)。この行だけはグレーアウトの理由が 2 通りある —— Pro 未導入と、「Pro はあるが `com.unity.test-framework` が無い」 —— ので、後者には Test Framework の導入を案内する別の文言を出す(買った人に「別売の Pro を買え」と言わないため)。「アバター計測」行の説明文を、モジュールの現在の中身(計測・NDMF ベイク・エキスプレッションメニュー編集)に合わせて更新。プレハブステージのガードが返す拒否文言に、それを実行できるツール名(Pro の `uap_prefab_stage`)を明記 —— 従来は「prefab mode を閉じてください」と言いながら、閉じる手段がどちらのパッケージにも無かった。Core 自体の挙動は変わらない(2026-09-15) |
+| v0.51.0 | `uap_rect_transform_set`(uGUI の RectTransform のアンカー相対のレイアウト値—— `anchorMin` / `anchorMax` / `pivot` / `anchoredPosition` / `sizeDelta` / `offsetMin` / `offsetMax`—— を 1 回で読み書きする。`uap_transform_set` が書く `localPosition` は RectTransform ではアンカーから毎レイアウトパス再計算される従属値で、アンカーされた要素を動かしても次のパスで戻るため、正しい経路は `uap_property_set` をプロパティごとに最大 5 回 + アンカー計算を手でやる、しか無かった。各フィールドは軸ごとの部分マージ。アンカーとピボットは Unity の setter どおりraw に書き、Inspector のような補正はしない代わりに `keepRect: true`(矩形を保ったままアンカーし直す)を用意。`preset` は Inspector のアンカーグリッド 16 セルを `<垂直>-<水平>` で名前指定しピボットも設定する(`keepPivot` で回避)。冗長な組み合わせ 3 組は優先順位を決めず拒否し、検証は全て書き込み前に走る。戻り値に解決後の `rect`、`parentRect`、上書きしてくる `LayoutGroup` / `ContentSizeFitter` / `AspectRatioFitter`、`warnings` を含む。`core` モジュール、Undo 可、プレハブステージガード付き、ReadOnly ではない = 自動承認しない。設計ノート `docs/design-notes/2026-09-15-rect-transform-layout-tool.md`)(2026-09-15) |
+| v0.52.0 | `uap_rect_transform_set` に World Space Canvas(VR / ワールド内 UI)の経路を追加。Screen Space の Canvas はルートの rect を Unity が毎フレーム画面から計算し直すため書き込みが残らないが、World Space の Canvas は作者が rect を決める実在オブジェクトで書き込みは残る。v0.51.0 はこの区別をせず、**ルート Canvas なら render mode を見ずに**「書いても残らない」と警告していた —— VR の最も普通の操作に対して正しい書き込みを「効かない」と誤報していたことになる。最も近い Canvas を自分から親へ遡って探し (`UapCanvasProbe`、UI モジュールを剥がしたプロジェクトでも壊れないよう型名 + リフレクションで判定)、render mode が Screen Space と**分かっている**ときだけ警告するようにした(読めない場合は「不明」であって Screen Space ではない)。戻り値に `canvas`(`path` / `type` / `renderMode` / `worldSpace` / `scope`)と `worldSize`(`rect` × `lossyScale`。World Space ならメートル)を追加。`worldSize` は書き込みも可能で、「このパネルを 1.2m 幅に」をそのまま渡せる —— `lossyScale` で割り、アンカーが張る幅を引くので、伸びた子では `sizeDelta.x` が 500 ではなく -500 になるという計算を呼ぶ側にさせない。`sizeDelta` / offsets とは排他、`lossyScale` が 0 の軸があれば書き込み前に拒否。`keepRect` とアンカー計算は親 rect 空間で完結し render mode に依存しないため変更なし(2026-09-15) |
