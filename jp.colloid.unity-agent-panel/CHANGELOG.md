@@ -9,6 +9,81 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (nothing yet)
 
+## [0.52.0] - 2026-09-15
+
+### Added
+
+- **`uap_rect_transform_set` now has a World Space canvas path**, for VR and
+  other in-world UI (design note
+  `docs/design-notes/2026-09-15-rect-transform-layout-tool.md`, section "VR
+  (World Space Canvas) の経路"). A Screen Space canvas has its root rect
+  recomputed from the screen by Unity every frame, so writes to it are
+  discarded; a World Space canvas is an ordinary authored object whose rect
+  sticks. v0.51.0 did not tell the two apart and warned that writes "will
+  not stick" for *every* root Canvas -- which meant the most ordinary VR
+  edit there is was reported as ineffective while it was in fact working.
+  The governing Canvas (nearest at or above the element) is now found and
+  its render mode read, and that warning fires only when the mode is known
+  to be a screen-space one. A render mode that cannot be read counts as
+  unknown, never as screen space, so the false warning cannot come back by
+  way of a failed probe.
+  The read-back gains `canvas` (`path` / `type` / `renderMode` /
+  `worldSpace` / `scope`, or null outside any Canvas) and `worldSize` -- the
+  resolved rect scaled by `lossyScale`, which for a World Space canvas is
+  metres, and in VR is what decides whether a panel is readable and
+  reachable at all.
+  `worldSize` is also writable, so a panel can be sized the way VR work
+  actually describes it ("1.2m wide") instead of in canvas-local
+  `sizeDelta`: the tool divides by `lossyScale` and subtracts the span the
+  anchors already imply, which is the step that makes a stretched child
+  need `sizeDelta.x` of -500 rather than 500 -- exactly the arithmetic this
+  tool exists to keep out of the agent's head. It is mutually exclusive
+  with `sizeDelta` and the offsets, and a `lossyScale` of 0 on an axis is
+  refused before any write rather than dividing by zero.
+  `keepRect` and the anchor math are unchanged: they work in parent-rect
+  space, which does not depend on the render mode, so VR needed no separate
+  branch there.
+  The Canvas is probed by type name and reflection, like the layout
+  drivers, so the package still compiles for a project that has stripped
+  the built-in UI module.
+
+## [0.51.0] - 2026-09-15
+
+### Added
+
+- **`uap_rect_transform_set`** -- reads or writes a uGUI RectTransform's
+  anchor-relative layout in one call: `anchorMin` / `anchorMax` / `pivot` /
+  `anchoredPosition` / `sizeDelta` / `offsetMin` / `offsetMax` (design note
+  `docs/design-notes/2026-09-15-rect-transform-layout-tool.md`).
+  `uap_transform_set` writes `localPosition` / `localEulerAngles` /
+  `localScale` and stops there, which on a RectTransform writes almost
+  nothing that lasts: `localPosition` is a value Unity recomputes from the
+  anchors every layout pass, so an agent that moved an anchored element
+  with it watched the move revert and had no way to tell a silent failure
+  from a broken tool. The only correct route was `uap_property_set`, one
+  serialized property per call -- up to five of them -- preceded by anchor
+  math (parent rect size, anchor fractions, resulting offsets) the agent
+  had to do by hand, which is exactly what sends it to dynamic code
+  instead. Rotation and scale deliberately stay with `uap_transform_set`;
+  the line between the two tools is "anchor-relative or not".
+  Every field takes a partial `{x}` / `{y}` and merges with the current
+  value. Anchors and pivot are written **raw**, the way Unity's own setters
+  behave -- nothing compensates the way the Inspector's anchor widget does,
+  so they move the visible rect -- and `keepRect: true` covers the common
+  case by preserving the rect exactly across an anchor and/or pivot change.
+  `preset` names the 16 cells of the Inspector's anchor grid as
+  `<vertical>-<horizontal>` (`top-left` ... `stretch-stretch`) and sets the
+  pivot too, with `keepPivot: true` to opt out. Redundant combinations are
+  rejected rather than silently ordered -- `offsetMin`/`offsetMax` are the
+  same four numbers as `anchoredPosition`/`sizeDelta`, and picking a winner
+  would mix axes from both -- and all validation runs before any write, so
+  a rejected call leaves the rect untouched. The read-back adds `rect` (the
+  resolved size, which is not `sizeDelta` once an axis is stretched),
+  `parentRect`, any `LayoutGroup` / `ContentSizeFitter` that will overwrite
+  the write, and a `warnings` array. Omit every write field for a pure
+  read. In the `core` module, undoable, prefab-stage guarded, and **not**
+  auto-approved as read-only.
+
 ## [0.50.0] - 2026-09-15
 
 ### Added
@@ -46,6 +121,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   sidestep a module the user switched off, and the batching tool has to be
   able to check. With Core alone the row is disabled with the usual
   Pro-absent hint and nothing else changes.
+
+- **Settings > Extension profiles now names the installed packages no
+  profile covers**, with a button that copies a ready-made request to have
+  one drafted. The question a user actually has is which of their installed
+  SDKs the agent is flying blind about, and the detected-profile list is
+  only the inverse of that. `ExtensionProfileGapFinder` answers it:
+  Library/PackageCache's `<id>@<version>` spelling is normalised (otherwise
+  the same package reads as both covered and missing), the panel's own
+  packages are excluded, and Unity's first-party packages sort last rather
+  than being dropped -- Timeline and Cinemachine are reasonable subjects,
+  just never the ones you are hunting for among forty. The block appears
+  only when Agent Panel Pro's authoring tools are installed to act on it;
+  a list of gaps with no way to close them is a complaint, not a feature.
+  Known limit, stated in the tooltip: a profile that detects by type name
+  rather than package id is not counted, so this is a hint, not a verdict.
+  The request goes to the CLIPBOARD rather than into the composer, so the
+  card can never overwrite a message the user was part-way through typing.
 
 ### Changed
 
@@ -146,12 +238,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   match. Design note
   `docs/design-notes/2026-09-14-ndmf-modular-avatar-profiles.md`.
 
+- **A "Test runner" module row in Settings > Unity operations (UapOps)**,
+  for the EditMode test runner that ships in Agent Panel Pro
+  (`uap_test_run`, design note `docs/design-notes/2026-09-15-test-run.md`).
+  The module is `tests` and defaults OFF -- a test is the project's own
+  code and running it really runs it, so it is opt-in like `authoring`,
+  `avatar` and `batch`. This row is the one whose disabled state has TWO
+  possible reasons, and it says which: `uap_test_run` ships in an assembly
+  that only compiles where `com.unity.test-framework` is installed, so a
+  user who HAS Agent Panel Pro can still find the row greyed out, and
+  telling them to buy Pro would be an answer they cannot act on. With Pro
+  present the hint and tooltip name the Test Framework package and where
+  to get it; without Pro they read like every other Pro-provided row.
+  Core's own behaviour is unchanged.
+
+- **A "Particle systems" module row in Settings > Unity operations
+  (UapOps)**, for the ParticleSystem module editor that ships in Agent
+  Panel Pro (`uap_particle_set`, design note
+  `docs/design-notes/2026-09-15-particle-set.md`). The module is `fx` and
+  defaults OFF like `anim`, `ui`, `authoring`, `avatar`, `batch` and
+  `tests`, and with Core alone its toggle is disabled with the usual
+  "requires the separately sold Agent Panel Pro package" hint. It is its
+  own row rather than an addition to `anim` because a module toggle is a
+  statement about what the agent may touch: a row labelled "animation"
+  that also covered particle systems would make that choice unusable.
+  Core's own behaviour is unchanged -- `uap_property_set` reaches a
+  ParticleSystem's serialized fields exactly as before.
+
 ### Changed
 
 - **Settings > Extension profiles names NDMF, Modular Avatar and Avatar
   Optimizer** in its tooltip and in the "no bundled profiles" note
   (English and Japanese), alongside the SDKs already listed. Agent Panel
   Pro ships those bundled profiles; Core's behaviour is unchanged.
+
+- **The prefab-stage guard's message names the tool that can act on it.**
+  Every write tool refuses a call aimed outside an open prefab stage with
+  "close prefab mode first", which until now asked for something no tool
+  in either package could do. Agent Panel Pro's new `uap_prefab_stage`
+  closes it, and the guard now says so. Core's behaviour is unchanged --
+  the refusal, and what triggers it, are the same.
+
+- **The "Avatar stats" module row now describes the whole module.** It
+  named only `uap_avatar_stats` while the module had grown to also hold
+  NDMF baking and, now, VRChat expression-menu editing (English and
+  Japanese). No behaviour change; the row, the module id and the default
+  are the same.
 
 ## [0.48.0] - 2026-09-14
 

@@ -357,6 +357,10 @@ namespace Colloid.AgentPanel.Tests
 
             StringAssert.Contains("mcp__unity-ops__uap_transform_set", section);
             StringAssert.Contains("uap_transform_set", section);
+            // 2026-09-15: the uGUI-layout half must be named too -- an agent
+            // told only about uap_transform_set writes localPosition on an
+            // anchored element and watches the next layout pass eat it.
+            StringAssert.Contains("uap_rect_transform_set", section);
             StringAssert.Contains("was never started", section);
         }
 
@@ -367,6 +371,7 @@ namespace Colloid.AgentPanel.Tests
                 new[] { "prefab", "anim", "editor" });
 
             StringAssert.DoesNotContain("uap_transform_set", section);
+            StringAssert.DoesNotContain("uap_rect_transform_set", section);
         }
 
         [Test]

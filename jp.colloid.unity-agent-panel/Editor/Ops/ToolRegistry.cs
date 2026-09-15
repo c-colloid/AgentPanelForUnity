@@ -141,6 +141,13 @@ namespace Colloid.AgentPanel.Ops
             RegisterUnlessCovered(registry, new UapComponentRemoveTool(), uloopDetected);
             RegisterUnlessCovered(registry, new UapPropertySetTool(), uloopDetected);
             RegisterUnlessCovered(registry, new UapTransformSetTool(), uloopDetected);
+            // 2026-09-15: the anchor-relative half of the same job.
+            // uap_transform_set writes localPosition/rotation/scale on any
+            // object, RectTransform included, and never touches the fields
+            // a uGUI element is actually laid out by -- which cost up to
+            // five uap_property_set calls plus anchor math done by hand.
+            // Design note docs/design-notes/2026-09-15-rect-transform-layout-tool.md.
+            RegisterUnlessCovered(registry, new UapRectTransformSetTool(), uloopDetected);
             RegisterUnlessCovered(registry, new UapComponentListTool(), uloopDetected);
             RegisterUnlessCovered(registry, new UapObjectInspectTool(), uloopDetected);
             RegisterUnlessCovered(registry, new UapQueryComponentTypesTool(), uloopDetected);

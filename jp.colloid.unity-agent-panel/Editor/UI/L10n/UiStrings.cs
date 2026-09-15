@@ -2065,6 +2065,17 @@ namespace Colloid.AgentPanel.UI
             + " the Pro package under the project's Packages/ folder; this toggle becomes available after the"
             + " next domain reload. See README > Core and Pro.";
 
+        /// <summary>{0} = the module's own hint. Used for the "tests" row when Pro IS installed but com.unity.test-framework is not -- see SettingsView.ResolveTestsModuleHint.</summary>
+        public readonly string SettingsUapOpsTestFrameworkAbsentHintFmt =
+            "{0} Needs the Unity Test Framework package, absent here.";
+
+        public readonly string SettingsUapOpsTestFrameworkAbsentTooltip =
+            "uap_test_run drives the Unity Test Runner, so it ships in an assembly that only compiles when"
+            + " com.unity.test-framework is in the project. Agent Panel Pro is installed here, but that"
+            + " package is not, so the tool does not exist in this project at all. Add it from Package"
+            + " Manager (Window > Package Manager > Unity Registry > Test Framework); this toggle becomes"
+            + " available after the next domain reload.";
+
         // ==================================================================
         // SettingsView.cs -- "Agent Panel Pro updates" card (design note
         // 2026-09-12-pro-update-delivery.md section 3.3)
@@ -2151,8 +2162,8 @@ namespace Colloid.AgentPanel.UI
         public readonly string SettingsUapOpsModuleAvatarLabel = "Avatar stats";
 
         public readonly string SettingsUapOpsModuleAvatarHint =
-            "Measures an avatar, diffs two of them, and reads the VRChat Performance Rank"
-            + " (uap_avatar_stats). Default OFF.";
+            "Measures an avatar, bakes it with NDMF, and edits its VRChat expression menu."
+            + " Default OFF.";
 
         // 2026-09-15 "batch" module (docs/design-notes/
         // 2026-09-15-batch-tool.md).
@@ -2161,6 +2172,54 @@ namespace Colloid.AgentPanel.UI
         public readonly string SettingsUapOpsModuleBatchHint =
             "Runs many Unity operations in one call and one permission card (uap_batch)."
             + " Default OFF.";
+
+        // 2026-09-15 "tests" module (docs/design-notes/
+        // 2026-09-15-test-run.md).
+        public readonly string SettingsUapOpsModuleTestsLabel = "Test runner";
+
+        public readonly string SettingsUapOpsModuleTestsHint =
+            "Runs the project's EditMode tests and reports the failures (uap_test_run)."
+            + " Default OFF.";
+
+        // 2026-09-15 "fx" module (docs/design-notes/
+        // 2026-09-15-particle-set.md).
+        public readonly string SettingsUapOpsModuleFxLabel = "Particle systems";
+
+        public readonly string SettingsUapOpsModuleFxHint =
+            "Reads and writes a Particle System's modules by their scripting names (uap_particle_set)."
+            + " Default OFF.";
+
+        // 2026-09-15 profile-gap affordance (docs/design-notes/
+        // 2026-09-15-profile-gaps-and-skill-scaffold.md): shown only when
+        // Agent Panel Pro's authoring tools are present to act on it.
+
+        /// <summary>{0} = comma-separated package ids.</summary>
+        public readonly string SettingsExtensionProfilesGapsFmt =
+            "No profile covers these installed packages: {0}";
+
+        /// <summary>{0} = comma-separated package ids, {1} = how many more were not listed.</summary>
+        public readonly string SettingsExtensionProfilesGapsMoreFmt =
+            "No profile covers these installed packages: {0}, and {1} more";
+
+        public readonly string SettingsExtensionProfilesGapsTooltip =
+            "An Extension Profile tells the agent what an installed SDK is and what it would otherwise get"
+            + " wrong about it. These package ids are named by no bundled or project profile. The button"
+            + " copies a request you can paste into a chat; the agent drafts the profile with"
+            + " uap_profile_scaffold into .uap-profiles/, and you still approve it here before it is"
+            + " injected. A profile that detects by type name instead of package id (an Asset Store SDK with"
+            + " no package id) is not counted, so this is a hint rather than a verdict.";
+
+        public readonly string SettingsExtensionProfilesGapsButton = "Copy a request to draft one";
+
+        public readonly string SettingsExtensionProfilesGapsCopied = "Copied -- paste it into a chat.";
+
+        /// <summary>{0} = comma-separated package ids.</summary>
+        public readonly string SettingsExtensionProfilesGapsRequestFmt =
+            "This Unity project has installed packages that no Agent Panel Extension Profile covers: {0}."
+            + " Pick the one that would help most, draft a profile for it with uap_profile_scaffold, fill in"
+            + " every TODO line from that SDK's own documentation rather than from memory, and check the"
+            + " result with uap_profile_validate. Tell me what you wrote before I approve it in"
+            + " Settings > Extension profiles.";
 
         public readonly string SettingsExtensionProfilesNoBundledTooltip =
             "The bundled profiles -- VRChat SDK3, NDMF, Modular Avatar, VRCFury, Avatar Optimizer,"
@@ -2849,6 +2908,12 @@ namespace Colloid.AgentPanel.UI
             string settingsUapOpsProAbsentTooltip = null,
             string settingsExtensionProfilesNoBundledHint = null,
             string settingsExtensionProfilesNoBundledTooltip = null,
+            string settingsExtensionProfilesGapsFmt = null,
+            string settingsExtensionProfilesGapsMoreFmt = null,
+            string settingsExtensionProfilesGapsTooltip = null,
+            string settingsExtensionProfilesGapsButton = null,
+            string settingsExtensionProfilesGapsCopied = null,
+            string settingsExtensionProfilesGapsRequestFmt = null,
             string settingsUapOpsModuleUiLabel = null,
             string settingsUapOpsModuleUiHint = null,
             string settingsUapOpsModuleAuthoringLabel = null,
@@ -2857,6 +2922,12 @@ namespace Colloid.AgentPanel.UI
             string settingsUapOpsModuleAvatarHint = null,
             string settingsUapOpsModuleBatchLabel = null,
             string settingsUapOpsModuleBatchHint = null,
+            string settingsUapOpsModuleTestsLabel = null,
+            string settingsUapOpsModuleTestsHint = null,
+            string settingsUapOpsModuleFxLabel = null,
+            string settingsUapOpsModuleFxHint = null,
+            string settingsUapOpsTestFrameworkAbsentHintFmt = null,
+            string settingsUapOpsTestFrameworkAbsentTooltip = null,
             string settingsSectionProUpdates = null,
             string settingsProUpdatesHint = null,
             string settingsProUpdatesTooltip = null,
@@ -3624,6 +3695,30 @@ namespace Colloid.AgentPanel.UI
             {
                 SettingsExtensionProfilesNoBundledTooltip = settingsExtensionProfilesNoBundledTooltip;
             }
+            if (settingsExtensionProfilesGapsFmt != null)
+            {
+                SettingsExtensionProfilesGapsFmt = settingsExtensionProfilesGapsFmt;
+            }
+            if (settingsExtensionProfilesGapsMoreFmt != null)
+            {
+                SettingsExtensionProfilesGapsMoreFmt = settingsExtensionProfilesGapsMoreFmt;
+            }
+            if (settingsExtensionProfilesGapsTooltip != null)
+            {
+                SettingsExtensionProfilesGapsTooltip = settingsExtensionProfilesGapsTooltip;
+            }
+            if (settingsExtensionProfilesGapsButton != null)
+            {
+                SettingsExtensionProfilesGapsButton = settingsExtensionProfilesGapsButton;
+            }
+            if (settingsExtensionProfilesGapsCopied != null)
+            {
+                SettingsExtensionProfilesGapsCopied = settingsExtensionProfilesGapsCopied;
+            }
+            if (settingsExtensionProfilesGapsRequestFmt != null)
+            {
+                SettingsExtensionProfilesGapsRequestFmt = settingsExtensionProfilesGapsRequestFmt;
+            }
             if (settingsUapOpsModuleUiLabel != null)
             {
                 SettingsUapOpsModuleUiLabel = settingsUapOpsModuleUiLabel;
@@ -3655,6 +3750,30 @@ namespace Colloid.AgentPanel.UI
             if (settingsUapOpsModuleBatchHint != null)
             {
                 SettingsUapOpsModuleBatchHint = settingsUapOpsModuleBatchHint;
+            }
+            if (settingsUapOpsModuleTestsLabel != null)
+            {
+                SettingsUapOpsModuleTestsLabel = settingsUapOpsModuleTestsLabel;
+            }
+            if (settingsUapOpsModuleTestsHint != null)
+            {
+                SettingsUapOpsModuleTestsHint = settingsUapOpsModuleTestsHint;
+            }
+            if (settingsUapOpsModuleFxLabel != null)
+            {
+                SettingsUapOpsModuleFxLabel = settingsUapOpsModuleFxLabel;
+            }
+            if (settingsUapOpsModuleFxHint != null)
+            {
+                SettingsUapOpsModuleFxHint = settingsUapOpsModuleFxHint;
+            }
+            if (settingsUapOpsTestFrameworkAbsentHintFmt != null)
+            {
+                SettingsUapOpsTestFrameworkAbsentHintFmt = settingsUapOpsTestFrameworkAbsentHintFmt;
+            }
+            if (settingsUapOpsTestFrameworkAbsentTooltip != null)
+            {
+                SettingsUapOpsTestFrameworkAbsentTooltip = settingsUapOpsTestFrameworkAbsentTooltip;
             }
             if (settingsSectionProUpdates != null)
             {

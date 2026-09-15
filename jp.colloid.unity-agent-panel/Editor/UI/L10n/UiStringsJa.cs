@@ -840,6 +840,23 @@ namespace Colloid.AgentPanel.UI
                     + "追加するには Pro パッケージをプロジェクトの Packages/ 直下に展開してください。次回のドメインリロード後に"
                     + "このトグルが有効になります。詳細は README の「Core と Pro」を参照してください。",
                 settingsExtensionProfilesNoBundledHint: "同梱の SDK プロファイルは未導入です。プロジェクトの .uap-profiles/*.json は引き続き使えます。",
+                settingsExtensionProfilesGapsFmt: "プロファイルの無い導入済みパッケージ: {0}",
+                settingsExtensionProfilesGapsMoreFmt: "プロファイルの無い導入済みパッケージ: {0} ほか {1} 件",
+                settingsExtensionProfilesGapsTooltip:
+                    "拡張プロファイルは、導入済み SDK が何であり、それについてエージェントが何を間違えるかを"
+                    + "伝えるものです。ここに挙がっているパッケージ id は、同梱・プロジェクトのどのプロファイルからも"
+                    + "名指しされていません。ボタンを押すと依頼文がクリップボードに入るので、チャットに貼り付けて"
+                    + "ください。エージェントが uap_profile_scaffold で .uap-profiles/ に下書きを作りますが、"
+                    + "この画面で承認するまで注入はされません。パッケージ id ではなく型名で検出するプロファイル"
+                    + "(パッケージ id を持たない Asset Store 系 SDK)は数えていないため、これは目安です。",
+                settingsExtensionProfilesGapsButton: "下書きを頼む文をコピー",
+                settingsExtensionProfilesGapsCopied: "コピーしました。チャットに貼り付けてください。",
+                settingsExtensionProfilesGapsRequestFmt:
+                    "この Unity プロジェクトには、Agent Panel の拡張プロファイルが無い導入済みパッケージが"
+                    + "あります: {0}。この中から一番役に立ちそうなものを選び、uap_profile_scaffold で下書きを"
+                    + "作り、TODO 行は記憶ではなくその SDK の公式ドキュメントに当たって埋め、"
+                    + "uap_profile_validate で検証してください。設定 > 拡張プロファイル で承認する前に、"
+                    + "何を書いたか教えてください。",
                 settingsExtensionProfilesNoBundledTooltip: "VRChat SDK3 / NDMF / Modular Avatar / VRCFury / "
                     + "Avatar Optimizer / lilycalInventory / lilToon / UniVRM / "
                     + "MagicaCloth2 / Final IK / Bakery / RPG Maker Unite の同梱プロファイルは、"
@@ -850,9 +867,18 @@ namespace Colloid.AgentPanel.UI
                 settingsUapOpsModuleAuthoringLabel: "プロファイル作成",
                 settingsUapOpsModuleAuthoringHint: "このプロジェクト用の Extension Profile の下書きと検証(uap_profile_*)。承認は下の一覧で。既定OFF。",
                 settingsUapOpsModuleAvatarLabel: "アバター計測",
-                settingsUapOpsModuleAvatarHint: "アバターの計測、2 体の差分、VRChat のパフォーマンスランク(uap_avatar_stats)。既定OFF。",
+                settingsUapOpsModuleAvatarHint: "アバターの計測と 2 体の差分、NDMF ベイク、エキスプレッションメニューの編集。既定OFF。",
                 settingsUapOpsModuleBatchLabel: "一括実行",
                 settingsUapOpsModuleBatchHint: "複数の Unity 操作を 1 回の呼び出し・1 枚の許可カードでまとめて実行(uap_batch)。既定OFF。",
+                settingsUapOpsModuleFxLabel: "パーティクル",
+                settingsUapOpsModuleFxHint: "Particle System のモジュールをスクリプト上の名前で読み書き(uap_particle_set)。既定OFF。",
+                settingsUapOpsModuleTestsLabel: "テスト実行",
+                settingsUapOpsModuleTestsHint: "プロジェクトの EditMode テストを実行し、失敗したテストを報告(uap_test_run)。既定OFF。",
+                settingsUapOpsTestFrameworkAbsentHintFmt: "{0} Unity Test Framework パッケージが必要です(未導入)。",
+                settingsUapOpsTestFrameworkAbsentTooltip: "uap_test_run は Unity Test Runner を操作するため、com.unity.test-framework が入っている"
+                    + "プロジェクトでのみコンパイルされるアセンブリに入っています。このプロジェクトには Agent Panel Pro は導入済みですが、"
+                    + "そのパッケージが無いため、ツール自体が存在しません。Package Manager(Window > Package Manager > Unity Registry > "
+                    + "Test Framework)から追加してください。次のドメインリロード後にこのトグルが有効になります。",
                 settingsSectionProUpdates: "Agent Panel Pro の更新",
                 settingsProUpdatesHint: "購入時の製品キーを一度貼り付けると、以後 Pro は Package Manager から更新できます。",
                 settingsProUpdatesTooltip: "キーは Unity 自身の資格情報ファイル(~/.upmconfig.toml、または UPM_USER_CONFIG_DIR のディレクトリ)に書き込み、"

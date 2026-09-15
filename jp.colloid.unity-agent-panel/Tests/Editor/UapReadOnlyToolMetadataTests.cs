@@ -60,6 +60,9 @@ namespace Colloid.AgentPanel.Tests
             "uap_component_remove",
             "uap_property_set",
             "uap_transform_set",
+            // 2026-09-15: writes the RectTransform layout fields
+            // (anchors, pivot, anchoredPosition, sizeDelta, offsets).
+            "uap_rect_transform_set",
             "uap_asset_create",
             "uap_asset_delete",
             "uap_scripts_commit",

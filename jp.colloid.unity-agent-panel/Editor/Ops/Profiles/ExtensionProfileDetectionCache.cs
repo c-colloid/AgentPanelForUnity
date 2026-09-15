@@ -111,6 +111,44 @@ namespace Colloid.AgentPanel.Ops.Profiles
             }
         }
 
+        /// <summary>
+        /// Every package id this project appears to have installed: the
+        /// Library/PackageCache and Packages/ directory names plus
+        /// manifest.json's dependency keys, unnormalised (a PackageCache
+        /// directory still carries its "@version" suffix -- see
+        /// <see cref="ExtensionProfileGapFinder.Normalize"/>). Reads the
+        /// same per-domain snapshot detection uses, so it costs nothing
+        /// extra once detection has run. Used by the Settings card to ask
+        /// which installed packages no profile covers.
+        /// </summary>
+        internal static List<string> InstalledPackageIds(string projectRoot)
+        {
+            EnsureEnvironmentLoaded(projectRoot);
+            var result = new List<string>();
+            if (_packageDirectoryNames != null)
+            {
+                result.AddRange(_packageDirectoryNames);
+            }
+            if (!string.IsNullOrEmpty(_manifestJsonText))
+            {
+                try
+                {
+                    Colloid.AgentPanel.Core.Json.JsonNode dependencies =
+                        Colloid.AgentPanel.Core.Json.JsonParser.Parse(_manifestJsonText)["dependencies"];
+                    foreach (string key in dependencies.Keys)
+                    {
+                        result.Add(key);
+                    }
+                }
+                catch (Exception)
+                {
+                    // A manifest this cannot parse just means the directory
+                    // listings are the whole answer.
+                }
+            }
+            return result;
+        }
+
         /// <summary>Test seam: drops the cached environment snapshot and per-profile results so a test can re-run detection against a different fake environment within the same domain.</summary>
         internal static void ResetForTests()
         {

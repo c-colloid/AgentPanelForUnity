@@ -33,7 +33,8 @@ namespace Colloid.AgentPanel.Ops
             }
             error = "A prefab stage ('" + stage.assetPath + "') is currently open, and the requested"
                 + " scene is not the prefab stage's scene. Omit 'scene' to target the open prefab, or"
-                + " close prefab mode first.";
+                + " close prefab mode first -- Agent Panel Pro's uap_prefab_stage op:\"close\" does that"
+                + " without leaving the panel.";
             return false;
         }
 

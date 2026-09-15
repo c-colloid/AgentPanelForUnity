@@ -1403,6 +1403,49 @@ namespace Colloid.AgentPanel.Tests
             StringAssert.Contains("Agent Panel Pro", hint);
         }
 
+        // -- 2026-09-15 "tests" row: two different absent-reasons --------
+        // (docs/design-notes/2026-09-15-test-run.md). uap_test_run is
+        // compiled out in a project without com.unity.test-framework, so a
+        // user who HAS bought Pro can still find this row greyed -- and
+        // telling them to buy Pro would be a wrong answer they cannot act
+        // on.
+
+        [Test]
+        public void ResolveTestsModuleHint_WithTools_IsTheModuleHintAlone()
+        {
+            Assert.AreEqual("Test runner.", SettingsView.ResolveTestsModuleHint(true, true, "Test runner."));
+            Assert.AreEqual("Test runner.", SettingsView.ResolveTestsModuleHint(true, false, "Test runner."));
+        }
+
+        [Test]
+        public void ResolveTestsModuleHint_WithoutPro_NamesPro()
+        {
+            string hint = SettingsView.ResolveTestsModuleHint(false, false, "Test runner.");
+
+            StringAssert.StartsWith("Test runner.", hint);
+            StringAssert.Contains("Agent Panel Pro", hint);
+        }
+
+        [Test]
+        public void ResolveTestsModuleHint_WithProButNoTestFramework_NamesTheTestFramework_NotPro()
+        {
+            string hint = SettingsView.ResolveTestsModuleHint(false, true, "Test runner.");
+
+            StringAssert.StartsWith("Test runner.", hint);
+            StringAssert.Contains("Test Framework", hint);
+            StringAssert.DoesNotContain("Agent Panel Pro", hint,
+                "Pro IS installed here -- saying otherwise sends the reader to buy what they already own");
+        }
+
+        [Test]
+        public void ResolveTestsModuleHint_NullModuleHint_StillReadsCleanly()
+        {
+            string hint = SettingsView.ResolveTestsModuleHint(false, true, null);
+
+            Assert.IsFalse(hint.StartsWith(" "), "no leading space left behind by the empty {0}");
+            StringAssert.Contains("Test Framework", hint);
+        }
+
         // The About card's GitHub button must open the PUBLIC mirror: the
         // development monorepo is private and a 404 for everyone else.
         [Test]

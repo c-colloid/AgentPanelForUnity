@@ -132,6 +132,8 @@ namespace Colloid.AgentPanel.UI
         private Toggle _uapOpsAuthoringModuleToggle;
         private Toggle _uapOpsAvatarModuleToggle;
         private Toggle _uapOpsBatchModuleToggle;
+        private Toggle _uapOpsTestsModuleToggle;
+        private Toggle _uapOpsFxModuleToggle;
         // Modules whose toggle AddModuleHint disabled because no add-on
         // registered any tool for them (Agent Panel Pro absent). Consulted
         // by RefreshUapOpsStatus, which otherwise re-enabled every module
@@ -2465,6 +2467,36 @@ namespace Colloid.AgentPanel.UI
             AddModuleHint(section, _uapOpsBatchModuleToggle, "batch",
                 L10n.S.SettingsUapOpsModuleBatchHint);
 
+            // 2026-09-15 "tests" module (runs the project's own EditMode
+            // tests), default OFF and Pro-provided like the rows above it.
+            // Opt-in for a reason of its own: a test is project code, and
+            // running it can write assets or dirty the open scene.
+            _uapOpsTestsModuleToggle = new Toggle(L10n.S.SettingsUapOpsModuleTestsLabel);
+            _uapOpsTestsModuleToggle.AddToClassList("uap-settings-field");
+            _uapOpsTestsModuleToggle.AddToClassList("uap-switch");
+            _uapOpsTestsModuleToggle.AddToClassList("uap-settings-field--child");
+            _uapOpsTestsModuleToggle.SetValueWithoutNotify(
+                PanelStateStore.instance.Settings.uapOpsModules.Contains("tests"));
+            _uapOpsTestsModuleToggle.RegisterValueChangedCallback(OnUapOpsTestsModuleToggleChanged);
+            section.Add(_uapOpsTestsModuleToggle);
+            AddTestsModuleHint(section, _uapOpsTestsModuleToggle,
+                L10n.S.SettingsUapOpsModuleTestsHint);
+
+            // 2026-09-15 "fx" module (Particle System module editing),
+            // default OFF and Pro-provided like the rows above it. Opt-in
+            // because it writes scene objects, not because it is dangerous
+            // to read.
+            _uapOpsFxModuleToggle = new Toggle(L10n.S.SettingsUapOpsModuleFxLabel);
+            _uapOpsFxModuleToggle.AddToClassList("uap-settings-field");
+            _uapOpsFxModuleToggle.AddToClassList("uap-switch");
+            _uapOpsFxModuleToggle.AddToClassList("uap-settings-field--child");
+            _uapOpsFxModuleToggle.SetValueWithoutNotify(
+                PanelStateStore.instance.Settings.uapOpsModules.Contains("fx"));
+            _uapOpsFxModuleToggle.RegisterValueChangedCallback(OnUapOpsFxModuleToggleChanged);
+            section.Add(_uapOpsFxModuleToggle);
+            AddModuleHint(section, _uapOpsFxModuleToggle, "fx",
+                L10n.S.SettingsUapOpsModuleFxHint);
+
             // Script validation gate (design section 7.4/8.2 B1). Warning-
             // styled (AddWarning, not AddHint) per design-notes/2026-08-04-
             // settings-annotation-load.md section 4: one of the three
@@ -2606,6 +2638,59 @@ namespace Colloid.AgentPanel.UI
             {
                 hint.tooltip = L10n.S.SettingsUapOpsProAbsentTooltip;
             }
+        }
+
+        /// <summary>
+        /// The "tests" row, whose disabled state has TWO possible reasons
+        /// and only one of them is "buy Pro". uap_test_run lives in an
+        /// assembly constrained to com.unity.test-framework, so in a
+        /// project that has Pro but not that package the tool is compiled
+        /// out and the row greys out for a reason the generic Pro sentence
+        /// would state wrongly. "prefab" is Pro's too and is registered
+        /// unconditionally, so it answers "is Pro here at all" without this
+        /// row having to guess.
+        /// </summary>
+        private void AddTestsModuleHint(VisualElement section, Toggle moduleToggle, string normalHint)
+        {
+            bool hasTools = UapOpsServer.Registry.HasToolsInModule("tests");
+            bool proPresent = UapOpsServer.Registry.HasToolsInModule("prefab");
+            if (hasTools)
+            {
+                _uapOpsModulesWithoutTools.Remove("tests");
+            }
+            else
+            {
+                _uapOpsModulesWithoutTools.Add("tests");
+                moduleToggle.SetEnabled(false);
+                moduleToggle.tooltip = proPresent
+                    ? L10n.S.SettingsUapOpsTestFrameworkAbsentTooltip
+                    : L10n.S.SettingsUapOpsProAbsentTooltip;
+            }
+            Label hint = AddHint(section, ResolveTestsModuleHint(hasTools, proPresent, normalHint));
+            hint.AddToClassList("uap-settings-hint--child");
+            if (!hasTools)
+            {
+                hint.tooltip = moduleToggle.tooltip;
+            }
+        }
+
+        /// <summary>
+        /// Pure text rule behind <see cref="AddTestsModuleHint"/>: the
+        /// module's own hint, then the sentence naming whichever thing is
+        /// actually missing -- the Test Framework package when Pro is
+        /// already installed, Pro itself otherwise.
+        /// </summary>
+        internal static string ResolveTestsModuleHint(bool hasTools, bool proPresent, string normalHint)
+        {
+            if (hasTools)
+            {
+                return normalHint;
+            }
+            if (!proPresent)
+            {
+                return ResolveModuleHint(false, normalHint);
+            }
+            return L10n.F(L10n.S.SettingsUapOpsTestFrameworkAbsentHintFmt, normalHint ?? string.Empty).Trim();
         }
 
         /// <summary>
@@ -2779,6 +2864,46 @@ namespace Colloid.AgentPanel.UI
             AgentHub.RequestAutoApplyReconnect();
         }
 
+        private void OnUapOpsTestsModuleToggleChanged(ChangeEvent<bool> evt)
+        {
+            List<string> modules = PanelStateStore.instance.Settings.uapOpsModules;
+            if (evt.newValue)
+            {
+                if (!modules.Contains("tests"))
+                {
+                    modules.Add("tests");
+                }
+            }
+            else
+            {
+                modules.Remove("tests");
+            }
+            PanelStateStore.instance.SaveNow();
+            AgentHub.ApplyUapOpsModulesChanged();
+            RefreshReconnectHint();
+            AgentHub.RequestAutoApplyReconnect();
+        }
+
+        private void OnUapOpsFxModuleToggleChanged(ChangeEvent<bool> evt)
+        {
+            List<string> modules = PanelStateStore.instance.Settings.uapOpsModules;
+            if (evt.newValue)
+            {
+                if (!modules.Contains("fx"))
+                {
+                    modules.Add("fx");
+                }
+            }
+            else
+            {
+                modules.Remove("fx");
+            }
+            PanelStateStore.instance.SaveNow();
+            AgentHub.ApplyUapOpsModulesChanged();
+            RefreshReconnectHint();
+            AgentHub.RequestAutoApplyReconnect();
+        }
+
         private void OnUapOpsAvatarModuleToggleChanged(ChangeEvent<bool> evt)
         {
             List<string> modules = PanelStateStore.instance.Settings.uapOpsModules;
@@ -2941,6 +3066,8 @@ namespace Colloid.AgentPanel.UI
             _uapOpsAuthoringModuleToggle?.SetEnabled(ModuleToggleEnabled(enabledSetting, "authoring"));
             _uapOpsAvatarModuleToggle?.SetEnabled(ModuleToggleEnabled(enabledSetting, "avatar"));
             _uapOpsBatchModuleToggle?.SetEnabled(ModuleToggleEnabled(enabledSetting, "batch"));
+            _uapOpsTestsModuleToggle?.SetEnabled(ModuleToggleEnabled(enabledSetting, "tests"));
+            _uapOpsFxModuleToggle?.SetEnabled(ModuleToggleEnabled(enabledSetting, "fx"));
             _uapOpsStatusLabel.text = !enabledSetting
                 ? L10n.S.SettingsUapOpsStatusDisabled
                 : (UapOpsServer.IsRunning
@@ -3058,6 +3185,69 @@ namespace Colloid.AgentPanel.UI
                         .tooltip = L10n.S.SettingsExtensionProfilesNoBundledTooltip;
                 }
             }
+            AddExtensionProfileGapAffordance(statuses);
+        }
+
+        /// <summary>
+        /// Names the installed packages no profile covers, and hands the
+        /// user a ready-made request to have one drafted.
+        ///
+        /// Shown only where the authoring tools exist to act on it (the
+        /// "authoring" module ships in Agent Panel Pro), because a list of
+        /// gaps with no way to close them is just a complaint. The request
+        /// goes to the clipboard rather than straight into the composer:
+        /// the user pastes it into a chat when they are ready, which keeps
+        /// this card from reaching across the panel and overwriting
+        /// whatever they were in the middle of typing.
+        /// </summary>
+        private void AddExtensionProfileGapAffordance(List<ExtensionProfileStatus> statuses)
+        {
+            if (!UapOpsServer.Registry.HasToolsInModule("authoring"))
+            {
+                return;
+            }
+
+            var profiles = new List<ExtensionProfile>();
+            for (int i = 0; i < statuses.Count; i++)
+            {
+                if (statuses[i].Profile != null)
+                {
+                    profiles.Add(statuses[i].Profile);
+                }
+            }
+
+            int total;
+            List<string> uncovered = ExtensionProfileGapFinder.FindUncovered(
+                ExtensionProfileDetectionCache.InstalledPackageIds(AgentHub.ProjectRoot),
+                profiles, ExtensionProfileGapFinder.DefaultMaxResults, out total);
+            if (uncovered.Count == 0)
+            {
+                return;
+            }
+
+            string joined = string.Join(", ", uncovered.ToArray());
+            string hintText = total > uncovered.Count
+                ? L10n.F(L10n.S.SettingsExtensionProfilesGapsMoreFmt, joined, total - uncovered.Count)
+                : L10n.F(L10n.S.SettingsExtensionProfilesGapsFmt, joined);
+            AddHint(_extensionProfilesHost, hintText).tooltip =
+                L10n.S.SettingsExtensionProfilesGapsTooltip;
+
+            VisualElement row = AddRow(_extensionProfilesHost);
+            var status = new Label(string.Empty);
+            status.AddToClassList("uap-settings-hint");
+            var copy = new Button(delegate
+            {
+                EditorGUIUtility.systemCopyBuffer =
+                    L10n.F(L10n.S.SettingsExtensionProfilesGapsRequestFmt, joined);
+                status.text = L10n.S.SettingsExtensionProfilesGapsCopied;
+            })
+            {
+                text = L10n.S.SettingsExtensionProfilesGapsButton,
+            };
+            copy.AddToClassList("uap-settings-btn");
+            copy.tooltip = L10n.S.SettingsExtensionProfilesGapsTooltip;
+            row.Add(copy);
+            row.Add(status);
         }
 
         private void AddExtensionProfileRow(ExtensionProfileStatus status)

@@ -27,6 +27,7 @@ namespace Colloid.AgentPanel.Tests
         [TestCase("uap_component_remove", true)]
         [TestCase("uap_property_set", true)]
         [TestCase("uap_transform_set", true)]
+        [TestCase("uap_rect_transform_set", true)]
         [TestCase("uap_component_list", false)]
         [TestCase("uap_object_inspect", false)]
         [TestCase("uap_query_component_types", false)]
@@ -53,6 +54,7 @@ namespace Colloid.AgentPanel.Tests
         [TestCase("uap_component_remove")]
         [TestCase("uap_property_set")]
         [TestCase("uap_transform_set")]
+        [TestCase("uap_rect_transform_set")]
         [TestCase("uap_component_list")]
         [TestCase("uap_object_inspect")]
         [TestCase("uap_query_component_types")]
@@ -78,6 +80,7 @@ namespace Colloid.AgentPanel.Tests
         [TestCase("uap_component_remove")]
         [TestCase("uap_property_set")]
         [TestCase("uap_transform_set")]
+        [TestCase("uap_rect_transform_set")]
         [TestCase("uap_component_list")]
         [TestCase("uap_object_inspect")]
         [TestCase("uap_query_component_types")]
@@ -105,6 +108,7 @@ namespace Colloid.AgentPanel.Tests
         [TestCase("uap_component_remove")]
         [TestCase("uap_property_set")]
         [TestCase("uap_transform_set")]
+        [TestCase("uap_rect_transform_set")]
         [TestCase("uap_object_inspect")]
         [TestCase("uap_query_hierarchy")]
         [TestCase("uap_asset_create")]
@@ -143,6 +147,13 @@ namespace Colloid.AgentPanel.Tests
         public void TransformSet_RequiresPath()
         {
             var required = Registry().Find("uap_transform_set").InputSchema["required"];
+            CollectionAssert.Contains(ToStringArray(required), "path");
+        }
+
+        [Test]
+        public void RectTransformSet_RequiresPath()
+        {
+            var required = Registry().Find("uap_rect_transform_set").InputSchema["required"];
             CollectionAssert.Contains(ToStringArray(required), "path");
         }
 
