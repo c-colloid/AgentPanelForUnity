@@ -134,6 +134,7 @@ namespace Colloid.AgentPanel.UI
         private Toggle _uapOpsBatchModuleToggle;
         private Toggle _uapOpsTestsModuleToggle;
         private Toggle _uapOpsFxModuleToggle;
+        private Toggle _uapOpsMeshModuleToggle;
         // Modules whose toggle AddModuleHint disabled because no add-on
         // registered any tool for them (Agent Panel Pro absent). Consulted
         // by RefreshUapOpsStatus, which otherwise re-enabled every module
@@ -2497,6 +2498,22 @@ namespace Colloid.AgentPanel.UI
             AddModuleHint(section, _uapOpsFxModuleToggle, "fx",
                 L10n.S.SettingsUapOpsModuleFxHint);
 
+            // 2026-09-15 "mesh" module (Mesh generation from numbers),
+            // default OFF and Pro-provided like the rows above it. Opt-in
+            // because it writes assets and scene objects; its own row
+            // rather than a rider on "editor" so the row's one line says
+            // exactly what it lets the agent make.
+            _uapOpsMeshModuleToggle = new Toggle(L10n.S.SettingsUapOpsModuleMeshLabel);
+            _uapOpsMeshModuleToggle.AddToClassList("uap-settings-field");
+            _uapOpsMeshModuleToggle.AddToClassList("uap-switch");
+            _uapOpsMeshModuleToggle.AddToClassList("uap-settings-field--child");
+            _uapOpsMeshModuleToggle.SetValueWithoutNotify(
+                PanelStateStore.instance.Settings.uapOpsModules.Contains("mesh"));
+            _uapOpsMeshModuleToggle.RegisterValueChangedCallback(OnUapOpsMeshModuleToggleChanged);
+            section.Add(_uapOpsMeshModuleToggle);
+            AddModuleHint(section, _uapOpsMeshModuleToggle, "mesh",
+                L10n.S.SettingsUapOpsModuleMeshHint);
+
             // Script validation gate (design section 7.4/8.2 B1). Warning-
             // styled (AddWarning, not AddHint) per design-notes/2026-08-04-
             // settings-annotation-load.md section 4: one of the three
@@ -2904,6 +2921,26 @@ namespace Colloid.AgentPanel.UI
             AgentHub.RequestAutoApplyReconnect();
         }
 
+        private void OnUapOpsMeshModuleToggleChanged(ChangeEvent<bool> evt)
+        {
+            List<string> modules = PanelStateStore.instance.Settings.uapOpsModules;
+            if (evt.newValue)
+            {
+                if (!modules.Contains("mesh"))
+                {
+                    modules.Add("mesh");
+                }
+            }
+            else
+            {
+                modules.Remove("mesh");
+            }
+            PanelStateStore.instance.SaveNow();
+            AgentHub.ApplyUapOpsModulesChanged();
+            RefreshReconnectHint();
+            AgentHub.RequestAutoApplyReconnect();
+        }
+
         private void OnUapOpsAvatarModuleToggleChanged(ChangeEvent<bool> evt)
         {
             List<string> modules = PanelStateStore.instance.Settings.uapOpsModules;
@@ -3068,6 +3105,7 @@ namespace Colloid.AgentPanel.UI
             _uapOpsBatchModuleToggle?.SetEnabled(ModuleToggleEnabled(enabledSetting, "batch"));
             _uapOpsTestsModuleToggle?.SetEnabled(ModuleToggleEnabled(enabledSetting, "tests"));
             _uapOpsFxModuleToggle?.SetEnabled(ModuleToggleEnabled(enabledSetting, "fx"));
+            _uapOpsMeshModuleToggle?.SetEnabled(ModuleToggleEnabled(enabledSetting, "mesh"));
             _uapOpsStatusLabel.text = !enabledSetting
                 ? L10n.S.SettingsUapOpsStatusDisabled
                 : (UapOpsServer.IsRunning

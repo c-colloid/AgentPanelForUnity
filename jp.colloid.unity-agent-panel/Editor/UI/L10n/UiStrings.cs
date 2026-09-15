@@ -2189,6 +2189,15 @@ namespace Colloid.AgentPanel.UI
             "Reads and writes a Particle System's modules by their scripting names (uap_particle_set)."
             + " Default OFF.";
 
+        // 2026-09-15 "mesh" module (docs/design-notes/
+        // 2026-09-15-mesh-create.md).
+        public readonly string SettingsUapOpsModuleMeshLabel = "Mesh creation";
+
+        public readonly string SettingsUapOpsModuleMeshHint =
+            "Builds, inspects, edits and combines meshes with no script to compile: primitives, extrusions,"
+            + " lathes, SDF blends and raw lists (uap_mesh_create), region-based vertex edits with a"
+            + " proportional falloff (uap_mesh_edit), booleans (uap_mesh_boolean). Default OFF.";
+
         // 2026-09-15 profile-gap affordance (docs/design-notes/
         // 2026-09-15-profile-gaps-and-skill-scaffold.md): shown only when
         // Agent Panel Pro's authoring tools are present to act on it.
@@ -2926,6 +2935,8 @@ namespace Colloid.AgentPanel.UI
             string settingsUapOpsModuleTestsHint = null,
             string settingsUapOpsModuleFxLabel = null,
             string settingsUapOpsModuleFxHint = null,
+            string settingsUapOpsModuleMeshLabel = null,
+            string settingsUapOpsModuleMeshHint = null,
             string settingsUapOpsTestFrameworkAbsentHintFmt = null,
             string settingsUapOpsTestFrameworkAbsentTooltip = null,
             string settingsSectionProUpdates = null,
@@ -3766,6 +3777,14 @@ namespace Colloid.AgentPanel.UI
             if (settingsUapOpsModuleFxHint != null)
             {
                 SettingsUapOpsModuleFxHint = settingsUapOpsModuleFxHint;
+            }
+            if (settingsUapOpsModuleMeshLabel != null)
+            {
+                SettingsUapOpsModuleMeshLabel = settingsUapOpsModuleMeshLabel;
+            }
+            if (settingsUapOpsModuleMeshHint != null)
+            {
+                SettingsUapOpsModuleMeshHint = settingsUapOpsModuleMeshHint;
             }
             if (settingsUapOpsTestFrameworkAbsentHintFmt != null)
             {

@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (nothing yet)
 
+## [0.54.0] - 2026-09-15
+
+### Added
+
+- **A "Mesh creation" module row in Settings > Unity operations
+  (UapOps)**, for the mesh tools that ship in Agent Panel Pro
+  (`uap_mesh_create` / `uap_mesh_inspect` / `uap_mesh_edit` /
+  `uap_mesh_boolean`, design notes
+  `docs/design-notes/2026-09-15-mesh-create.md` and
+  `2026-09-15-mesh-edit-sdf-boolean.md`). The module is `mesh`
+  and defaults OFF like `anim`, `ui`, `authoring`, `avatar`, `batch`,
+  `tests` and `fx`; with Core alone its toggle is disabled with the
+  usual "requires the separately sold Agent Panel Pro package" hint. It
+  is its own row rather than an addition to `editor` for the reason the
+  `authoring` and `fx` rows were: a module toggle is a statement about
+  what the agent may make, and the row's one line has to say it.
+  Core's own behaviour is unchanged -- `uap_scene_create_object` still
+  makes Unity's six primitives exactly as before.
+
 ## [0.53.1] - 2026-09-15
 
 ### Changed

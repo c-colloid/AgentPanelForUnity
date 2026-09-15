@@ -487,9 +487,10 @@ namespace Colloid.AgentPanel.Model
         /// (uap_profile_scaffold/uap_profile_validate, docs/design-notes/
         /// 2026-09-15-profile-authoring-tools.md), "avatar", "batch",
         /// "tests" (uap_test_run, docs/design-notes/
-        /// 2026-09-15-test-run.md) and "fx" (uap_particle_set,
-        /// docs/design-notes/2026-09-15-particle-set.md) default off for
-        /// the same reason. Every module that defaults off ships its tools in Agent
+        /// 2026-09-15-test-run.md), "fx" (uap_particle_set,
+        /// docs/design-notes/2026-09-15-particle-set.md) and "mesh"
+        /// (uap_mesh_create, docs/design-notes/2026-09-15-mesh-create.md)
+        /// default off for the same reason. Every module that defaults off ships its tools in Agent
         /// Panel Pro, so with Core alone its toggle row is disabled rather
         /// than merely unchecked. "tests" is additionally absent -- not just
         /// disabled -- in a project without com.unity.test-framework: the

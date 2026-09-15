@@ -872,6 +872,8 @@ namespace Colloid.AgentPanel.UI
                 settingsUapOpsModuleBatchHint: "複数の Unity 操作を 1 回の呼び出し・1 枚の許可カードでまとめて実行(uap_batch)。既定OFF。",
                 settingsUapOpsModuleFxLabel: "パーティクル",
                 settingsUapOpsModuleFxHint: "Particle System のモジュールをスクリプト上の名前で読み書き(uap_particle_set)。既定OFF。",
+                settingsUapOpsModuleMeshLabel: "メッシュ生成",
+                settingsUapOpsModuleMeshHint: "コンパイル不要のメッシュ操作: 生成(プリミティブ・押し出し・回転体・SDF ブレンド・頂点列、uap_mesh_create)、範囲指定の頂点編集とプロポーショナル移動(uap_mesh_edit)、ブーリアン(uap_mesh_boolean)、調査(uap_mesh_inspect)。既定OFF。",
                 settingsUapOpsModuleTestsLabel: "テスト実行",
                 settingsUapOpsModuleTestsHint: "プロジェクトの EditMode テストを実行し、失敗したテストを報告(uap_test_run)。既定OFF。",
                 settingsUapOpsTestFrameworkAbsentHintFmt: "{0} Unity Test Framework パッケージが必要です(未導入)。",
