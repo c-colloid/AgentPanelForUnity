@@ -273,12 +273,12 @@ Claude Code の代わりに、ACP(Agent Client Protocol)対応の CLI をパネ�
 | **パネル > コンソールエラー** | 無視パターン(1 行 1 つ)、無視リストの管理 |
 | **Unity 連携 > Unity操作(UapOps)** | 有効化、モジュール(コア / プレハブ / エディタ / シーンビューのマーカー / アニメーション / UI 操作)、検証ゲート、コンパイル後に自動継続する、中断後に自動継続する、Play モードのリロード設定のヒント、サーバ状態(「ポート N で実行中」) |
 | **Unity 連携 > 拡張プロファイル** | 有効化、検出された SDK の一覧と承認/取り消し |
-| **Unity 連携 > Agent Panel Pro の更新** | 購入時のレジストリ URL と製品キー。「キーを保存」で `~/.upmconfig.toml`(または `UPM_USER_CONFIG_DIR`)にトークンを、`Packages/manifest.json` に scoped registry を書き込み、以後 Package Manager の My Registries から Pro を導入・更新できる。「VCC / ALCOM に追加」は同じキーで VPM リポジトリを VRChat Creator Companion / ALCOM に登録する。パネルはキーを保存しない |
 | **Unity 連携 > uLoop連携** | uLoop を導入、uloop コマンドを許可、指示スニペットを挿入 |
 | **Unity 連携 > Unity 公式プラグイン** | Unity 公式の Claude Code プラグインの検出と導入 |
 | **接続とアカウント > CLI** | 実行ファイルのパス、参照...、再検出、今すぐ再接続、エージェント(Claude Code / Gemini CLI / Codex / Grok Build / その他の ACP エージェント)とその起動コマンド・引数・認証メソッド ID |
 | **接続とアカウント > 診断** | 最近の CLI の stderr(コピー / クリア) |
 | **接続とアカウント > アカウント** | ログイン状態(メール/プラン)、ログイン / アカウントを切り替え / ログアウト、APIキー認証(Claude Code)。ACP エージェントでは「サインイン」(ログインコマンドを持つ CLI のみ。パネル内で実行し、リンクと出力を表示)、「再接続」、接続に実際に使われたサインイン方式 |
+| **接続とアカウント > Agent Panel Pro の更新** | 購入時のレジストリ URL と製品キー。「キーを保存」で `~/.upmconfig.toml`(または `UPM_USER_CONFIG_DIR`)にトークンを、`Packages/manifest.json` に scoped registry を書き込み、以後 Package Manager の My Registries から Pro を導入・更新できる。「VCC / ALCOM に追加」は同じキーで VPM リポジトリを VRChat Creator Companion / ALCOM に登録する。パネルはキーを保存しない |
 | **About** | パッケージバージョン、CLI バージョン、CHANGELOG を開く、GitHub で開く |
 
 Unity 連携と接続とアカウントの各カードは折りたたまれた状態で始まります。見出しをクリックすると開きます。
