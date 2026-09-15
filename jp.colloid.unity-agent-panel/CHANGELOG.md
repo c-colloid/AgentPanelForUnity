@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (nothing yet)
 
+## [0.48.0] - 2026-09-14
+
+### Added
+
+- **`uap_query_component_types` reports a `kind` for every hit** --
+  `component` (attach with `uap_component_add`), `stateMachineBehaviour`
+  (attach with Agent Panel Pro's new `uap_animator_behaviour`; these are
+  NOT components) or `scriptableObject` (create with `uap_asset_create`).
+  A StateMachineBehaviour derives from ScriptableObject, so this search
+  already returned VRChat's `VRCAnimatorTrackingControl` and friends, but
+  nothing in the result said which tool could actually use them -- the
+  natural next call was `uap_component_add`, which fails with a bare
+  "Unknown component type". Existing fields are unchanged, so the added
+  field breaks nothing. `UapComponentTypeResolver` also gained a
+  StateMachineBehaviour-only resolver, used by the Pro package's animator
+  tools. Design note
+  `docs/design-notes/2026-09-14-animator-layers-blendtree-behaviours.md`.
+
 ## [0.47.1] - 2026-09-14
 
 ### Changed

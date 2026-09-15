@@ -28,7 +28,10 @@ namespace Colloid.AgentPanel.Ops
             get
             {
                 return "Searches already-compiled Component and ScriptableObject types by name substring"
-                    + " (e.g. \"PhysBone\" -> VRC.SDK3.Dynamics.PhysBone.Components.VRCPhysBone). Read-only.";
+                    + " (e.g. \"PhysBone\" -> VRC.SDK3.Dynamics.PhysBone.Components.VRCPhysBone). Each hit reports"
+                    + " a \"kind\": \"component\" (uap_component_add), \"stateMachineBehaviour\""
+                    + " (uap_animator_behaviour -- NOT a component) or \"scriptableObject\" (uap_asset_create)."
+                    + " Read-only.";
             }
         }
 
@@ -72,10 +75,11 @@ namespace Colloid.AgentPanel.Ops
             }
 
             var results = new List<JsonNode>();
-            CollectMatches(TypeCache.GetTypesDerivedFrom<Component>(), query, results, maxResults);
+            CollectMatches(TypeCache.GetTypesDerivedFrom<Component>(), query, results, maxResults, "component");
             if (results.Count < maxResults)
             {
-                CollectMatches(TypeCache.GetTypesDerivedFrom<ScriptableObject>(), query, results, maxResults);
+                CollectMatches(TypeCache.GetTypesDerivedFrom<ScriptableObject>(), query, results, maxResults,
+                    "scriptableObject");
             }
 
             JsonNode arr = JsonNode.NewArray();
@@ -88,7 +92,7 @@ namespace Colloid.AgentPanel.Ops
         }
 
         private static void CollectMatches(TypeCache.TypeCollection types, string query, List<JsonNode> results,
-            int maxResults)
+            int maxResults, string kind)
         {
             foreach (Type t in types)
             {
@@ -109,8 +113,27 @@ namespace Colloid.AgentPanel.Ops
                 results.Add(JsonNode.NewObject()
                     .Set("shortName", t.Name)
                     .Set("fullName", t.FullName ?? t.Name)
-                    .Set("assembly", t.Assembly.GetName().Name));
+                    .Set("assembly", t.Assembly.GetName().Name)
+                    .Set("kind", DescribeKind(t, kind)));
             }
+        }
+
+        /// <summary>
+        /// A StateMachineBehaviour IS a ScriptableObject, so TypeCache hands
+        /// it back in the ScriptableObject pass -- but it is attached to an
+        /// animator state by uap_animator_behaviour, never created as an
+        /// asset by uap_asset_create nor added by uap_component_add. The
+        /// kind field is what tells an agent which of the three tools the
+        /// hit belongs to.
+        /// </summary>
+        private static string DescribeKind(Type type, string kind)
+        {
+            if (string.Equals(kind, "scriptableObject", StringComparison.Ordinal)
+                && typeof(StateMachineBehaviour).IsAssignableFrom(type))
+            {
+                return "stateMachineBehaviour";
+            }
+            return kind;
         }
     }
 }

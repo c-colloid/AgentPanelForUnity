@@ -26,6 +26,20 @@ namespace Colloid.AgentPanel.Ops
             return Resolve(TypeCache.GetTypesDerivedFrom<ScriptableObject>(), nameOrFqn, "ScriptableObject", out error);
         }
 
+        /// <summary>
+        /// StateMachineBehaviour subclasses only (VRCAvatarParameterDriver,
+        /// VRCAnimatorTrackingControl, a project's own behaviours, ...).
+        /// They derive from ScriptableObject, so ResolveScriptableObjectType
+        /// would find them too -- but it would just as happily resolve a
+        /// plain ScriptableObject that can never be attached to an animator
+        /// state. Backs Pro's uap_animator_behaviour.
+        /// </summary>
+        public static Type ResolveStateMachineBehaviourType(string nameOrFqn, out string error)
+        {
+            return Resolve(TypeCache.GetTypesDerivedFrom<StateMachineBehaviour>(), nameOrFqn,
+                "StateMachineBehaviour", out error);
+        }
+
         private static Type Resolve(TypeCache.TypeCollection candidates, string nameOrFqn, string kindLabel,
             out string error)
         {

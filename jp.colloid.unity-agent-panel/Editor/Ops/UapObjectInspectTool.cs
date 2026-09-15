@@ -138,7 +138,13 @@ namespace Colloid.AgentPanel.Ops
             return UapToolResults.Text(JsonWriter.Write(result));
         }
 
-        private static string DescribeValue(SerializedProperty it)
+        /// <summary>
+        /// internal (not private) because Pro's uap_animator_behaviour
+        /// op="list" describes a StateMachineBehaviour's properties the
+        /// exact same way this tool describes a component's -- one shared
+        /// formatter keeps the two readable outputs identical.
+        /// </summary>
+        internal static string DescribeValue(SerializedProperty it)
         {
             switch (it.propertyType)
             {
