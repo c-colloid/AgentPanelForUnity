@@ -483,6 +483,12 @@ namespace Colloid.AgentPanel.Model
         /// uap_avatar_configure) -- deliberately NOT in this default list
         /// (design section 8.8: "anim=OFF" by default; a settings toggle
         /// row lets the user opt in the same way the other module rows do).
+        /// Phase 5c's "ui" (uap_editor_ui_*) and 2026-09-15's "authoring"
+        /// (uap_profile_scaffold/uap_profile_validate, docs/design-notes/
+        /// 2026-09-15-profile-authoring-tools.md) default off for the same
+        /// reason. Every module that defaults off ships its tools in Agent
+        /// Panel Pro, so with Core alone its toggle row is disabled rather
+        /// than merely unchecked.
         /// Unlike uapOpsEnabled, a module list change is NOT
         /// next-spawn-only for TOOL AVAILABILITY: UapOpsServer.
         /// SetEnabledModules takes effect on the next tools/list call,

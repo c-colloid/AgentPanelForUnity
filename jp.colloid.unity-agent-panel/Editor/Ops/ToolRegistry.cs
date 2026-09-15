@@ -86,6 +86,24 @@ namespace Colloid.AgentPanel.Ops
         }
 
         /// <summary>
+        /// Every registered tool's wire name, in registration order and
+        /// regardless of module enablement. Unlike
+        /// <see cref="ListEnabled"/> this needs no module list, which is
+        /// what a caller checking "does a tool by this name exist" wants
+        /// -- uap_profile_validate reads it to reject an Extension Profile
+        /// instruction line that names a tool nothing answers to.
+        /// </summary>
+        public List<string> AllNames()
+        {
+            var result = new List<string>(_tools.Count);
+            for (int i = 0; i < _tools.Count; i++)
+            {
+                result.Add(_tools[i].Name);
+            }
+            return result;
+        }
+
+        /// <summary>
         /// Builds the standard registry (uap_ping plus the Phase 5a
         /// "core" module tools: scene/component/property/asset/query and
         /// the script validation gate's commit tool). Equivalent to

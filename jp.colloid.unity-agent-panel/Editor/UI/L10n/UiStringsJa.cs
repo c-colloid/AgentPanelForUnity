@@ -840,12 +840,19 @@ namespace Colloid.AgentPanel.UI
                     + "追加するには Pro パッケージをプロジェクトの Packages/ 直下に展開してください。次回のドメインリロード後に"
                     + "このトグルが有効になります。詳細は README の「Core と Pro」を参照してください。",
                 settingsExtensionProfilesNoBundledHint: "同梱の SDK プロファイルは未導入です。プロジェクトの .uap-profiles/*.json は引き続き使えます。",
-                settingsExtensionProfilesNoBundledTooltip: "VRChat SDK3 / NDMF / Modular Avatar / Avatar Optimizer / UniVRM / "
+                settingsExtensionProfilesNoBundledTooltip: "VRChat SDK3 / NDMF / Modular Avatar / VRCFury / "
+                    + "Avatar Optimizer / lilycalInventory / lilToon / UniVRM / "
                     + "MagicaCloth2 / Final IK / Bakery / RPG Maker Unite の同梱プロファイルは、"
                     + "別売の Agent Panel Pro パッケージ(jp.colloid.agent-panel-pro)に収録されています。Pro なしでは、この一覧には"
                     + "プロジェクト直下の .uap-profiles/*.json に自分で置いたプロファイルだけが表示され、それぞれ下で承認してから注入されます。",
                 settingsUapOpsModuleUiLabel: "UI 操作",
                 settingsUapOpsModuleUiHint: "UI Toolkit のエディタウィンドウの一覧・ダンプ・クリック・値設定(uap_editor_ui_*)。既定OFF。",
+                settingsUapOpsModuleAuthoringLabel: "プロファイル作成",
+                settingsUapOpsModuleAuthoringHint: "このプロジェクト用の Extension Profile の下書きと検証(uap_profile_*)。承認は下の一覧で。既定OFF。",
+                settingsUapOpsModuleAvatarLabel: "アバター計測",
+                settingsUapOpsModuleAvatarHint: "アバターの計測、2 体の差分、VRChat のパフォーマンスランク(uap_avatar_stats)。既定OFF。",
+                settingsUapOpsModuleBatchLabel: "一括実行",
+                settingsUapOpsModuleBatchHint: "複数の Unity 操作を 1 回の呼び出し・1 枚の許可カードでまとめて実行(uap_batch)。既定OFF。",
                 settingsSectionProUpdates: "Agent Panel Pro の更新",
                 settingsProUpdatesHint: "購入時の製品キーを一度貼り付けると、以後 Pro は Package Manager から更新できます。",
                 settingsProUpdatesTooltip: "キーは Unity 自身の資格情報ファイル(~/.upmconfig.toml、または UPM_USER_CONFIG_DIR のディレクトリ)に書き込み、"

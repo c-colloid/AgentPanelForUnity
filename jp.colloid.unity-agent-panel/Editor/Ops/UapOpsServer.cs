@@ -95,6 +95,19 @@ namespace Colloid.AgentPanel.Ops
             _enabledModules = modules != null ? new List<string>(modules) : new List<string>();
         }
 
+        /// <summary>
+        /// A copy of the module list tools/list currently serves. A tool
+        /// that dispatches to OTHER tools (uap_batch) has to check this:
+        /// the module filter is applied when tools/list is built, so a tool
+        /// reached by name through another tool would otherwise sidestep a
+        /// module the user deliberately switched off. A copy, so a caller
+        /// cannot edit the live list.
+        /// </summary>
+        public static List<string> EnabledModules()
+        {
+            return new List<string>(_enabledModules);
+        }
+
         /// <summary>Starts the server if it is not already running. Safe to call repeatedly.</summary>
         public static void EnsureStarted(Action<string> logger = null)
         {

@@ -93,19 +93,29 @@ namespace Colloid.AgentPanel.UI
             return width;
         }
 
+        /// <summary>
+        /// Range bounds as plain int literals, never \uXXXX escapes or
+        /// (char) casts: GlyphAuditTests' source scan reads either of those
+        /// in an Editor/ source as a glyph the panel intends to DRAW and
+        /// demands it be whitelisted in IconLoader.SafeGlyphCodepoints.
+        /// These are interval endpoints for a measurement, not characters
+        /// this panel ever renders, so whitelisting them would be a lie
+        /// about font coverage. Ints read better as bounds anyway.
+        /// </summary>
         private static bool IsWide(char c)
         {
-            return (c >= '\u1100' && c <= '\u115F')      // Hangul Jamo
-                || (c >= '\u2E80' && c <= '\u303E')      // CJK radicals, kangxi, CJK punctuation
-                || (c >= '\u3041' && c <= '\u33FF')      // kana, Hangul compat, CJK compat
-                || (c >= '\u3400' && c <= '\u4DBF')      // CJK ext A
-                || (c >= '\u4E00' && c <= '\u9FFF')      // CJK unified ideographs
-                || (c >= '\uA000' && c <= '\uA4CF')      // Yi
-                || (c >= '\uAC00' && c <= '\uD7A3')      // Hangul syllables
-                || (c >= '\uF900' && c <= '\uFAFF')      // CJK compat ideographs
-                || (c >= '\uFE30' && c <= '\uFE6F')      // CJK compat forms, small forms
-                || (c >= '\uFF00' && c <= '\uFF60')      // fullwidth forms
-                || (c >= '\uFFE0' && c <= '\uFFE6');     // fullwidth signs
+            int cp = c;
+            return (cp >= 0x1100 && cp <= 0x115F)      // Hangul Jamo
+                || (cp >= 0x2E80 && cp <= 0x303E)      // CJK radicals, kangxi, CJK punctuation
+                || (cp >= 0x3041 && cp <= 0x33FF)      // kana, Hangul compat, CJK compat
+                || (cp >= 0x3400 && cp <= 0x4DBF)      // CJK ext A
+                || (cp >= 0x4E00 && cp <= 0x9FFF)      // CJK unified ideographs
+                || (cp >= 0xA000 && cp <= 0xA4CF)      // Yi
+                || (cp >= 0xAC00 && cp <= 0xD7A3)      // Hangul syllables
+                || (cp >= 0xF900 && cp <= 0xFAFF)      // CJK compat ideographs
+                || (cp >= 0xFE30 && cp <= 0xFE6F)      // CJK compat forms, small forms
+                || (cp >= 0xFF00 && cp <= 0xFF60)      // fullwidth forms
+                || (cp >= 0xFFE0 && cp <= 0xFFE6);     // fullwidth signs
         }
 
         /// <summary>

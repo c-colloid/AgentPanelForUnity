@@ -129,6 +129,9 @@ namespace Colloid.AgentPanel.UI
         private Toggle _uapOpsAnimModuleToggle;
         private Toggle _uapOpsMarkersModuleToggle;
         private Toggle _uapOpsUiModuleToggle;
+        private Toggle _uapOpsAuthoringModuleToggle;
+        private Toggle _uapOpsAvatarModuleToggle;
+        private Toggle _uapOpsBatchModuleToggle;
         // Modules whose toggle AddModuleHint disabled because no add-on
         // registered any tool for them (Agent Panel Pro absent). Consulted
         // by RefreshUapOpsStatus, which otherwise re-enabled every module
@@ -2418,6 +2421,50 @@ namespace Colloid.AgentPanel.UI
             section.Add(_uapOpsUiModuleToggle);
             AddModuleHint(section, _uapOpsUiModuleToggle, "ui", L10n.S.SettingsUapOpsModuleUiHint);
 
+            // 2026-09-15 "authoring" module (Extension Profile scaffolding
+            // and validation), default OFF like anim/ui. Its tools ship in
+            // Agent Panel Pro, so with Pro absent the row is disabled with
+            // the same explanatory hint.
+            _uapOpsAuthoringModuleToggle = new Toggle(L10n.S.SettingsUapOpsModuleAuthoringLabel);
+            _uapOpsAuthoringModuleToggle.AddToClassList("uap-settings-field");
+            _uapOpsAuthoringModuleToggle.AddToClassList("uap-switch");
+            _uapOpsAuthoringModuleToggle.AddToClassList("uap-settings-field--child");
+            _uapOpsAuthoringModuleToggle.SetValueWithoutNotify(
+                PanelStateStore.instance.Settings.uapOpsModules.Contains("authoring"));
+            _uapOpsAuthoringModuleToggle.RegisterValueChangedCallback(OnUapOpsAuthoringModuleToggleChanged);
+            section.Add(_uapOpsAuthoringModuleToggle);
+            AddModuleHint(section, _uapOpsAuthoringModuleToggle, "authoring",
+                L10n.S.SettingsUapOpsModuleAuthoringHint);
+
+            // 2026-09-15 "avatar" module (avatar measurement and the VRChat
+            // Performance Rank), default OFF and Pro-provided like the two
+            // rows above it.
+            _uapOpsAvatarModuleToggle = new Toggle(L10n.S.SettingsUapOpsModuleAvatarLabel);
+            _uapOpsAvatarModuleToggle.AddToClassList("uap-settings-field");
+            _uapOpsAvatarModuleToggle.AddToClassList("uap-switch");
+            _uapOpsAvatarModuleToggle.AddToClassList("uap-settings-field--child");
+            _uapOpsAvatarModuleToggle.SetValueWithoutNotify(
+                PanelStateStore.instance.Settings.uapOpsModules.Contains("avatar"));
+            _uapOpsAvatarModuleToggle.RegisterValueChangedCallback(OnUapOpsAvatarModuleToggleChanged);
+            section.Add(_uapOpsAvatarModuleToggle);
+            AddModuleHint(section, _uapOpsAvatarModuleToggle, "avatar",
+                L10n.S.SettingsUapOpsModuleAvatarHint);
+
+            // 2026-09-15 "batch" module (many operations behind one
+            // permission card), default OFF and Pro-provided like the rows
+            // above it. Deliberately opt-in: it changes what one approval
+            // covers.
+            _uapOpsBatchModuleToggle = new Toggle(L10n.S.SettingsUapOpsModuleBatchLabel);
+            _uapOpsBatchModuleToggle.AddToClassList("uap-settings-field");
+            _uapOpsBatchModuleToggle.AddToClassList("uap-switch");
+            _uapOpsBatchModuleToggle.AddToClassList("uap-settings-field--child");
+            _uapOpsBatchModuleToggle.SetValueWithoutNotify(
+                PanelStateStore.instance.Settings.uapOpsModules.Contains("batch"));
+            _uapOpsBatchModuleToggle.RegisterValueChangedCallback(OnUapOpsBatchModuleToggleChanged);
+            section.Add(_uapOpsBatchModuleToggle);
+            AddModuleHint(section, _uapOpsBatchModuleToggle, "batch",
+                L10n.S.SettingsUapOpsModuleBatchHint);
+
             // Script validation gate (design section 7.4/8.2 B1). Warning-
             // styled (AddWarning, not AddHint) per design-notes/2026-08-04-
             // settings-annotation-load.md section 4: one of the three
@@ -2712,6 +2759,66 @@ namespace Colloid.AgentPanel.UI
             AgentHub.RequestAutoApplyReconnect();
         }
 
+        private void OnUapOpsBatchModuleToggleChanged(ChangeEvent<bool> evt)
+        {
+            List<string> modules = PanelStateStore.instance.Settings.uapOpsModules;
+            if (evt.newValue)
+            {
+                if (!modules.Contains("batch"))
+                {
+                    modules.Add("batch");
+                }
+            }
+            else
+            {
+                modules.Remove("batch");
+            }
+            PanelStateStore.instance.SaveNow();
+            AgentHub.ApplyUapOpsModulesChanged();
+            RefreshReconnectHint();
+            AgentHub.RequestAutoApplyReconnect();
+        }
+
+        private void OnUapOpsAvatarModuleToggleChanged(ChangeEvent<bool> evt)
+        {
+            List<string> modules = PanelStateStore.instance.Settings.uapOpsModules;
+            if (evt.newValue)
+            {
+                if (!modules.Contains("avatar"))
+                {
+                    modules.Add("avatar");
+                }
+            }
+            else
+            {
+                modules.Remove("avatar");
+            }
+            PanelStateStore.instance.SaveNow();
+            AgentHub.ApplyUapOpsModulesChanged();
+            RefreshReconnectHint();
+            AgentHub.RequestAutoApplyReconnect();
+        }
+
+        private void OnUapOpsAuthoringModuleToggleChanged(ChangeEvent<bool> evt)
+        {
+            List<string> modules = PanelStateStore.instance.Settings.uapOpsModules;
+            if (evt.newValue)
+            {
+                if (!modules.Contains("authoring"))
+                {
+                    modules.Add("authoring");
+                }
+            }
+            else
+            {
+                modules.Remove("authoring");
+            }
+            PanelStateStore.instance.SaveNow();
+            AgentHub.ApplyUapOpsModulesChanged();
+            RefreshReconnectHint();
+            AgentHub.RequestAutoApplyReconnect();
+        }
+
         private void OnUapOpsMarkersModuleToggleChanged(ChangeEvent<bool> evt)
         {
             List<string> modules = PanelStateStore.instance.Settings.uapOpsModules;
@@ -2831,6 +2938,9 @@ namespace Colloid.AgentPanel.UI
             _uapOpsMarkersModuleToggle?.SetEnabled(ModuleToggleEnabled(enabledSetting, "markers"));
             _uapOpsAnimModuleToggle?.SetEnabled(ModuleToggleEnabled(enabledSetting, "anim"));
             _uapOpsUiModuleToggle?.SetEnabled(ModuleToggleEnabled(enabledSetting, "ui"));
+            _uapOpsAuthoringModuleToggle?.SetEnabled(ModuleToggleEnabled(enabledSetting, "authoring"));
+            _uapOpsAvatarModuleToggle?.SetEnabled(ModuleToggleEnabled(enabledSetting, "avatar"));
+            _uapOpsBatchModuleToggle?.SetEnabled(ModuleToggleEnabled(enabledSetting, "batch"));
             _uapOpsStatusLabel.text = !enabledSetting
                 ? L10n.S.SettingsUapOpsStatusDisabled
                 : (UapOpsServer.IsRunning

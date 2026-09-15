@@ -2138,9 +2138,34 @@ namespace Colloid.AgentPanel.UI
         public readonly string SettingsUapOpsModuleUiHint =
             "Lists, dumps, clicks and sets values in UI Toolkit Editor windows (uap_editor_ui_*). Default OFF.";
 
+        // 2026-09-15 "authoring" module (docs/design-notes/
+        // 2026-09-15-profile-authoring-tools.md).
+        public readonly string SettingsUapOpsModuleAuthoringLabel = "Profile authoring";
+
+        public readonly string SettingsUapOpsModuleAuthoringHint =
+            "Drafts and checks this project's own Extension Profiles in .uap-profiles/"
+            + " (uap_profile_*). Default OFF.";
+
+        // 2026-09-15 "avatar" module (docs/design-notes/
+        // 2026-09-15-avatar-stats.md).
+        public readonly string SettingsUapOpsModuleAvatarLabel = "Avatar stats";
+
+        public readonly string SettingsUapOpsModuleAvatarHint =
+            "Measures an avatar, diffs two of them, and reads the VRChat Performance Rank"
+            + " (uap_avatar_stats). Default OFF.";
+
+        // 2026-09-15 "batch" module (docs/design-notes/
+        // 2026-09-15-batch-tool.md).
+        public readonly string SettingsUapOpsModuleBatchLabel = "Batched calls";
+
+        public readonly string SettingsUapOpsModuleBatchHint =
+            "Runs many Unity operations in one call and one permission card (uap_batch)."
+            + " Default OFF.";
+
         public readonly string SettingsExtensionProfilesNoBundledTooltip =
-            "The bundled profiles for VRChat SDK3, NDMF, Modular Avatar, Avatar Optimizer, UniVRM,"
-            + " MagicaCloth2, Final IK, Bakery and RPG Maker Unite ship in the separately sold Agent Panel Pro package (jp.colloid.agent-panel-pro). Without it"
+            "The bundled profiles -- VRChat SDK3, NDMF, Modular Avatar, VRCFury, Avatar Optimizer,"
+            + " lilycalInventory, lilToon, UniVRM, MagicaCloth2, Final IK, Bakery and RPG Maker Unite --"
+            + " ship in the separately sold Agent Panel Pro package (jp.colloid.agent-panel-pro). Without it"
             + " this list only shows profiles you add yourself as .uap-profiles/*.json under the project root,"
             + " each approved below before it is injected.";
 
@@ -2826,6 +2851,12 @@ namespace Colloid.AgentPanel.UI
             string settingsExtensionProfilesNoBundledTooltip = null,
             string settingsUapOpsModuleUiLabel = null,
             string settingsUapOpsModuleUiHint = null,
+            string settingsUapOpsModuleAuthoringLabel = null,
+            string settingsUapOpsModuleAuthoringHint = null,
+            string settingsUapOpsModuleAvatarLabel = null,
+            string settingsUapOpsModuleAvatarHint = null,
+            string settingsUapOpsModuleBatchLabel = null,
+            string settingsUapOpsModuleBatchHint = null,
             string settingsSectionProUpdates = null,
             string settingsProUpdatesHint = null,
             string settingsProUpdatesTooltip = null,
@@ -3600,6 +3631,30 @@ namespace Colloid.AgentPanel.UI
             if (settingsUapOpsModuleUiHint != null)
             {
                 SettingsUapOpsModuleUiHint = settingsUapOpsModuleUiHint;
+            }
+            if (settingsUapOpsModuleAuthoringLabel != null)
+            {
+                SettingsUapOpsModuleAuthoringLabel = settingsUapOpsModuleAuthoringLabel;
+            }
+            if (settingsUapOpsModuleAuthoringHint != null)
+            {
+                SettingsUapOpsModuleAuthoringHint = settingsUapOpsModuleAuthoringHint;
+            }
+            if (settingsUapOpsModuleAvatarLabel != null)
+            {
+                SettingsUapOpsModuleAvatarLabel = settingsUapOpsModuleAvatarLabel;
+            }
+            if (settingsUapOpsModuleAvatarHint != null)
+            {
+                SettingsUapOpsModuleAvatarHint = settingsUapOpsModuleAvatarHint;
+            }
+            if (settingsUapOpsModuleBatchLabel != null)
+            {
+                SettingsUapOpsModuleBatchLabel = settingsUapOpsModuleBatchLabel;
+            }
+            if (settingsUapOpsModuleBatchHint != null)
+            {
+                SettingsUapOpsModuleBatchHint = settingsUapOpsModuleBatchHint;
             }
             if (settingsSectionProUpdates != null)
             {

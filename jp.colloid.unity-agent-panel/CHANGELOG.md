@@ -9,6 +9,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (nothing yet)
 
+## [0.50.0] - 2026-09-15
+
+### Added
+
+- **A "Profile authoring" module row in Settings > Unity operations
+  (UapOps)**, and `ToolRegistry.AllNames()` behind it. Both exist for the
+  Extension Profile authoring tools that ship in Agent Panel Pro
+  (`uap_profile_scaffold` / `uap_profile_validate`, design note
+  `docs/design-notes/2026-09-15-profile-authoring-tools.md`): the module is
+  `authoring`, defaults OFF like `anim` and `ui`, and with Core alone its
+  toggle is disabled with the usual "requires the separately sold Agent
+  Panel Pro package" hint. `AllNames()` returns every registered tool's
+  wire name without asking for a module list, which is what a caller
+  checking "does a tool by this name exist" needs -- the profile validator
+  reads it to reject an instruction line naming a tool nothing answers to.
+  Writing a project profile by hand into `.uap-profiles/*.json` and
+  approving its content hash works exactly as before, Core-only included.
+
+- **An "Avatar stats" module row in Settings > Unity operations (UapOps)**,
+  for the avatar measurement tool that ships in Agent Panel Pro
+  (`uap_avatar_stats`, design note
+  `docs/design-notes/2026-09-15-avatar-stats.md`). The module is `avatar`,
+  defaults OFF like `anim`, `ui` and `authoring`, and with Core alone its
+  toggle is disabled with the usual "requires the separately sold Agent
+  Panel Pro package" hint. Core's own behaviour is unchanged.
+
+- **A "Batched calls" module row in Settings > Unity operations (UapOps)**,
+  and `UapOpsServer.EnabledModules()` behind it, for the batching tool that
+  ships in Agent Panel Pro (`uap_batch`, design note
+  `docs/design-notes/2026-09-15-batch-tool.md`). The module is `batch` and
+  defaults OFF -- deliberately opt-in, because it changes what a single
+  approval covers. `EnabledModules()` returns a copy of the module list
+  tools/list currently serves: the module filter is applied when tools/list
+  is built, so a tool reached BY NAME through another tool would otherwise
+  sidestep a module the user switched off, and the batching tool has to be
+  able to check. With Core alone the row is disabled with the usual
+  Pro-absent hint and nothing else changes.
+
+### Changed
+
+- **The "no bundled profiles installed" tooltip and the docs now name all
+  twelve bundled profiles**, not the nine that existed before pro-v0.9.0
+  added VRCFury, lilycalInventory and lilToon. Core-only text: the
+  profiles themselves ship in Agent Panel Pro, and nothing about writing
+  your own `.uap-profiles/*.json` changes.
+
 ## [0.49.1] - 2026-09-15
 
 ### Changed
