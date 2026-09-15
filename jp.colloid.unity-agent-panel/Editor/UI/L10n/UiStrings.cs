@@ -2193,10 +2193,20 @@ namespace Colloid.AgentPanel.UI
         // 2026-09-15-mesh-create.md).
         public readonly string SettingsUapOpsModuleMeshLabel = "Mesh creation";
 
+        // The one inline line stays under L10nTests' 110-char cap; the
+        // tool-by-tool detail is the row's hover tooltip (2026-09-15
+        // mesh-ci-fixes note), the same split every other long Settings
+        // annotation got in 2026-08-04-settings-annotation-load.md.
         public readonly string SettingsUapOpsModuleMeshHint =
-            "Builds, inspects, edits and combines meshes with no script to compile: primitives, extrusions,"
-            + " lathes, SDF blends and raw lists (uap_mesh_create), region-based vertex edits with a"
-            + " proportional falloff (uap_mesh_edit), booleans (uap_mesh_boolean). Default OFF.";
+            "Builds, edits, combines and repairs meshes with no script to compile (uap_mesh_*). Default OFF.";
+
+        public readonly string SettingsUapOpsModuleMeshTooltip =
+            "Primitives, extrusions, lathes, SDF blends and raw vertex lists (uap_mesh_create); a read-only"
+            + " report of a mesh's counts, bounds and groups (uap_mesh_inspect); region-based vertex edits"
+            + " with a proportional falloff (uap_mesh_edit); union / subtract / intersect of two closed"
+            + " meshes (uap_mesh_boolean); defect reports and repair -- degenerate, duplicate and inside-out"
+            + " triangles, open edges (uap_mesh_validate / uap_mesh_repair); and a scene-wide z-fighting"
+            + " scan for coplanar overlapping faces (uap_scene_zfight_scan).";
 
         // 2026-09-15 profile-gap affordance (docs/design-notes/
         // 2026-09-15-profile-gaps-and-skill-scaffold.md): shown only when
@@ -2937,6 +2947,7 @@ namespace Colloid.AgentPanel.UI
             string settingsUapOpsModuleFxHint = null,
             string settingsUapOpsModuleMeshLabel = null,
             string settingsUapOpsModuleMeshHint = null,
+            string settingsUapOpsModuleMeshTooltip = null,
             string settingsUapOpsTestFrameworkAbsentHintFmt = null,
             string settingsUapOpsTestFrameworkAbsentTooltip = null,
             string settingsSectionProUpdates = null,
@@ -3785,6 +3796,10 @@ namespace Colloid.AgentPanel.UI
             if (settingsUapOpsModuleMeshHint != null)
             {
                 SettingsUapOpsModuleMeshHint = settingsUapOpsModuleMeshHint;
+            }
+            if (settingsUapOpsModuleMeshTooltip != null)
+            {
+                SettingsUapOpsModuleMeshTooltip = settingsUapOpsModuleMeshTooltip;
             }
             if (settingsUapOpsTestFrameworkAbsentHintFmt != null)
             {

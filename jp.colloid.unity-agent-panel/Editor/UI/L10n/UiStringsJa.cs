@@ -873,7 +873,11 @@ namespace Colloid.AgentPanel.UI
                 settingsUapOpsModuleFxLabel: "パーティクル",
                 settingsUapOpsModuleFxHint: "Particle System のモジュールをスクリプト上の名前で読み書き(uap_particle_set)。既定OFF。",
                 settingsUapOpsModuleMeshLabel: "メッシュ生成",
-                settingsUapOpsModuleMeshHint: "コンパイル不要のメッシュ操作: 生成(プリミティブ・押し出し・回転体・SDF ブレンド・頂点列、uap_mesh_create)、範囲指定の頂点編集とプロポーショナル移動(uap_mesh_edit)、ブーリアン(uap_mesh_boolean)、調査(uap_mesh_inspect)。既定OFF。",
+                settingsUapOpsModuleMeshHint: "コンパイル不要のメッシュ生成・編集・ブーリアン・修復(uap_mesh_*)。既定OFF。",
+                settingsUapOpsModuleMeshTooltip: "生成: プリミティブ・押し出し・回転体・SDF ブレンド・頂点列(uap_mesh_create)。調査: 頂点数・バウンド・グループの読み取り"
+                    + "(uap_mesh_inspect)。範囲指定の頂点編集とプロポーショナル移動(uap_mesh_edit)。閉じたメッシュ 2 つの和・差・積"
+                    + "(uap_mesh_boolean)。不整合(縮退・重複・裏返り・開いた辺)の検出と修復(uap_mesh_validate / uap_mesh_repair)。"
+                    + "シーン全体の Z ファイティング(同一平面で重なる面)走査(uap_scene_zfight_scan)。",
                 settingsUapOpsModuleTestsLabel: "テスト実行",
                 settingsUapOpsModuleTestsHint: "プロジェクトの EditMode テストを実行し、失敗したテストを報告(uap_test_run)。既定OFF。",
                 settingsUapOpsTestFrameworkAbsentHintFmt: "{0} Unity Test Framework パッケージが必要です(未導入)。",

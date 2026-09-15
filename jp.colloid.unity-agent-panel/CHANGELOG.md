@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (nothing yet)
 
+## [0.54.1] - 2026-09-15
+
+### Fixed
+
+- **The "Mesh creation" row's inline hint in Settings > Unity operations
+  (UapOps) was seven tool descriptions long** (382 characters in English,
+  239 in Japanese), which broke the 110-character inline-annotation guard
+  (`L10nTests.SettingsHintFields_StayShort_InBothCatalogs`) and so left
+  EditMode tests red on `main` since v0.54.0. The inline line is now one
+  sentence and the tool-by-tool detail is the row's hover tooltip
+  (`SettingsUapOpsModuleMeshTooltip`), the split every other long
+  Settings annotation got in
+  `docs/design-notes/2026-08-04-settings-annotation-load.md`. Design note
+  `docs/design-notes/2026-09-15-mesh-ci-fixes.md` section 2.1.
+
 ## [0.54.0] - 2026-09-15
 
 ### Added
@@ -16,9 +31,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A "Mesh creation" module row in Settings > Unity operations
   (UapOps)**, for the mesh tools that ship in Agent Panel Pro
   (`uap_mesh_create` / `uap_mesh_inspect` / `uap_mesh_edit` /
-  `uap_mesh_boolean`, design notes
-  `docs/design-notes/2026-09-15-mesh-create.md` and
-  `2026-09-15-mesh-edit-sdf-boolean.md`). The module is `mesh`
+  `uap_mesh_boolean` / `uap_mesh_validate` / `uap_mesh_repair` /
+  `uap_scene_zfight_scan`, design notes
+  `docs/design-notes/2026-09-15-mesh-create.md`,
+  `2026-09-15-mesh-edit-sdf-boolean.md` and
+  `2026-09-15-mesh-validate-repair-zfight.md`). The module is `mesh`
   and defaults OFF like `anim`, `ui`, `authoring`, `avatar`, `batch`,
   `tests` and `fx`; with Core alone its toggle is disabled with the
   usual "requires the separately sold Agent Panel Pro package" hint. It

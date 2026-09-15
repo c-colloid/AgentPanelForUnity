@@ -2512,7 +2512,7 @@ namespace Colloid.AgentPanel.UI
             _uapOpsMeshModuleToggle.RegisterValueChangedCallback(OnUapOpsMeshModuleToggleChanged);
             section.Add(_uapOpsMeshModuleToggle);
             AddModuleHint(section, _uapOpsMeshModuleToggle, "mesh",
-                L10n.S.SettingsUapOpsModuleMeshHint);
+                L10n.S.SettingsUapOpsModuleMeshHint, L10n.S.SettingsUapOpsModuleMeshTooltip);
 
             // Script validation gate (design section 7.4/8.2 B1). Warning-
             // styled (AddWarning, not AddHint) per design-notes/2026-08-04-
@@ -2635,8 +2635,15 @@ namespace Colloid.AgentPanel.UI
         /// had only ever seen the Core package neither what the module did
         /// nor what "Pro" was). A fresh domain reload after installing Pro
         /// re-evaluates this the next time the Settings view is built.
+        ///
+        /// `tooltip` (optional) is the row's long-form detail, one hover
+        /// away on both the toggle and its hint line -- the inline line
+        /// stays short (L10nTests caps it at 110 chars). The "requires
+        /// Pro" tooltip wins while the module has no tools, since that
+        /// is the one thing the user needs to know about a greyed row.
         /// </summary>
-        private void AddModuleHint(VisualElement section, Toggle moduleToggle, string module, string normalHint)
+        private void AddModuleHint(VisualElement section, Toggle moduleToggle, string module, string normalHint,
+            string tooltip = null)
         {
             bool hasTools = UapOpsServer.Registry.HasToolsInModule(module);
             if (!hasTools)
@@ -2648,12 +2655,20 @@ namespace Colloid.AgentPanel.UI
             else
             {
                 _uapOpsModulesWithoutTools.Remove(module);
+                if (!string.IsNullOrEmpty(tooltip))
+                {
+                    moduleToggle.tooltip = tooltip;
+                }
             }
             Label hint = AddHint(section, ResolveModuleHint(hasTools, normalHint));
             hint.AddToClassList("uap-settings-hint--child");
             if (!hasTools)
             {
                 hint.tooltip = L10n.S.SettingsUapOpsProAbsentTooltip;
+            }
+            else if (!string.IsNullOrEmpty(tooltip))
+            {
+                hint.tooltip = tooltip;
             }
         }
 
