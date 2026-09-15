@@ -528,19 +528,26 @@ namespace Colloid.AgentPanel.Model
 
         /// <summary>
         /// Phase 5c L3(3): after a turn's staged scripts compile and the
-        /// domain reloads, automatically send one continuation turn so the
+        /// domain reloads, automatically send a continuation turn so the
         /// agent can react to the compile result instead of the work simply
         /// stopping there.
         ///
         /// DEFAULT OFF, and it stays off unless the user asks for it. Every
         /// guardrail the design specified is a consequence of the same fact:
         /// this is the only feature in the panel that makes the agent act
-        /// without a human sending anything. So it fires at most ONCE per
-        /// turn, only when the reload is attributable to the agent's own
-        /// .cs/.asmdef work, always leaves a visible system note (no silent
-        /// background turn), and the continuation carries the compile result
-        /// with it -- resuming on the stale pre-compile assumption is the
-        /// specific accident this exists to avoid.
+        /// without a human sending anything. So it fires only when the
+        /// reload is attributable to the agent's own .cs/.asmdef work,
+        /// always leaves a visible system note (no silent background turn),
+        /// and the continuation carries the compile result with it --
+        /// resuming on the stale pre-compile assumption is the specific
+        /// accident this exists to avoid. The original "at most ONCE per
+        /// turn" guardrail (a continuation could not arm a second one) was
+        /// removed on 2026-09-15 (docs/design-notes/2026-09-15-chained-auto-
+        /// continue-after-compile.md): a continuation that commits again
+        /// continues again, so a write-compile-fix loop runs unattended
+        /// until the agent stops committing, the crash-loop guard suspends
+        /// the connection, or the user presses Stop -- the same stops as
+        /// <see cref="autoContinueInterruptedTurn"/>.
         ///
         /// Not part of SettingsChangeDetector.RequiresReconnect: it is read
         /// at the moment a reload completes, never baked into a spawn

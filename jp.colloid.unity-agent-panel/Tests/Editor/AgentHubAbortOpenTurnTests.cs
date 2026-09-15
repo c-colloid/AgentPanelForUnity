@@ -161,7 +161,7 @@ namespace Colloid.AgentPanel.Tests
             Assert.IsFalse(SessionStateBridge.AutoContinueTurnIsContinuation,
                 "a stalled continuation turn never reaches"
                 + " HandleAutoContinueArming; leaving the flag stranded true"
-                + " makes the next human-prompted turn refuse to arm"
+                + " mislabels the next human-prompted turn as a continuation"
                 + " (defect 5's mechanics via the stall path)");
         }
 

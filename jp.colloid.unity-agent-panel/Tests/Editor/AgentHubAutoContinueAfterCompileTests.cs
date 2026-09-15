@@ -29,18 +29,17 @@ namespace Colloid.AgentPanel.Tests
     ///    call out of RestoreAfterReload and in front of its wasRunning
     ///    gate -- see RestoreAfterReload's own doc comment), minus the
     ///    reload itself.
-    /// 3. Guardrail 1 end-to-end (a continuation must never trigger
-    ///    another).
+    /// 3. Chaining end-to-end (a continuation that commits again arms
+    ///    the next continuation -- the 2026-09-15 reversal of the
+    ///    original guardrail 1, design note 2026-09-15-chained-auto-
+    ///    continue-after-compile.md).
     /// 4. The 2026-08-04 defect fixes (ticket staleness, the crash-loop
     ///    guard, and a stranded AutoContinueTurnIsContinuation flag) each
     ///    get their own dedicated regression test: StaleTicket_*,
     ///    CrashLoopSuspended_*, and the two ProcessDeath_*/ProcessDied_*
     ///    tests in Part 4. Defect 6 (the wrong "off in Settings" reason
-    ///    string) is guarded structurally in
-    ///    ContinuationTurnItselfCommitsScripts_DoesNotArmASecondContinuation
-    ///    and, string-independently, by AutoContinueAfterCompilePolicyTests'
-    ///    DescribeOutcome tests -- see this stream's final report for the
-    ///    exact new L10n string still needed to fix the wording itself.
+    ///    string) is guarded, string-independently, by
+    ///    AutoContinueAfterCompilePolicyTests' DescribeOutcome tests.
     ///
     /// What this file deliberately does NOT exercise: an actual
     /// AssemblyReloadEvents reload, or anything that would make
@@ -189,10 +188,9 @@ namespace Colloid.AgentPanel.Tests
         /// that used to set the two tickets by hand into a "does nothing"
         /// test instead.
         /// </summary>
-        private static void ArmTicket(bool wasContinuation)
+        private static void ArmTicket()
         {
             SessionStateBridge.AutoContinuePendingAttribution = true;
-            SessionStateBridge.AutoContinuePendingWasContinuation = wasContinuation;
             SessionStateBridge.AutoContinuePendingArmedAtUtcTicks = DateTime.UtcNow.Ticks;
         }
 
@@ -274,7 +272,6 @@ namespace Colloid.AgentPanel.Tests
             CompleteTurn();
 
             Assert.IsTrue(SessionStateBridge.AutoContinuePendingAttribution);
-            Assert.IsFalse(SessionStateBridge.AutoContinuePendingWasContinuation);
             ChatMessage last = Messages[Messages.Count - 1];
             Assert.AreEqual(ChatMessage.RoleSystem, last.role);
             StringAssert.Contains("continuation turn automatically", last.blocks[0].text);
@@ -391,7 +388,7 @@ namespace Colloid.AgentPanel.Tests
         {
             PanelStateStore.instance.Settings.uapOpsAutoContinueAfterCompile = true;
             StartReadyClient();
-            ArmTicket(wasContinuation: false);
+            ArmTicket();
             int baseline = _fake.WrittenLines.Count;
 
             AgentHub.TryAutoContinueAfterCompile(true);
@@ -420,7 +417,7 @@ namespace Colloid.AgentPanel.Tests
         {
             PanelStateStore.instance.Settings.uapOpsAutoContinueAfterCompile = true;
             StartReadyClient();
-            ArmTicket(wasContinuation: false);
+            ArmTicket();
             SessionStateBridge.TurnRunning = true;
 
             AgentHub.TryAutoContinueAfterCompile(true);
@@ -447,7 +444,7 @@ namespace Colloid.AgentPanel.Tests
             // reads _fake.WrittenLines instead of a Session message.
             PanelStateStore.instance.Settings.uapOpsAutoContinueAfterCompile = true;
             StartReadyClient();
-            ArmTicket(wasContinuation: false);
+            ArmTicket();
             SessionStateBridge.LastCompileHadErrors = true;
             SessionStateBridge.LastCompileErrorDigest = "Assets/Foo.cs(12,3): error CS1002: ; expected";
 
@@ -469,7 +466,7 @@ namespace Colloid.AgentPanel.Tests
         {
             PanelStateStore.instance.Settings.uapOpsAutoContinueAfterCompile = true;
             StartReadyClient();
-            ArmTicket(wasContinuation: false);
+            ArmTicket();
             SessionStateBridge.ClearLastCompileResult();
 
             ReloadSequence(true);
@@ -495,7 +492,7 @@ namespace Colloid.AgentPanel.Tests
             // send nothing.
             PanelStateStore.instance.Settings.uapOpsAutoContinueAfterCompile = true;
             StartReadyClient();
-            ArmTicket(wasContinuation: false);
+            ArmTicket();
             int baseline = _fake.WrittenLines.Count;
 
             ReloadSequence(false);
@@ -503,7 +500,6 @@ namespace Colloid.AgentPanel.Tests
 
             Assert.IsFalse(SessionStateBridge.AutoContinuePendingAttribution,
                 "the ticket must still be consumed, or it misleads a later reload");
-            Assert.IsFalse(SessionStateBridge.AutoContinuePendingWasContinuation);
             Assert.AreEqual(0, SessionStateBridge.AutoContinuePendingArmedAtUtcTicks);
             Assert.IsFalse(AgentHub.HasPendingAutoContinueMessageForTests,
                 "nothing may be queued for a turn that was never interrupted");
@@ -515,14 +511,13 @@ namespace Colloid.AgentPanel.Tests
         {
             PanelStateStore.instance.Settings.uapOpsAutoContinueAfterCompile = true;
             StartReadyClient();
-            ArmTicket(wasContinuation: false);
+            ArmTicket();
             int baseline = _fake.WrittenLines.Count;
 
             ReloadSequence(true);
             PumpAll();
 
             Assert.IsFalse(SessionStateBridge.AutoContinuePendingAttribution, "the ticket must be consumed.");
-            Assert.IsFalse(SessionStateBridge.AutoContinuePendingWasContinuation);
             Assert.IsTrue(SessionStateBridge.AutoContinueTurnIsContinuation,
                 "the turn just sent must be marked as a continuation for the NEXT OnTurnCompleted to see.");
             Assert.IsFalse(AgentHub.HasPendingAutoContinueMessageForTests, "the send must have happened immediately.");
@@ -548,7 +543,6 @@ namespace Colloid.AgentPanel.Tests
             PanelStateStore.instance.Settings.uapOpsAutoContinueAfterCompile = true;
             StartReadyClient();
             SessionStateBridge.AutoContinuePendingAttribution = false;
-            SessionStateBridge.AutoContinuePendingWasContinuation = false;
             int baseline = _fake.WrittenLines.Count;
 
             ReloadSequence(true);
@@ -563,7 +557,7 @@ namespace Colloid.AgentPanel.Tests
         {
             PanelStateStore.instance.Settings.uapOpsAutoContinueAfterCompile = false;
             StartReadyClient();
-            ArmTicket(wasContinuation: false);
+            ArmTicket();
             int baseline = _fake.WrittenLines.Count;
 
             ReloadSequence(true);
@@ -579,12 +573,11 @@ namespace Colloid.AgentPanel.Tests
             // a LATER, unrelated reload to misread.
             PanelStateStore.instance.Settings.uapOpsAutoContinueAfterCompile = false;
             StartReadyClient();
-            ArmTicket(wasContinuation: true);
+            ArmTicket();
 
             ReloadSequence(true);
 
             Assert.IsFalse(SessionStateBridge.AutoContinuePendingAttribution);
-            Assert.IsFalse(SessionStateBridge.AutoContinuePendingWasContinuation);
         }
 
         [Test]
@@ -599,7 +592,6 @@ namespace Colloid.AgentPanel.Tests
             PanelStateStore.instance.Settings.uapOpsAutoContinueAfterCompile = true;
             StartReadyClient();
             SessionStateBridge.AutoContinuePendingAttribution = true;
-            SessionStateBridge.AutoContinuePendingWasContinuation = false;
             SessionStateBridge.AutoContinuePendingArmedAtUtcTicks = DateTime.UtcNow
                 .AddSeconds(-(AutoContinueAfterCompilePolicy.TicketMaxAgeSeconds + 60.0)).Ticks;
             int baseline = _fake.WrittenLines.Count;
@@ -621,7 +613,7 @@ namespace Colloid.AgentPanel.Tests
             // ConsoleErrorProvider data, not assumed.
             PanelStateStore.instance.Settings.uapOpsAutoContinueAfterCompile = true;
             StartReadyClient();
-            ArmTicket(wasContinuation: false);
+            ArmTicket();
             ConsoleErrorProvider.EnqueueLogMessageForTests(
                 "NullReferenceException: Object reference not set", "at Foo.Bar()", LogType.Exception);
             ConsoleErrorProvider.PumpQueuedLogEntriesForTests();
@@ -641,7 +633,7 @@ namespace Colloid.AgentPanel.Tests
         {
             PanelStateStore.instance.Settings.uapOpsAutoContinueAfterCompile = true;
             StartClientWithoutReachingReady();
-            ArmTicket(wasContinuation: false);
+            ArmTicket();
 
             ReloadSequence(true);
 
@@ -669,7 +661,7 @@ namespace Colloid.AgentPanel.Tests
             // told about.
             PanelStateStore.instance.Settings.uapOpsAutoContinueAfterCompile = true;
             AgentHub.SetConsecutiveDeathsForTests(4); // > MaxConsecutiveRestarts (3)
-            ArmTicket(wasContinuation: false);
+            ArmTicket();
 
             ReloadSequence(true);
 
@@ -682,17 +674,22 @@ namespace Colloid.AgentPanel.Tests
                     + " otherwise respawn a real claude process.");
         }
 
-        // == Part 3: guardrail 1 end-to-end -- a continuation must never trigger another ==
+        // == Part 3: chaining end-to-end -- a continuation that commits again continues again ==
 
         [Test]
-        public void ContinuationTurnItselfCommitsScripts_DoesNotArmASecondContinuation()
+        public void ContinuationTurnItselfCommitsScripts_ArmsAndSendsTheNextContinuation()
         {
+            // Design note 2026-09-15-chained-auto-continue-after-compile.md:
+            // the original guardrail 1 ("a continuation must never trigger
+            // another") is gone. The write -> commit -> compile -> fix ->
+            // commit loop is exactly what this feature exists to automate,
+            // so the second hop must arm and send like the first.
             PanelStateStore.instance.Settings.uapOpsAutoContinueAfterCompile = true;
             StartReadyClient();
 
             // Step 1: as if a reload just happened after a genuine,
             // attributable turn -- send the continuation.
-            ArmTicket(wasContinuation: false);
+            ArmTicket();
             ReloadSequence(true);
             PumpAll();
             Assert.IsTrue(SessionStateBridge.AutoContinueTurnIsContinuation);
@@ -704,34 +701,50 @@ namespace Colloid.AgentPanel.Tests
             SendToolResult("t2", CommittedOneFile, isError: false);
             CompleteTurn();
 
-            // HandleAutoContinueArming must see thisTurnWasContinuation ==
-            // true and refuse to promise a second auto-continue, even
-            // though this turn WAS genuinely attributable and the setting
-            // is on.
             Assert.IsTrue(SessionStateBridge.AutoContinuePendingAttribution,
-                "the ticket itself is still armed (attribution tracking does not know about guardrail 1).");
-            Assert.IsTrue(SessionStateBridge.AutoContinuePendingWasContinuation,
-                "but it must be flagged as having come from a continuation turn.");
+                "C1's own commit must arm the ticket exactly like a human-sent turn's would.");
+            Assert.IsFalse(SessionStateBridge.AutoContinueTurnIsContinuation,
+                "the in-flight flag is reset by every OnTurnCompleted, continuation or not.");
             ChatMessage pendingNote = Messages[Messages.Count - 1];
-            StringAssert.Contains("prompt again", pendingNote.blocks[0].text,
-                "the pending-reload note must NOT promise a second auto-continuation.");
-            // Defect 6 regression guard: this note must not claim the
-            // setting is off -- it is ON throughout this test. (The
-            // wording currently still says this: see
-            // AutoContinueAfterCompilePolicyTests' DescribeOutcome_
-            // EnabledAttributableAlreadyContinued_ReturnsAlreadyContinuedThisCycle_
-            // NotDisabled test for the actual, string-independent
-            // regression guard on the underlying cause classification,
-            // and this stream's final report for the exact new L10n
-            // string needed to fix the wording itself.)
+            StringAssert.Contains("continuation turn automatically", pendingNote.blocks[0].text,
+                "the pending-reload note must promise the next continuation, not send the user off"
+                    + " to prompt again.");
 
-            // Step 3: as if C1's own commit caused a SECOND reload --
-            // nothing must be sent this time.
+            // Step 3: as if C1's own commit caused a SECOND reload -- the
+            // second continuation must go out.
             ReloadSequence(true);
+            PumpAll();
+
+            Assert.Greater(_fake.WrittenLines.Count, writtenAfterFirstContinuation,
+                "a continuation that commits again must itself be continued after that reload.");
+            Assert.IsTrue(SessionStateBridge.AutoContinueTurnIsContinuation,
+                "and the second hop is tagged as a continuation just like the first.");
+            Assert.IsFalse(SessionStateBridge.AutoContinuePendingAttribution, "the ticket must still be consumed.");
+        }
+
+        [Test]
+        public void ContinuationTurnThatDoesNotCommit_DoesNotArmAnotherContinuation()
+        {
+            // The chain is bounded by attribution, not by hop count: a
+            // continuation that ends WITHOUT a successful uap_scripts_commit
+            // arms nothing, so an unrelated later reload sends nothing.
+            PanelStateStore.instance.Settings.uapOpsAutoContinueAfterCompile = true;
+            StartReadyClient();
+            ArmTicket();
+            ReloadSequence(true);
+            PumpAll();
+            int writtenAfterFirstContinuation = _fake.WrittenLines.Count;
+
+            CompleteTurn();
+
+            Assert.IsFalse(SessionStateBridge.AutoContinuePendingAttribution,
+                "a continuation that committed nothing must not leave a ticket armed.");
+
+            ReloadSequence(true);
+            PumpAll();
 
             Assert.AreEqual(writtenAfterFirstContinuation, _fake.WrittenLines.Count,
-                "guardrail 1: a continuation must never itself trigger another continuation.");
-            Assert.IsFalse(SessionStateBridge.AutoContinuePendingAttribution, "the ticket must still be consumed.");
+                "no commit, no attribution, no continuation.");
         }
 
         // == Part 4: defect 5 -- an abnormal CLI death must not strand ==
@@ -754,9 +767,8 @@ namespace Colloid.AgentPanel.Tests
             Assert.AreEqual(AgentClientState.Errored, _client.State);
             Assert.IsFalse(SessionStateBridge.AutoContinueTurnIsContinuation,
                 "a continuation turn that crashes instead of reaching OnTurnCompleted must not leave"
-                    + " this flag stranded true for whatever unrelated turn completes next -- it would"
-                    + " silently refuse to arm a genuinely attributable continuation, and (defect 6)"
-                    + " claim the feature is off in Settings when it is not.");
+                    + " this flag stranded true for whatever unrelated turn completes next -- the"
+                    + " panel's record of which turns it sent itself would be wrong.");
         }
 
         [Test]

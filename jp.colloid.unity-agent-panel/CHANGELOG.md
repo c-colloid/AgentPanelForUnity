@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (nothing yet)
 
+## [0.54.2] - 2026-09-15
+
+### Changed
+
+- **"Continue automatically after a compile" now chains.** A
+  continuation turn that itself commits more staged scripts (via
+  `uap_scripts_commit`) is continued again after that reload, instead
+  of stopping with "this turn was itself an automatic continuation, so
+  auto-continue will not fire a second time in a row -- you will need
+  to prompt again". The original once-per-turn guardrail handed the
+  write -> commit -> compile -> fix -> commit loop back to the human
+  every other hop, which is the loop the feature exists to automate.
+  What still ends a chain: the agent stops committing (no fresh
+  attribution ticket, no continuation), the crash-loop guard suspends
+  the CLI connection, or you press Stop -- the same three stops
+  "Continue automatically after an interruption" has had since 0.36.0
+  removed its streak cap. Attribution (only the agent's own
+  .cs/.asmdef commit), the five-minute ticket expiry, and the visible
+  system note are unchanged. The Settings help/tooltip and the
+  pending-reload note now say so (design note
+  `docs/design-notes/2026-09-15-chained-auto-continue-after-compile.md`).
+
 ## [0.54.1] - 2026-09-15
 
 ### Fixed

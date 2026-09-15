@@ -445,23 +445,12 @@ namespace Colloid.AgentPanel.UI
         // section (see AutoContinueAfterCompilePolicy.ComposeContinuationMessage).
         public readonly string HubAutoContinuePendingWillContinue =
             "This turn committed staged scripts. Unity will compile and reload the domain shortly,"
-            + " and the panel will send one continuation turn automatically once that finishes,"
+            + " and the panel will send a continuation turn automatically once that finishes,"
             + " carrying the compile result.";
         public readonly string HubAutoContinuePendingOff =
             "This turn committed staged scripts. Unity will compile and reload the domain shortly."
             + " The panel will reconnect automatically, but auto-continue after compile is off in"
             + " Settings, so you will need to prompt again once it finishes.";
-        /// <summary>
-        /// The once-per-turn guardrail, which used to render
-        /// HubAutoContinuePendingOff -- sending the user to change a setting
-        /// that was already correct. Three causes were folded onto one
-        /// boolean; this is the one that is not "off in Settings".
-        /// </summary>
-        public readonly string HubAutoContinuePendingAlreadyContinued =
-            "This turn committed staged scripts. Unity will compile and reload the domain shortly."
-            + " The panel will reconnect automatically, but this turn was itself an automatic"
-            + " continuation, so auto-continue will not fire a second time in a row -- you will need"
-            + " to prompt again once it finishes.";
         public readonly string HubAutoContinueResuming =
             "Auto-continue: sent \"continue\" after the compile and reload your script commit caused.";
 
@@ -640,9 +629,9 @@ namespace Colloid.AgentPanel.UI
 
         public readonly string SettingsAutoContinueLabel = "Continue automatically after a compile";
         public readonly string SettingsAutoContinueHelp =
-            "Off by default. Sends one continuation turn by itself after the agent's own script changes trigger a reload -- always announced in the transcript.";
+            "Off by default. Sends a continuation turn after the agent's own script changes trigger a reload, always announced in the transcript. Chains until the agent stops committing, the CLI is suspended, or you press Stop.";
         public readonly string SettingsAutoContinueTooltip =
-            "When the agent's own script changes trigger a compile and domain reload, the panel sends one continuation turn carrying the compile result, so the work does not simply stop there. At most once per turn, only for the agent's own .cs/.asmdef changes, and never a silent background turn -- the transcript always says it happened.";
+            "When the agent's own script changes trigger a compile and domain reload, the panel sends a continuation turn carrying the compile result, so the work does not simply stop there. Only for the agent's own .cs/.asmdef changes, and never a silent background turn -- the transcript always says it happened. A continuation that commits more scripts continues again after that reload too, so a write-compile-fix loop runs unattended; it ends when the agent stops committing, when the CLI connection is suspended after repeated crashes, or when you press Stop.";
 
         public readonly string SettingsAutoContinueInterruptedLabel = "Continue automatically after an interruption";
         public readonly string SettingsAutoContinueInterruptedHelp =
@@ -2432,7 +2421,6 @@ namespace Colloid.AgentPanel.UI
             string autoApproveConfirmAllCancelButton,
             string hubAutoContinuePendingWillContinue,
             string hubAutoContinuePendingOff,
-            string hubAutoContinuePendingAlreadyContinued,
             string hubAutoContinueResuming,
             string hubCompactedManualFmt,
             string hubCompactedManual,
@@ -3147,7 +3135,6 @@ namespace Colloid.AgentPanel.UI
             AutoApproveConfirmAllCancelButton = autoApproveConfirmAllCancelButton;
             HubAutoContinuePendingWillContinue = hubAutoContinuePendingWillContinue;
             HubAutoContinuePendingOff = hubAutoContinuePendingOff;
-            HubAutoContinuePendingAlreadyContinued = hubAutoContinuePendingAlreadyContinued;
             HubAutoContinueResuming = hubAutoContinueResuming;
             HubCompactedManualFmt = hubCompactedManualFmt;
             HubCompactedManual = hubCompactedManual;

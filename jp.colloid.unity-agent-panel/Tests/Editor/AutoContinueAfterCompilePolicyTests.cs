@@ -17,86 +17,55 @@ namespace Colloid.AgentPanel.Tests
     public class AutoContinueAfterCompilePolicyTests
     {
         // -- ShouldAutoContinue: every guardrail, both directions, and every
-        // combination of the three inputs (exhaustive: 2^3 = 8 cases). ------
+        // combination of the two inputs (exhaustive: 2^2 = 4 cases). The
+        // third input that used to be here, alreadyContinuedThisTurn, was
+        // removed on 2026-09-15 (design note 2026-09-15-chained-auto-
+        // continue-after-compile.md): a continuation may arm another. ----
 
         [Test]
-        public void Enabled_Attributable_NotAlreadyContinued_ReturnsTrue()
+        public void Enabled_Attributable_ReturnsTrue()
         {
             Assert.IsTrue(AutoContinueAfterCompilePolicy.ShouldAutoContinue(
-                enabled: true, attributableToAgentScripts: true, alreadyContinuedThisTurn: false));
+                enabled: true, attributableToAgentScripts: true));
         }
 
         [Test]
-        public void Disabled_Attributable_NotAlreadyContinued_ReturnsFalse()
+        public void Disabled_Attributable_ReturnsFalse()
         {
-            // Guardrail: the feature must stay off for a user who never
-            // opted in, no matter how clearly attributable the reload is.
+            // Guardrail: opt-in only. An attributable reload with the
+            // setting off must never resume the agent.
             Assert.IsFalse(AutoContinueAfterCompilePolicy.ShouldAutoContinue(
-                enabled: false, attributableToAgentScripts: true, alreadyContinuedThisTurn: false));
+                enabled: false, attributableToAgentScripts: true));
         }
 
         [Test]
-        public void Enabled_NotAttributable_NotAlreadyContinued_ReturnsFalse()
+        public void Enabled_NotAttributable_ReturnsFalse()
         {
-            // Guardrail 2: an unattributable reload (user's own IDE edit,
-            // a package install) must never resume the agent, even with
-            // the feature on.
+            // Guardrail: attribution. A reload the agent's own scripts did
+            // not cause (user edits, package resolve, Reimport All) must
+            // not hand the agent an unsolicited turn.
             Assert.IsFalse(AutoContinueAfterCompilePolicy.ShouldAutoContinue(
-                enabled: true, attributableToAgentScripts: false, alreadyContinuedThisTurn: false));
+                enabled: true, attributableToAgentScripts: false));
         }
 
         [Test]
-        public void Enabled_Attributable_AlreadyContinued_ReturnsFalse()
-        {
-            // Guardrail 1: a continuation must never itself trigger another
-            // continuation -- this is what stops an unbounded compile-and-
-            // reprompt loop.
-            Assert.IsFalse(AutoContinueAfterCompilePolicy.ShouldAutoContinue(
-                enabled: true, attributableToAgentScripts: true, alreadyContinuedThisTurn: true));
-        }
-
-        [Test]
-        public void Disabled_NotAttributable_NotAlreadyContinued_ReturnsFalse()
+        public void Disabled_NotAttributable_ReturnsFalse()
         {
             Assert.IsFalse(AutoContinueAfterCompilePolicy.ShouldAutoContinue(
-                enabled: false, attributableToAgentScripts: false, alreadyContinuedThisTurn: false));
+                enabled: false, attributableToAgentScripts: false));
         }
 
-        [Test]
-        public void Disabled_Attributable_AlreadyContinued_ReturnsFalse()
-        {
-            Assert.IsFalse(AutoContinueAfterCompilePolicy.ShouldAutoContinue(
-                enabled: false, attributableToAgentScripts: true, alreadyContinuedThisTurn: true));
-        }
+        // -- DescribeOutcome: the defect 6 fix (2026-08-04) -- the note's ------
+        // wording is a classification AgentHub switches on, not a bare bool.
+        // Since 2026-09-15 only two outcomes exist (the removed guardrail 1
+        // took AlreadyContinuedThisCycle with it).
 
         [Test]
-        public void Disabled_NotAttributable_AlreadyContinued_ReturnsFalse()
-        {
-            Assert.IsFalse(AutoContinueAfterCompilePolicy.ShouldAutoContinue(
-                enabled: false, attributableToAgentScripts: false, alreadyContinuedThisTurn: true));
-        }
-
-        [Test]
-        public void Enabled_NotAttributable_AlreadyContinued_ReturnsFalse()
-        {
-            Assert.IsFalse(AutoContinueAfterCompilePolicy.ShouldAutoContinue(
-                enabled: true, attributableToAgentScripts: false, alreadyContinuedThisTurn: true));
-        }
-
-        // -- DescribeOutcome: the defect 6 fix (2026-08-04) -- separating the ------
-        // TWO independent reasons a note can say "no continuation is coming"
-        // (setting off vs. guardrail 1) that used to collapse onto the same
-        // "off in Settings" wording. String-independent: this tests the
-        // CLASSIFICATION AgentHub.HandleAutoContinueArming now switches on,
-        // not which L10n string ships for each case (see this stream's
-        // final report for the exact new string still needed there).
-
-        [Test]
-        public void DescribeOutcome_EnabledAttributableNotAlreadyContinued_ReturnsWillContinue()
+        public void DescribeOutcome_EnabledAttributable_ReturnsWillContinue()
         {
             Assert.AreEqual(AutoContinueAfterCompilePolicy.AutoContinueSkipReason.WillContinue,
                 AutoContinueAfterCompilePolicy.DescribeOutcome(
-                    enabled: true, attributableToAgentScripts: true, alreadyContinuedThisTurn: false));
+                    enabled: true, attributableToAgentScripts: true));
         }
 
         [Test]
@@ -104,33 +73,7 @@ namespace Colloid.AgentPanel.Tests
         {
             Assert.AreEqual(AutoContinueAfterCompilePolicy.AutoContinueSkipReason.DisabledInSettings,
                 AutoContinueAfterCompilePolicy.DescribeOutcome(
-                    enabled: false, attributableToAgentScripts: true, alreadyContinuedThisTurn: false));
-        }
-
-        [Test]
-        public void DescribeOutcome_EnabledAttributableAlreadyContinued_ReturnsAlreadyContinuedThisCycle_NotDisabled()
-        {
-            // The exact defect 6 regression: with the setting ON, guardrail
-            // 1 (this turn was itself a continuation) must be reported as
-            // its OWN distinct reason, never as "disabled" -- before this
-            // fix, AgentHub's single ternary could only ever say "off in
-            // Settings" here, which is flatly false when enabled is true.
-            Assert.AreEqual(AutoContinueAfterCompilePolicy.AutoContinueSkipReason.AlreadyContinuedThisCycle,
-                AutoContinueAfterCompilePolicy.DescribeOutcome(
-                    enabled: true, attributableToAgentScripts: true, alreadyContinuedThisTurn: true));
-        }
-
-        [Test]
-        public void DescribeOutcome_DisabledAndAlreadyContinued_ReturnsDisabledInSettings()
-        {
-            // When BOTH negative causes apply, "disabled" wins: it is the
-            // simpler, more actionable thing to tell the user (turn the
-            // setting on), and DescribeOutcome only ever reaches the
-            // AlreadyContinuedThisCycle branch once enabled is confirmed
-            // true.
-            Assert.AreEqual(AutoContinueAfterCompilePolicy.AutoContinueSkipReason.DisabledInSettings,
-                AutoContinueAfterCompilePolicy.DescribeOutcome(
-                    enabled: false, attributableToAgentScripts: true, alreadyContinuedThisTurn: true));
+                    enabled: false, attributableToAgentScripts: true));
         }
 
         // -- TicketIsFresh: the attribution ticket's wall-clock expiry (defect 1, --

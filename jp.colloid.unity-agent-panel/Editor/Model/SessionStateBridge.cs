@@ -27,7 +27,6 @@ namespace Colloid.AgentPanel.Model
         private const string KeyCliBinaryVersionPath = Prefix + "CliBinaryVersionPath";
         private const string KeyAutoContinueTurnIsContinuation = Prefix + "AutoContinueTurnIsContinuation";
         private const string KeyAutoContinuePendingAttribution = Prefix + "AutoContinuePendingAttribution";
-        private const string KeyAutoContinuePendingWasContinuation = Prefix + "AutoContinuePendingWasContinuation";
         private const string KeyAutoContinuePendingArmedAtUtcTicks = Prefix + "AutoContinuePendingArmedAtUtcTicks";
         private const string KeyAutoContinuePendingSendUnconfirmed = Prefix + "AutoContinuePendingSendUnconfirmed";
         private const string KeyLastCompileHadErrors = Prefix + "LastCompileHadErrors";
@@ -178,27 +177,34 @@ namespace Colloid.AgentPanel.Model
         // Policy.ShouldAutoContinue's caller (AgentHub) reads/writes across
         // the exact domain reload this feature reacts to. Plain statics do
         // not survive that reload (see this class's own doc comment); these
-        // three are the ONLY store for "was the last turn attributable" and
-        // "did we already use our one continuation" once the reload wipes
-        // AgentHub's in-memory fields. ------------------------------------
+        // these are the ONLY store for "was the last turn attributable"
+        // once the reload wipes AgentHub's in-memory fields. --------------
 
         /// <summary>
         /// True while the CURRENTLY OPEN turn is itself an auto-continuation
         /// sent by AgentHub.TryAutoContinueAfterCompile. Set immediately
         /// before that turn's own SendUserMessage call is confirmed to have
         /// written to the wire (rolled back to false if the send attempt
-        /// fails), read and reset to false by the NEXT OnTurnCompleted
-        /// (AgentHub.HandleAutoContinueArming), which copies the value into
-        /// <see cref="AutoContinuePendingWasContinuation"/> for
-        /// AutoContinueAfterCompilePolicy.ShouldAutoContinue to consume
-        /// after a LATER reload. SessionState-backed rather than a plain
+        /// fails), reset to false by the NEXT OnTurnCompleted
+        /// (AgentHub.HandleAutoContinueArming). SessionState-backed rather than a plain
         /// static specifically so a reload that interrupts THIS SAME turn
         /// (the rare ResumedMidTurn case, e.g. the continuation itself
         /// stages more scripts and its own commit reloads mid-flight) does
         /// not lose track of "this open turn is a continuation" -- a plain
         /// in-memory field would silently reset to false across that
-        /// reload and let the interrupted continuation's own eventual
-        /// completion arm a second, unbounded reprompt cycle.
+        /// reload.
+        ///
+        /// Since 2026-09-15 (docs/design-notes/2026-09-15-chained-auto-
+        /// continue-after-compile.md) nothing gates on this flag any more:
+        /// it used to be snapshotted into the attribution ticket so a
+        /// continuation could not arm a second continuation (design
+        /// guardrail 1), and that guardrail is gone. It is still written
+        /// and cleared exactly as before -- the write/rollback pair in
+        /// TrySendPendingAutoContinueMessage, the clears in OnTurnCompleted,
+        /// AbortOpenTurn, OnProcessDied and ClearAutoContinuePendingState --
+        /// as the panel's own record of "the open turn was sent by the
+        /// panel, not the human", and so the defect-5 strandedness tests
+        /// keep guarding those clears for whatever reads it next.
         /// </summary>
         public static bool AutoContinueTurnIsContinuation
         {
@@ -224,24 +230,6 @@ namespace Colloid.AgentPanel.Model
         {
             get { return SessionState.GetBool(KeyAutoContinuePendingAttribution, false); }
             set { SessionState.SetBool(KeyAutoContinuePendingAttribution, value); }
-        }
-
-        /// <summary>
-        /// Travels alongside <see cref="AutoContinuePendingAttribution"/>
-        /// across the same reload: a snapshot, taken by AgentHub.
-        /// HandleAutoContinueArming, of whether the turn that just
-        /// completed was itself an auto-continuation (see
-        /// <see cref="AutoContinueTurnIsContinuation"/>). AgentHub.
-        /// TryAutoContinueAfterCompile reads both together as the
-        /// "alreadyContinuedThisTurn" argument to AutoContinueAfterCompile
-        /// Policy.ShouldAutoContinue, then clears both -- this is the field
-        /// that makes a continuation structurally unable to trigger a
-        /// second continuation (design guardrail 1).
-        /// </summary>
-        public static bool AutoContinuePendingWasContinuation
-        {
-            get { return SessionState.GetBool(KeyAutoContinuePendingWasContinuation, false); }
-            set { SessionState.SetBool(KeyAutoContinuePendingWasContinuation, value); }
         }
 
         /// <summary>

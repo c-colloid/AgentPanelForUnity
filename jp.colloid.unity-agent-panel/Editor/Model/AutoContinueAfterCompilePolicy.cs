@@ -20,9 +20,16 @@ namespace Colloid.AgentPanel.Model
     /// (unconditional, unrelated to this feature) reconnects with
     /// --resume -- but sends nothing. The conversation just sits idle
     /// until the human notices and re-prompts. With this feature ON,
-    /// AgentHub sends exactly ONE follow-up user turn carrying the real
-    /// compile result, so the agent -- not the human -- is the one who
-    /// has to notice and react.
+    /// AgentHub sends a follow-up user turn carrying the real compile
+    /// result, so the agent -- not the human -- is the one who has to
+    /// notice and react. Since 2026-09-15 (docs/design-notes/2026-09-15-
+    /// chained-auto-continue-after-compile.md) a continuation turn that
+    /// itself commits more scripts arms the NEXT continuation exactly
+    /// like a human-sent turn does, so a commit -> reload -> continue
+    /// chain keeps going until the agent stops committing, the crash-loop
+    /// guard suspends the connection, or the user presses Stop -- the
+    /// same three stops the interrupted-turn auto-continue has had since
+    /// design note 2026-09-10 removed its streak cap.
     ///
     /// This is the only feature in the panel that makes the agent act
     /// without a human sending anything, which is why every branch below
@@ -153,7 +160,7 @@ namespace Colloid.AgentPanel.Model
         /// (TryAutoContinueAfterCompile), with values it persisted to
         /// SessionStateBridge BEFORE the reload (plain statics do not
         /// survive it) -- this function itself is nothing more than a
-        /// pure function of its three inputs.
+        /// pure function of its two inputs.
         /// </summary>
         /// <param name="enabled">
         /// PanelSettings.uapOpsAutoContinueAfterCompile, read LIVE at the
@@ -186,42 +193,35 @@ namespace Colloid.AgentPanel.Model
         /// this method" already covered exactly this case in spirit,
         /// before the staleness check existed to need it.
         /// </param>
-        /// <param name="alreadyContinuedThisTurn">
-        /// True when the turn that just completed -- the one whose
-        /// possible attribution is being evaluated above -- was ITSELF
-        /// sent as a previous auto-continuation (AgentHub persists this
-        /// alongside the attribution ticket; both are written together by
-        /// OnTurnCompleted/HandleAutoContinueArming and consumed together
-        /// here). WITHOUT this check, a continuation that itself ends up
-        /// committing more scripts (the agent tries a fix, stages a new
-        /// file, calls uap_scripts_commit again) would arm a SECOND
-        /// reload cycle, which would send a SECOND continuation, which
-        /// could do the same again -- an unbounded compile-and-reprompt
-        /// loop, explicitly called out in the design as "the worst
-        /// possible failure here". This parameter is what makes the
-        /// feature strictly one-shot per genuine (human- or externally-
-        /// triggered) turn: it can only ever be true for the turn
-        /// immediately following a continuation, never for two turns in a
-        /// row, because AgentHub resets the live flag it is sourced from
-        /// the moment ANY turn completes, continuation or not.
-        /// </param>
+        /// <remarks>
+        /// Until 2026-09-15 there was a third input, alreadyContinuedThisTurn
+        /// ("the turn that just completed was itself an auto-continuation"),
+        /// which made the feature strictly one-shot per human-sent turn:
+        /// a continuation that committed more scripts could not arm a
+        /// second continuation. It was removed by design note 2026-09-15-
+        /// chained-auto-continue-after-compile.md, for the same reason
+        /// design note 2026-09-10 removed the interrupted-turn streak cap:
+        /// "write -> commit -> compile -> read the errors -> fix -> commit
+        /// again" is the legitimate loop this feature exists to automate,
+        /// and stopping after the first hop handed the loop back to the
+        /// human every other turn. What still bounds a chain: each hop
+        /// needs a genuine, fresh attribution ticket (a real
+        /// uap_scripts_commit that moved files, within TicketMaxAgeSeconds
+        /// of the reload); the crash-loop guard (AgentHub.IsCrashLoopSuspended)
+        /// abandons the queued send; and the Stop button interrupts the
+        /// turn like any other.
+        /// </remarks>
         /// <returns>
-        /// True only when every guardrail passes: the feature is on, the
-        /// reload is attributable, and sending would not be continuing a
-        /// continuation.
+        /// True only when every guardrail passes: the feature is on and
+        /// the reload is attributable.
         /// </returns>
-        public static bool ShouldAutoContinue(bool enabled, bool attributableToAgentScripts,
-            bool alreadyContinuedThisTurn)
+        public static bool ShouldAutoContinue(bool enabled, bool attributableToAgentScripts)
         {
             if (!enabled)
             {
                 return false;
             }
             if (!attributableToAgentScripts)
-            {
-                return false;
-            }
-            if (alreadyContinuedThisTurn)
             {
                 return false;
             }
@@ -236,30 +236,24 @@ namespace Colloid.AgentPanel.Model
         /// single `willAutoContinue ? ... : ...` ternary, which folded TWO
         /// independent negative causes (the setting is off; guardrail 1
         /// blocked a continuation continuing itself) onto the SAME "off in
-        /// Settings" text -- so a user who had the feature ON, but whose
-        /// turn was itself a continuation, was flatly told the feature was
-        /// off. Confirmed live by this fixture's own
-        /// ContinuationTurnItselfCommitsScripts_DoesNotArmASecondContinuation
-        /// test, which sets the setting ON and still hits the "off"
-        /// branch.
+        /// Settings" text. The 2026-09-15 removal of guardrail 1 (see
+        /// <see cref="ShouldAutoContinue"/>'s remarks) took its
+        /// AlreadyContinuedThisCycle value with it; the enum stays so the
+        /// note's wording remains a classification AgentHub switches on
+        /// rather than a bare bool, and so a future third cause has a
+        /// home.
         /// </summary>
         public enum AutoContinueSkipReason
         {
             /// <summary>Every guardrail passed; the continuation will be sent.</summary>
             WillContinue,
             /// <summary>PanelSettings.uapOpsAutoContinueAfterCompile is off.</summary>
-            DisabledInSettings,
-            /// <summary>
-            /// The setting IS on and the reload IS attributable, but
-            /// guardrail 1 blocked it: the turn that just completed was
-            /// itself an auto-continuation, so it may not arm a second one.
-            /// </summary>
-            AlreadyContinuedThisCycle
+            DisabledInSettings
         }
 
         /// <summary>
         /// Classifies WHY a just-armed, attributable ticket will or will
-        /// not lead to an auto-continuation, as three mutually exclusive,
+        /// not lead to an auto-continuation, as mutually exclusive,
         /// independently testable outcomes -- the fix for defect 6
         /// (2026-08-04, see <see cref="AutoContinueSkipReason"/>'s own doc
         /// comment for the bug this replaces). Callers MUST only call this
@@ -268,27 +262,22 @@ namespace Colloid.AgentPanel.Model
         /// all is an attributable ticket (an unattributable turn shows no
         /// pending-reload note whatsoever, so there is nothing to
         /// describe). This method does not re-derive that guardrail
-        /// itself -- passing false here would fall through to the SAME
-        /// AlreadyContinuedThisCycle result an actually-already-continued
-        /// call gets, which would be a confusing, wrong label for "not
-        /// attributable" to wear. Rather than add a fourth enum value
-        /// nobody would ever legitimately see (HandleAutoContinueArming's
-        /// own `if (!attributable) return;` guard, immediately above its
-        /// call to this method, already makes that case unreachable in
+        /// itself -- passing false here with the setting on would report
+        /// DisabledInSettings, a wrong label for "not attributable" to
+        /// wear. Rather than add an enum value nobody would ever
+        /// legitimately see (HandleAutoContinueArming's own
+        /// `if (!attributable) return;` guard, immediately above its call
+        /// to this method, already makes that case unreachable in
         /// practice), the precondition is documented here instead.
         /// </summary>
         public static AutoContinueSkipReason DescribeOutcome(bool enabled,
-            bool attributableToAgentScripts, bool alreadyContinuedThisTurn)
+            bool attributableToAgentScripts)
         {
-            if (ShouldAutoContinue(enabled, attributableToAgentScripts, alreadyContinuedThisTurn))
+            if (ShouldAutoContinue(enabled, attributableToAgentScripts))
             {
                 return AutoContinueSkipReason.WillContinue;
             }
-            if (!enabled)
-            {
-                return AutoContinueSkipReason.DisabledInSettings;
-            }
-            return AutoContinueSkipReason.AlreadyContinuedThisCycle;
+            return AutoContinueSkipReason.DisabledInSettings;
         }
 
         /// <summary>

@@ -1956,7 +1956,7 @@ namespace Colloid.AgentPanel.Integration
         /// (re)start the client -- never on the trivial "already running"
         /// fast-path return above -- it also clears the auto-continue
         /// attribution ticket (SessionStateBridge.AutoContinuePendingAttribution/
-        /// AutoContinuePendingWasContinuation). This is the "EnsureStarted
+        /// AutoContinuePendingArmedAtUtcTicks). This is the "EnsureStarted
         /// -- the path a user takes by simply typing a message -- does not
         /// clear it either" half of the fix: a ticket armed by
         /// HandleAutoContinueArming is only ever meant to survive until the
@@ -1973,12 +1973,10 @@ namespace Colloid.AgentPanel.Integration
         /// and legitimately needs to survive a reload that interrupts that
         /// SAME turn (ResumedMidTurn) -- RestoreAfterReload calls
         /// EnsureStarted as part of resuming that exact turn, and wiping the
-        /// flag here would silently defeat guardrail 1 (a continuation
-        /// resumed after being interrupted would no longer report itself as
-        /// one, letting its own eventual completion arm a second,
-        /// unbounded continuation). Clearing only the pending-ATTRIBUTION
-        /// ticket, never the in-flight-continuation flag, is what keeps
-        /// both invariants intact at once.
+        /// flag here would make a continuation resumed after being
+        /// interrupted stop reporting itself as one. Clearing only the
+        /// pending-ATTRIBUTION ticket, never the in-flight-continuation
+        /// flag, is what keeps both invariants intact at once.
         /// </summary>
         public static void EnsureStarted()
         {
@@ -2001,7 +1999,6 @@ namespace Colloid.AgentPanel.Integration
                 return;
             }
             SessionStateBridge.AutoContinuePendingAttribution = false;
-            SessionStateBridge.AutoContinuePendingWasContinuation = false;
             SessionStateBridge.AutoContinuePendingArmedAtUtcTicks = 0;
             StartClient(ResolveEnsureStartedResumeId(Session.sessionId, SessionStateBridge.CurrentSessionId));
         }
@@ -2660,10 +2657,8 @@ namespace Colloid.AgentPanel.Integration
         internal static void TryAutoContinueAfterCompile(bool clientWasRunning)
         {
             bool attributable = SessionStateBridge.AutoContinuePendingAttribution;
-            bool wasContinuation = SessionStateBridge.AutoContinuePendingWasContinuation;
             long armedAtUtcTicks = SessionStateBridge.AutoContinuePendingArmedAtUtcTicks;
             SessionStateBridge.AutoContinuePendingAttribution = false;
-            SessionStateBridge.AutoContinuePendingWasContinuation = false;
             SessionStateBridge.AutoContinuePendingArmedAtUtcTicks = 0;
 
             // CONSUMING the ticket is unconditional -- that is the whole point
@@ -2682,7 +2677,12 @@ namespace Colloid.AgentPanel.Integration
 
             bool enabled = PanelStateStore.instance.Settings.uapOpsAutoContinueAfterCompile;
             bool fresh = AutoContinueAfterCompilePolicy.TicketIsFresh(armedAtUtcTicks, DateTime.UtcNow.Ticks);
-            if (!AutoContinueAfterCompilePolicy.ShouldAutoContinue(enabled, attributable && fresh, wasContinuation))
+            // No "was this turn itself a continuation" input any more
+            // (design note 2026-09-15-chained-auto-continue-after-compile.md):
+            // a continuation that commits again arms the next hop like any
+            // other turn. The crash-loop guard in TrySendPendingAutoContinueMessage
+            // and the Stop button are what end a chain the agent does not.
+            if (!AutoContinueAfterCompilePolicy.ShouldAutoContinue(enabled, attributable && fresh))
             {
                 return;
             }
@@ -3188,7 +3188,6 @@ namespace Colloid.AgentPanel.Integration
         {
             SessionStateBridge.AutoContinueTurnIsContinuation = false;
             SessionStateBridge.AutoContinuePendingAttribution = false;
-            SessionStateBridge.AutoContinuePendingWasContinuation = false;
             SessionStateBridge.AutoContinuePendingArmedAtUtcTicks = 0;
             SessionStateBridge.AutoContinuePendingSendUnconfirmed = false;
         }
@@ -4637,9 +4636,10 @@ namespace Colloid.AgentPanel.Integration
         ///
         /// <paramref name="clearContinuationFlag"/>: stall/errored/died
         /// pass true -- their turn will never reach OnTurnCompleted, so a
-        /// stranded AutoContinueTurnIsContinuation=true would make the next
-        /// genuinely human-prompted turn refuse to arm (defect 5's exact
-        /// mechanics). Teardown passes FALSE: TearDownClient underlies
+        /// stranded AutoContinueTurnIsContinuation=true would mislabel the
+        /// next genuinely human-prompted turn as a continuation (defect
+        /// 5's exact mechanics; until 2026-09-15 that also made it refuse
+        /// to arm). Teardown passes FALSE: TearDownClient underlies
         /// ShutdownForReload, which runs on the very domain reload that
         /// flag exists to survive (see ClearAutoContinuePendingState's doc
         /// comment for why reload must preserve it).
@@ -4787,8 +4787,8 @@ namespace Colloid.AgentPanel.Integration
                 // clearContinuationFlag: TRUE -- defect 5's fix: a
                 // continuation turn that crashes here never reaches
                 // HandleAutoContinueArming, and a stranded
-                // AutoContinueTurnIsContinuation=true would make the next
-                // genuinely human-prompted turn silently refuse to arm.
+                // AutoContinueTurnIsContinuation=true would mislabel the
+                // next genuinely human-prompted turn as a continuation.
                 // Kept in BOTH this handler and OnProcessDied deliberately:
                 // some Errored transitions never raise ProcessDied at all
                 // (e.g. StartClient failing to spawn), and vice versa the
@@ -5784,19 +5784,23 @@ namespace Colloid.AgentPanel.Integration
         ///
         /// ORDER matters here: the live SessionStateBridge.
         /// AutoContinueTurnIsContinuation flag (whether THIS just-completed
-        /// turn was itself sent by TryAutoContinueAfterCompile) is read and
-        /// reset FIRST, unconditionally, every turn -- exactly like
+        /// turn was itself sent by TryAutoContinueAfterCompile) is reset
+        /// FIRST, unconditionally, every turn -- exactly like
         /// _currentTurnScriptsCommitAttributable below -- so a stale true
         /// left over from an earlier continuation can never bleed into a
         /// later, unrelated turn's bookkeeping. Note that this is not the
         /// ONLY place the flag is ever cleared any more: OnStateChanged
         /// (Errored) and OnProcessDied ALSO clear it, for a continuation
         /// turn that crashes instead of ever reaching OnTurnCompleted --
-        /// see defect 5's fix on those two handlers.
+        /// see defect 5's fix on those two handlers. Its VALUE is no
+        /// longer consulted here: until 2026-09-15 it was snapshotted into
+        /// the ticket as "was continuation" so a continuation could not
+        /// arm a second one; design note 2026-09-15-chained-auto-continue-
+        /// after-compile.md removed that guardrail, so a continuation
+        /// turn that commits again arms the next hop like any other turn.
         /// </summary>
         private static void HandleAutoContinueArming()
         {
-            bool thisTurnWasContinuation = SessionStateBridge.AutoContinueTurnIsContinuation;
             SessionStateBridge.AutoContinueTurnIsContinuation = false;
 
             bool attributable = _currentTurnScriptsCommitAttributable;
@@ -5807,7 +5811,6 @@ namespace Colloid.AgentPanel.Integration
             // armed and never had consumed (e.g. because, unexpectedly,
             // the anticipated reload never actually happened).
             SessionStateBridge.AutoContinuePendingAttribution = attributable;
-            SessionStateBridge.AutoContinuePendingWasContinuation = thisTurnWasContinuation;
             // Defect 1 fix (2026-08-04): stamped unconditionally too, right
             // alongside the two fields above, so TryAutoContinueAfterCompile
             // can tell a reload that legitimately follows THIS arm apart
@@ -5823,17 +5826,13 @@ namespace Colloid.AgentPanel.Integration
                 return;
             }
             bool enabled = PanelStateStore.instance.Settings.uapOpsAutoContinueAfterCompile;
-            // Defect 6 fix (2026-08-04): DescribeOutcome replaces a single
-            // `willAutoContinue ? ... : ...` ternary that folded two
-            // independent negative causes -- the setting being off, and
-            // guardrail 1 blocking a continuation from continuing itself --
-            // onto the SAME "off in Settings" wording (see
-            // AutoContinueAfterCompilePolicy.AutoContinueSkipReason's own
-            // doc comment; ContinuationTurnItselfCommitsScripts_
-            // DoesNotArmASecondContinuation is the regression test that
-            // caught this live, with the setting ON).
+            // Defect 6 fix (2026-08-04): DescribeOutcome classifies the
+            // note's wording instead of a bare `willAutoContinue ? ... : ...`
+            // ternary (see AutoContinueAfterCompilePolicy.AutoContinueSkipReason's
+            // own doc comment for the two-causes-one-wording bug it fixed;
+            // the second cause itself went away on 2026-09-15).
             AutoContinueAfterCompilePolicy.AutoContinueSkipReason outcome =
-                AutoContinueAfterCompilePolicy.DescribeOutcome(enabled, attributable, thisTurnWasContinuation);
+                AutoContinueAfterCompilePolicy.DescribeOutcome(enabled, attributable);
             var note = new ChatMessage
             {
                 role = ChatMessage.RoleSystem,
@@ -5843,32 +5842,14 @@ namespace Colloid.AgentPanel.Integration
             // about to kill the CLI process is worth announcing on its own,
             // so a user with the setting off still learns why the panel is
             // about to look disconnected. Only the wording differs.
-            //
-            // The AlreadyContinuedThisCycle branch below reuses
-            // HubAutoContinuePendingOff as a KNOWN-WRONG placeholder: it
-            // says "off in Settings" even though DescribeOutcome only
-            // returns this value when enabled is true. This stream does
-            // not own the L10n catalog and must not add a new entry to it
-            // -- see this stream's final report for the exact dedicated
-            // string (HubAutoContinuePendingAlreadyContinued) the L10n
-            // owner should add, after which this branch becomes a one-line
-            // swap; the DescribeOutcome classification itself is already
-            // correct and covered by AutoContinueAfterCompilePolicyTests
-            // independently of which string ships here.
             string noteText;
             switch (outcome)
             {
                 case AutoContinueAfterCompilePolicy.AutoContinueSkipReason.WillContinue:
                     noteText = L10n.S.HubAutoContinuePendingWillContinue;
                     break;
-                case AutoContinueAfterCompilePolicy.AutoContinueSkipReason.DisabledInSettings:
-                    noteText = L10n.S.HubAutoContinuePendingOff;
-                    break;
                 default:
-                    // The once-per-turn guardrail. This used to render
-                    // HubAutoContinuePendingOff too, which sent the user off
-                    // to change a setting that was already correct.
-                    noteText = L10n.S.HubAutoContinuePendingAlreadyContinued;
+                    noteText = L10n.S.HubAutoContinuePendingOff;
                     break;
             }
             note.Add(ChatMessageBlock.MakeSystemNote(noteText));
