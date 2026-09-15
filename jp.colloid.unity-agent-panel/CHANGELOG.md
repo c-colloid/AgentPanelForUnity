@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (nothing yet)
 
+## [0.53.1] - 2026-09-15
+
+### Changed
+
+- Settings > Extension profiles: the "bundled profiles ship in Agent Panel
+  Pro" tooltip (EN/JA), the README and the user guide now list ProBuilder
+  among the bundled profiles (pro-v0.10.0 adds it). Design note
+  `docs/design-notes/2026-09-15-probuilder-profile-and-mesh-route.md`.
+  No behaviour change in Core.
+
 ## [0.53.0] - 2026-09-15
 
 ### Added

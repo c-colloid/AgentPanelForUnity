@@ -2223,7 +2223,7 @@ namespace Colloid.AgentPanel.UI
 
         public readonly string SettingsExtensionProfilesNoBundledTooltip =
             "The bundled profiles -- VRChat SDK3, NDMF, Modular Avatar, VRCFury, Avatar Optimizer,"
-            + " lilycalInventory, lilToon, UniVRM, MagicaCloth2, Final IK, Bakery and RPG Maker Unite --"
+            + " lilycalInventory, lilToon, UniVRM, MagicaCloth2, Final IK, Bakery, RPG Maker Unite and ProBuilder --"
             + " ship in the separately sold Agent Panel Pro package (jp.colloid.agent-panel-pro). Without it"
             + " this list only shows profiles you add yourself as .uap-profiles/*.json under the project root,"
             + " each approved below before it is injected.";

@@ -859,7 +859,7 @@ namespace Colloid.AgentPanel.UI
                     + "何を書いたか教えてください。",
                 settingsExtensionProfilesNoBundledTooltip: "VRChat SDK3 / NDMF / Modular Avatar / VRCFury / "
                     + "Avatar Optimizer / lilycalInventory / lilToon / UniVRM / "
-                    + "MagicaCloth2 / Final IK / Bakery / RPG Maker Unite の同梱プロファイルは、"
+                    + "MagicaCloth2 / Final IK / Bakery / RPG Maker Unite / ProBuilder の同梱プロファイルは、"
                     + "別売の Agent Panel Pro パッケージ(jp.colloid.agent-panel-pro)に収録されています。Pro なしでは、この一覧には"
                     + "プロジェクト直下の .uap-profiles/*.json に自分で置いたプロファイルだけが表示され、それぞれ下で承認してから注入されます。",
                 settingsUapOpsModuleUiLabel: "UI 操作",
