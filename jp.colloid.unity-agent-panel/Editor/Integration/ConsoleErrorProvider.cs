@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Threading;
 using Colloid.AgentPanel.Model;
 using Colloid.AgentPanel.UI;
 using UnityEditor;
@@ -25,6 +26,15 @@ namespace Colloid.AgentPanel.Integration
     /// are invisible, and clearing the Console window does not clear this
     /// list (use Clear()). Compiler errors from the previous compile run
     /// are dropped when a new compilation starts.
+    ///
+    /// Compile window (docs/design-notes/2026-09-15-panel-ux-followups.md
+    /// section 1): a compilation run's compiler errors are buffered while
+    /// the run is in flight and published in one batch at
+    /// compilationFinished, and <see cref="Settling"/> tells the UI that
+    /// the "ask the agent to fix these" affordances should stay down until
+    /// then. What the panel's own staged-script validation build logs
+    /// (BeginValidationBuild) is dropped outright -- that code is not in
+    /// the project and the agent already has the compiler messages.
     ///
     /// Identical messages are deduplicated (an exception spamming every
     /// frame counts once); Changed is raised only when the visible set
@@ -79,8 +89,108 @@ namespace Colloid.AgentPanel.Integration
 
         private static readonly List<Entry> _entries = new List<Entry>();
 
+        /// <summary>
+        /// Compiler errors of the compilation run currently in flight,
+        /// held back until the run ENDS (docs/design-notes/2026-09-15-
+        /// panel-ux-followups.md section 1). assemblyCompilationFinished
+        /// fires per assembly, in the middle of a run, so adding straight
+        /// into _entries published errors that the rest of the same run --
+        /// or the very next run Unity queues behind it -- routinely made
+        /// obsolete: the chip appeared on every agent-driven compile and
+        /// then vanished on its own, which is exactly the "was that real?"
+        /// confusion this buffer removes. Flushed synchronously from
+        /// OnCompilationFinished (NOT from an update tick: Unity can go
+        /// straight from compilationFinished into beforeAssemblyReload
+        /// without one, and ReloadLifecycle's pre-reload snapshot -- the
+        /// HUB-8 carry-over that tells the model whether the compile
+        /// failed -- has to see these entries).
+        /// </summary>
+        private static readonly List<Entry> _pendingCompilerEntries = new List<Entry>();
+
+        /// <summary>Nesting depth of compilation runs in flight (compilationStarted/Finished).</summary>
+        private static int _compileRunDepth;
+
+        /// <summary>
+        /// Nesting depth of the panel's own staged-script validation build
+        /// (UapScriptsCommitTool's AssemblyBuilder). Written from the main
+        /// thread but READ from OnLogMessage, which Unity may call on any
+        /// thread -- hence Interlocked/volatile access, never a plain read.
+        /// </summary>
+        private static int _validationBuildDepth;
+
+        /// <summary>
+        /// Set when the validation-build window opens or closes; drained by
+        /// PumpQueuedLogEntries on the next main-thread tick. The raise is
+        /// deferred for the same reason OnLogMessage's is (2026-08-02
+        /// design note section 1): Changed subscribers touch VisualElements,
+        /// and this pair is driven by an AssemblyBuilder callback whose
+        /// thread the panel does not get to choose.
+        /// </summary>
+        private static volatile bool _windowChangePending;
+
         /// <summary>Raised when the set of captured errors changes.</summary>
         public static event Action Changed;
+
+        /// <summary>
+        /// True while nothing the panel could show is final yet: a
+        /// compilation run is in flight, or the panel is compiling staged
+        /// scripts to validate them. The "ask the agent to fix these"
+        /// affordances (ContextBarView's error chip, EmptyStateView's fix
+        /// suggestion) stay hidden while this holds -- mid-compile the
+        /// error set is a moving target, the user cannot act on it, and a
+        /// chip that appears and disappears by itself reads as a bug.
+        /// Captured entries are NOT hidden by this: VisibleSnapshot /
+        /// VisibleCount / FormatDigest keep reporting exactly what has
+        /// been captured, so AgentHub's post-compile verdict and the
+        /// pre-reload carry-over are untouched.
+        /// </summary>
+        public static bool Settling
+        {
+            get
+            {
+                return _compileRunDepth > 0
+                    || Interlocked.CompareExchange(ref _validationBuildDepth, 0, 0) > 0;
+            }
+        }
+
+        /// <summary>
+        /// Opens a window in which captured errors are DROPPED rather than
+        /// recorded, for the staged-script validation build in
+        /// UapScriptsCommitTool: that build compiles code which is not in
+        /// the project yet, its diagnostics are already returned to the
+        /// agent verbatim in the tool result, and the files it names do not
+        /// exist under Assets/ -- so offering the user "ask the agent to
+        /// fix these errors" about them is duplicate, unactionable noise.
+        /// Whether Unity routes AssemblyBuilder diagnostics through the
+        /// Console log callback varies by editor version; this window makes
+        /// the panel behave the same either way. Always pair with
+        /// <see cref="EndValidationBuild"/>; beforeAssemblyReload
+        /// force-resets the depth so an abandoned build can never leave
+        /// capture suppressed forever (same unbalanced-counter guard
+        /// UapTurnScope applies to DisallowAutoRefresh).
+        /// </summary>
+        public static void BeginValidationBuild()
+        {
+            if (Interlocked.Increment(ref _validationBuildDepth) == 1)
+            {
+                _windowChangePending = true;
+            }
+        }
+
+        /// <summary>Closes one <see cref="BeginValidationBuild"/> window; never goes below zero.</summary>
+        public static void EndValidationBuild()
+        {
+            int depth = Interlocked.Decrement(ref _validationBuildDepth);
+            if (depth < 0)
+            {
+                Interlocked.Exchange(ref _validationBuildDepth, 0);
+                return;
+            }
+            if (depth == 0)
+            {
+                _windowChangePending = true;
+            }
+        }
 
         /// <summary>Number of distinct captured errors.</summary>
         public static int Count
@@ -111,8 +221,24 @@ namespace Colloid.AgentPanel.Integration
             CompilationPipeline.compilationStarted += OnCompilationStarted;
             CompilationPipeline.assemblyCompilationFinished -= OnAssemblyCompiled;
             CompilationPipeline.assemblyCompilationFinished += OnAssemblyCompiled;
+            CompilationPipeline.compilationFinished -= OnCompilationFinished;
+            CompilationPipeline.compilationFinished += OnCompilationFinished;
+            // Unbalanced-counter guard (UapTurnScope's idiom): a staged
+            // build abandoned by a domain reload must not leave capture
+            // suppressed in the next domain -- these are statics, so the
+            // reset simply starts the new domain clean.
+            AssemblyReloadEvents.beforeAssemblyReload -= ReleaseWindowsForDomainReload;
+            AssemblyReloadEvents.beforeAssemblyReload += ReleaseWindowsForDomainReload;
             EditorApplication.update -= PumpQueuedLogEntries;
             EditorApplication.update += PumpQueuedLogEntries;
+        }
+
+        private static void ReleaseWindowsForDomainReload()
+        {
+            Interlocked.Exchange(ref _validationBuildDepth, 0);
+            _compileRunDepth = 0;
+            _pendingCompilerEntries.Clear();
+            _windowChangePending = false;
         }
 
         /// <summary>
@@ -336,6 +462,16 @@ namespace Colloid.AgentPanel.Integration
             {
                 return;
             }
+            // Staged-script validation build in flight: whatever it logs is
+            // about code that is not in the project yet and is already on
+            // its way back to the agent in the tool result -- see
+            // BeginValidationBuild. Dropped here rather than filtered later
+            // so it never reaches _entries at all. Interlocked because this
+            // callback can run on any thread.
+            if (Interlocked.CompareExchange(ref _validationBuildDepth, 0, 0) > 0)
+            {
+                return;
+            }
             string message = FirstLine(condition, MaxMessageChars);
             if (string.IsNullOrEmpty(message))
             {
@@ -366,6 +502,11 @@ namespace Colloid.AgentPanel.Integration
             if (_applyingQueuedLogEntries)
             {
                 return;
+            }
+            if (_windowChangePending)
+            {
+                _windowChangePending = false;
+                RaiseChanged();
             }
             List<QueuedLogEntry> drained;
             lock (_queueLock)
@@ -399,16 +540,41 @@ namespace Colloid.AgentPanel.Integration
 
         private static void OnCompilationStarted(object context)
         {
+            _compileRunDepth++;
             // The compile that is starting supersedes the previous one's
-            // errors; runtime errors are kept.
-            int removed = _entries.RemoveAll(delegate (Entry entry)
+            // errors; runtime errors are kept. The pending buffer goes with
+            // them: a run that never reached compilationFinished has no
+            // result worth publishing.
+            _pendingCompilerEntries.Clear();
+            _entries.RemoveAll(delegate (Entry entry)
             {
                 return entry.FromCompiler;
             });
-            if (removed > 0)
+            // Unconditional, unlike the pre-2026-09-15 "only when something
+            // was removed": Settling has just flipped, and the chip hides
+            // off that, not off the entry list.
+            RaiseChanged();
+        }
+
+        /// <summary>
+        /// The run is over: its compiler errors are final, so publish them
+        /// in one batch. Synchronous on purpose -- see
+        /// _pendingCompilerEntries' doc comment for why this cannot wait
+        /// for an update tick.
+        /// </summary>
+        private static void OnCompilationFinished(object context)
+        {
+            if (_compileRunDepth > 0)
             {
-                RaiseChanged();
+                _compileRunDepth--;
             }
+            for (int i = 0; i < _pendingCompilerEntries.Count; i++)
+            {
+                Entry entry = _pendingCompilerEntries[i];
+                Add(entry.Message, entry.Location, true);
+            }
+            _pendingCompilerEntries.Clear();
+            RaiseChanged();
         }
 
         private static void OnAssemblyCompiled(string assemblyPath,
@@ -418,7 +584,14 @@ namespace Colloid.AgentPanel.Integration
             {
                 return;
             }
-            bool changed = false;
+            // Same window the log callback honours: should an editor version
+            // route the staged-script AssemblyBuilder through this event too,
+            // its diagnostics must not ride the next real run's flush into
+            // the chip. See BeginValidationBuild.
+            if (Interlocked.CompareExchange(ref _validationBuildDepth, 0, 0) > 0)
+            {
+                return;
+            }
             for (int i = 0; i < messages.Length; i++)
             {
                 if (messages[i].type != CompilerMessageType.Error)
@@ -427,12 +600,43 @@ namespace Colloid.AgentPanel.Integration
                 }
                 string location = string.IsNullOrEmpty(messages[i].file)
                     ? null : messages[i].file + ":" + messages[i].line;
-                changed |= Add(FirstLine(messages[i].message, MaxMessageChars), location, true);
+                // Buffered, not published: this fires mid-run. No Changed
+                // here either -- there is nothing new for a consumer to see
+                // until OnCompilationFinished flushes.
+                BufferCompilerEntry(FirstLine(messages[i].message, MaxMessageChars), location);
             }
-            if (changed)
+        }
+
+        /// <summary>
+        /// Adds one compiler error to the pending buffer, deduplicated by
+        /// Message exactly as <see cref="Add"/> deduplicates _entries, so
+        /// the same error reported by several assemblies of one run still
+        /// publishes once.
+        /// </summary>
+        private static void BufferCompilerEntry(string message, string location)
+        {
+            if (string.IsNullOrEmpty(message))
             {
-                RaiseChanged();
+                return;
             }
+            for (int i = 0; i < _pendingCompilerEntries.Count; i++)
+            {
+                if (string.Equals(_pendingCompilerEntries[i].Message, message, StringComparison.Ordinal))
+                {
+                    return;
+                }
+            }
+            if (_pendingCompilerEntries.Count >= MaxEntries)
+            {
+                _pendingCompilerEntries.RemoveAt(0);
+            }
+            _pendingCompilerEntries.Add(new Entry
+            {
+                Message = message,
+                Location = location,
+                FromCompiler = true,
+                Occurrences = 1
+            });
         }
 
         // -- Internals ------------------------------------------------------------
@@ -495,6 +699,36 @@ namespace Colloid.AgentPanel.Integration
             PumpQueuedLogEntries();
         }
 
+        /// <summary>Drives CompilationPipeline.compilationStarted exactly as the real hook would.</summary>
+        internal static void NotifyCompilationStartedForTests()
+        {
+            OnCompilationStarted(null);
+        }
+
+        /// <summary>
+        /// Drives CompilationPipeline.assemblyCompilationFinished exactly as
+        /// the real hook would, with one compiler error in one assembly.
+        /// </summary>
+        internal static void NotifyCompilerErrorForTests(string message, string file, int line)
+        {
+            OnAssemblyCompiled("Library/ScriptAssemblies/Test.dll", new[]
+            {
+                new CompilerMessage
+                {
+                    message = message,
+                    file = file,
+                    line = line,
+                    type = CompilerMessageType.Error
+                }
+            });
+        }
+
+        /// <summary>Drives CompilationPipeline.compilationFinished exactly as the real hook would.</summary>
+        internal static void NotifyCompilationFinishedForTests()
+        {
+            OnCompilationFinished(null);
+        }
+
         /// <summary>
         /// Test seam for the ignore-filter settings source
         /// (docs/design-notes/2026-08-13-error-chip-ignore.md): when set,
@@ -552,6 +786,10 @@ namespace Colloid.AgentPanel.Integration
                 _queuedLogEntries.Clear();
             }
             _applyingQueuedLogEntries = false;
+            _pendingCompilerEntries.Clear();
+            _compileRunDepth = 0;
+            Interlocked.Exchange(ref _validationBuildDepth, 0);
+            _windowChangePending = false;
         }
 
         private static string FirstLine(string text, int maxChars)

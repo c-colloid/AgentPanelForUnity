@@ -737,7 +737,11 @@ namespace Colloid.AgentPanel.UI
             ConsoleErrorProvider.Entry[] visibleEntries = ConsoleErrorProvider.VisibleSnapshot();
             int count = CountUnacknowledgedVisible(visibleEntries,
                 _acknowledgedErrorMessages, _dismissedForNowErrorMessages);
-            bool visible = count > 0;
+            // 2026-09-15 compile window: nothing shown mid-compile is final
+            // (see ConsoleErrorProvider.Settling). The chip used to flash up
+            // on every agent-driven compile and clear itself afterwards,
+            // which reads as a phantom error rather than a call to action.
+            bool visible = count > 0 && !ConsoleErrorProvider.Settling;
             _errorChip.style.display = visible ? DisplayStyle.Flex : DisplayStyle.None;
             if (visible)
             {

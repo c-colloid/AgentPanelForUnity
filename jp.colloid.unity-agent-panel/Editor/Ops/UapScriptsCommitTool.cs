@@ -70,6 +70,19 @@ namespace Colloid.AgentPanel.Ops
             public string OutputDllPath;
             public string MirrorRoot;
             public Dictionary<string, string> MirrorToStagedRelative;
+            /// <summary>
+            /// 1 while this commit holds a ConsoleErrorProvider
+            /// validation-build window open (2026-09-15 panel-ux-followups
+            /// design note, section 1). An int claimed with Interlocked,
+            /// not a bool, for the same reason BuildFinishedFired is
+            /// volatile: the buildFinished callback and FinishCommit are
+            /// two different callers racing to close the same window, and
+            /// the window must be released exactly once -- by whichever
+            /// gets there first -- no matter which path ends the build
+            /// (buildFinished, a Build() that refuses to start, or
+            /// FinishCommit as backstop).
+            /// </summary>
+            public int ValidationWindowHeld;
         }
 
         public string Name
@@ -263,20 +276,54 @@ namespace Colloid.AgentPanel.Ops
             builder.buildFinished += delegate(string assemblyPath, CompilerMessage[] messages)
             {
                 state.Messages = messages;
+                ReleaseValidationWindow(state);
                 state.BuildFinishedFired = true;
             };
             state.Builder = builder;
             state.Pipeline.MarkCompiling();
-            if (!builder.Build())
+            // Validating staged scripts compiles code that is NOT in the
+            // project yet. Whatever that build logs is already on its way
+            // back to the agent in this tool's result, and the paths it
+            // names live under UapStaging/, not Assets/ -- so the panel's
+            // "ask the agent to fix these errors" chip must not pick it up
+            // (docs/design-notes/2026-09-15-panel-ux-followups.md section 1).
+            Colloid.AgentPanel.Integration.ConsoleErrorProvider.BeginValidationBuild();
+            state.ValidationWindowHeld = 1;
+            bool started;
+            try
             {
+                started = builder.Build();
+            }
+            catch
+            {
+                ReleaseValidationWindow(state);
+                throw;
+            }
+            if (!started)
+            {
+                ReleaseValidationWindow(state);
                 throw new InvalidOperationException(
                     "Failed to start staged script compilation (already building, or no valid source files).");
             }
             return state;
         }
 
+        /// <summary>Closes this commit's validation-build window if it still holds one (idempotent).</summary>
+        private static void ReleaseValidationWindow(CommitState state)
+        {
+            if (state == null || Interlocked.Exchange(ref state.ValidationWindowHeld, 0) != 1)
+            {
+                return;
+            }
+            Colloid.AgentPanel.Integration.ConsoleErrorProvider.EndValidationBuild();
+        }
+
         private JsonNode FinishCommit(CommitState state)
         {
+            // Backstop for any path that reached the result without
+            // buildFinished having run: the window must never outlive the
+            // commit that opened it.
+            ReleaseValidationWindow(state);
             if (state.Pipeline.Phase == ScriptCommitPhase.NothingStaged)
             {
                 return UapToolResults.Text("Nothing staged under " + ScriptGate.StagingFolder + "; nothing to commit.");

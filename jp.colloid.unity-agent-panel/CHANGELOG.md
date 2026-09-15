@@ -9,6 +9,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (nothing yet)
 
+## [0.49.1] - 2026-09-15
+
+### Changed
+
+- **"Agent Panel Pro updates" moved from the Unity group to Connection and
+  account** in Settings, directly under Account (design note
+  `docs/design-notes/2026-09-15-panel-ux-followups.md` section 2). The
+  Unity group holds Unity-side machinery -- what the agent may touch in the
+  editor, which SDKs it recognizes, which helper CLIs are installed. This
+  card is none of that: it takes the registry URL and product key a
+  purchase came with and writes them to the package manager's credentials,
+  which is the same subject as the sign-in card it now follows. It was also
+  hard to find where it was, which a card a buyer reaches exactly once,
+  right after paying, cannot afford. The section's collapse state carries
+  over -- its id did not change.
+- **A long settings tooltip no longer pops from anywhere on its row.** Once
+  a row carries the "?" mark, the paragraph moves onto the mark: hover or
+  click the "?" to read it, in a popover where it wraps (design note
+  section 3). Settings tooltips are set on a field's whole scope so that
+  hovering either the label or the control shows them, which also made the
+  hover target the size of the row -- reading down the settings page
+  dropped a paragraph-sized balloon over the next control every time the
+  pointer crossed one. Short captions ("applies on the next reconnect")
+  never earn a mark and hover exactly as before. The mark threshold is now
+  measured in display width rather than characters, so a Japanese sentence
+  earns a mark at half the character count an English one needs -- in
+  Japanese the longest explanations were the ones missing their mark.
+
+### Fixed
+
+- **The "ask the agent to fix these errors" chip no longer flashes up on
+  every compile** (design note section 1). Compiler errors were published
+  from `assemblyCompilationFinished`, which fires once per assembly *in the
+  middle of* a run, so the chip showed a run's partial results and then
+  cleared itself -- when the same refresh queued another run, or when a
+  successful compile reloaded the domain. A warning that goes away on its
+  own is not a warning. A run's compiler errors are now held until
+  `compilationFinished` and published in one batch, a run superseded before
+  it finishes publishes nothing, and the chip (with the empty-state "fix
+  the console errors" suggestion) stays down while a compile is in flight.
+  What the panel captures is unchanged, so the post-compile verdict sent to
+  the agent and the ignore list behave exactly as before.
+- **`uap_scripts_commit`'s validation build no longer feeds the error
+  chip.** Staged scripts are compiled outside the project before anything
+  is moved into `Assets/`; whatever that build reports goes back to the
+  agent verbatim in the tool result and names files under `UapStaging/`,
+  which the user cannot open in Unity. Those diagnostics are now kept out
+  of the panel's captured errors entirely.
+
 ## [0.49.0] - 2026-09-15
 
 ### Added

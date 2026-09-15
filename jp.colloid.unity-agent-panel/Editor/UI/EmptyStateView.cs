@@ -182,7 +182,10 @@ namespace Colloid.AgentPanel.UI
             // user's ignore list (2026-08-13 error-chip-ignore design note)
             // there is nothing they want fixed, so suggesting "fix the
             // console errors" would just re-surface the silenced noise.
-            if (ConsoleErrorProvider.VisibleCount > 0)
+            // Settling: same compile window the error chip respects
+            // (2026-09-15) -- a suggestion offered while the compiler is
+            // still running is about an error set that is still moving.
+            if (ConsoleErrorProvider.VisibleCount > 0 && !ConsoleErrorProvider.Settling)
             {
                 AddChip(L10n.S.EmptySuggestionErrors, L10n.S.EmptySuggestionErrors);
             }

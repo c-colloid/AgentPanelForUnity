@@ -346,7 +346,8 @@ namespace Colloid.AgentPanel.UI
             // still hold -- group labels are not cards). Everything a
             // user changes while WORKING sits in the first group; how the
             // panel looks and when it beeps in the second; the Unity-side
-            // machinery in the third; plumbing and identity last.
+            // machinery in the third; plumbing, entitlement and identity
+            // last.
             AddGroupLabel(scroll, L10n.S.SettingsGroupConversation, true);
             BuildConversationSection(scroll);
             BuildModelSection(scroll);
@@ -362,7 +363,6 @@ namespace Colloid.AgentPanel.UI
             AddGroupLabel(scroll, L10n.S.SettingsGroupUnity, false);
             BuildUapOpsSection(scroll);
             BuildExtensionProfilesSection(scroll);
-            BuildProUpdatesSection(scroll);
             BuildUloopSection(scroll);
             BuildUnityPluginSection(scroll);
 
@@ -370,6 +370,19 @@ namespace Colloid.AgentPanel.UI
             BuildCliSection(scroll);
             BuildDiagnosticsSection(scroll);
             BuildAccountSection(scroll);
+            // 2026-09-15 user feedback: "Agent Panel Pro updates" sat in
+            // the Unity group, which is where the Unity-side MACHINERY
+            // lives (what the agent may touch in the editor, which SDKs it
+            // knows about, which helper CLIs are installed). This card is
+            // none of that: it takes the registry URL and product key a
+            // purchase came with and writes them to the package manager's
+            // credentials -- an entitlement, read at install/upgrade time,
+            // exactly the "connection and account" subject the sign-in card
+            // above it covers. It also went unfound where it was, which a
+            // card a buyer has to reach ONCE, right after paying, cannot
+            // afford. Sits after Account (same subject, in the order a new
+            // buyer meets them) and before About.
+            BuildProUpdatesSection(scroll);
             BuildAboutSection(scroll);
 
             // 2026-09-06 settings review: long tooltips get a visible ? mark

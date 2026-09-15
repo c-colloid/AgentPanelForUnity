@@ -25,14 +25,71 @@ namespace Colloid.AgentPanel.Tests
         {
             Assert.AreEqual(HelpAffordance.Kind.Tooltip, HelpAffordance.Resolve("Applies immediately."));
             Assert.AreEqual(HelpAffordance.Kind.Tooltip,
-                HelpAffordance.Resolve(new string('x', HelpAffordance.MarkThresholdChars - 1)));
+                HelpAffordance.Resolve(new string('x', HelpAffordance.MarkThresholdWidth - 1)));
         }
 
         [Test]
         public void Resolve_Paragraph_EarnsAMark()
         {
             Assert.AreEqual(HelpAffordance.Kind.Mark,
-                HelpAffordance.Resolve(new string('x', HelpAffordance.MarkThresholdChars)));
+                HelpAffordance.Resolve(new string('x', HelpAffordance.MarkThresholdWidth)));
+        }
+
+        // -- display width (2026-09-15 tooltip-noise pass) ------------------------
+
+        [Test]
+        public void MeasureWidth_CountsCjkDouble_AndLatinSingle()
+        {
+            Assert.AreEqual(0, HelpAffordance.MeasureWidth(null));
+            Assert.AreEqual(5, HelpAffordance.MeasureWidth("abcde"));
+            // 6 kana = 12 half-widths.
+            Assert.AreEqual(12, HelpAffordance.MeasureWidth("\u3053\u3093\u306b\u3061\u306f\u3001"));
+            // Mixed: "CLI" (3) + 4 kanji/kana (8).
+            Assert.AreEqual(11, HelpAffordance.MeasureWidth("CLI\u3092\u518d\u63a5\u7d9a"));
+        }
+
+        [Test]
+        public void Resolve_JapaneseParagraph_EarnsAMark_AtHalfTheCharacterCount()
+        {
+            // 45 kana fill the same two lines as 90 Latin characters; before
+            // the width measure this stayed a row-wide hover balloon.
+            string japanese = new string('\u3042', HelpAffordance.MarkThresholdWidth / 2);
+            Assert.AreEqual(HelpAffordance.MarkThresholdWidth, HelpAffordance.MeasureWidth(japanese));
+            Assert.AreEqual(HelpAffordance.Kind.Mark, HelpAffordance.Resolve(japanese));
+            Assert.AreEqual(HelpAffordance.Kind.Tooltip,
+                HelpAffordance.Resolve(new string('\u3042', HelpAffordance.MarkThresholdWidth / 2 - 1)),
+                "a one-line Japanese caption still hovers, same as a short English one");
+        }
+
+        [Test]
+        public void ApplyMarks_MovesTheParagraphOffTheRowAndOntoTheMark()
+        {
+            var root = new VisualElement();
+            string paragraph = new string('a', 150);
+            var scope = new VisualElement { tooltip = paragraph };
+            var field = new TextField("Path");
+            scope.Add(field);
+            root.Add(scope);
+
+            Assert.AreEqual(1, HelpAffordance.ApplyMarks(root));
+
+            Button mark = field.Q<Button>(className: HelpAffordance.MarkClass);
+            Assert.IsNotNull(mark);
+            Assert.AreEqual(paragraph, mark.tooltip, "the explanation lives on the mark");
+            Assert.IsTrue(string.IsNullOrEmpty(scope.tooltip),
+                "hovering the row no longer pops the paragraph (2026-09-15 tooltip-noise pass)");
+        }
+
+        [Test]
+        public void ApplyMarks_ShortCaption_KeepsHoveringOnTheRow()
+        {
+            var root = new VisualElement();
+            var scope = new VisualElement { tooltip = "Applies on the next reconnect." };
+            scope.Add(new TextField("Path"));
+            root.Add(scope);
+
+            Assert.AreEqual(0, HelpAffordance.ApplyMarks(root));
+            Assert.AreEqual("Applies on the next reconnect.", scope.tooltip);
         }
 
         [Test]
