@@ -62,8 +62,9 @@ Core とは別系統。CHANGELOG は `jp.colloid.agent-panel-pro/CHANGELOG.md`�
 バージョンは同パッケージの `package.json`。**Pro に変更があったときだけ**
 上げる(Core だけの変更ではバンプしない)。リリースコミットのメッセージは
 `Release pro-vX.Y.Z: <概要>` とし(`Release vX.Y.Z` と紛れないよう接頭辞
-`pro-` を付ける)、Pro 単独では git タグを打たない(`tag-release.yml` は
-Core の package.json しか見ていない)。Core と Pro を同じ作業ブランチで
+`pro-` を付ける)、タグ `pro-vX.Y.Z` は `publish-pro.yml` が自動で打つ
+(手で打つ必要はない。`tag-release.yml` は Core の package.json しか見て
+いないので、Core のタグとは別経路)。Core と Pro を同じ作業ブランチで
 同時に変更した場合は、この手順のとおり Core のリリースコミットを切った
 あと、続けて Pro のリリースコミットを別コミットとして積む
 (1 コミットに両方を混在させない)。
@@ -75,7 +76,8 @@ Pro は zip の手渡しではなく、トークン認証付きの npm 互換 sc
 `docs/design-notes/2026-09-12-pro-update-delivery.md`)から配信する。
 `Release pro-vX.Y.Z` のコミットが main に載ると
 `.github/workflows/publish-pro.yml` が `npm pack` で tgz を作り、R2 へ上げ、
-Worker の admin API に版を登録する(登録済みの版は no-op。取りこぼしたら
+Worker の admin API に版を登録し、続けて下の GitHub Release も作る
+(登録済みの版・既存のタグ・既にある資産はすべて no-op。取りこぼしたら
 workflow_dispatch で再実行)。必要なリポジトリ設定(`CLOUDFLARE_API_TOKEN`
 / `CLOUDFLARE_ACCOUNT_ID` / `REGISTRY_ADMIN_TOKEN` のシークレットと
 `REGISTRY_URL` の変数)、Worker の初期構築、製品キーの発行コマンドは
@@ -87,22 +89,83 @@ workflow_dispatch で再実行)。必要なリポジトリ設定(`CLOUDFLARE_API
 `UPM_ORGANIZATION_ID` として登録すると、同ワークフローが `upm pack` で
 署名付き tarball を作る(`registry/README.md` "Signing")。
 
+### Pro の GitHub Release(このプライベートリポジトリ)
+
+同じ `publish-pro.yml` が、レジストリへの登録に続けて **このリポジトリ**に
+`pro-vX.Y.Z` タグと GitHub Release を作る(設計は
+`docs/design-notes/2026-09-15-pro-private-github-release.md`)。添付するのは
+R2 に上げたのと同じバイト列の 2 ファイル:
+
+- `jp.colloid.agent-panel-pro-X.Y.Z.zip` — `package.json` が zip のルートに
+  来る形。BOOTH に出す・購入者に個別に渡すのはこれ。
+- `jp.colloid.agent-panel-pro-X.Y.Z.tgz` — レジストリが配るのと同じ tarball
+  (署名設定があれば署名入り)。
+
+このあと `build-pro-bundle.yml` が同じ Release に BOOTH 用の束
+(`AgentPanelPro-<ver>-<lot>.zip`)を足すので、Release には最終的に
+「素のパッケージ 2 種 + BOOTH にそのまま上げられる 1 本」が並ぶ。
+
+リリースノートは Pro の CHANGELOG の当該節。タグを打つコミットは Core と
+同じ規則(そのバージョンを導入したコミット。`ci/version-introducing-commit.sh`)
+で、push に使うトークンも同じ(`RELEASE_TAG_TOKEN` があればそれ、無ければ
+`GITHUB_TOKEN`。上の「タグ付けトークン」を参照)。Pro は公開ミラーには
+出さない: ミラーのタグトリガは `v*` で `pro-v*` に一致せず、ミラーが push
+するのは allowlist のツリーとその 1 タグだけ。
+
 ### BOOTH の配布物(`.github/workflows/build-pro-bundle.yml`)
 
 BOOTH は購入者ごとにファイルを変えられないので、配布物は「Pro 本体の zip
-+ 販売ロット共有の製品キー」を 1 つの zip にしたものにする。Actions の
-*Build the BOOTH bundle for Pro* を `lot`(例 `BOOTH 2026-09`)を入力して
-手動実行すると、R2 から公開済みの `jp.colloid.agent-panel-pro-<ver>.zip` を
-取り、レジストリの admin API で `kind: product, maxMajor: 1, note: <lot>` の
-キーを 1 本発行し、`ci/pro-bundle/README.{ja,en}.md` のプレースホルダを
-埋めた案内・`KEY.txt`・`LICENSE.md` と一緒に
-`AgentPanelPro-<ver>-<lot>.zip` にまとめて Actions のアーティファクトに
-出す(保持 14 日)。それをダウンロードして BOOTH に登録する。キーは発行時に
-しか返らないので、1 ロット 1 回の実行が原則。ロットを月ごと(または一定
-販売数ごと)に切り替え、流出したロットだけ `DELETE /admin/tokens/<id>`
-(id は run のサマリーに出る)で止めて、そのロットの購入者には BOOTH の
-メッセージで新キーを送る。Pro 本体は zip で手元に残るので、キーを止めても
-購入者が使えなくなることはない。
++ 販売ロット共有の製品キー」を 1 つの zip にしたものにする。中身は
+`jp.colloid.agent-panel-pro-<ver>.zip`、`KEY.txt`、
+`ci/pro-bundle/README.{ja,en}.md` のプレースホルダを埋めた案内、
+`LICENSE.md` / `LICENSE-ADDITIONAL.md` で、名前は
+`AgentPanelPro-<ver>-<lot>.zip`。
+
+**Pro のリリースごとに自動で組まれる。** *Publish Pro* の完了を
+`workflow_run` で受けて走り、その版の GitHub Release から本体 zip を取り
+(Release がまだ無い古い版は R2 にフォールバック)、束を組んで**同じ
+`pro-vX.Y.Z` の Release に添付**する(Actions のアーティファクトにも 14 日
+残す)。BOOTH に上げるときは Release ページからその zip を落とすだけ。
+アップロード自体は BOOTH 側に手段が無いので手作業のまま。
+
+**ロットの設定は無い。前の束がそのまま引き継がれる。** 実行時は、このリポジトリ
+が最後に出した `AgentPanelPro-<ver>-<lot>.zip` を見て、**同じロットを同じキーで**
+続ける。
+
+- **ロット名はファイル名そのもの。** 束は必ず「その版の Release」に添付される
+  ので、`pro-vX.Y.Z` が `<ver>` を確定させ、その後ろが丸ごとロット名になる
+  (プレリリース版のハイフンでも曖昧にならない)。したがってロットの綴りは
+  ファイル名に入る形の 1 種類だけで、手で入れた `lot` はロットを始める実行の
+  ときに一度だけその形に正規化される(`BOOTH 2026-10` → `booth-2026-10`)。
+- **キーと更新権のメジャーは束の `KEY.txt` から。** ファイル名には入れられない
+  が、購入者に渡すファイルである以上どのみち中に入っている。レジストリは
+  キーのハッシュしか持たず平文を返せないので、**この Release 群がそのロットの
+  唯一の控え**になる。
+
+変数もシークレットも要らない。
+
+実行のたびに発行してはいけない理由: `POST /admin/tokens` には重複排除が
+無く、ロット名はただのラベルなので、「同じロットなのに購入者ごとに別キー」
+になり、流出時に `DELETE /admin/tokens/<id>` で止めてもその回の zip を
+落とした人しか止まらない。
+
+組む前に `GET <registry>/npm/jp.colloid.agent-panel-pro` にそのキーで当てて、
+生きていること・その版が入手できることを確認する(失効したキーを配る事故を
+配る前に落とす)。束がまだ 1 つも無いときは、自動実行は警告だけ出して何も
+作らず(リリースを赤くしない)、手動実行はエラーで止まる。
+
+**ロットの開始と切り替え**: *Build the BOOTH bundle for Pro* を、新しい
+`lot`(例 `BOOTH 2026-10`)を入れて `new_key` にチェックを入れて手動実行
+する。それだけでキーが 1 本発行され、それを含む束が Release に載るので、
+以後の実行はロット名もキーもそこから読み直す(設定する場所も、手で控える
+作業も無い)。**そのロットが現役の間は、束を載せた Release とそのアセットを
+消さないこと** —— 消すとキーの控えが無くなり、切り替えるしかなくなる(緊急の
+逃げ道として、シークレット `BOOTH_LOT_KEY` を置けばそちらを使う)。過去の
+ロットの束を組み直したいときは、`lot` にその名前を入れて手動実行すれば、
+その名前の束を持つ一番新しい Release からキーを読む。前のロットのキーは
+**流出したときだけ** `DELETE /admin/tokens/<id>` で止める。止めても Pro
+本体は購入者の手元に残るので、失うのは更新権だけ。止めたら BOOTH の
+メッセージで新キーを送る。
 
 ## 公開ミラー(`.github/workflows/mirror-core.yml`)
 
@@ -156,6 +219,9 @@ BOOTH は購入者ごとにファイルを変えられないので、配布物�
   `!`除外行が必要)。
 
 ## 既存タグ
+
+Core(`vX.Y.Z`)の一覧。Pro のタグは `pro-vX.Y.Z` で、この表には積まない
+(一覧は GitHub の Releases と `jp.colloid.agent-panel-pro/CHANGELOG.md`)。
 
 | タグ | 内容 |
 |---|---|
