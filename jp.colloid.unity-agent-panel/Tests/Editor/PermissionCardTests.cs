@@ -1288,6 +1288,67 @@ namespace Colloid.AgentPanel.Tests
         }
 
         /// <summary>
+        /// 2026-09-16 regression: detaching an AskUserQuestion card to the
+        /// floating window replaced its body with the slim wait bar, but
+        /// the question floor class (min-height 220px) stayed on the root,
+        /// so a tall blank card sat over the transcript for as long as the
+        /// window was open. The floor is a floor for the VISIBLE body; it
+        /// must leave with the body and come back with it.
+        /// </summary>
+        [Test]
+        public void QuestionFloor_LeavesWithTheBody_WhenShownInWindow()
+        {
+            PermissionCard card = BuildCard(ThreeSingleSelectQuestions("qf3"));
+            Assert.IsTrue(card.Root.ClassListContains("uap-perm--question"));
+            Assert.IsTrue(card.Root.ClassListContains("uap-perm--expanded"));
+
+            card.SetShownInWindow(true);
+            Assert.IsFalse(card.Root.ClassListContains("uap-perm--question"),
+                "wait-bar mode: the 220px question floor must not hold an empty card open");
+            Assert.IsFalse(card.Root.ClassListContains("uap-perm--expanded"),
+                "wait-bar mode: the expanded floor is already gated the same way");
+            Assert.AreEqual(StyleKeyword.Null, card.Root.style.maxHeight.keyword,
+                "wait-bar mode: no inline cap either; the wait bar sizes itself");
+
+            card.SetShownInWindow(false);
+            Assert.IsTrue(card.Root.ClassListContains("uap-perm--question"),
+                "Show here: the body is back, so its floor returns with it");
+            Assert.IsTrue(card.Root.ClassListContains("uap-perm--expanded"));
+        }
+
+        /// <summary>
+        /// Same gate, other exit: a collapsed question card shows only its
+        /// summary row, so the question floor must fold away with the
+        /// details it protects (a collapsed card is a ~30px row, not 220px).
+        /// </summary>
+        [Test]
+        public void QuestionFloor_LeavesWithTheBody_WhenCollapsed()
+        {
+            PermissionCard card = BuildCard(ThreeSingleSelectQuestions("qf4"));
+            Assert.IsTrue(card.Root.ClassListContains("uap-perm--question"));
+
+            card.SetExpanded(false);
+            Assert.IsFalse(card.Root.ClassListContains("uap-perm--question"));
+            Assert.IsFalse(card.Root.ClassListContains("uap-perm--expanded"));
+
+            card.SetExpanded(true);
+            Assert.IsTrue(card.Root.ClassListContains("uap-perm--question"));
+        }
+
+        /// <summary>
+        /// The window host has its own height chain (.uap-perm--windowhost,
+        /// min-height 0, fills the window); the inline floors are never
+        /// what sizes it, so neither class belongs on its root.
+        /// </summary>
+        [Test]
+        public void QuestionFloor_IsInlineOnly_WindowHostCarriesNeitherFloor()
+        {
+            PermissionCard card = BuildWindowCard(ThreeSingleSelectQuestions("qf5"));
+            Assert.IsFalse(card.Root.ClassListContains("uap-perm--question"));
+            Assert.IsFalse(card.Root.ClassListContains("uap-perm--expanded"));
+        }
+
+        /// <summary>
         /// Measured 2026-09-12 at a 560px-tall panel: a three-question card
         /// shrank to 138px and its options viewport to 11px (zero options
         /// visible). The question variant's floor must sit above the tool

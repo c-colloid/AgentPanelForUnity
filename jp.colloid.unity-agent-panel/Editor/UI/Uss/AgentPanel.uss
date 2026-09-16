@@ -1183,7 +1183,15 @@
    bounds the card (C# max-height), so shrinking buys nothing for a
    question and costs its options: 40% + 96px of bars + the transcript's
    60px floor fit in any panel taller than 260px, and inline cards need
-   380px. Tool cards (.uap-perm--expanded alone) keep shrinking as before. */
+   380px. Tool cards (.uap-perm--expanded alone) keep shrinking as before.
+
+   Visibility gate (2026-09-16 note): C# toggles this class under the SAME
+   condition as .uap-perm--expanded -- inline host, expanded, and NOT shown
+   in the floating window. It used to follow the variant alone, so after
+   "Open in window" the body went display:none, the slim wait bar remained,
+   and this floor kept the root at 220px: a blank card covering the
+   transcript until the window closed. A floor protects the visible body;
+   with no body there is nothing to protect. */
 .uap-perm--question {
     flex-shrink: 0;
     min-height: var(--uap-perm-question-min);

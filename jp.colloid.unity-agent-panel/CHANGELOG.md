@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (nothing yet)
 
+## [0.54.3] - 2026-09-16
+
+### Fixed
+
+- **Detaching an AskUserQuestion card no longer leaves a tall blank card
+  over the transcript.** After "Open in window" (or the automatic
+  hand-off to the floating window on a small panel), the inline card is
+  meant to shrink to the slim "Waiting for permission - shown in window
+  [Show here]" bar. For question cards it instead kept its 220px
+  usability floor (introduced in 0.42.5 so a question always shows a few
+  options), so an empty card the height of the question stayed in the
+  panel and hid the last messages until the window was answered. The
+  same floor also held a collapsed question card open at 220px instead
+  of its single summary row. The floor now follows the body: it applies
+  only while the card is inline, expanded and not shown in the window,
+  exactly like the tool card's floor. Design note:
+  `docs/design-notes/2026-09-16-askuserquestion-detached-ghost-card.md`.
+
 ## [0.54.2] - 2026-09-15
 
 ### Changed

@@ -476,14 +476,15 @@ namespace Colloid.AgentPanel.UI
             {
                 BuildToolVariant();
             }
-            // Higher usability floor for a question (USS .uap-perm--question,
-            // 2026-09-12 note): measured at a 560px panel, the three-question
-            // card shrank to 138px and showed zero options.
-            _root.EnableInClassList("uap-perm--question", _isQuestionVariant);
-
             // AskUserQuestion needs its options visible to be answerable, so
             // it starts EXPANDED (same cap, internal scrolling). Plain tool
-            // prompts start collapsed to a single summary row.
+            // prompts start collapsed to a single summary row. The question
+            // variant's higher usability floor (USS .uap-perm--question) is
+            // toggled inside UpdateExpansion together with the expanded
+            // class, so it obeys the same visibility gate (2026-09-16 note:
+            // applied here unconditionally, the 220px floor outlived the
+            // body once the request moved to the floating window and left
+            // a tall empty card over the transcript).
             _expanded = _isQuestionVariant;
             UpdateExpansion();
         }
@@ -2051,8 +2052,19 @@ namespace Colloid.AgentPanel.UI
             }
             // The class carries min-height: var(--uap-perm-card-min) -- the
             // token floor that outranks the computed max-height cap.
-            _root.EnableInClassList("uap-perm--expanded",
-                expanded && _host == HostKind.Inline && !_shownInWindow);
+            bool floorApplies = expanded && _host == HostKind.Inline && !_shownInWindow;
+            _root.EnableInClassList("uap-perm--expanded", floorApplies);
+            // Higher usability floor for a question (USS .uap-perm--question,
+            // 2026-09-12 note): measured at a 560px panel, the three-question
+            // card shrank to 138px and showed zero options. Both floors are
+            // floors FOR THE VISIBLE BODY: while the request is shown in the
+            // floating window (wait bar only) or the card is collapsed
+            // (summary row only), neither may hold the card open
+            // (2026-09-16 note: the question floor stayed on through the
+            // wait-bar state and hid the transcript behind a ~220px blank
+            // card).
+            _root.EnableInClassList("uap-perm--question",
+                floorApplies && _isQuestionVariant);
             if (_chevron != null)
             {
                 _chevron.text = expanded
