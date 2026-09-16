@@ -9,6 +9,8 @@
 | [USER-GUIDE.md](USER-GUIDE.md) | 操作ガイド。画面構成・チャット・チップと添付・権限カードと自動承認レベル・履歴・Unity 操作ツール・設定画面リファレンス・ショートカット | 利用者 |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | アーキテクチャ決定文書(ADD)。CLI の起動方式・プロトコル・権限処理・ドメインリロード戦略・永続化・UI スタックなど、主要な設計判断とその根拠。2026-07 に作成した初版に、Phase 4/5 の決定を追記したもの | 実装を読む人・設計を変えたい人 |
 | [RELEASING.md](RELEASING.md) | バージョン規約とリリース手順、既存タグの一覧 | メンテナ |
+| [PRO-FEATURES.md](PRO-FEATURES.md) | Agent Panel Pro(別売)の収録ツール一覧。販売ページ用の貼り付けテキストと、モジュール別の詳細・版ごとの追加分 | Pro の購入検討者・販売ページを更新するメンテナ |
+| [PRO-PROFILES.md](PRO-PROFILES.md) | Agent Panel Pro の同梱拡張プロファイル一覧。対応 SDK・検出条件・エージェントに教える要点・版ごとの追加分 | 同上 |
 | [design-notes/](design-notes/) | 機能・修正ごとの設計メモ(`YYYY-MM-DD-<slug>.md`)。原因分析・採用した設計・却下した案・検証結果を 1 ノート 1 トピックで記録。CHANGELOG の各エントリからリンクされる | 変更の「なぜ」を知りたい人 |
 | [research/](research/)\* | 開発前後の技術調査レポート(R01〜R11)。Claude Code CLI の stream-json プロトコル実測、Unity エディタ統合の制約、MCP トランスポート、コンパイル抑制技法など | プロトコルや Unity API の挙動を確かめたい人 |
 | [verify/](verify/)\* | 実機検証の記録(EditMode テスト結果 XML、検証レポート、スクリーンショット)。設計ノートから参照される証跡 | 検証結果を確認したい人 |
@@ -18,8 +20,8 @@
 \* 印のフォルダ/ファイルは開発用モノレポにのみあり、公開リポジトリ
 ([c-colloid/AgentPanelForUnity](https://github.com/c-colloid/AgentPanelForUnity)、
 Core パッケージの配布元)には含まれていません。公開版では `USER-GUIDE.md` /
-`ARCHITECTURE.md` / `RELEASING.md` / `design-notes/`(Core に関するもの)/ `images/` が
-読めます。設計ノートが `research/` や `verify/` を参照している箇所は、公開版では
+`ARCHITECTURE.md` / `RELEASING.md` / `PRO-FEATURES.md` / `PRO-PROFILES.md` /
+`design-notes/`(Core に関するもの)/ `images/` が読めます。設計ノートが `research/` や `verify/` を参照している箇所は、公開版では
 リンク先が無い歴史的参照として読んでください。
 
 ## 読み方の目安
