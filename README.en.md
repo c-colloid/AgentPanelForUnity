@@ -1,4 +1,4 @@
-![Unity 2022.3+ / Unity 6](https://img.shields.io/badge/Unity-2022.3%2B%20%7C%206-333) ![Editor only](https://img.shields.io/badge/Editor--only-yes-333) ![License: MIT](https://img.shields.io/badge/License-MIT-333)
+![Unity 2022.3+ / Unity 6](https://img.shields.io/badge/Unity-2022.3%2B%20%7C%206-333) ![Editor only](https://img.shields.io/badge/Editor--only-yes-333) ![Core license: MIT](https://img.shields.io/badge/Core%20license-MIT-333)
 
 # Agent Panel for Unity
 
@@ -99,4 +99,7 @@ This README installs **Core** (`jp.colloid.unity-agent-panel`, MIT), which works
 
 ## License
 
-[MIT License](LICENSE)
+Each package has its own license.
+
+- **Core** (`jp.colloid.unity-agent-panel`, what this README installs): [MIT License](jp.colloid.unity-agent-panel/LICENSE.md)
+- **Agent Panel Pro** (`jp.colloid.agent-panel-pro`, sold separately): [PolyForm Internal Use License 1.0.0](https://polyformproject.org/licenses/internal-use/1.0.0) (not MIT). The license text and the licensor's additional permissions ship inside the Pro package as `LICENSE.md` / `LICENSE-ADDITIONAL.md`

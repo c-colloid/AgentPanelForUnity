@@ -218,7 +218,7 @@ Release に載るので、以後の実行はロット名もキーもそこから
   `githubRepos` へ `c-colloid/AgentPanelForUnity`、`packagesMeta` へ
   `jp.colloid.unity-agent-panel` を足す(1 回だけ)。
 - **ドキュメントだけの同期**: `main` への push が `README.md` /
-  `README.en.md` / `CONTRIBUTING.md` / `LICENSE` / `docs/**` /
+  `README.en.md` / `CONTRIBUTING.md` / Core の `LICENSE.md` / `docs/**` /
   `allowlist.txt` に触れると、同じワークフローが docs モードで動き、
   許可リストのうちパッケージディレクトリ以外を公開側に上書きして
   「`Docs: sync from <sha>`」としてコミットする(タグ・Release・dispatch
