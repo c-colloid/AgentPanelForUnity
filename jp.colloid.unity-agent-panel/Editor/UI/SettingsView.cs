@@ -330,6 +330,10 @@ namespace Colloid.AgentPanel.UI
             scroll.AddToClassList("uap-settings-scroll");
             root.Add(scroll);
             _scroll = scroll;
+            // Same per-frame re-wrap guard as the transcript
+            // (docs/design-notes/2026-09-16-resize-reflow-throttle.md):
+            // this view holds several hundred wrapped labels.
+            ScrollReflowThrottle.Attach(scroll);
 
             var title = new Label(L10n.S.SettingsTitle);
             title.AddToClassList("uap-settings-title");

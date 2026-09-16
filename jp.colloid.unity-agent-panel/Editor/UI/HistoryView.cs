@@ -132,6 +132,9 @@ namespace Colloid.AgentPanel.UI
             scroll.horizontalScrollerVisibility = ScrollerVisibility.Hidden;
             scroll.AddToClassList("uap-history");
             _root = scroll;
+            // Same per-frame re-wrap guard as the transcript
+            // (docs/design-notes/2026-09-16-resize-reflow-throttle.md).
+            ScrollReflowThrottle.Attach(scroll);
 
             RestoreViewPreferences();
 

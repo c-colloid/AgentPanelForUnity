@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (nothing yet)
 
+## [0.54.4] - 2026-09-16
+
+### Fixed
+
+- **Resizing the panel no longer re-wraps the whole transcript on every
+  frame of the drag.** UI Toolkit re-measures every wrapped label whose
+  width changes, and a resize drag changed the width each frame, so a
+  long conversation (up to the 300 rendered messages, plus the Settings
+  and History views) had the panel's repaint dominating the editor frame
+  while the edge was dragged. The transcript, Settings and History
+  scroll views now pin their content width for the duration of the drag
+  and reflow once, 120 ms after the width stops changing. Design note:
+  `docs/design-notes/2026-09-16-resize-reflow-throttle.md`.
+
 ## [0.54.3] - 2026-09-16
 
 ### Fixed

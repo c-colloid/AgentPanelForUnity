@@ -71,6 +71,9 @@ namespace Colloid.AgentPanel.UI
             _scroll = new ScrollView(ScrollViewMode.Vertical);
             _scroll.AddToClassList("uap-msg-scroll");
             _root.Add(_scroll);
+            // Resize drags used to re-wrap every rendered message on every
+            // frame (docs/design-notes/2026-09-16-resize-reflow-throttle.md).
+            ScrollReflowThrottle.Attach(_scroll);
 
             _pill = new Button(OnPillClicked);
             _pill.text = IconLoader.GlyphDownArrow + " " + L10n.S.ChatJumpToLatestButton;
