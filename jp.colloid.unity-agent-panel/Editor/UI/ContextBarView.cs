@@ -28,7 +28,9 @@ namespace Colloid.AgentPanel.UI
             Scene,
             DroppedObject,
             /// <summary>A user pin (design note 2026-09-07 section 1.3.4); the X also removes the pin.</summary>
-            Marker
+            Marker,
+            /// <summary>A sketch stroke (design note 2026-09-17-scene-sketch-strokes.md); the X also removes the stroke.</summary>
+            Stroke
         }
 
         private sealed class Chip
@@ -43,7 +45,7 @@ namespace Colloid.AgentPanel.UI
             /// <summary>Object to ping when the chip is clicked (optional).</summary>
             public UnityEngine.Object Target;
             public VisualElement Element;
-            /// <summary>SceneMarkerStore id for Marker chips (0 otherwise).</summary>
+            /// <summary>SceneMarkerStore id for Marker chips, SceneStrokeStore id for Stroke chips (0 otherwise).</summary>
             public int MarkerId;
         }
 
@@ -74,6 +76,8 @@ namespace Colloid.AgentPanel.UI
         private readonly Label _markersLabel;
         /// <summary>Panel-side pin button: the fallback/twin of the Scene-view toolbar toggle.</summary>
         private readonly Button _pinButton;
+        /// <summary>Panel-side sketch menu: the twin of the Scene-view toolbar's two sketch toggles.</summary>
+        private readonly Button _sketchButton;
         private readonly VisualElement _ignoreNotice;
         private readonly Label _ignoreNoticeLabel;
         private IVisualElementScheduledItem _ignoreNoticeHide;
@@ -139,6 +143,12 @@ namespace Colloid.AgentPanel.UI
             _pinButton.AddToClassList("uap-ctx-attach");
             _root.Add(_pinButton);
             UpdatePinButton();
+
+            _sketchButton = new Button(OnSketchButtonClicked);
+            _sketchButton.tooltip = L10n.S.CtxSketchTooltip;
+            _sketchButton.AddToClassList("uap-ctx-attach");
+            _root.Add(_sketchButton);
+            UpdateSketchButton();
 
             _chipHost = new VisualElement();
             _chipHost.AddToClassList("uap-ctx-chiphost");
@@ -226,11 +236,14 @@ namespace Colloid.AgentPanel.UI
             Selection.selectionChanged += OnSelectionChanged;
             ConsoleErrorProvider.Changed += OnErrorsChanged;
             SceneMarkerStore.Changed += OnMarkersChanged;
+            SceneStrokeStore.Changed += OnMarkersChanged;
             SceneMarkerPin.ArmedChanged += UpdatePinButton;
+            SceneStrokeSketch.ArmedChanged += UpdateSketchButton;
             UpdateAttachButton();
             UpdateErrorChip();
             OnMarkersChanged();
             UpdatePinButton();
+            UpdateSketchButton();
         }
 
         public void OnDeactivate()
@@ -243,7 +256,9 @@ namespace Colloid.AgentPanel.UI
             Selection.selectionChanged -= OnSelectionChanged;
             ConsoleErrorProvider.Changed -= OnErrorsChanged;
             SceneMarkerStore.Changed -= OnMarkersChanged;
+            SceneStrokeStore.Changed -= OnMarkersChanged;
             SceneMarkerPin.ArmedChanged -= UpdatePinButton;
+            SceneStrokeSketch.ArmedChanged -= UpdateSketchButton;
             // The undo notice is meaningful only in the moment it appeared;
             // a view switch ends that moment (and parks the timer).
             HideIgnoreNotice();
@@ -420,6 +435,30 @@ namespace Colloid.AgentPanel.UI
             _pinButton.EnableInClassList("uap-ctx-attach--on", armed);
         }
 
+        /// <summary>Plane / surface / stop -- the same three states the Scene-view toolbar toggles expose.</summary>
+        private void OnSketchButtonClicked()
+        {
+            var menu = new GenericMenu();
+            menu.AddItem(new GUIContent(L10n.S.CtxSketchMenuPlane), SceneStrokeSketch.IsArmedIn(SceneStrokeMode.Plane),
+                delegate { SceneStrokeSketch.Arm(SceneStrokeMode.Plane); });
+            menu.AddItem(new GUIContent(L10n.S.CtxSketchMenuSurface), SceneStrokeSketch.IsArmedIn(SceneStrokeMode.Surface),
+                delegate { SceneStrokeSketch.Arm(SceneStrokeMode.Surface); });
+            if (SceneStrokeSketch.Armed)
+            {
+                menu.AddSeparator(string.Empty);
+                menu.AddItem(new GUIContent(L10n.S.CtxSketchMenuStop), false, delegate { SceneStrokeSketch.Armed = false; });
+            }
+            menu.ShowAsContext();
+        }
+
+        private void UpdateSketchButton()
+        {
+            bool armed = SceneStrokeSketch.Armed;
+            _sketchButton.text = !armed ? L10n.S.CtxSketchButton
+                : SceneStrokeSketch.Mode == SceneStrokeMode.Plane ? L10n.S.CtxSketchButtonArmedPlane : L10n.S.CtxSketchButtonArmedSurface;
+            _sketchButton.EnableInClassList("uap-ctx-attach--on", armed);
+        }
+
         /// <summary>
         /// Keeps the pin chips in step with the store: a chip for every
         /// user pin that has none yet (dropped from the Scene-view overlay
@@ -455,6 +494,43 @@ namespace Colloid.AgentPanel.UI
                 AddChip(ChipKind.Marker, L10n.F(L10n.S.CtxPinChipLabelFmt, number),
                     L10n.F(L10n.S.CtxPinChipTitleFmt, number), pin.Note, null, null, pin.Id);
             }
+            // Sketch strokes: the same dance against their own store.
+            for (int i = _chips.Count - 1; i >= 0; i--)
+            {
+                Chip chip = _chips[i];
+                if (chip.Kind == ChipKind.Stroke && chip.MarkerId > 0 && SceneStrokeStore.Find(chip.MarkerId) == null)
+                {
+                    RemoveChip(chip);
+                }
+            }
+            SceneStroke[] strokes = SceneStrokeStore.Snapshot();
+            for (int i = 0; i < strokes.Length; i++)
+            {
+                SceneStroke stroke = strokes[i];
+                if (stroke.Id <= 0 || FindStrokeChip(stroke.Id) != null)
+                {
+                    continue;
+                }
+                if (_chips.Count >= MaxChips)
+                {
+                    break;
+                }
+                int number = stroke.Number > 0 ? stroke.Number : stroke.Id;
+                AddChip(ChipKind.Stroke, L10n.F(L10n.S.CtxSketchChipLabelFmt, number),
+                    L10n.F(L10n.S.CtxSketchChipTitleFmt, number), stroke.Note, null, null, stroke.Id);
+            }
+        }
+
+        private Chip FindStrokeChip(int strokeId)
+        {
+            for (int i = 0; i < _chips.Count; i++)
+            {
+                if (_chips[i].Kind == ChipKind.Stroke && _chips[i].MarkerId == strokeId)
+                {
+                    return _chips[i];
+                }
+            }
+            return null;
         }
 
         private Chip FindMarkerChip(int markerId)
@@ -474,6 +550,7 @@ namespace Colloid.AgentPanel.UI
             // Everything, pins included: this chip is the user's one-click
             // way to get a clean Scene view, whatever put things there.
             SceneMarkerStore.Clear(true);
+            SceneStrokeStore.Clear();
         }
 
         private void UpdateMarkersChip()
@@ -482,7 +559,7 @@ namespace Colloid.AgentPanel.UI
             {
                 return;
             }
-            int count = SceneMarkerStore.Count;
+            int count = SceneMarkerStore.Count + SceneStrokeStore.Count;
             _markersChip.style.display = count > 0 ? DisplayStyle.Flex : DisplayStyle.None;
             if (count > 0)
             {
@@ -617,6 +694,10 @@ namespace Colloid.AgentPanel.UI
                 {
                     SceneMarkerStore.Remove(chip.MarkerId);
                 }
+                else if (chip.Kind == ChipKind.Stroke && chip.MarkerId > 0)
+                {
+                    SceneStrokeStore.Remove(chip.MarkerId);
+                }
             });
             element.Add(remove);
             if (target != null)
@@ -689,7 +770,8 @@ namespace Colloid.AgentPanel.UI
                 }
             }
             string iconName = kind == ChipKind.Scene
-                ? "d_SceneAsset Icon" : kind == ChipKind.Marker ? "d_Transform Icon" : "d_GameObject Icon";
+                ? "d_SceneAsset Icon" : kind == ChipKind.Marker ? "d_Transform Icon"
+                : kind == ChipKind.Stroke ? "d_editicon.sml" : "d_GameObject Icon";
             return IconLoader.CreateIcon(iconName, IconLoader.GlyphBullet,
                 "uap-ctx-chip-icon", "uap-ctx-chip-glyph");
         }

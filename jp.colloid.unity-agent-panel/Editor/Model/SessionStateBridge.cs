@@ -36,6 +36,7 @@ namespace Colloid.AgentPanel.Model
         private const string KeyUnityPluginInstallInFlight = Prefix + "UnityPluginInstallInFlight";
         private const string KeyUnityPluginInstallStartedAtUtcTicks = Prefix + "UnityPluginInstallStartedAtUtcTicks";
         private const string KeySceneMarkers = Prefix + "SceneMarkers";
+        private const string KeySceneStrokes = Prefix + "SceneStrokes";
         private const string KeyComposerImages = Prefix + "ComposerImages";
         private const string KeyReloadDroppedPermissionTool = Prefix + "ReloadDroppedPermissionTool";
 
@@ -446,6 +447,18 @@ namespace Colloid.AgentPanel.Model
         {
             get { return SessionState.GetString(KeySceneMarkers, string.Empty); }
             set { SessionState.SetString(KeySceneMarkers, value ?? string.Empty); }
+        }
+
+        /// <summary>
+        /// Sketch strokes the user drew in the Scene view (design note
+        /// 2026-09-17-scene-sketch-strokes.md, decision S8): the
+        /// SceneStrokeStore's JSON, same lifecycle as
+        /// <see cref="SceneMarkersJson"/>.
+        /// </summary>
+        public static string SceneStrokesJson
+        {
+            get { return SessionState.GetString(KeySceneStrokes, string.Empty); }
+            set { SessionState.SetString(KeySceneStrokes, value ?? string.Empty); }
         }
 
         /// <summary>

@@ -9,6 +9,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (nothing yet)
 
+## [0.56.0] - 2026-09-17
+
+### Added
+
+- **Sketch strokes: draw in the Scene view and hand the line to the
+  agent.** The context bar's new "Sketch" menu (and an "Agent Sketch"
+  toolbar overlay in the Scene view) arms one of two modes; a left drag
+  then draws a stroke (S1, S2, ...) that becomes a context chip carrying
+  the world-space points, and the new read-only `uap_stroke_list` tool
+  (module `markers`) returns every stroke as JSON -- points, per-point
+  normals and the objects a surface stroke was drawn on, length, closed
+  flag, bounds and the sketch plane. **Plane mode** draws on a plane at
+  a depth you choose: the Scene view shows the plane's section contour
+  on every mesh it cuts, a depth-tested grid patch under the cursor, and
+  a readout of the depth and of how far the surface under the cursor is
+  in front of or behind the plane; the wheel and `[` `]` move the depth,
+  F snaps it to the surface under the cursor, X/Y/Z lock a world-axis
+  plane, C returns to camera-facing, Shift draws a straight line.
+  **Surface mode** draws on the mesh surface under the cursor. Strokes
+  are Scene-view overlays only (also drawn into camera-mode screenshots),
+  survive a domain reload, and vanish on scene change or Play Mode; the
+  chip's X, the "N scene markers" chip's clear button, or Esc handles
+  them like pins. Design note
+  `docs/design-notes/2026-09-17-scene-sketch-strokes.md`.
+
 ## [0.55.2] - 2026-09-17
 
 ### Changed

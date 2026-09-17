@@ -38,6 +38,7 @@ namespace Colloid.AgentPanel.Tests
             "uap_editor_screenshot",
             // 2026-09-07 markers module: list only reads the marker store.
             "uap_marker_list",
+            "uap_stroke_list",
         };
 
         /// <summary>

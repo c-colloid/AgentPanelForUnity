@@ -133,7 +133,7 @@ namespace Colloid.AgentPanel.Ops.Markers
             return found;
         }
 
-        private static bool IsPickable(Renderer renderer)
+        internal static bool IsPickable(Renderer renderer)
         {
             if (renderer == null || !renderer.enabled)
             {
@@ -158,7 +158,15 @@ namespace Colloid.AgentPanel.Ops.Markers
             return true;
         }
 
-        private static bool TryGetMesh(Renderer renderer, out Mesh mesh, out Matrix4x4 matrix)
+        /// <summary>
+        /// The mesh a renderer draws and its local-to-world matrix: the
+        /// MeshFilter's shared mesh, or a skinned renderer baked into a
+        /// scratch mesh (already in the renderer's pose, so the matrix is
+        /// translation + rotation only). Shared with the sketch's depth
+        /// contour (SceneStrokeDepthGuide). The scratch mesh is reused
+        /// across calls -- copy what you need before the next call.
+        /// </summary>
+        internal static bool TryGetMesh(Renderer renderer, out Mesh mesh, out Matrix4x4 matrix)
         {
             mesh = null;
             matrix = Matrix4x4.identity;

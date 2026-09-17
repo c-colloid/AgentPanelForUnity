@@ -185,6 +185,10 @@ namespace Colloid.AgentPanel.Ops
             RegisterUnlessCovered(registry, new UapMarkerAddTool(), uloopDetected);
             RegisterUnlessCovered(registry, new UapMarkerListTool(), uloopDetected);
             RegisterUnlessCovered(registry, new UapMarkerClearTool(), uloopDetected);
+            // 2026-09-17 -- sketch strokes the user draws in the Scene view
+            // (design note docs/design-notes/2026-09-17-scene-sketch-strokes.md);
+            // read-only listing, same module.
+            RegisterUnlessCovered(registry, new UapStrokeListTool(), uloopDetected);
             // Phase 5b streams "prefab"/"anim" and Phase 5c "ui" moved to
             // Agent Panel Pro in full (2026-09-11 core/pro split, design
             // note docs/design-notes/2026-09-11-core-pro-split.md) -- see

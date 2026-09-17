@@ -215,6 +215,38 @@ namespace Colloid.AgentPanel.Ops.Markers
         public static void ResolveClickPoint(Ray ray, Vector2? guiPoint, IList<Renderer> renderers,
             out Vector3 position, out Vector3 normal, out string hit)
         {
+            if (TryRaycastSurface(ray, renderers, out position, out normal, out hit))
+            {
+                return;
+            }
+            if (guiPoint.HasValue)
+            {
+                Vector3 placed;
+                Vector3 placedNormal;
+                if (HandleUtility.PlaceObject(guiPoint.Value, out placed, out placedNormal))
+                {
+                    position = placed;
+                    normal = placedNormal;
+                    hit = L10n.S.CtxPinHitSurface;
+                    return;
+                }
+            }
+            position = ray.origin + ray.direction * FallbackDistance;
+            hit = L10n.F(L10n.S.CtxPinHitNothingFmt, FallbackDistance);
+        }
+
+        /// <summary>
+        /// The surface part of <see cref="ResolveClickPoint(Ray, Vector2?, IList{Renderer}, out Vector3, out Vector3, out string)"/>:
+        /// the nearer of the first collider along <paramref name="ray"/> and
+        /// the nearest rendered mesh, with the hit object's hierarchy path.
+        /// False (outputs zero / up / empty) when the ray hits nothing --
+        /// no GUI or fallback placement here, so the sketch's surface mode
+        /// (design note 2026-09-17-scene-sketch-strokes.md, decision S5)
+        /// can drop samples that are not on a surface.
+        /// </summary>
+        public static bool TryRaycastSurface(Ray ray, IList<Renderer> renderers,
+            out Vector3 position, out Vector3 normal, out string hit)
+        {
             float bestDistance = MaxPickDistance;
             bool found = false;
             position = Vector3.zero;
@@ -237,31 +269,14 @@ namespace Colloid.AgentPanel.Ops.Markers
                 hit = UapAddressing.DescribeHierarchyPath(meshHit.Transform);
                 found = true;
             }
-            if (found)
-            {
-                return;
-            }
-            if (guiPoint.HasValue)
-            {
-                Vector3 placed;
-                Vector3 placedNormal;
-                if (HandleUtility.PlaceObject(guiPoint.Value, out placed, out placedNormal))
-                {
-                    position = placed;
-                    normal = placedNormal;
-                    hit = L10n.S.CtxPinHitSurface;
-                    return;
-                }
-            }
-            position = ray.origin + ray.direction * FallbackDistance;
-            hit = L10n.F(L10n.S.CtxPinHitNothingFmt, FallbackDistance);
+            return found;
         }
 
         private static Renderer[] _rendererCache;
         private static double _rendererCacheAt;
 
         /// <summary>Scene renderers, refreshed at most every quarter second (hover resolves on every mouse move).</summary>
-        private static IList<Renderer> CollectRenderers()
+        internal static IList<Renderer> CollectRenderers()
         {
             double now = EditorApplication.timeSinceStartup;
             if (_rendererCache == null || now - _rendererCacheAt > 0.25)

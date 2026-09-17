@@ -1650,7 +1650,8 @@ namespace Colloid.AgentPanel.UI
         public readonly string SettingsUapOpsModuleMarkersLabel = "Scene-view markers";
 
         public readonly string SettingsUapOpsModuleMarkersHint =
-            "Numbered 3D markers the agent points with in the Scene view (uap_marker_add/list/clear). Overlays only.";
+            "Numbered 3D markers the agent points with in the Scene view (uap_marker_add/list/clear) and the sketch"
+            + " strokes you draw for it (uap_stroke_list). Overlays only.";
 
         /// <summary>Context-bar chip while the agent has markers on screen (count == 1).</summary>
         public readonly string CtxMarkersChipSingle = "1 scene marker";
@@ -1680,6 +1681,47 @@ namespace Colloid.AgentPanel.UI
         public readonly string CtxPinPayloadHitFmt = "hit object: {0}";
         public readonly string CtxPinPayloadNearestFmt = "nearest objects: {0}";
         public readonly string CtxPinPayloadCameraFmt = "scene view camera: position {0}, pivot {1}";
+
+        // Sketch strokes (design note 2026-09-17-scene-sketch-strokes.md).
+        public readonly string CtxSketchButton = "Sketch";
+        public readonly string CtxSketchButtonArmedPlane = "Sketching on plane...";
+        public readonly string CtxSketchButtonArmedSurface = "Sketching on surface...";
+        public readonly string CtxSketchTooltip =
+            "Draw a stroke in the Scene view and hand it to the agent as points. Plane mode draws at a chosen depth"
+            + " (wheel / [ ] change depth, F snaps to the surface under the cursor, X/Y/Z lock an axis plane, C faces"
+            + " the camera, Shift for a straight line); surface mode draws on the mesh under the cursor. Esc leaves the mode.";
+        public readonly string CtxSketchMenuPlane = "Sketch on a plane (choose depth)";
+        public readonly string CtxSketchMenuSurface = "Sketch on mesh surfaces";
+        public readonly string CtxSketchMenuStop = "Stop sketching";
+        public readonly string CtxSketchPlaneToolbarLabel = "Plane";
+        public readonly string CtxSketchPlaneTooltip =
+            "Agent sketch: draw on a plane at a chosen depth (wheel / [ ]: depth, F: snap to surface, X/Y/Z/C: plane, Esc: exit)";
+        public readonly string CtxSketchSurfaceToolbarLabel = "Surface";
+        public readonly string CtxSketchSurfaceTooltip = "Agent sketch: draw on the mesh surface under the cursor (Esc: exit)";
+        public readonly string CtxSketchChipLabelFmt = "Sketch S{0}";
+        public readonly string CtxSketchChipTitleFmt = "Scene sketch S{0}";
+        /// <summary>Scene-view readout: {0} = depth in metres (F2), {1} = plane axis name.</summary>
+        public readonly string CtxSketchDepthReadoutFmt = "sketch plane: depth {0} m, {1}";
+        public readonly string CtxSketchAxisCamera = "facing camera";
+        public readonly string CtxSketchContourPartial = "(contour partial: scene too large)";
+        /// <summary>{0} = distance in metres (F2).</summary>
+        public readonly string CtxSketchSurfaceBehindFmt = "surface under cursor: {0} m behind the plane";
+        public readonly string CtxSketchSurfaceInFrontFmt = "surface under cursor: {0} m in front of the plane";
+        public readonly string CtxSketchKeyHints = "wheel / [ ]: depth   F: snap to surface   X Y Z / C: plane   Shift: straight   Esc: exit";
+        public readonly string CtxStrokePayloadHeaderFmt = "Scene sketch S{0} (user-drawn stroke in the Scene view)";
+        public readonly string CtxStrokePayloadModeFmt = "mode: {0}";
+        /// <summary>{0} = point count, {1} = length in metres (F2), {2} = closed yes/no.</summary>
+        public readonly string CtxStrokePayloadStatsFmt = "points: {0}, length: {1} m, closed: {2}";
+        public readonly string CtxStrokePayloadClosedYes = "yes";
+        public readonly string CtxStrokePayloadClosedNo = "no";
+        public readonly string CtxStrokePayloadPlaneFmt = "plane: origin {0}, normal {1}";
+        public readonly string CtxStrokePayloadObjectsFmt = "on objects: {0}";
+        public readonly string CtxStrokePayloadBoundsFmt = "bounds: {0} - {1}";
+        public readonly string CtxStrokePayloadPointsFmt = "points: {0}";
+        /// <summary>{0} = points shown, {1} = total, {2} = stroke id.</summary>
+        public readonly string CtxStrokePayloadMorePointsFmt = "({0} of {1} points shown; uap_stroke_list id={2} returns all)";
+        /// <summary>{0} = stroke id.</summary>
+        public readonly string CtxStrokePayloadAllPointsFmt = "(all points shown; uap_stroke_list id={0} returns them with normals)";
 
         public readonly string SettingsUapOpsModuleAnimLabel = "Anim";
 
@@ -2847,6 +2889,36 @@ namespace Colloid.AgentPanel.UI
             string ctxPinPayloadHitFmt,
             string ctxPinPayloadNearestFmt,
             string ctxPinPayloadCameraFmt,
+            string ctxSketchButton,
+            string ctxSketchButtonArmedPlane,
+            string ctxSketchButtonArmedSurface,
+            string ctxSketchTooltip,
+            string ctxSketchMenuPlane,
+            string ctxSketchMenuSurface,
+            string ctxSketchMenuStop,
+            string ctxSketchPlaneToolbarLabel,
+            string ctxSketchPlaneTooltip,
+            string ctxSketchSurfaceToolbarLabel,
+            string ctxSketchSurfaceTooltip,
+            string ctxSketchChipLabelFmt,
+            string ctxSketchChipTitleFmt,
+            string ctxSketchDepthReadoutFmt,
+            string ctxSketchAxisCamera,
+            string ctxSketchContourPartial,
+            string ctxSketchSurfaceBehindFmt,
+            string ctxSketchSurfaceInFrontFmt,
+            string ctxSketchKeyHints,
+            string ctxStrokePayloadHeaderFmt,
+            string ctxStrokePayloadModeFmt,
+            string ctxStrokePayloadStatsFmt,
+            string ctxStrokePayloadClosedYes,
+            string ctxStrokePayloadClosedNo,
+            string ctxStrokePayloadPlaneFmt,
+            string ctxStrokePayloadObjectsFmt,
+            string ctxStrokePayloadBoundsFmt,
+            string ctxStrokePayloadPointsFmt,
+            string ctxStrokePayloadMorePointsFmt,
+            string ctxStrokePayloadAllPointsFmt,
             string settingsSectionExtensionProfiles,
             string settingsExtensionProfilesHint,
             string settingsExtensionProfilesTooltip,
@@ -3563,6 +3635,36 @@ namespace Colloid.AgentPanel.UI
             CtxPinPayloadHitFmt = ctxPinPayloadHitFmt;
             CtxPinPayloadNearestFmt = ctxPinPayloadNearestFmt;
             CtxPinPayloadCameraFmt = ctxPinPayloadCameraFmt;
+            CtxSketchButton = ctxSketchButton;
+            CtxSketchButtonArmedPlane = ctxSketchButtonArmedPlane;
+            CtxSketchButtonArmedSurface = ctxSketchButtonArmedSurface;
+            CtxSketchTooltip = ctxSketchTooltip;
+            CtxSketchMenuPlane = ctxSketchMenuPlane;
+            CtxSketchMenuSurface = ctxSketchMenuSurface;
+            CtxSketchMenuStop = ctxSketchMenuStop;
+            CtxSketchPlaneToolbarLabel = ctxSketchPlaneToolbarLabel;
+            CtxSketchPlaneTooltip = ctxSketchPlaneTooltip;
+            CtxSketchSurfaceToolbarLabel = ctxSketchSurfaceToolbarLabel;
+            CtxSketchSurfaceTooltip = ctxSketchSurfaceTooltip;
+            CtxSketchChipLabelFmt = ctxSketchChipLabelFmt;
+            CtxSketchChipTitleFmt = ctxSketchChipTitleFmt;
+            CtxSketchDepthReadoutFmt = ctxSketchDepthReadoutFmt;
+            CtxSketchAxisCamera = ctxSketchAxisCamera;
+            CtxSketchContourPartial = ctxSketchContourPartial;
+            CtxSketchSurfaceBehindFmt = ctxSketchSurfaceBehindFmt;
+            CtxSketchSurfaceInFrontFmt = ctxSketchSurfaceInFrontFmt;
+            CtxSketchKeyHints = ctxSketchKeyHints;
+            CtxStrokePayloadHeaderFmt = ctxStrokePayloadHeaderFmt;
+            CtxStrokePayloadModeFmt = ctxStrokePayloadModeFmt;
+            CtxStrokePayloadStatsFmt = ctxStrokePayloadStatsFmt;
+            CtxStrokePayloadClosedYes = ctxStrokePayloadClosedYes;
+            CtxStrokePayloadClosedNo = ctxStrokePayloadClosedNo;
+            CtxStrokePayloadPlaneFmt = ctxStrokePayloadPlaneFmt;
+            CtxStrokePayloadObjectsFmt = ctxStrokePayloadObjectsFmt;
+            CtxStrokePayloadBoundsFmt = ctxStrokePayloadBoundsFmt;
+            CtxStrokePayloadPointsFmt = ctxStrokePayloadPointsFmt;
+            CtxStrokePayloadMorePointsFmt = ctxStrokePayloadMorePointsFmt;
+            CtxStrokePayloadAllPointsFmt = ctxStrokePayloadAllPointsFmt;
             SettingsSectionExtensionProfiles = settingsSectionExtensionProfiles;
             SettingsExtensionProfilesHint = settingsExtensionProfilesHint;
             SettingsExtensionProfilesTooltip = settingsExtensionProfilesTooltip;
