@@ -214,7 +214,28 @@ namespace Colloid.AgentPanel.Model
             return FindImagePaths(text, false);
         }
 
-        /// <summary><paramref name="lenient"/> allows spaces inside the path (see LenientPathPattern).</summary>
+        /// <summary>
+        /// Longest path token looked at. The scan below only ever hands the
+        /// regex a window of at most this many characters in front of an
+        /// image extension, which is what keeps it linear in the text
+        /// length (design note 2026-09-17-modal-menu-and-base64-scan
+        /// section 2).
+        /// </summary>
+        internal const int MaxPathChars = 1024;
+
+        /// <summary>
+        /// <paramref name="lenient"/> allows spaces inside the path (see
+        /// LenientPathPattern). Never runs a pattern over the whole text:
+        /// both patterns start at every '/' and lazily walk to the next
+        /// stop character, so a result that carries a base64 picture AS
+        /// TEXT (Codex hands an MCP result over as one JSON string; base64
+        /// has a '/' every ~64 characters and no stop character at all)
+        /// cost O(n^2) -- 431 s of blocked Editor for a 498 KB screenshot,
+        /// measured. Instead every ".png"/".jpg"/".jpeg" occurrence (base64
+        /// has no '.') gets a window reaching back to the nearest character
+        /// no path can contain, at most <see cref="MaxPathChars"/>, and the
+        /// pattern runs inside that window only.
+        /// </summary>
         internal static List<string> FindImagePaths(string text, bool lenient)
         {
             var found = new List<string>();
@@ -223,11 +244,72 @@ namespace Colloid.AgentPanel.Model
                 return found;
             }
             Regex pattern = lenient ? LenientPathPattern : StrictPathPattern;
-            foreach (Match match in pattern.Matches(text))
+            // Where the previous match ended: a later window never reaches
+            // back over it, the same as one left-to-right pass would not.
+            int cursor = 0;
+            int dot = text.IndexOf('.');
+            while (dot >= 0)
             {
-                AddUnique(found, match.Value.Replace('\\', '/'));
+                int extensionEnd = ImageExtensionEnd(text, dot);
+                if (extensionEnd > 0 && dot >= cursor)
+                {
+                    int start = dot;
+                    while (start > cursor && dot - start < MaxPathChars && !IsPathStop(text[start - 1], lenient))
+                    {
+                        start--;
+                    }
+                    // Two characters of context for the patterns' lookaheads.
+                    int end = Math.Min(text.Length, extensionEnd + 2);
+                    Match match = pattern.Match(text, start, end - start);
+                    while (match.Success)
+                    {
+                        AddUnique(found, match.Value.Replace('\\', '/'));
+                        cursor = match.Index + match.Length;
+                        match = match.NextMatch();
+                    }
+                }
+                dot = text.IndexOf('.', dot + 1);
             }
             return found;
+        }
+
+        /// <summary>Index just past ".png" / ".jpg" / ".jpeg" (any case) at <paramref name="dot"/>, or -1.</summary>
+        private static int ImageExtensionEnd(string text, int dot)
+        {
+            if (string.Compare(text, dot, ".png", 0, 4, StringComparison.OrdinalIgnoreCase) == 0
+                || string.Compare(text, dot, ".jpg", 0, 4, StringComparison.OrdinalIgnoreCase) == 0)
+            {
+                return dot + 4;
+            }
+            if (string.Compare(text, dot, ".jpeg", 0, 5, StringComparison.OrdinalIgnoreCase) == 0)
+            {
+                return dot + 5;
+            }
+            return -1;
+        }
+
+        /// <summary>The characters neither pattern's path body can contain: no match spans one.</summary>
+        private static bool IsPathStop(char c, bool lenient)
+        {
+            switch (c)
+            {
+                case '"':
+                case '\'':
+                case '<':
+                case '>':
+                case '|':
+                case '*':
+                case '?':
+                case '(':
+                case ')':
+                case '[':
+                case ']':
+                case '\r':
+                case '\n':
+                    return true;
+                default:
+                    return !lenient && char.IsWhiteSpace(c);
+            }
         }
 
         /// <summary>Concatenated text of a string content or of every text block in an array content.</summary>

@@ -135,12 +135,6 @@ UapOps は特別扱い: title か rawInput に `uap_<snake>` があれば
 自動承認レベル・読み取り専用判定・Undo バッジ・スクリプトゲートの事前フィルタが
 Claude と同じに働く。
 
-> 2026-09-17 追記: 「title か rawInput に含まれていれば」という文中検索はやめ、
-> ツール id が入る場所だけを構造で読むようにした(Grok の `unity-ops__uap_x` /
-> `use_tool` 形、Codex の `{server, tool, arguments}` 形、シェル実行の除外)。
-> kind が other / 無しのときはエージェントの title を名前に出す。
-> `2026-09-17-acp-tool-name-mapping.md` を参照。
-
 ### 3.4 劣化の仕方(capability 別)
 
 | 無いもの | 挙動 |

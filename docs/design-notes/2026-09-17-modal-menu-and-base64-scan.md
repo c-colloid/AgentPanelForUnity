@@ -111,52 +111,10 @@ AITemp は撮影セッションの Editor が開いたままだったので触�
 
 ### 1.5 残すもの
 
-- macOS / Linux のモーダル検出は無し(拒否リストと `uap_scene_save` / `uap_scene_open` は全 OS で効く)。
+- `File/Open Scene` の代替ツール(`uap_scene_open`)は今回入れていない。拒否文は「ユーザーに開いて
+  もらう」と案内する。dirty シーンの破棄確認をどう扱うか(confirm ゲート)を決めてから別タスクで。
+- macOS / Linux のモーダル検出は無し(拒否リストと `uap_scene_save` は全 OS で効く)。
 
-### 1.6 `uap_scene_open`(同日追補、ユーザー指示)
-
-当初は「dirty シーンの破棄確認をどう扱うか決めてから別タスク」としていたが、拒否した
-`File/Open Scene` に代替が無いとエージェントは dynamic code へ流れるだけなので、同じリリースに入れる。
-
-決めたこと:
-
-| 論点 | 決定 | 理由 |
-|---|---|---|
-| 未保存変更の扱い | `mode:"single"` で読み込み済みシーンのどれかが dirty なら **拒否**(シーン名を列挙)。`discardUnsaved:true` で通す | `EditorSceneManager.OpenScene` は何も聞かずに変更を捨てる(メニューの「Scene(s) Have Been Modified」はメニューハンドラ側の処理で API には無い)。このツールが作業を壊し得る唯一の経路。拒否文は `uap_scene_save` / `discardUnsaved:true` / `additive` の 3 つの出口を示す |
-| `UapDestructiveToolBase`(confirm / dry_run)を使うか | 使わない | あちらは「常に破壊的」なツール用で、confirm 無しは必ず拒否+プレビューになる。シーンを開く操作の大半は何も壊さない(dirty でない)ので、毎回 confirm を要求すると 1 往復が無駄になる。破壊的になる条件のときだけ止まる専用フラグにした |
-| `additive` | ゲート無し | 何もアンロードしない。アクティブシーンが Untitled のときは Unity 自身が例外を出すので、その文をそのまま返す |
-| Play Mode | 拒否 | `EditorSceneManager.OpenScene` は Play Mode で例外。先に分かる文で返す |
-| パス | `Assets/` または `Packages/` 配下の `.unity`、`\`→`/`、`.`/`..` を畳む。存在しなければ拒否 | パッケージ内のサンプルシーンは開ける(保存先にはできないので `uap_scene_save` は `Assets/` のみ) |
-| Undo | 不可(`Undoable=false`) | シーンの切り替えは Undo スタックに載らない |
-
-判定は純関数 `UapSceneOpenTool.Refusal(mode, discardUnsaved, playing, dirtySceneNames)` と
-`NormalizeScenePath`。`UapMenuDialogPolicy` の `File/Open Scene` 拒否文は `uap_scene_open` を案内するよう変更、
-誘導文と `uap_editor_execute_menu` の説明にも追記。
-
-テスト(`UapSceneOpenToolTests`): ゲートの全分岐(複数/単数の dirty、discardUnsaved、additive、Play Mode)、
-パスの正規化と拒否、存在しないファイル・不正な mode、登録とメタデータ、メニュー拒否文の案内先。
-**Single で実際に開くテストは置いていない**(テストランナーが保持しているシーンをアンロードしてしまうため。
-`FontLoaderTests` の経緯も参照)。Execute 系は全て Unity に届く前の拒否で止まる。
-
-存在チェックは `File.Exists(path)` に加えて `AssetDatabase.GetMainAssetTypeAtPath(path) == typeof(SceneAsset)` も見る
-(`Packages/` は仮想パスで、`file:` や registry のパッケージはプロジェクトフォルダの外にあるため、
-ファイルチェックだけだと開けるはずのパッケージ内シーンを「not found」で拒否してしまう)。
-
-**実機確認(2026-09-17、スクラッチ `MenuProbe` プロジェクト、Unity 2022.3.22f1 GUI、main マージ後のコード)。**
-`[InitializeOnLoad]` のトリガーファイル式プローブから `new UapSceneOpenTool().Execute(...)` を main thread で直接呼んだ。
-`Assets/ProbeTarget.unity` を保存 → `NewScene`(Untitled)+ GameObject `UnsavedWork` 追加 + `MarkSceneDirty` の状態で:
-
-| 呼び出し | 結果 |
-|---|---|
-| `{path}`(`discardUnsaved` 無し) | `InvalidOperationException`: `Refused: opening in mode "single" unloads the current scene(s), and 'Untitled' has unsaved changes that would be lost. Nothing was opened. ...`。呼び出し後もアクティブシーンは Untitled・dirty のまま、`UnsavedWork` も生存 |
-| `{path, discardUnsaved:true}` | 18 ms で `Opened scene 'ProbeTarget' (Assets/ProbeTarget.unity, single); 1 scene(s) loaded.`。アクティブシーン = `Assets/ProbeTarget.unity`、dirty=false、`UnsavedWork` は消滅 |
-
-2 本目の呼び出しの 200 ms 前から 300 ms 後まで、別スレッドが 20 ms 間隔で自プロセスの可視トップレベルウィンドウを
-`EnumWindows` で列挙(20 サンプル): 見えたのは `UnityContainerWndClass` のメインウィンドウだけ
-(タイトルが `Untitled*` → `ProbeTarget` に変わった 2 種)で、**クラス `#32770` のウィンドウは 0 個**、
-呼び出し直後の `UapNativeModalProbe.Describe()` も null。ネイティブダイアログは出ない。
-(プローブ側の注意: 別スレッドから同一プロセスのウィンドウに `GetWindowText` を使うと `WM_GETTEXT` が
-ブロック中の main thread 待ちになり列挙が止まる。`InternalGetWindowText` を使う。)
 ## 2. 現象 B: base64 入りテキストに対するパス検出が O(n²)
 
 ### 2.1 根拠
@@ -221,8 +179,4 @@ Codex 側は 08:58:37 に `uap_job_status` を出しているのに、パネル�
 
 ## 4. 版
 
-`### Added`(`uap_scene_save`)を含むので **v0.55.0**。§1.6 の `uap_scene_open` はリリースコミット後の
-追補だが、PR #77 が未マージだったため同じ **v0.55.0** に含めた(CHANGELOG の 0.55.0 節 `### Added`)。
-`origin/main` が v0.54.7、続いて v0.54.8 を先に出したので、その都度 main をマージして 0.55.0 をその上に切り直している。
-(v0.54.8 は §2.2 で「別途やる価値はある」とした rawOutput → 画像ブロックの変換そのもの。Codex の経路では base64 がテキストに
-入らなくなるが、他のエージェント/ツール向けに検出側の線形化は引き続き必要。)Pro は変更なし(Pro の版・販売ページ文書は触らない)。
+`### Added`(`uap_scene_save`)を含むので **v0.55.0**。Pro は変更なし(Pro の版・販売ページ文書は触らない)。

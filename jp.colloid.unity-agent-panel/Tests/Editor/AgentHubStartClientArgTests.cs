@@ -401,6 +401,10 @@ namespace Colloid.AgentPanel.Tests
             // anchored element and watches the next layout pass eat it.
             StringAssert.Contains("uap_rect_transform_set", section);
             StringAssert.Contains("was never started", section);
+            // 2026-09-17: with no save tool named, a live agent ran the
+            // "File/Save" menu on an untitled scene and sat behind the
+            // native Save Scene dialog for 288 s.
+            StringAssert.Contains("uap_scene_save", section);
         }
 
         [Test]

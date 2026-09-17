@@ -120,7 +120,7 @@ namespace Colloid.AgentPanel.Ops
                 _token = UapOpsAuth.GenerateToken();
             }
             _dispatcher = new UapMainThreadDispatcher();
-            _dispatcher.StallHintProvider = ReadThrottleNotice;
+            _dispatcher.StallHintProvider = ReadStallHint;
             var handler = new UapOpsRequestHandler(Registry, () => _token,
                 () => _enabledModules, _dispatcher, null, ReadThrottleNotice);
             var server = new UapOpsHttpServer(handler, logger);
@@ -237,6 +237,19 @@ namespace Colloid.AgentPanel.Ops
         internal static string ReadThrottleNotice()
         {
             return _throttleNotice;
+        }
+
+        /// <summary>
+        /// What the dispatcher appends to a main-thread timeout: the
+        /// throttle snapshot, else a native modal dialog owning the Editor
+        /// right now (design note 2026-09-17-modal-menu-and-base64-scan
+        /// section 1.3). Worker-thread-safe: the probe is plain user32.
+        /// Only the dispatcher gets the dialog half -- a call that
+        /// SUCCEEDED cannot have run behind a modal dialog.
+        /// </summary>
+        internal static string ReadStallHint()
+        {
+            return ReadThrottleNotice() ?? UapNativeModalProbe.Describe();
         }
 
         /// <summary>Test-only: resets every static back to a clean, never-started slate.</summary>

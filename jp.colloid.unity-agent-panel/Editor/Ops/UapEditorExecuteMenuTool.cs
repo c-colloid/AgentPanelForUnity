@@ -70,7 +70,10 @@ namespace Colloid.AgentPanel.Ops
             {
                 return "Executes a Unity Editor menu command by its exact menu path (e.g."
                     + " \"GameObject/3D Object/Cube\") -- can trigger ANYTHING that menu item does,"
-                    + " including compiles, saves, dialogs, or destructive/irreversible actions. Not"
+                    + " including compiles, saves, windows, or destructive/irreversible actions. Menu items"
+                    + " that open a native modal dialog (File/Save on an untitled scene, File/Save As...,"
+                    + " File/Open Scene, Assets/Import New Asset..., ...) are REFUSED: such a dialog blocks the"
+                    + " Editor until a person closes it; save scenes with uap_scene_save instead. Not"
                     + " undoable and not scoped to a target; verify the result with a query tool or"
                     + " uap_editor_screenshot afterward. A menu item runs synchronously on the Editor"
                     + " main thread: if this call fails with 'still running on the Unity main thread',"
@@ -130,6 +133,14 @@ namespace Colloid.AgentPanel.Ops
             {
                 throw new ArgumentException("'menuPath' is required.");
             }
+            // Before the run is recorded: a refused menu never started, and
+            // "status" must not list it (design note
+            // 2026-09-17-modal-menu-and-base64-scan section 1).
+            string refusal = UapMenuDialogPolicy.Refusal(menuPath, AnyOpenSceneUntitled());
+            if (refusal != null)
+            {
+                throw new InvalidOperationException(refusal);
+            }
 
             var run = new MenuRun { MenuPath = menuPath, StartedUtc = DateTime.UtcNow };
             Record(run);
@@ -151,6 +162,19 @@ namespace Colloid.AgentPanel.Ops
                 .Set("found", run.Found)
                 .Set("durationSeconds", Seconds(run));
             return UapToolResults.Text(JsonWriter.Write(result));
+        }
+
+        /// <summary>A loaded scene that was never saved: the case in which File/Save asks for a file name.</summary>
+        private static bool AnyOpenSceneUntitled()
+        {
+            for (int i = 0; i < UnityEngine.SceneManagement.SceneManager.sceneCount; i++)
+            {
+                if (string.IsNullOrEmpty(UnityEngine.SceneManagement.SceneManager.GetSceneAt(i).path))
+                {
+                    return true;
+                }
+            }
+            return false;
         }
 
         private static void Record(MenuRun run)

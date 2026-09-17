@@ -84,12 +84,9 @@ namespace Colloid.AgentPanel.Tests
         {
             var unix = new AcpCommandProbe("grok", false, "/usr/bin", "/home/u", null);
             var candidates = new List<string>(unix.EnumerateCandidates());
-            // The probe joins with Path.Combine (isWindows is a test seam; in
-            // production it always matches the host), so the expectations are
-            // built the same way to hold on a Windows host too.
-            CollectionAssert.Contains(candidates, System.IO.Path.Combine("/home/u", ".grok", "bin", "grok"));
-            CollectionAssert.Contains(candidates, System.IO.Path.Combine("/home/u", ".local", "bin", "grok"));
-            Assert.AreEqual(System.IO.Path.Combine("/usr/bin", "grok"), candidates[0], "PATH entries come first");
+            CollectionAssert.Contains(candidates, "/home/u/.grok/bin/grok");
+            CollectionAssert.Contains(candidates, "/home/u/.local/bin/grok");
+            Assert.AreEqual("/usr/bin/grok", candidates[0], "PATH entries come first");
             var windows = new AcpCommandProbe("grok", true, "", "C:\\Users\\u", "C:\\Users\\u\\AppData\\Roaming");
             var win = new List<string>(windows.EnumerateCandidates());
             CollectionAssert.Contains(win, System.IO.Path.Combine("C:\\Users\\u", ".grok", "bin", "grok.exe"));
@@ -259,11 +256,9 @@ namespace Colloid.AgentPanel.Tests
             // follow them.
             var unix = new AcpCommandProbe("gemini", false, "/usr/bin:/home/u/bin");
             var unixCandidates = new List<string>(unix.EnumerateCandidates());
-            // Expectations use Path.Combine like the probe does, so they hold
-            // on a Windows host as well.
-            Assert.AreEqual(System.IO.Path.Combine("/usr/bin", "gemini"), unixCandidates[0]);
-            Assert.AreEqual(System.IO.Path.Combine("/home/u/bin", "gemini"), unixCandidates[1]);
-            Assert.AreEqual(System.IO.Path.Combine("/usr/local/bin", "gemini"), unixCandidates[2]);
+            Assert.AreEqual("/usr/bin/gemini", unixCandidates[0]);
+            Assert.AreEqual("/home/u/bin/gemini", unixCandidates[1]);
+            Assert.AreEqual("/usr/local/bin/gemini", unixCandidates[2]);
         }
 
         [Test]

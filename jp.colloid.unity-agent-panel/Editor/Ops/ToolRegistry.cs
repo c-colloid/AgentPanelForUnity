@@ -137,6 +137,11 @@ namespace Colloid.AgentPanel.Ops
             RegisterUnlessCovered(registry, new UapSceneReparentTool(), uloopDetected);
             RegisterUnlessCovered(registry, new UapSceneRenameTool(), uloopDetected);
             RegisterUnlessCovered(registry, new UapScenePlaceAssetTool(), uloopDetected);
+            // 2026-09-17: there was no way to save a scene, so agents ran
+            // "File/Save" through uap_editor_execute_menu -- a native modal
+            // dialog on an untitled scene, 288 s of blocked Editor. Design
+            // note docs/design-notes/2026-09-17-modal-menu-and-base64-scan.md.
+            RegisterUnlessCovered(registry, new UapSceneSaveTool(), uloopDetected);
             RegisterUnlessCovered(registry, new UapComponentAddTool(), uloopDetected);
             RegisterUnlessCovered(registry, new UapComponentRemoveTool(), uloopDetected);
             RegisterUnlessCovered(registry, new UapPropertySetTool(), uloopDetected);

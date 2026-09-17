@@ -245,6 +245,57 @@ namespace Colloid.AgentPanel.Tests
             Assert.AreEqual(new[] { "C:/proj/Temp/a.PNG", "/home/u/b.jpeg", "/q/c.jpg", "Assets/d.png" }, found);
         }
 
+        /// <summary>
+        /// The 2026-09-17 freeze: Codex handed uap_editor_screenshot's MCP
+        /// result over as ONE JSON string, base64 picture included. Base64
+        /// has a '/' every ~64 characters and no stop character, so the
+        /// whole-text regex walked from every '/' to the end of the blob --
+        /// 431 s on the main thread for 498 KB. The budget here is three
+        /// orders of magnitude under that and still generous for a slow CI
+        /// host; a return to the quadratic scan cannot pass it.
+        /// </summary>
+        [Test]
+        public void FindImagePaths_Base64BlobInText_StaysLinear_AndStillFindsThePath()
+        {
+            var blob = new System.Text.StringBuilder(520000);
+            var random = new System.Random(20260917);
+            const string alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+            for (int i = 0; i < 500000; i++)
+            {
+                blob.Append(alphabet[random.Next(alphabet.Length)]);
+            }
+            string text = "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"Captured Scene view to"
+                + " C:/proj/Temp/UapOpsScreenshots/shot.png (826x430).\"},{\"type\":\"image\",\"data\":\""
+                + blob + "\",\"mimeType\":\"image/png\"}]}}";
+
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            List<string> strict = ToolResultImages.FindImagePaths(text, false);
+            List<string> lenient = ToolResultImages.FindImagePaths(text, true);
+            watch.Stop();
+
+            Assert.AreEqual(new[] { "C:/proj/Temp/UapOpsScreenshots/shot.png" }, strict);
+            Assert.Contains("C:/proj/Temp/UapOpsScreenshots/shot.png", lenient);
+            Assert.Less(watch.ElapsedMilliseconds, 2000,
+                "path scan over a base64-bearing result must stay linear");
+        }
+
+        [Test]
+        public void FindImagePaths_PathAfterTheBlob_IsFoundToo()
+        {
+            string text = new string('/', 100000) + " then /home/u/late.jpg";
+
+            Assert.AreEqual(new[] { "/home/u/late.jpg" }, ToolResultImages.FindImagePaths(text, false));
+        }
+
+        [Test]
+        public void FindImagePaths_LenientPass_KeepsBothPathsOfOneLine()
+        {
+            List<string> found = ToolResultImages.FindImagePaths(
+                "wrote C:/My Project/a.png and D:/Other Dir/b.jpeg today", true);
+
+            Assert.AreEqual(new[] { "C:/My Project/a.png", "D:/Other Dir/b.jpeg" }, found);
+        }
+
         [Test]
         public void FindImagePaths_EmptyText_IsEmpty()
         {

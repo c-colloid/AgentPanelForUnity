@@ -9,53 +9,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (nothing yet)
 
-## [0.54.8] - 2026-09-17
+## [0.55.0] - 2026-09-17
+
+### Added
+
+- **`uap_scene_save`: save a scene without any dialog.** Saves the active
+  (or a named) loaded scene in place, or to `path` (`Assets/.../Name.unity`,
+  folders created) with `saveAsCopy` / `overwrite`. An untitled scene
+  without `path` is refused up front instead of reaching Unity, which
+  would open the Save Scene dialog. There was no save tool before, so
+  agents ran the `File/Save` menu instead -- see below.
 
 ### Fixed
 
-- **Codex: a picture returned by an MCP tool now shows in the tool card,
-  and its base64 no longer travels as result text.** codex-acp delivers an
-  MCP tool result only as `rawOutput` =
-  `{"result":{"content":[...]},"error":null}` with an empty `content`; the
-  ACP bridge stringified that whole object, so a
-  `uap_editor_screenshot(return_image)` result became a ~500 KB JSON
-  string and the screenshot appeared only when its file path happened to
-  resolve on disk. The bridge now translates the MCP blocks like regular
-  ACP content: text becomes the result text, image blocks become embedded
-  images (at most 4 per result, 8 MiB of base64 each; anything beyond
-  leaves an `[image]` stand-in). Any other `rawOutput` shape is shown as
-  before. Design note:
-  `docs/design-notes/2026-09-17-acp-mcp-rawoutput-images.md`.
-
-## [0.54.7] - 2026-09-17
-
-### Fixed
-
-- **Grok / Codex: UapOps tool calls are recognized again, so the
-  auto-approve level applies.** Grok Build calls MCP tools through its
-  own `use_tool` dispatcher and names them `unity-ops__uap_ping`; the
-  ACP bridge missed that shape (it fixes the name on the first frame,
-  whose title is `use_tool`, never read `rawInput.tool_name`, and
-  rejected a `uap_` preceded by `_`), mapped the call to "Tool", and a
-  permission card titled `unity-ops__uap_ping` appeared for every
-  `uap_*` call even at "All Unity operations". These calls now map to
-  `mcp__unity-ops__uap_*` like Claude's, the card reads
-  "unity-ops: uap_ping", and the tool's own arguments are shown instead
-  of the agent's `tool_input` / `arguments` envelope.
-- **A tool call that merely mentions a `uap_*` id is no longer treated
-  as that UapOps tool.** The bridge used to search the agent's free-text
-  title for `uap_<name>`; with Codex the title of a shell call is the
-  command line, so `uap_ping && <anything>` would have been
-  auto-approved as the read-only `uap_ping`. The id is now only read
-  from fields that hold a tool id (leading title token, or
-  `tool_name` / `tool` / `toolName` with the unity-ops server), never
-  for a shell call.
-- **Agent-specific tools show their own name instead of "Tool".** Grok's
-  tool search and other tools of ACP kind `other` (or none) are titled
-  with the agent's tool title; Grok's shell calls are recognized as Bash
-  from the first frame (command shown, script gate applies); a Codex
-  call to another MCP server shows as that MCP tool instead of "Bash".
-  Design note: `docs/design-notes/2026-09-17-acp-tool-name-mapping.md`.
+- **`uap_editor_execute_menu` no longer parks the Editor behind a native
+  modal dialog.** A live Codex session ran `File/Save` on an untitled
+  scene: Unity opened the native Save Scene dialog inside the call, the
+  Editor loop did not tick once until a person closed it (288 s), every
+  other `uap_*` call died "never started" and the panel stopped answering
+  permission requests. The menu items measured to open such a dialog
+  (`File/Save` while a scene is untitled, `File/Save As...`,
+  `File/Open Scene`, `File/Build And Run`, `File/Exit`,
+  `Assets/Import New Asset...`, `Assets/Import Package/Custom Package...`)
+  are now refused before they run, with the alternative in the message.
+  Build Settings, Project Settings, Preferences and the rest are ordinary
+  windows and keep working.
+- **A main-thread timeout now says when a modal dialog is the cause**
+  (Windows). For dialogs a third-party menu or tool opens, the timeout
+  text names the dialog and says only a person can close it, instead of
+  "will finish on its own"; calls issued while it is open fail in 8 s
+  with the same note.
+- **A screenshot returned as text no longer freezes the Editor for
+  minutes.** Codex hands an MCP result over as one JSON string, base64
+  picture included; the tool card's image-path detection ran two regexes
+  that were quadratic on such text (measured: 431 s of "not responding"
+  for a 498 KB screenshot, 256 s in the live session, shown as "Hold on
+  ... EditorUpdatePump.OnEditorUpdate"). The scan is now linear (same
+  input: 1 ms) and finds the same paths. Design note:
+  `docs/design-notes/2026-09-17-modal-menu-and-base64-scan.md`.
 
 ## [0.54.6] - 2026-09-17
 
