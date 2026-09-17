@@ -99,6 +99,18 @@ namespace Colloid.AgentPanel.UI
                 return DescribeSkill(input, name);
             }
 
+            // uap_web_fetch (2026-09-17): the permission card must show
+            // WHERE the request goes -- host first, then the path shortened
+            // -- because the URL is the only safeguard against an agent
+            // smuggling project data out in it (design note
+            // 2026-09-17-web-fetch-tool.md section 5.1).
+            if (name.EndsWith("uap_web_fetch", System.StringComparison.OrdinalIgnoreCase))
+            {
+                string url = FirstString(input, "url");
+                return Make("d_BuildSettings.Web.Small", GlyphWeb,
+                    url != null ? WebFetchSummary(url) : ShortenToolDisplayName(name));
+            }
+
             // Unknown / MCP tools: generic row with whatever key is useful.
             // The name echo uses the SAME shortened form ToolActivityCard
             // puts in its header label (ShortenToolDisplayName): before,
@@ -165,6 +177,29 @@ namespace Colloid.AgentPanel.UI
         }
 
         /// <summary>"https://docs.unity3d.com/x/y" -&gt; "docs.unity3d.com".</summary>
+        /// <summary>
+        /// "host/path" with the scheme dropped and the path cut to keep the
+        /// host readable: "docs.unity3d.com/2022.3/Documentation/Manual/cla...".
+        /// Pure and internal for tests.
+        /// </summary>
+        internal static string WebFetchSummary(string url)
+        {
+            string host = HostOf(url);
+            string s = url.Trim();
+            int scheme = s.IndexOf("://", System.StringComparison.Ordinal);
+            if (scheme >= 0)
+            {
+                s = s.Substring(scheme + 3);
+            }
+            int slash = s.IndexOf('/');
+            string path = slash >= 0 ? s.Substring(slash) : string.Empty;
+            if (path.Length <= 1)
+            {
+                return host;
+            }
+            return host + Truncate(path, ArgHintMaxChars);
+        }
+
         private static string HostOf(string url)
         {
             string s = url.Trim();

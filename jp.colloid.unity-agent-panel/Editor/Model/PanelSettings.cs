@@ -81,6 +81,16 @@ namespace Colloid.AgentPanel.Model
         public List<string> disallowedTools = new List<string>();
 
         /// <summary>
+        /// uap_web_fetch host allow list, one host per line ("example.com"
+        /// covers its subdomains). Empty = any public host. Design note
+        /// 2026-09-17-web-fetch-tool.md section 5.2 (stage 2).
+        /// </summary>
+        public List<string> webFetchAllowedHosts = new List<string>();
+
+        /// <summary>uap_web_fetch host deny list, same format; deny wins over allow.</summary>
+        public List<string> webFetchBlockedHosts = new List<string>();
+
+        /// <summary>
         /// Explicit opt-in for --dangerously-skip-permissions. Default OFF
         /// and it must stay that way (ARCHITECTURE.md D3): the settings UI
         /// shows a warning before enabling.
@@ -199,12 +209,13 @@ namespace Colloid.AgentPanel.Model
         /// <summary>
         /// Module-default generation this build ships. 1 = the Phase 5b
         /// default-on set {core, prefab, editor}; 2 = "markers" (2026-09-07
-        /// Scene-view 3D markers) joined the default-on set. Increment (and extend
+        /// Scene-view 3D markers) joined the default-on set; 3 = "web"
+        /// (2026-09-17 uap_web_fetch) joined it. Increment (and extend
         /// <see cref="EnsureUapOpsModuleDefaults"/>) only when a module is
         /// added to the DEFAULT-ON set; adding a default-OFF module (like
         /// "anim") needs no migration.
         /// </summary>
-        public const int CurrentModuleDefaultsGeneration = 2;
+        public const int CurrentModuleDefaultsGeneration = 3;
 
         /// <summary>
         /// Adds modules that became default-ON after this asset was last
@@ -245,6 +256,14 @@ namespace Colloid.AgentPanel.Model
             if (uapOpsModuleDefaultsGeneration < 2 && !uapOpsModules.Contains("markers"))
             {
                 uapOpsModules.Add("markers");
+            }
+            // Generation 3: uap_web_fetch (2026-09-17, design note
+            // docs/design-notes/2026-09-17-web-fetch-tool.md). Default ON
+            // because every call still shows a permission card with the
+            // URL; a user who switches it off after this stays off.
+            if (uapOpsModuleDefaultsGeneration < 3 && !uapOpsModules.Contains("web"))
+            {
+                uapOpsModules.Add("web");
             }
             uapOpsModuleDefaultsGeneration = CurrentModuleDefaultsGeneration;
             // Unconditionally true past the generation gate above, even when
@@ -524,7 +543,7 @@ namespace Colloid.AgentPanel.Model
         /// too) eventually converges the steering text via a full respawn,
         /// exactly like any other spawn-argument field.
         /// </summary>
-        public List<string> uapOpsModules = new List<string> { "core", "prefab", "editor", "markers" };
+        public List<string> uapOpsModules = new List<string> { "core", "prefab", "editor", "markers", "web" };
 
         /// <summary>
         /// Phase 5c L3(3): after a turn's staged scripts compile and the

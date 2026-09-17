@@ -1652,6 +1652,24 @@ namespace Colloid.AgentPanel.UI
         public readonly string SettingsUapOpsModuleMarkersHint =
             "Scene-view markers (uap_marker_add/list/clear) and your sketch strokes (uap_stroke_list). Overlays only.";
 
+        // 2026-09-17 "web" UapOps module toggle (uap_web_fetch, design
+        // note docs/design-notes/2026-09-17-web-fetch-tool.md); default ON.
+        public readonly string SettingsUapOpsModuleWebLabel = "Web fetch";
+
+        /// <summary>Kept under the 110-char settings-hint cap (L10nTests); the USER-GUIDE row carries the detail.</summary>
+        public readonly string SettingsUapOpsModuleWebHint =
+            "Lets the agent fetch a URL (uap_web_fetch): images inline, PDFs and files saved under Library, pages as text.";
+
+        public readonly string SettingsWebFetchAllowedHostsLabel = "Allowed hosts";
+
+        public readonly string SettingsWebFetchAllowedHostsHint =
+            "One host per line, subdomains included (example.com). Empty = any public host. Applies to the next fetch.";
+
+        public readonly string SettingsWebFetchBlockedHostsLabel = "Blocked hosts";
+
+        public readonly string SettingsWebFetchBlockedHostsHint =
+            "One host per line; a blocked host is refused even when it is on the allowed list.";
+
         /// <summary>Context-bar chip while the agent has markers on screen (count == 1).</summary>
         public readonly string CtxMarkersChipSingle = "1 scene marker";
 
@@ -3066,7 +3084,13 @@ namespace Colloid.AgentPanel.UI
             string settingsSignInMethodLabel = null,
             string settingsAgentAdvancedFoldout = null,
             string settingsReconnectButton = null,
-            string settingsAccountAcpConnectingFmt = null)
+            string settingsAccountAcpConnectingFmt = null,
+            string settingsUapOpsModuleWebLabel = null,
+            string settingsUapOpsModuleWebHint = null,
+            string settingsWebFetchAllowedHostsLabel = null,
+            string settingsWebFetchAllowedHostsHint = null,
+            string settingsWebFetchBlockedHostsLabel = null,
+            string settingsWebFetchBlockedHostsHint = null)
         {
             FirstRunCliNotFoundTitle = firstRunCliNotFoundTitle;
             FirstRunCliNotFoundBody = firstRunCliNotFoundBody;
@@ -4065,6 +4089,30 @@ namespace Colloid.AgentPanel.UI
             if (settingsAccountAcpConnectingFmt != null)
             {
                 SettingsAccountAcpConnectingFmt = settingsAccountAcpConnectingFmt;
+            }
+            if (settingsUapOpsModuleWebLabel != null)
+            {
+                SettingsUapOpsModuleWebLabel = settingsUapOpsModuleWebLabel;
+            }
+            if (settingsUapOpsModuleWebHint != null)
+            {
+                SettingsUapOpsModuleWebHint = settingsUapOpsModuleWebHint;
+            }
+            if (settingsWebFetchAllowedHostsLabel != null)
+            {
+                SettingsWebFetchAllowedHostsLabel = settingsWebFetchAllowedHostsLabel;
+            }
+            if (settingsWebFetchAllowedHostsHint != null)
+            {
+                SettingsWebFetchAllowedHostsHint = settingsWebFetchAllowedHostsHint;
+            }
+            if (settingsWebFetchBlockedHostsLabel != null)
+            {
+                SettingsWebFetchBlockedHostsLabel = settingsWebFetchBlockedHostsLabel;
+            }
+            if (settingsWebFetchBlockedHostsHint != null)
+            {
+                SettingsWebFetchBlockedHostsHint = settingsWebFetchBlockedHostsHint;
             }
         }
     }

@@ -947,7 +947,13 @@ namespace Colloid.AgentPanel.UI
                 settingsSignInMethodLabel: "サインイン方式",
                 settingsAgentAdvancedFoldout: "詳細設定(実行ファイル / コマンド)",
                 settingsReconnectButton: "再接続",
-                settingsAccountAcpConnectingFmt: "{0} に接続しています...");
+                settingsAccountAcpConnectingFmt: "{0} に接続しています...",
+                settingsUapOpsModuleWebLabel: "Web 取得",
+                settingsUapOpsModuleWebHint: "エージェントが URL の中身を取得(uap_web_fetch)。画像はそのまま表示、PDF などのファイルは Library に保存、ページは本文テキスト。",
+                settingsWebFetchAllowedHostsLabel: "許可するホスト",
+                settingsWebFetchAllowedHostsHint: "1 行 1 ホスト。サブドメインも含みます(example.com)。空なら公開ホストすべて。次の取得から反映。",
+                settingsWebFetchBlockedHostsLabel: "拒否するホスト",
+                settingsWebFetchBlockedHostsHint: "1 行 1 ホスト。許可リストにあっても拒否が優先されます。");
         }
     }
 }

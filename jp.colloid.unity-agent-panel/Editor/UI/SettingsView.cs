@@ -134,6 +134,9 @@ namespace Colloid.AgentPanel.UI
         private Toggle _uapOpsEditorModuleToggle;
         private Toggle _uapOpsAnimModuleToggle;
         private Toggle _uapOpsMarkersModuleToggle;
+        private Toggle _uapOpsWebModuleToggle;
+        private TextField _webFetchAllowedHostsField;
+        private TextField _webFetchBlockedHostsField;
         private Toggle _uapOpsUiModuleToggle;
         private Toggle _uapOpsAuthoringModuleToggle;
         private Toggle _uapOpsAvatarModuleToggle;
@@ -2339,6 +2342,38 @@ namespace Colloid.AgentPanel.UI
             section.Add(_uapOpsMarkersModuleToggle);
             AddHint(section, L10n.S.SettingsUapOpsModuleMarkersHint).AddToClassList("uap-settings-hint--child");
 
+            // 2026-09-17: uap_web_fetch (default ON, generation 3). Core
+            // ships the tool, so the row is never Pro-disabled.
+            _uapOpsWebModuleToggle = new Toggle(L10n.S.SettingsUapOpsModuleWebLabel);
+            _uapOpsWebModuleToggle.AddToClassList("uap-settings-field");
+            _uapOpsWebModuleToggle.AddToClassList("uap-switch");
+            _uapOpsWebModuleToggle.AddToClassList("uap-settings-field--child");
+            _uapOpsWebModuleToggle.SetValueWithoutNotify(PanelStateStore.instance.Settings.uapOpsModules.Contains("web"));
+            _uapOpsWebModuleToggle.RegisterValueChangedCallback(OnUapOpsWebModuleToggleChanged);
+            section.Add(_uapOpsWebModuleToggle);
+            AddHint(section, L10n.S.SettingsUapOpsModuleWebHint).AddToClassList("uap-settings-hint--child");
+            // Host allow / deny lists for uap_web_fetch (stage 2). The
+            // tool reads a snapshot (UapWebFetchTool.HostRules) from its
+            // worker thread, so every edit replaces the snapshot here.
+            _webFetchAllowedHostsField = new TextField(L10n.S.SettingsWebFetchAllowedHostsLabel);
+            _webFetchAllowedHostsField.multiline = true;
+            _webFetchAllowedHostsField.AddToClassList("uap-settings-multiline");
+            _webFetchAllowedHostsField.AddToClassList("uap-settings-field--child");
+            _webFetchAllowedHostsField.SetValueWithoutNotify(
+                JoinLines(PanelStateStore.instance.Settings.webFetchAllowedHosts));
+            _webFetchAllowedHostsField.RegisterValueChangedCallback(OnWebFetchAllowedHostsChanged);
+            section.Add(_webFetchAllowedHostsField);
+            AddHint(section, L10n.S.SettingsWebFetchAllowedHostsHint).AddToClassList("uap-settings-hint--child");
+            _webFetchBlockedHostsField = new TextField(L10n.S.SettingsWebFetchBlockedHostsLabel);
+            _webFetchBlockedHostsField.multiline = true;
+            _webFetchBlockedHostsField.AddToClassList("uap-settings-multiline");
+            _webFetchBlockedHostsField.AddToClassList("uap-settings-field--child");
+            _webFetchBlockedHostsField.SetValueWithoutNotify(
+                JoinLines(PanelStateStore.instance.Settings.webFetchBlockedHosts));
+            _webFetchBlockedHostsField.RegisterValueChangedCallback(OnWebFetchBlockedHostsChanged);
+            section.Add(_webFetchBlockedHostsField);
+            AddHint(section, L10n.S.SettingsWebFetchBlockedHostsHint).AddToClassList("uap-settings-hint--child");
+
             // Phase 5b stream B adds "anim" (design section 1.2/8.8) --
             // default OFF, unlike core/prefab/editor above, so its toggle
             // simply reflects the (initially absent) module list entry.
@@ -2940,6 +2975,46 @@ namespace Colloid.AgentPanel.UI
             AgentHub.RequestAutoApplyReconnect();
         }
 
+        private void OnWebFetchAllowedHostsChanged(ChangeEvent<string> evt)
+        {
+            PanelStateStore.instance.Settings.webFetchAllowedHosts = SplitLines(evt.newValue);
+            PanelStateStore.instance.SaveNow();
+            PublishWebFetchHostRules();
+        }
+
+        private void OnWebFetchBlockedHostsChanged(ChangeEvent<string> evt)
+        {
+            PanelStateStore.instance.Settings.webFetchBlockedHosts = SplitLines(evt.newValue);
+            PanelStateStore.instance.SaveNow();
+            PublishWebFetchHostRules();
+        }
+
+        private static void PublishWebFetchHostRules()
+        {
+            PanelSettings s = PanelStateStore.instance.Settings;
+            Colloid.AgentPanel.Ops.UapWebFetchTool.HostRules =
+                new Colloid.AgentPanel.Ops.UapWebHostRules(s.webFetchAllowedHosts, s.webFetchBlockedHosts);
+        }
+
+        private void OnUapOpsWebModuleToggleChanged(ChangeEvent<bool> evt)
+        {
+            List<string> modules = PanelStateStore.instance.Settings.uapOpsModules;
+            if (evt.newValue)
+            {
+                if (!modules.Contains("web"))
+                {
+                    modules.Add("web");
+                }
+            }
+            else
+            {
+                modules.Remove("web");
+            }
+            PanelStateStore.instance.SaveNow();
+            AgentHub.ApplyUapOpsModulesChanged();
+            RefreshReconnectHint();
+        }
+
         private void OnUapOpsMarkersModuleToggleChanged(ChangeEvent<bool> evt)
         {
             List<string> modules = PanelStateStore.instance.Settings.uapOpsModules;
@@ -3057,6 +3132,9 @@ namespace Colloid.AgentPanel.UI
             _uapOpsPrefabModuleToggle?.SetEnabled(ModuleToggleEnabled(enabledSetting, "prefab"));
             _uapOpsEditorModuleToggle?.SetEnabled(ModuleToggleEnabled(enabledSetting, "editor"));
             _uapOpsMarkersModuleToggle?.SetEnabled(ModuleToggleEnabled(enabledSetting, "markers"));
+            _uapOpsWebModuleToggle?.SetEnabled(ModuleToggleEnabled(enabledSetting, "web"));
+            _webFetchAllowedHostsField?.SetEnabled(ModuleToggleEnabled(enabledSetting, "web"));
+            _webFetchBlockedHostsField?.SetEnabled(ModuleToggleEnabled(enabledSetting, "web"));
             _uapOpsAnimModuleToggle?.SetEnabled(ModuleToggleEnabled(enabledSetting, "anim"));
             _uapOpsUiModuleToggle?.SetEnabled(ModuleToggleEnabled(enabledSetting, "ui"));
             _uapOpsAuthoringModuleToggle?.SetEnabled(ModuleToggleEnabled(enabledSetting, "authoring"));

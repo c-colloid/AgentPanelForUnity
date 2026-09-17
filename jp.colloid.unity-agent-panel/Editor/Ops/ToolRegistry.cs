@@ -189,6 +189,11 @@ namespace Colloid.AgentPanel.Ops
             // (design note docs/design-notes/2026-09-17-scene-sketch-strokes.md);
             // read-only listing, same module.
             RegisterUnlessCovered(registry, new UapStrokeListTool(), uloopDetected);
+            // 2026-09-17 -- "web" module: fetch a URL for the agent (images
+            // inline, PDFs / files saved, HTML as text), since every agent's
+            // own web fetch flattens to text. Runs off the main thread.
+            // Design note docs/design-notes/2026-09-17-web-fetch-tool.md.
+            RegisterUnlessCovered(registry, new UapWebFetchTool(), uloopDetected);
             // Phase 5b streams "prefab"/"anim" and Phase 5c "ui" moved to
             // Agent Panel Pro in full (2026-09-11 core/pro split, design
             // note docs/design-notes/2026-09-11-core-pro-split.md) -- see

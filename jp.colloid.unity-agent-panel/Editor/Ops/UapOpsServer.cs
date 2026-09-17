@@ -126,6 +126,12 @@ namespace Colloid.AgentPanel.Ops
             // (design note 2026-09-17-tool-caused-console-errors.md).
             _dispatcher.BeginToolLogScope = Colloid.AgentPanel.Integration.ConsoleErrorProvider.BeginToolScope;
             _dispatcher.EndToolLogScope = Colloid.AgentPanel.Integration.ConsoleErrorProvider.EndToolScope;
+            // uap_web_fetch runs on the HTTP worker and hops back through
+            // this dispatcher only to downscale an image on the main thread
+            // (design note 2026-09-17-web-fetch-tool.md section 6).
+            UapWebFetchTool.MainThreadExecutor = _dispatcher;
+            Colloid.AgentPanel.Model.PanelSettings webSettings = Colloid.AgentPanel.Model.PanelStateStore.instance.Settings;
+            UapWebFetchTool.HostRules = new UapWebHostRules(webSettings.webFetchAllowedHosts, webSettings.webFetchBlockedHosts);
             var handler = new UapOpsRequestHandler(Registry, () => _token,
                 () => _enabledModules, _dispatcher, null, ReadThrottleNotice);
             var server = new UapOpsHttpServer(handler, logger);
@@ -149,6 +155,7 @@ namespace Colloid.AgentPanel.Ops
             {
                 _dispatcher.CancelAll("UapOps server is stopping.");
             }
+            UapWebFetchTool.MainThreadExecutor = null;
             UnhookPump();
             if (_server != null)
             {

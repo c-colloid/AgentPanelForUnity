@@ -289,7 +289,8 @@ namespace Colloid.AgentPanel.Tests
             // Phase 5b stream A: "prefab"/"editor" join "core" as default-ON
             // modules (design-notes kickoff section A1/A2).
             // 2026-09-07: "markers" joined the default-on set (generation 2).
-            CollectionAssert.AreEqual(new[] { "core", "prefab", "editor", "markers" }, new PanelSettings().uapOpsModules);
+            // 2026-09-17: "web" (uap_web_fetch) joined it (generation 3).
+            CollectionAssert.AreEqual(new[] { "core", "prefab", "editor", "markers", "web" }, new PanelSettings().uapOpsModules);
         }
 
         [Test]
@@ -328,17 +329,18 @@ namespace Colloid.AgentPanel.Tests
 
             Assert.IsTrue(settings.EnsureUapOpsModuleDefaults());
             CollectionAssert.AreEquivalent(
-                new[] { "core", "prefab", "editor", "markers" }, settings.uapOpsModules);
+                new[] { "core", "prefab", "editor", "markers", "web" }, settings.uapOpsModules);
             Assert.AreEqual(PanelSettings.CurrentModuleDefaultsGeneration,
                 settings.uapOpsModuleDefaultsGeneration);
         }
 
         [Test]
-        public void EnsureUapOpsModuleDefaults_Generation1Asset_GainsMarkersOnly()
+        public void EnsureUapOpsModuleDefaults_Generation1Asset_GainsMarkersAndWebOnly()
         {
-            // 2026-09-07: "markers" became default-ON as generation 2. An
-            // asset written by a generation-1 build (which had removed
-            // "prefab" by choice) gains markers and keeps prefab off.
+            // 2026-09-07: "markers" became default-ON as generation 2;
+            // 2026-09-17: "web" as generation 3. An asset written by a
+            // generation-1 build (which had removed "prefab" by choice)
+            // gains both and keeps prefab off.
             var settings = new PanelSettings
             {
                 uapOpsModules = new List<string> { "core", "editor" },
@@ -346,21 +348,37 @@ namespace Colloid.AgentPanel.Tests
             };
 
             Assert.IsTrue(settings.EnsureUapOpsModuleDefaults());
-            CollectionAssert.AreEquivalent(new[] { "core", "editor", "markers" }, settings.uapOpsModules);
-            Assert.AreEqual(2, settings.uapOpsModuleDefaultsGeneration);
+            CollectionAssert.AreEquivalent(new[] { "core", "editor", "markers", "web" }, settings.uapOpsModules);
+            Assert.AreEqual(3, settings.uapOpsModuleDefaultsGeneration);
         }
 
         [Test]
-        public void EnsureUapOpsModuleDefaults_MarkersSwitchedOffAtGeneration2_StaysOff()
+        public void EnsureUapOpsModuleDefaults_Generation2Asset_GainsWebKeepsMarkersOff()
         {
+            // A generation-2 user who switched markers off gains only web.
             var settings = new PanelSettings
             {
                 uapOpsModules = new List<string> { "core", "prefab", "editor" },
                 uapOpsModuleDefaultsGeneration = 2
             };
 
-            Assert.IsFalse(settings.EnsureUapOpsModuleDefaults());
+            Assert.IsTrue(settings.EnsureUapOpsModuleDefaults());
             CollectionAssert.DoesNotContain(settings.uapOpsModules, "markers");
+            CollectionAssert.Contains(settings.uapOpsModules, "web");
+            Assert.AreEqual(3, settings.uapOpsModuleDefaultsGeneration);
+        }
+
+        [Test]
+        public void EnsureUapOpsModuleDefaults_WebSwitchedOffAtGeneration3_StaysOff()
+        {
+            var settings = new PanelSettings
+            {
+                uapOpsModules = new List<string> { "core", "prefab", "editor", "markers" },
+                uapOpsModuleDefaultsGeneration = 3
+            };
+
+            Assert.IsFalse(settings.EnsureUapOpsModuleDefaults());
+            CollectionAssert.DoesNotContain(settings.uapOpsModules, "web");
         }
 
         [Test]
@@ -389,7 +407,7 @@ namespace Colloid.AgentPanel.Tests
 
             Assert.IsTrue(settings.EnsureUapOpsModuleDefaults());
             CollectionAssert.AreEquivalent(
-                new[] { "core", "prefab", "editor", "markers" }, settings.uapOpsModules);
+                new[] { "core", "prefab", "editor", "markers", "web" }, settings.uapOpsModules);
         }
 
         [Test]
@@ -421,7 +439,7 @@ namespace Colloid.AgentPanel.Tests
             // between -- defeating the whole point of the generation gate.
             var settings = new PanelSettings
             {
-                uapOpsModules = new List<string> { "core", "prefab", "editor", "markers" },
+                uapOpsModules = new List<string> { "core", "prefab", "editor", "markers", "web" },
                 uapOpsModuleDefaultsGeneration = 0
             };
 
@@ -430,7 +448,7 @@ namespace Colloid.AgentPanel.Tests
             Assert.AreEqual(PanelSettings.CurrentModuleDefaultsGeneration,
                 settings.uapOpsModuleDefaultsGeneration);
             CollectionAssert.AreEquivalent(
-                new[] { "core", "prefab", "editor", "markers" }, settings.uapOpsModules,
+                new[] { "core", "prefab", "editor", "markers", "web" }, settings.uapOpsModules,
                 "an already-complete list must not gain duplicates");
         }
 

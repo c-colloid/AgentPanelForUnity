@@ -104,6 +104,20 @@ namespace Colloid.AgentPanel.Tests
         }
 
         [Test]
+        public void UapWebFetch_ShowsHostThenShortenedPath()
+        {
+            // 2026-09-17: the permission card is the safeguard against an
+            // agent smuggling data out in the URL, so the host must be
+            // visible even when the path is long.
+            ToolCardDescriber.Description d = ToolCardDescriber.Describe("mcp__unity-ops__uap_web_fetch",
+                "{\"url\":\"https://docs.unity3d.com/2022.3/Documentation/Manual/class-Texture2D-very-long-page-name.html\"}");
+            StringAssert.StartsWith("docs.unity3d.com/2022.3/", d.Summary);
+            Assert.Less(d.Summary.Length, 70);
+            Assert.AreEqual("example.com", ToolCardDescriber.WebFetchSummary("https://example.com/"));
+            Assert.AreEqual("example.com/a.png", ToolCardDescriber.WebFetchSummary("http://example.com/a.png"));
+        }
+
+        [Test]
         public void WebSearch_UsesQuery()
         {
             ToolCardDescriber.Description d = ToolCardDescriber.Describe("WebSearch",

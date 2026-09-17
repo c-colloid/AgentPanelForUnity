@@ -20,7 +20,8 @@ namespace Colloid.AgentPanel.Tests
             // Phase 5b stream A: "prefab"/"editor" join "core" as default-ON
             // modules (design-notes kickoff section A1/A2).
             // 2026-09-07: "markers" (Scene-view 3D markers) joined as generation 2.
-            CollectionAssert.AreEqual(new List<string> { "core", "prefab", "editor", "markers" }, new PanelSettings().uapOpsModules);
+            // 2026-09-17: "web" (uap_web_fetch) joined as generation 3.
+            CollectionAssert.AreEqual(new List<string> { "core", "prefab", "editor", "markers", "web" }, new PanelSettings().uapOpsModules);
         }
 
         [Test]

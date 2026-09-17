@@ -9,6 +9,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (nothing yet)
 
+## [0.57.0] - 2026-09-17
+
+### Added
+
+- **`uap_web_fetch`: the agent can look at images, PDFs and pages on the
+  web.** Every agent's own web fetch flattens a URL to text, so a PNG or a
+  PDF found by a web search could not be *seen*. The new Core tool (module
+  `web`, default ON) fetches one URL and returns it in the form the model
+  can use: PNG/JPEG downscaled like a composer attachment and returned
+  inline as an image block (the tool card shows the thumbnail), GIF/WebP
+  passed through as-is when under 5 MB, PDFs and any other file saved
+  under `Library/AgentPanel/Downloads/` with the path (Claude Code reads
+  the PDF with `Read`; the result says which page ranges to ask for), HTML
+  reduced to readable text (title, headings, list items) plus the page's
+  image and link URLs so "search -> page -> the picture in it" is two or
+  three calls, and other text (JSON, XML, Markdown, SVG) returned with a
+  `max_chars` / `offset` window. Body kind is decided from the first
+  bytes before the Content-Type, so a PNG served as
+  `application/octet-stream` is still an image. The download runs on the
+  UapOps worker thread (never blocks the Editor); only the image
+  downscale hops to the main thread. Public http/https hosts only:
+  loopback, private, link-local and multicast destinations are refused,
+  on every redirect hop; 20 MB and 20 s caps; no cookies or credentials
+  are ever sent. The tool is deliberately not read-only -- an outbound
+  URL is a data-exfiltration channel for a prompt-injected agent -- so
+  every call shows a permission card naming the host and path
+  ("Always allow" still works). Downloads older than 7 days or beyond
+  200 MB are pruned. Settings gain a "Web fetch" module row. Design note:
+  `docs/design-notes/2026-09-17-web-fetch-tool.md`.
+
+- **`uap_web_fetch` can import what it fetched as a project asset, and
+  the fetch destinations can be narrowed per project.** A `save_to`
+  argument (a path under `Assets/` with an extension) writes the
+  downloaded bytes there and imports them synchronously, reporting the
+  asset path and GUID -- "fetch this texture and put it on the material"
+  is one call; an existing file is kept unless `overwrite` is true. The
+  Web fetch settings gain "Allowed hosts" and "Blocked hosts" lists (one
+  host per line, subdomains included, blocked wins, empty allowed list =
+  any public host), enforced on the first URL and on every redirect hop
+  on top of the built-in private-address policy, which the lists can
+  never loosen. Design note
+  `docs/design-notes/2026-09-17-web-fetch-tool.md` (stage 2).
+
+- **`uap_web_fetch` extracts PDF text on request.** `as:"text"` or a
+  `pages` range (`"3"`, `"1-5"`, `"7-"`) returns the text of a fetched PDF
+  in the result, page by page with `--- Page N of M ---` markers, so an
+  agent whose file reader cannot open PDFs (Codex, Grok) can still read a
+  paper or a manual; Claude Code keeps the saved-file path as well. The
+  extractor is dependency-free and best-effort: it scans every object
+  (no xref trust), opens object streams, decodes Flate (with PNG/TIFF
+  predictors), LZW, ASCIIHex, ASCII85 and RunLength, maps codes through
+  `/ToUnicode` CMaps or WinAnsi / Standard / MacRoman + `/Differences`
+  glyph names, and derives word gaps and line breaks from tracked pen
+  positions and glyph widths (kerned runs stay one word, sub/superscripts
+  stay on the line). Encrypted files, XObject forms and scanned pages
+  yield no text and say so. Design note
+  `docs/design-notes/2026-09-17-web-fetch-tool.md` sections 4.3 and 12.
+
 ## [0.56.2] - 2026-09-17
 
 ### Fixed

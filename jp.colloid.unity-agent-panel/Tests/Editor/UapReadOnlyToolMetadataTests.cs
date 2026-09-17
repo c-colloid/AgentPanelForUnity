@@ -82,6 +82,12 @@ namespace Colloid.AgentPanel.Tests
             // permission card must ask about, so never auto-approved.
             "uap_marker_add",
             "uap_marker_clear",
+            // 2026-09-17: changes nothing in the project, but an outbound
+            // request carries whatever the agent puts in the URL -- an
+            // auto-approved fetch would be an exfiltration channel for a
+            // prompt-injected agent. The permission card showing the URL is
+            // the safeguard (design note 2026-09-17-web-fetch-tool.md 5.1).
+            "uap_web_fetch",
         };
 
         private static ToolRegistry CreateFullRegistry()
@@ -161,7 +167,7 @@ namespace Colloid.AgentPanel.Tests
         /// <summary>Every module any tool in the default registry declares, so ListEnabled returns everything.</summary>
         private static List<string> AllModules(ToolRegistry registry)
         {
-            return new List<string> { "core", "prefab", "editor", "anim", "ui", "markers" };
+            return new List<string> { "core", "prefab", "editor", "anim", "ui", "markers", "web" };
         }
     }
 }
