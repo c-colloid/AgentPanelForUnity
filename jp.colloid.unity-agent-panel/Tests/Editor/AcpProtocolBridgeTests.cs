@@ -632,6 +632,163 @@ namespace Colloid.AgentPanel.Tests
             StringAssert.Contains("+++ new", toolResult.ResultContent.AsString());
         }
 
+        // -- rawOutput in the MCP result shape (codex-acp) -----------------------------
+        // 2026-09-17-acp-mcp-rawoutput-images.md: codex-acp leaves `content`
+        // empty and carries an MCP tool's result as rawOutput =
+        // {"result":{"content":[...],"structuredContent":null,"_meta":null},"error":null}.
+
+        private const string TinyPngBase64 = "iVBORw0KGgo=";
+
+        private ContentBlock CompleteMcpToolCall(string callId, JsonNode rawOutput, JsonNode content = null)
+        {
+            CompleteHandshake();
+            SendUser("hello");
+            Notify("{\"sessionUpdate\":\"tool_call\",\"toolCallId\":\"" + callId + "\",\"kind\":\"other\","
+                + "\"title\":\"unity-ops.uap_editor_screenshot\",\"status\":\"in_progress\"}");
+            JsonNode update = JsonNode.NewObject()
+                .Set("sessionUpdate", "tool_call_update").Set("toolCallId", callId)
+                .Set("status", "completed").Set("content", content ?? JsonNode.NewArray())
+                .Set("rawOutput", rawOutput);
+            Notify(JsonWriter.Write(update));
+            return LastPanel<UserEchoMessage>().Content[0];
+        }
+
+        private static JsonNode McpRawOutput(params JsonNode[] blocks)
+        {
+            JsonNode content = JsonNode.NewArray();
+            foreach (JsonNode block in blocks)
+            {
+                content.Add(block);
+            }
+            return JsonNode.NewObject()
+                .Set("result", JsonNode.NewObject().Set("content", content)
+                    .Set("structuredContent", JsonNode.Null).Set("_meta", JsonNode.Null))
+                .Set("error", JsonNode.Null);
+        }
+
+        private static JsonNode McpText(string text)
+        {
+            return JsonNode.NewObject().Set("type", "text").Set("text", text);
+        }
+
+        private static JsonNode McpImage(string data)
+        {
+            return JsonNode.NewObject().Set("type", "image").Set("data", data).Set("mimeType", "image/png");
+        }
+
+        [Test]
+        public void RawOutputMcpResult_TextAndImage_BecomeBlocks_NotStringifiedBase64()
+        {
+            ContentBlock toolResult = CompleteMcpToolCall("call_m1", McpRawOutput(
+                McpText("Captured Scene view to C:/P/Temp/UapOpsScreenshots/uap_scene.png (826x430)."),
+                McpImage(TinyPngBase64)));
+            JsonNode result = toolResult.ResultContent;
+            Assert.IsTrue(result.IsArray, "an image makes the result an array of blocks");
+            Assert.AreEqual(2, result.Count);
+            Assert.AreEqual("text", result[0]["type"].AsString());
+            Assert.AreEqual("Captured Scene view to C:/P/Temp/UapOpsScreenshots/uap_scene.png (826x430).",
+                result[0]["text"].AsString());
+            Assert.AreEqual("image", result[1]["type"].AsString());
+            Assert.AreEqual("base64", result[1]["source"]["type"].AsString());
+            Assert.AreEqual("image/png", result[1]["source"]["media_type"].AsString());
+            Assert.AreEqual(TinyPngBase64, result[1]["source"]["data"].AsString());
+            StringAssert.DoesNotContain(TinyPngBase64, result[0]["text"].AsString());
+            Assert.IsFalse(toolResult.IsError);
+
+            // The panel's reader takes the embedded picture, not the path scan.
+            int saved = 0;
+            List<string> paths = Colloid.AgentPanel.Model.ToolResultImages.Resolve(result,
+                (bytes, media) => { saved++; return "/attachments/shot.png"; },
+                token => { Assert.Fail("path scan must not run once a picture was embedded"); return null; });
+            Assert.AreEqual(1, saved);
+            CollectionAssert.AreEqual(new[] { "/attachments/shot.png" }, paths);
+        }
+
+        [Test]
+        public void RawOutputMcpResult_TextOnly_IsThePlainText()
+        {
+            ContentBlock toolResult = CompleteMcpToolCall("call_m2", McpRawOutput(McpText("pong")));
+            Assert.IsTrue(toolResult.ResultContent.IsString);
+            Assert.AreEqual("pong", toolResult.ResultContent.AsString());
+        }
+
+        [Test]
+        public void RawOutputMcpResult_MultipleTextBlocks_JoinWithNewlines()
+        {
+            ContentBlock toolResult = CompleteMcpToolCall("call_m3", McpRawOutput(McpText("a"), McpText("b")));
+            Assert.AreEqual("a\nb", toolResult.ResultContent.AsString());
+        }
+
+        [Test]
+        public void RawOutputMcpResult_CapsImages_AndDropsOversizedPayloads()
+        {
+            var blocks = new List<JsonNode>();
+            blocks.Add(McpImage(new string('A', AcpProtocolBridge.MaxToolResultImageBase64Chars + 4)));
+            for (int i = 0; i < AcpProtocolBridge.MaxToolResultImages + 2; i++)
+            {
+                blocks.Add(McpImage(TinyPngBase64));
+            }
+            ContentBlock toolResult = CompleteMcpToolCall("call_m4", McpRawOutput(blocks.ToArray()));
+            JsonNode result = toolResult.ResultContent;
+            int images = 0;
+            foreach (JsonNode item in result.Items)
+            {
+                if (item["type"].AsString() == "image")
+                {
+                    images++;
+                    Assert.AreEqual(TinyPngBase64, item["source"]["data"].AsString(), "the oversized one is not carried");
+                }
+            }
+            Assert.AreEqual(AcpProtocolBridge.MaxToolResultImages, images);
+            Assert.AreEqual("[image]\n[image]\n[image]", result[0]["text"].AsString(),
+                "each dropped picture leaves the stand-in text");
+        }
+
+        [Test]
+        public void RawOutputImageCaps_MatchTheReaderThatDecodesThem()
+        {
+            Assert.AreEqual(Colloid.AgentPanel.Model.ToolResultImages.MaxImagesPerResult,
+                AcpProtocolBridge.MaxToolResultImages);
+            Assert.AreEqual(Colloid.AgentPanel.Model.ToolResultImages.MaxBase64Chars,
+                AcpProtocolBridge.MaxToolResultImageBase64Chars);
+        }
+
+        [Test]
+        public void RawOutput_OtherShapes_KeepTheStringifyFallback()
+        {
+            JsonNode other = JsonNode.NewObject().Set("stdout", "hi").Set("exit_code", 0);
+            ContentBlock toolResult = CompleteMcpToolCall("call_m5", other);
+            Assert.AreEqual(JsonWriter.Write(other), toolResult.ResultContent.AsString());
+        }
+
+        [Test]
+        public void RawOutput_String_IsUsedVerbatim()
+        {
+            ContentBlock toolResult = CompleteMcpToolCall("call_m6", JsonNode.Of("plain output"));
+            Assert.AreEqual("plain output", toolResult.ResultContent.AsString());
+        }
+
+        [Test]
+        public void RawOutputMcpResult_EmptyContent_FallsBackToStringify()
+        {
+            // {"result":{"content":[]},"error":...}: nothing to translate, so
+            // the whole object is still the most informative thing to show.
+            JsonNode raw = McpRawOutput();
+            raw.Set("error", "boom");
+            ContentBlock toolResult = CompleteMcpToolCall("call_m7", raw);
+            Assert.AreEqual(JsonWriter.Write(raw), toolResult.ResultContent.AsString());
+        }
+
+        [Test]
+        public void RawOutputMcpResult_IgnoredWhenContentAlreadyProducedOutput()
+        {
+            JsonNode content = JsonNode.NewArray().Add(JsonNode.NewObject().Set("type", "content")
+                .Set("content", McpText("from content")));
+            ContentBlock toolResult = CompleteMcpToolCall("call_m8",
+                McpRawOutput(McpText("from rawOutput"), McpImage(TinyPngBase64)), content);
+            Assert.AreEqual("from content", toolResult.ResultContent.AsString());
+        }
+
         [Test]
         public void ToolCallStillOpenAtTurnEnd_GetsSyntheticResultBeforeTheTurnResult()
         {

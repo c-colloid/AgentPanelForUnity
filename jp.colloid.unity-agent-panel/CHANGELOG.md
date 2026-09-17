@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (nothing yet)
 
+## [0.54.8] - 2026-09-17
+
+### Fixed
+
+- **Codex: a picture returned by an MCP tool now shows in the tool card,
+  and its base64 no longer travels as result text.** codex-acp delivers an
+  MCP tool result only as `rawOutput` =
+  `{"result":{"content":[...]},"error":null}` with an empty `content`; the
+  ACP bridge stringified that whole object, so a
+  `uap_editor_screenshot(return_image)` result became a ~500 KB JSON
+  string and the screenshot appeared only when its file path happened to
+  resolve on disk. The bridge now translates the MCP blocks like regular
+  ACP content: text becomes the result text, image blocks become embedded
+  images (at most 4 per result, 8 MiB of base64 each; anything beyond
+  leaves an `[image]` stand-in). Any other `rawOutput` shape is shown as
+  before. Design note:
+  `docs/design-notes/2026-09-17-acp-mcp-rawoutput-images.md`.
+
 ## [0.54.7] - 2026-09-17
 
 ### Fixed

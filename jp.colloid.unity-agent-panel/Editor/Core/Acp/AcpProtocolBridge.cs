@@ -1827,12 +1827,8 @@ namespace Colloid.AgentPanel.Core.Acp
                     string text = null;
                     if (type == "content")
                     {
-                        JsonNode image = ImageBlockFromAcp(item["content"]);
-                        if (image != null)
+                        if (TryAddImage(state, item["content"]))
                         {
-                            // Kept as a picture, not the "[image]" stand-in
-                            // text, so the tool card can show it.
-                            state.Images.Add(image);
                             continue;
                         }
                         text = ContentBlockText(item["content"]);
@@ -1847,21 +1843,87 @@ namespace Colloid.AgentPanel.Core.Acp
                     {
                         text = "[terminal " + item["terminalId"].AsString(string.Empty) + "]";
                     }
-                    if (!string.IsNullOrEmpty(text))
-                    {
-                        if (state.Output.Length > 0)
-                        {
-                            state.Output.Append('\n');
-                        }
-                        state.Output.Append(text);
-                    }
+                    AppendOutputLine(state, text);
                 }
             }
-            if (state.Output.Length == 0 && update.HasKey("rawOutput") && !update["rawOutput"].IsNull)
+            if (state.Output.Length == 0 && state.Images.Count == 0
+                && update.HasKey("rawOutput") && !update["rawOutput"].IsNull)
             {
                 JsonNode raw = update["rawOutput"];
+                if (AppendMcpResult(state, raw))
+                {
+                    return;
+                }
                 state.Output.Append(raw.IsString ? raw.AsString(string.Empty) : JsonWriter.Write(raw));
             }
+        }
+
+        /// <summary>
+        /// Same values as ToolResultImages.MaxImagesPerResult / MaxBase64Chars
+        /// (the reader that decodes these blocks). Repeated here because this
+        /// file also compiles Unity-free without the Model layer
+        /// (ci/SmokeTests); AcpProtocolBridgeTests pins the two pairs together.
+        /// </summary>
+        internal const int MaxToolResultImages = 4;
+        internal const int MaxToolResultImageBase64Chars = 8 * 1024 * 1024;
+
+        /// <summary>
+        /// codex-acp reports an MCP tool's result only as rawOutput =
+        /// {"result":{"content":[...MCP blocks...],...},"error":null}, with an
+        /// empty `content`. MCP content blocks have the ACP ContentBlock
+        /// shape, so they translate exactly like the `content` path --
+        /// stringifying the object instead would carry a screenshot's base64
+        /// as result text and leave the picture out of the tool card. False
+        /// (nothing appended) for any other shape, or when the blocks yield
+        /// nothing, so the caller's stringify fallback still applies.
+        /// </summary>
+        private static bool AppendMcpResult(ToolCallState state, JsonNode raw)
+        {
+            if (!raw.IsObject || !raw["result"].IsObject || !raw["result"]["content"].IsArray)
+            {
+                return false;
+            }
+            foreach (JsonNode block in raw["result"]["content"].Items)
+            {
+                if (!TryAddImage(state, block))
+                {
+                    AppendOutputLine(state, ContentBlockText(block));
+                }
+            }
+            return state.Output.Length > 0 || state.Images.Count > 0;
+        }
+
+        /// <summary>
+        /// Keeps an image block as a picture (not the "[image]" stand-in
+        /// text) so the tool card can show it. False for a non-image block,
+        /// and for a picture the panel would never decode (past the per-result
+        /// count, or an oversized payload): carrying that base64 through the
+        /// result buys nothing, and the stand-in text still says it was there.
+        /// </summary>
+        private static bool TryAddImage(ToolCallState state, JsonNode block)
+        {
+            JsonNode image = ImageBlockFromAcp(block);
+            if (image == null
+                || state.Images.Count >= MaxToolResultImages
+                || image["source"]["data"].AsString(string.Empty).Length > MaxToolResultImageBase64Chars)
+            {
+                return false;
+            }
+            state.Images.Add(image);
+            return true;
+        }
+
+        private static void AppendOutputLine(ToolCallState state, string text)
+        {
+            if (string.IsNullOrEmpty(text))
+            {
+                return;
+            }
+            if (state.Output.Length > 0)
+            {
+                state.Output.Append('\n');
+            }
+            state.Output.Append(text);
         }
 
         /// <summary>
