@@ -3,7 +3,7 @@
 Agent Panel for Unity embeds the Claude Code CLI as a dockable chat panel inside
 the Unity Editor. Other subscription agents that implement the Agent Client
 Protocol (Gemini CLI, Codex via `codex-acp`, Qwen Code, ...) can be selected
-instead under Settings > CLI > Agent; they run through the ACP bridge
+instead under Settings > Agent; they run through the ACP bridge
 (`Editor/Core/Acp/`) and keep the same chat, permission cards and Unity ops.
 Each of those agents keeps its own credentials: Codex takes a ChatGPT account
 or `CODEX_API_KEY` / `OPENAI_API_KEY`, Grok Build a SuperGrok / X Premium+

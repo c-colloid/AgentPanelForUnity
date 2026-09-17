@@ -51,6 +51,20 @@ namespace Colloid.AgentPanel.Core.Protocol
         public string ClaudeCodeVersion { get; private set; }
         public string ApiKeySource { get; private set; }
         public string OutputStyle { get; private set; }
+        /// <summary>
+        /// Display name of the ACP backend whose bridge synthesized this
+        /// init (`acp_backend`, set only by AcpProtocolBridge); null for a
+        /// system/init the Claude Code CLI itself emitted. Claude-only
+        /// readers (the Account card's apiKeySource note) use
+        /// <see cref="IsAcpSynthesized"/> to skip it (design note
+        /// 2026-09-17-account-card-agent-picker-and-acp-init.md section 2).
+        /// </summary>
+        public string AcpBackend { get; private set; }
+        /// <summary>True when an ACP bridge, not the Claude Code CLI, produced this init.</summary>
+        public bool IsAcpSynthesized
+        {
+            get { return !string.IsNullOrEmpty(AcpBackend); }
+        }
         public string[] Tools { get; private set; }
         public string[] SlashCommands { get; private set; }
         public string[] Agents { get; private set; }
@@ -84,6 +98,7 @@ namespace Colloid.AgentPanel.Core.Protocol
             msg.ClaudeCodeVersion = node["claude_code_version"].AsString();
             msg.ApiKeySource = node["apiKeySource"].AsString();
             msg.OutputStyle = node["output_style"].AsString();
+            msg.AcpBackend = node["acp_backend"].AsString();
             msg.Tools = node["tools"].AsStringArray();
             msg.SlashCommands = node["slash_commands"].AsStringArray();
             msg.Agents = node["agents"].AsStringArray();

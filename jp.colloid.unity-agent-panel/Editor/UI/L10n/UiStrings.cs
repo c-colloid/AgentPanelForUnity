@@ -39,7 +39,7 @@ namespace Colloid.AgentPanel.UI
         /// <summary>UXO-4 lead: says what the primary button actually does.</summary>
         public readonly string FirstRunLoginLead =
             "The Claude Code CLI is installed but not signed in. Press Log in"
-            + " to start the CLI's sign-in flow: the Settings Account card"
+            + " to start the CLI's sign-in flow: the Settings Agent card"
             + " opens with a browser link and a field for the confirmation"
             + " code, and the panel reconnects on its own once you finish.";
 
@@ -61,7 +61,7 @@ namespace Colloid.AgentPanel.UI
         public readonly string FirstRunLoginBody2 =
             "Sign in with a Claude Pro/Max or Console account -- the recommended path."
             + " An ANTHROPIC_API_KEY in this editor's environment is respected too and"
-            + " switches billing to that key; Settings > Account shows which one is active.";
+            + " switches billing to that key; Settings > Agent shows which one is active.";
 
         public readonly string FirstRunCheckAgainButton = "Check again";
         public readonly string FirstRunBrowseDialogTitle = "Select the claude executable";
@@ -919,7 +919,6 @@ namespace Colloid.AgentPanel.UI
         public readonly string SettingsGroupUnity = "Unity integration";
         public readonly string SettingsGroupConnection = "Connection & account";
 
-        public readonly string SettingsSectionCli = "CLI";
         public readonly string SettingsCliPathLabel = "Executable path";
 
         /// <summary>Two-sentence hint; previously built by concatenating two literals.</summary>
@@ -928,7 +927,6 @@ namespace Colloid.AgentPanel.UI
         public readonly string SettingsCliPathTooltip =
             "Applies after the next reconnect. Use Reconnect now below to apply it now.";
 
-        public readonly string SettingsRedetectButton = "Re-detect";
         public readonly string SettingsReconnectNowButton = "Reconnect now";
 
         /// <summary>{0} = resolved CLI path.</summary>
@@ -1081,7 +1079,7 @@ namespace Colloid.AgentPanel.UI
         /// <summary>{0} = detected font source description; the font came from the UITK Font Fix package's settings.</summary>
         public readonly string SettingsCjkDiagnosticViaFontFixFmt = "Detected font: {0} (via UITK Font Fix)";
 
-        public readonly string SettingsSectionDiagnostics = "Diagnostics";
+        public readonly string SettingsSectionDiagnostics = "CLI output (stderr)";
 
         public readonly string SettingsDiagnosticsHint =
             "Recent CLI stderr output (this editor session only; never saved to disk).";
@@ -1462,7 +1460,22 @@ namespace Colloid.AgentPanel.UI
 
         public readonly string FirstRunLoginButton = "Log in";
 
-        public readonly string SettingsSectionAccount = "Account";
+        /// <summary>
+        /// Title of the one card that holds the agent picker, the
+        /// found/not-found line, the sign-in state and method, and (under
+        /// Advanced) the launch fields -- the former CLI and Account cards
+        /// (design note 2026-09-17-agent-card-merge.md).
+        /// </summary>
+        public readonly string SettingsSectionAgent = "Agent";
+
+        /// <summary>Label of the sign-in method row, shared by its Claude shape (ClaudeAuthMode) and its ACP shape (authenticate method id).</summary>
+        public readonly string SettingsSignInMethodLabel = "Sign-in method";
+
+        /// <summary>The Agent card's closed-by-default foldout holding the executable path / command / arguments.</summary>
+        public readonly string SettingsAgentAdvancedFoldout = "Advanced (executable / command)";
+
+        /// <summary>The Agent card's one reconnect button (the banner keeps its own "Reconnect now").</summary>
+        public readonly string SettingsReconnectButton = "Reconnect";
         public readonly string SettingsAccountCheckingStatus = "Checking sign-in status...";
         public readonly string SettingsAccountUnavailable = "Unable to check sign-in status (CLI not found).";
         public readonly string SettingsAccountNotLoggedIn = "Not logged in.";
@@ -1746,7 +1759,7 @@ namespace Colloid.AgentPanel.UI
 
         /// <summary>{0} = backend display name, {1} = the command, {2} = candidate paths.</summary>
         public readonly string HubAcpCommandNotFoundErrorFmt =
-            "{0} command '{1}' not found. Checked: {2}. Set the command in Settings > CLI.";
+            "{0} command '{1}' not found. Checked: {2}. Set the command under Settings > Agent > Advanced.";
 
         /// <summary>{0} = backend display name, {1} = login executable name.</summary>
         public readonly string HubAcpLoginCommandNotFoundFmt =
@@ -1769,7 +1782,7 @@ namespace Colloid.AgentPanel.UI
 
         /// <summary>{0} = backend display name, {1} = the login command line.</summary>
         public readonly string FirstRunAcpLoginLeadFmt =
-            "{0} is installed but reported that it is not signed in. Press Sign in to run `{1}` inside the panel: the Settings Account card shows the browser link, and the panel reconnects on its own once the command finishes.";
+            "{0} is installed but reported that it is not signed in. Press Sign in to run `{1}` inside the panel: the Settings Agent card shows the browser link, and the panel reconnects on its own once the command finishes.";
 
         /// <summary>{0} = terminal login command.</summary>
         public readonly string FirstRunAcpLoginHintFmt =
@@ -1786,6 +1799,10 @@ namespace Colloid.AgentPanel.UI
             "Which agent CLI the panel runs. Applies at the next reconnect; the"
             + " current session ends and a new one starts with the selected agent.";
 
+        /// <summary>Inline line under the agent picker in the Agent &amp; account card; SettingsBackendTooltip is its hover half.</summary>
+        public readonly string SettingsBackendHint =
+            "Applies at the next reconnect. Everything below is about this agent.";
+
         public readonly string SettingsBackendOptionCustom = "Other ACP agent (custom command)";
 
         public readonly string SettingsAcpCommandLabel = "Command";
@@ -1800,10 +1817,8 @@ namespace Colloid.AgentPanel.UI
             "The command that starts the agent in ACP mode (for example"
             + " `qwen --experimental-acp`). Required.";
 
-        public readonly string SettingsAcpAuthMethodLabel = "Auth method id";
-
         public readonly string SettingsAcpAuthMethodHint =
-            "Optional. Empty = the first sign-in method the agent offers.";
+            "The ACP authenticate method id. Empty = the first sign-in method the agent offers.";
 
         public readonly string SettingsAcpAuthMethodTooltip =
             "The ACP authenticate method id the bridge tries when the agent reports"
@@ -1867,7 +1882,6 @@ namespace Colloid.AgentPanel.UI
         /// <summary>{0} = backend display name, {1} = the login command line.</summary>
         public readonly string SettingsAccountAcpLoginRunningFmt =
             "Running `{1}` for {0}... finish the sign-in in your browser; the panel reconnects when the command exits.";
-        public readonly string SettingsAccountAcpSignInButton = "Reconnect";
 
         /// <summary>In-panel sign-in for an ACP backend that has a login command (design note 2026-09-13-acp-feature-parity.md section 2).</summary>
         public readonly string SettingsAccountAcpLoginButton =
@@ -1880,13 +1894,13 @@ namespace Colloid.AgentPanel.UI
             "Sign in runs `{0}` in the panel and shows its link here; Reconnect restarts the agent as signed in.";
         /// <summary>{0} = backend display name, {1} = terminal login command.</summary>
         public readonly string HubAcpSignInRequiredNoteFmt =
-            "{0} is not signed in, so the connection was not retried. Sign in from Settings > Account"
+            "{0} is not signed in, so the connection was not retried. Sign in from Settings > Agent"
             + " (or run `{1}` in a terminal), then press Reconnect there.";
         /// <summary>{0} = backend display name, {1} = exit detail, {2} = terminal login command.</summary>
         public readonly string HubAcpHandshakeDeathNoteFmt =
             "{0} exited before the connection was established ({1}), so it was not retried"
             + " automatically. Make sure it is installed and signed in (`{2}`), then press"
-            + " Reconnect (Settings > Account).";
+            + " Reconnect (Settings > Agent).";
 
         public readonly string SettingsAcpLimitationsHint =
             "Some features work differently with an ACP agent; hover for the details.";
@@ -1896,7 +1910,7 @@ namespace Colloid.AgentPanel.UI
             + " Custom instructions and the subagent model settings are sent as instructions"
             + " at the start of each new session. History lists the panel's own copy of each"
             + " conversation; an agent that cannot resume a session starts a new one and"
-            + " receives the transcript with your next message. Sign in (Settings > Account)"
+            + " receives the transcript with your next message. Sign in (Settings > Agent)"
             + " runs the agent's own login command inside the panel where it has one."
             + " Permission cards, thinking blocks and Unity ops work the same.";
 
@@ -1927,11 +1941,9 @@ namespace Colloid.AgentPanel.UI
         // card additions.
         // ==================================================================
 
-        public readonly string SettingsClaudeAuthLabel = "API key authentication";
-
-        /// <summary>Short hint under the API key authentication dropdown.</summary>
+        /// <summary>Short hint under the sign-in method dropdown (Claude shape).</summary>
         public readonly string SettingsClaudeAuthHint =
-            "Auto lets an ANTHROPIC_API_KEY in the environment win; Subscription only removes it.";
+            "Auto lets an ANTHROPIC_API_KEY in the environment win (pay-per-use); Subscription only removes it.";
 
         public readonly string SettingsClaudeAuthTooltip =
             "Claude Code, not ACP agents. Auto (recommended, default) leaves ANTHROPIC_API_KEY"
@@ -1941,7 +1953,7 @@ namespace Colloid.AgentPanel.UI
             + " from the CLI's environment so the subscription login is always used, even if"
             + " ANTHROPIC_API_KEY happens to be set in this editor's process.";
 
-        public readonly string SettingsClaudeAuthOptionAuto = "Auto (recommended)";
+        public readonly string SettingsClaudeAuthOptionAuto = "Auto (leave it to the CLI)";
         public readonly string SettingsClaudeAuthOptionSubscriptionOnly = "Subscription only";
 
         /// <summary>
@@ -2614,11 +2626,9 @@ namespace Colloid.AgentPanel.UI
             string settingsGroupDisplay,
             string settingsGroupUnity,
             string settingsGroupConnection,
-            string settingsSectionCli,
             string settingsCliPathLabel,
             string settingsCliPathHint,
             string settingsCliPathTooltip,
-            string settingsRedetectButton,
             string settingsReconnectNowButton,
             string settingsCliResolvedFmt,
             string settingsCliNotFoundFmt,
@@ -2760,7 +2770,6 @@ namespace Colloid.AgentPanel.UI
             string settingsSubagentPrecedenceWarning,
             string settingsAgentOverrideNamePlaceholder,
             string firstRunLoginButton,
-            string settingsSectionAccount,
             string settingsAccountCheckingStatus,
             string settingsAccountUnavailable,
             string settingsAccountNotLoggedIn,
@@ -2871,7 +2880,6 @@ namespace Colloid.AgentPanel.UI
             string settingsAcpArgumentsLabel,
             string settingsAcpCommandHintFmt,
             string settingsAcpCommandHintCustom,
-            string settingsAcpAuthMethodLabel,
             string settingsAcpAuthMethodHint,
             string settingsAcpAuthMethodTooltip,
             string settingsAcpLoginHintFmt,
@@ -2898,13 +2906,11 @@ namespace Colloid.AgentPanel.UI
             string settingsAccountAcpConnectedFmt,
             string settingsAccountAcpNotConnected,
             string settingsAccountAcpSignInPendingFmt,
-            string settingsAccountAcpSignInButton,
             string settingsAccountAcpHint,
             string hubAcpSignInRequiredNoteFmt,
             string hubAcpHandshakeDeathNoteFmt,
             string agentGenericName = null,
             string hubSessionNotResumedAcrossBackendsNoteFmt = null,
-            string settingsClaudeAuthLabel = null,
             string settingsClaudeAuthHint = null,
             string settingsClaudeAuthTooltip = null,
             string settingsClaudeAuthOptionAuto = null,
@@ -2980,7 +2986,12 @@ namespace Colloid.AgentPanel.UI
             string settingsSubagentModelAcpTooltip = null,
             string hubModelSwitchQueuedNoteFmt = null,
             string hubModelSwitchedNoteFmt = null,
-            string hubModelSwitchFailedNoteFmt = null)
+            string hubModelSwitchFailedNoteFmt = null,
+            string settingsBackendHint = null,
+            string settingsSectionAgent = null,
+            string settingsSignInMethodLabel = null,
+            string settingsAgentAdvancedFoldout = null,
+            string settingsReconnectButton = null)
         {
             FirstRunCliNotFoundTitle = firstRunCliNotFoundTitle;
             FirstRunCliNotFoundBody = firstRunCliNotFoundBody;
@@ -3331,11 +3342,9 @@ namespace Colloid.AgentPanel.UI
             SettingsGroupDisplay = settingsGroupDisplay;
             SettingsGroupUnity = settingsGroupUnity;
             SettingsGroupConnection = settingsGroupConnection;
-            SettingsSectionCli = settingsSectionCli;
             SettingsCliPathLabel = settingsCliPathLabel;
             SettingsCliPathHint = settingsCliPathHint;
             SettingsCliPathTooltip = settingsCliPathTooltip;
-            SettingsRedetectButton = settingsRedetectButton;
             SettingsReconnectNowButton = settingsReconnectNowButton;
             SettingsCliResolvedFmt = settingsCliResolvedFmt;
             SettingsCliNotFoundFmt = settingsCliNotFoundFmt;
@@ -3477,7 +3486,6 @@ namespace Colloid.AgentPanel.UI
             SettingsSubagentPrecedenceWarning = settingsSubagentPrecedenceWarning;
             SettingsAgentOverrideNamePlaceholder = settingsAgentOverrideNamePlaceholder;
             FirstRunLoginButton = firstRunLoginButton;
-            SettingsSectionAccount = settingsSectionAccount;
             SettingsAccountCheckingStatus = settingsAccountCheckingStatus;
             SettingsAccountUnavailable = settingsAccountUnavailable;
             SettingsAccountNotLoggedIn = settingsAccountNotLoggedIn;
@@ -3588,7 +3596,6 @@ namespace Colloid.AgentPanel.UI
             SettingsAcpArgumentsLabel = settingsAcpArgumentsLabel;
             SettingsAcpCommandHintFmt = settingsAcpCommandHintFmt;
             SettingsAcpCommandHintCustom = settingsAcpCommandHintCustom;
-            SettingsAcpAuthMethodLabel = settingsAcpAuthMethodLabel;
             SettingsAcpAuthMethodHint = settingsAcpAuthMethodHint;
             SettingsAcpAuthMethodTooltip = settingsAcpAuthMethodTooltip;
             SettingsAcpLoginHintFmt = settingsAcpLoginHintFmt;
@@ -3615,7 +3622,6 @@ namespace Colloid.AgentPanel.UI
             SettingsAccountAcpConnectedFmt = settingsAccountAcpConnectedFmt;
             SettingsAccountAcpNotConnected = settingsAccountAcpNotConnected;
             SettingsAccountAcpSignInPendingFmt = settingsAccountAcpSignInPendingFmt;
-            SettingsAccountAcpSignInButton = settingsAccountAcpSignInButton;
             SettingsAccountAcpHint = settingsAccountAcpHint;
             HubAcpSignInRequiredNoteFmt = hubAcpSignInRequiredNoteFmt;
             HubAcpHandshakeDeathNoteFmt = hubAcpHandshakeDeathNoteFmt;
@@ -3626,10 +3632,6 @@ namespace Colloid.AgentPanel.UI
             if (hubSessionNotResumedAcrossBackendsNoteFmt != null)
             {
                 HubSessionNotResumedAcrossBackendsNoteFmt = hubSessionNotResumedAcrossBackendsNoteFmt;
-            }
-            if (settingsClaudeAuthLabel != null)
-            {
-                SettingsClaudeAuthLabel = settingsClaudeAuthLabel;
             }
             if (settingsClaudeAuthHint != null)
             {
@@ -3934,6 +3936,26 @@ namespace Colloid.AgentPanel.UI
             if (hubModelSwitchFailedNoteFmt != null)
             {
                 HubModelSwitchFailedNoteFmt = hubModelSwitchFailedNoteFmt;
+            }
+            if (settingsBackendHint != null)
+            {
+                SettingsBackendHint = settingsBackendHint;
+            }
+            if (settingsSectionAgent != null)
+            {
+                SettingsSectionAgent = settingsSectionAgent;
+            }
+            if (settingsSignInMethodLabel != null)
+            {
+                SettingsSignInMethodLabel = settingsSignInMethodLabel;
+            }
+            if (settingsAgentAdvancedFoldout != null)
+            {
+                SettingsAgentAdvancedFoldout = settingsAgentAdvancedFoldout;
+            }
+            if (settingsReconnectButton != null)
+            {
+                SettingsReconnectButton = settingsReconnectButton;
             }
         }
     }

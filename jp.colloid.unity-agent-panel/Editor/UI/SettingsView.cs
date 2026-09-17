@@ -58,6 +58,12 @@ namespace Colloid.AgentPanel.UI
         private TextField _cliPathField;
         private Label _cliResolvedLabel;
         private PopupField<AgentBackend> _backendField;
+        /// <summary>Agent card's "Advanced" foldout: executable path (Claude) / command, arguments (ACP). Opens itself when the command does not resolve.</summary>
+        private Foldout _agentAdvancedFoldout;
+        /// <summary>Sign-in method row, Claude shape (ClaudeAuthMode popup + hint); toggled with _acpSignInMethodGroup by RefreshBackendGroups.</summary>
+        private VisualElement _claudeSignInMethodGroup;
+        /// <summary>Sign-in method row, ACP shape (authenticate method id + hint).</summary>
+        private VisualElement _acpSignInMethodGroup;
         private VisualElement _claudeCliGroup;
         private VisualElement _acpCliGroup;
         private TextField _acpCommandField;
@@ -273,7 +279,7 @@ namespace Colloid.AgentPanel.UI
         private Button _accountLogoutButton;
         private VisualElement _accountLoginSubCard;
         private Label _accountAcpHintLabel;
-        private Button _accountAcpSignInButton;
+        private Button _reconnectButton;
         private Button _accountAcpLoginButton;
         private Button _accountAcpCancelLoginButton;
         private Button _accountAcpCopyUrlButton;
@@ -377,9 +383,17 @@ namespace Colloid.AgentPanel.UI
             BuildUnityPluginSection(scroll);
 
             AddGroupLabel(scroll, L10n.S.SettingsGroupConnection, false);
-            BuildCliSection(scroll);
+            // 2026-09-17 user feedback (design notes 2026-09-17-account-
+            // card-agent-picker-and-acp-init.md, then 2026-09-17-agent-card-
+            // merge.md): the agent picker, the executable/command fields
+            // and the sign-in state used to be split across a collapsed
+            // "CLI" card and an "Account" card, so "switch agent", "it does
+            // not start" and "sign in" had three homes. They are one
+            // "Agent" card now: pick -> is it found -> is it signed in ->
+            // sign-in method, with the launch fields under an Advanced
+            // foldout that opens itself when the command is not found.
+            BuildAgentSection(scroll);
             BuildDiagnosticsSection(scroll);
-            BuildAccountSection(scroll);
             // 2026-09-15 user feedback: "Agent Panel Pro updates" sat in
             // the Unity group, which is where the Unity-side MACHINERY
             // lives (what the agent may touch in the editor, which SDKs it
@@ -390,8 +404,8 @@ namespace Colloid.AgentPanel.UI
             // exactly the "connection and account" subject the sign-in card
             // above it covers. It also went unfound where it was, which a
             // card a buyer has to reach ONCE, right after paying, cannot
-            // afford. Sits after Account (same subject, in the order a new
-            // buyer meets them) and before About.
+            // afford. Sits in the same group as Account (same subject) and
+            // before About.
             BuildProUpdatesSection(scroll);
             BuildAboutSection(scroll);
 
@@ -596,104 +610,6 @@ namespace Colloid.AgentPanel.UI
 
         // -- (a) CLI ---------------------------------------------------------------
 
-        private void BuildCliSection(VisualElement parent)
-        {
-            VisualElement section = AddCollapsibleSection(parent, L10n.S.SettingsSectionCli,
-                "d_UnityEditor.ConsoleWindow", "$", "cli");
-
-            PanelSettings settings = PanelStateStore.instance.Settings;
-
-            // Backend picker (design note 2026-09-10-acp-backends.md section
-            // 4): Claude Code keeps its executable-path field; every ACP
-            // backend shows command/arguments/auth-method fields instead.
-            var backendChoices = new List<AgentBackend>
-            {
-                AgentBackend.ClaudeCode,
-                AgentBackend.GeminiCli,
-                AgentBackend.CodexAcp,
-                AgentBackend.GrokBuild,
-                AgentBackend.AcpCustom
-            };
-            _backendField = new PopupField<AgentBackend>(L10n.S.SettingsBackendLabel,
-                backendChoices, settings.agentBackend, FormatBackendOption, FormatBackendOption);
-            _backendField.AddToClassList("uap-settings-field");
-            _backendField.RegisterValueChangedCallback(OnBackendChanged);
-            VisualElement backendScope = AddHintScope(section);
-            backendScope.Add(_backendField);
-            backendScope.tooltip = L10n.S.SettingsBackendTooltip;
-
-            _claudeCliGroup = new VisualElement();
-            section.Add(_claudeCliGroup);
-            _cliPathField = new TextField(L10n.S.SettingsCliPathLabel);
-            _cliPathField.AddToClassList("uap-settings-field");
-            _cliPathField.SetValueWithoutNotify(settings.cliManualPath);
-            _cliPathField.RegisterValueChangedCallback(OnCliPathChanged);
-            VisualElement cliPathScope = AddHintScope(_claudeCliGroup);
-            cliPathScope.Add(_cliPathField);
-            AddHint(cliPathScope, L10n.S.SettingsCliPathHint, L10n.S.SettingsCliPathTooltip);
-
-            _acpCliGroup = new VisualElement();
-            section.Add(_acpCliGroup);
-            _acpCommandField = new TextField(L10n.S.SettingsAcpCommandLabel);
-            _acpCommandField.AddToClassList("uap-settings-field");
-            _acpCommandField.SetValueWithoutNotify(settings.acpCommand ?? string.Empty);
-            _acpCommandField.RegisterValueChangedCallback(OnAcpCommandChanged);
-            VisualElement acpCommandScope = AddHintScope(_acpCliGroup);
-            acpCommandScope.Add(_acpCommandField);
-            _acpCommandHintLabel = AddHint(acpCommandScope, string.Empty);
-            _acpArgumentsField = new TextField(L10n.S.SettingsAcpArgumentsLabel);
-            _acpArgumentsField.AddToClassList("uap-settings-field");
-            _acpArgumentsField.SetValueWithoutNotify(settings.acpArguments ?? string.Empty);
-            _acpArgumentsField.RegisterValueChangedCallback(OnAcpArgumentsChanged);
-            _acpCliGroup.Add(_acpArgumentsField);
-            _acpAuthMethodField = new TextField(L10n.S.SettingsAcpAuthMethodLabel);
-            _acpAuthMethodField.AddToClassList("uap-settings-field");
-            _acpAuthMethodField.SetValueWithoutNotify(settings.acpAuthMethod ?? string.Empty);
-            _acpAuthMethodField.RegisterValueChangedCallback(OnAcpAuthMethodChanged);
-            VisualElement acpAuthScope = AddHintScope(_acpCliGroup);
-            acpAuthScope.Add(_acpAuthMethodField);
-            AddHint(acpAuthScope, L10n.S.SettingsAcpAuthMethodHint, L10n.S.SettingsAcpAuthMethodTooltip);
-            _acpLoginHintLabel = AddHint(_acpCliGroup, string.Empty);
-            _acpLoginHintLabel.AddToClassList("uap-settings-hint--pending");
-            AddHint(_acpCliGroup, L10n.S.SettingsAcpLimitationsHint, L10n.S.SettingsAcpLimitationsTooltip);
-            RefreshBackendGroups();
-
-            VisualElement row = AddRow(section);
-            var redetect = new Button(OnRedetectClicked) { text = L10n.S.SettingsRedetectButton };
-            redetect.AddToClassList("uap-settings-btn");
-            row.Add(redetect);
-            var reconnect = new Button(OnReconnectClicked) { text = L10n.S.SettingsReconnectNowButton };
-            reconnect.AddToClassList("uap-settings-btn");
-            row.Add(reconnect);
-
-            _cliResolvedLabel = new Label(string.Empty);
-            _cliResolvedLabel.AddToClassList("uap-settings-hint");
-            _cliResolvedLabel.AddToClassList("uap-settings-status");
-            MessageBlockFactory.ApplyMonoFont(_cliResolvedLabel);
-            _cliResolvedLabel.enableRichText = false;
-            section.Add(_cliResolvedLabel);
-
-            // In-panel install (design note 2026-09-10-in-panel-install-and-
-            // sign-in.md section 1): shown only while the command does not
-            // resolve; the same CliInstaller run the first-run card starts.
-            VisualElement installRow = AddRow(section);
-            _cliInstallButton = new Button(OnCliInstallClicked) { text = string.Empty };
-            _cliInstallButton.AddToClassList("uap-settings-btn");
-            _cliInstallButton.AddToClassList("uap-settings-btn--primary");
-            installRow.Add(_cliInstallButton);
-            _cliNodeButton = new Button(OnCliGetNodeClicked) { text = L10n.S.InstallOpenNodeButton };
-            _cliNodeButton.AddToClassList("uap-settings-btn");
-            _cliNodeButton.style.display = DisplayStyle.None;
-            installRow.Add(_cliNodeButton);
-            _cliInstallStatusLabel = AddHint(section, string.Empty);
-            _cliInstallStatusLabel.AddToClassList("uap-settings-hint--pending");
-            _cliInstallStatusLabel.style.display = DisplayStyle.None;
-            // The reconnect-pending notice used to live here, inside a
-            // card that is collapsed by default. It is now the banner
-            // above the scroll (BuildReconnectBanner) so it is visible
-            // from whichever card the change was made in.
-        }
-
         private void OnCliPathChanged(ChangeEvent<string> evt)
         {
             PanelSettings settings = PanelStateStore.instance.Settings;
@@ -702,11 +618,6 @@ namespace Colloid.AgentPanel.UI
             RefreshCliStatus();
             RefreshReconnectHint();
             AgentHub.RequestAutoApplyReconnect();
-        }
-
-        private void OnRedetectClicked()
-        {
-            RefreshCliStatus();
         }
 
         private static string FormatBackendOption(AgentBackend backend)
@@ -768,6 +679,8 @@ namespace Colloid.AgentPanel.UI
             bool acp = AgentBackends.IsAcp(settings.agentBackend);
             _claudeCliGroup.style.display = acp ? DisplayStyle.None : DisplayStyle.Flex;
             _acpCliGroup.style.display = acp ? DisplayStyle.Flex : DisplayStyle.None;
+            SetDisplay(_claudeSignInMethodGroup, !acp);
+            SetDisplay(_acpSignInMethodGroup, acp);
             RefreshSubagentModelAcpHint();
             if (!acp)
             {
@@ -825,6 +738,26 @@ namespace Colloid.AgentPanel.UI
             AgentHub.Reconnect();
             RefreshCliStatus();
             RefreshReconnectHint();
+        }
+
+        /// <summary>
+        /// The Agent card's one Reconnect button. For an ACP agent it is
+        /// the former Account-card "Reconnect": a fresh process whose
+        /// handshake asks the agent to authenticate again when it still
+        /// needs to, plus an auth re-query. For Claude Code it is the
+        /// banner's "Reconnect now" (resume the session with the current
+        /// settings) and also re-resolves the executable, which is what
+        /// the removed "Re-detect" button did.
+        /// </summary>
+        private void OnAgentReconnectClicked()
+        {
+            if (AgentHub.IsClaudeBackend)
+            {
+                OnReconnectClicked();
+                return;
+            }
+            OnAccountAcpSignInClicked();
+            RefreshCliStatus();
         }
 
         /// <summary>
@@ -886,6 +819,13 @@ namespace Colloid.AgentPanel.UI
                 });
             }
             _cliResolvedNow = !string.IsNullOrEmpty(resolved);
+            // The launch fields are the fix for "not found", so show them
+            // then; a resolved command never closes a foldout the user
+            // opened.
+            if (!_cliResolvedNow && _agentAdvancedFoldout != null)
+            {
+                _agentAdvancedFoldout.value = true;
+            }
             RefreshCliInstallState();
         }
 
@@ -4825,12 +4765,40 @@ namespace Colloid.AgentPanel.UI
 
         // -- (d2) Account (docs/design-notes/2026-08-02-auth-in-panel.md) ---------
 
-        private void BuildAccountSection(VisualElement parent)
+        private void BuildAgentSection(VisualElement parent)
         {
-            VisualElement section = AddSection(parent, L10n.S.SettingsSectionAccount,
+            VisualElement section = AddSection(parent, L10n.S.SettingsSectionAgent,
                 "d_CloudConnect", "@");
             _accountSectionRoot = section;
+            PanelSettings settings = PanelStateStore.instance.Settings;
 
+            // 1. Which agent. Everything below is about this one.
+            BuildAccountBackendField(section);
+
+            // 2. Is its command found. The resolve line doubles as the
+            // "not found -- checked: ..." diagnosis; the install row
+            // (design note 2026-09-10-in-panel-install-and-sign-in.md
+            // section 1) appears only while the command does not resolve.
+            _cliResolvedLabel = new Label(string.Empty);
+            _cliResolvedLabel.AddToClassList("uap-settings-hint");
+            _cliResolvedLabel.AddToClassList("uap-settings-status");
+            MessageBlockFactory.ApplyMonoFont(_cliResolvedLabel);
+            _cliResolvedLabel.enableRichText = false;
+            section.Add(_cliResolvedLabel);
+            VisualElement installRow = AddRow(section);
+            _cliInstallButton = new Button(OnCliInstallClicked) { text = string.Empty };
+            _cliInstallButton.AddToClassList("uap-settings-btn");
+            _cliInstallButton.AddToClassList("uap-settings-btn--primary");
+            installRow.Add(_cliInstallButton);
+            _cliNodeButton = new Button(OnCliGetNodeClicked) { text = L10n.S.InstallOpenNodeButton };
+            _cliNodeButton.AddToClassList("uap-settings-btn");
+            _cliNodeButton.style.display = DisplayStyle.None;
+            installRow.Add(_cliNodeButton);
+            _cliInstallStatusLabel = AddHint(section, string.Empty);
+            _cliInstallStatusLabel.AddToClassList("uap-settings-hint--pending");
+            _cliInstallStatusLabel.style.display = DisplayStyle.None;
+
+            // 3. Is it signed in, and on whose bill.
             _accountStatusLabel = new Label(string.Empty);
             _accountStatusLabel.AddToClassList("uap-settings-hint");
             _accountStatusLabel.enableRichText = false;
@@ -4874,8 +4842,10 @@ namespace Colloid.AgentPanel.UI
             _accountAcpAuthMethodLabel.style.display = DisplayStyle.None;
             section.Add(_accountAcpAuthMethodLabel);
 
-            BuildClaudeAuthField(section);
+            // 4. Which sign-in method: one row, two shapes.
+            BuildSignInMethodFields(section, settings);
 
+            // 5. Sign-in actions.
             VisualElement actionRow = AddRow(section);
             _accountLoginButton = new Button(OnAccountLoginClicked) { text = L10n.S.SettingsAccountLoginButton };
             _accountLoginButton.AddToClassList("uap-settings-btn");
@@ -4888,8 +4858,8 @@ namespace Colloid.AgentPanel.UI
 
             // ACP variant (design note 2026-09-10-in-panel-install-and-sign-in.md
             // section 2): the agent signs in through its own browser flow;
-            // this card reports the state and offers the one button that
-            // (re)starts it, plus the URL when the agent printed one.
+            // this card reports the state and offers the buttons that
+            // (re)start it, plus the URL when the agent printed one.
             _accountAcpHintLabel = AddHint(section, L10n.S.SettingsAccountAcpHint);
             _accountAcpHintLabel.style.display = DisplayStyle.None;
             VisualElement acpRow = AddRow(section);
@@ -4902,11 +4872,6 @@ namespace Colloid.AgentPanel.UI
             _accountAcpLoginButton.AddToClassList("uap-settings-btn--primary");
             _accountAcpLoginButton.style.display = DisplayStyle.None;
             acpRow.Add(_accountAcpLoginButton);
-            _accountAcpSignInButton = new Button(OnAccountAcpSignInClicked)
-                { text = L10n.S.SettingsAccountAcpSignInButton };
-            _accountAcpSignInButton.AddToClassList("uap-settings-btn");
-            _accountAcpSignInButton.style.display = DisplayStyle.None;
-            acpRow.Add(_accountAcpSignInButton);
             _accountAcpCancelLoginButton = new Button(OnAccountAcpCancelLoginClicked)
                 { text = L10n.S.SettingsAccountCancelLoginButton };
             _accountAcpCancelLoginButton.AddToClassList("uap-settings-btn");
@@ -4949,34 +4914,128 @@ namespace Colloid.AgentPanel.UI
             _accountLoginFailedLabel.style.display = DisplayStyle.None;
             section.Add(_accountLoginFailedLabel);
 
+            // 6. How it is launched: the former CLI card's fields, folded
+            // away because auto-detection covers the common case.
+            BuildAgentAdvancedFoldout(section, settings);
+
+            // 7. The one reconnect action (OnAgentReconnectClicked).
+            VisualElement reconnectRow = AddRow(section);
+            _reconnectButton = new Button(OnAgentReconnectClicked)
+                { text = L10n.S.SettingsReconnectButton };
+            _reconnectButton.AddToClassList("uap-settings-btn");
+            reconnectRow.Add(_reconnectButton);
+
+            RefreshBackendGroups();
             RefreshAccountSection();
         }
 
-        // -- API key auth passthrough (v0.40.0, docs/design-notes/2026-09-
-        // 10-claude-api-key-auth-passthrough.md): PanelSettings.claudeAuth.
-        // Claude Code only -- ANTHROPIC_API_KEY has no meaning for an ACP
-        // agent, so this control is hidden in RefreshAccountSection's acp
-        // branch exactly like the login/logout buttons above. Next-spawn-
-        // only (SettingsChangeDetector), same shape as
-        // BuildSubagentCostPolicyField. --------------------------------
+        /// <summary>
+        /// The former CLI card's per-backend launch fields (design note
+        /// 2026-09-10-acp-backends.md section 4): Claude Code has its
+        /// executable-path field; every ACP backend has command, arguments
+        /// and the terminal sign-in fallback line instead. Closed by
+        /// default; RefreshCliStatus opens it when the command does not
+        /// resolve, since these fields are the fix.
+        /// </summary>
+        private void BuildAgentAdvancedFoldout(VisualElement section, PanelSettings settings)
+        {
+            _agentAdvancedFoldout = new Foldout { text = L10n.S.SettingsAgentAdvancedFoldout, value = false };
+            _agentAdvancedFoldout.AddToClassList("uap-settings-advanced-foldout");
+            section.Add(_agentAdvancedFoldout);
 
-        private void BuildClaudeAuthField(VisualElement section)
+            _claudeCliGroup = new VisualElement();
+            _agentAdvancedFoldout.Add(_claudeCliGroup);
+            _cliPathField = new TextField(L10n.S.SettingsCliPathLabel);
+            _cliPathField.AddToClassList("uap-settings-field");
+            _cliPathField.SetValueWithoutNotify(settings.cliManualPath);
+            _cliPathField.RegisterValueChangedCallback(OnCliPathChanged);
+            VisualElement cliPathScope = AddHintScope(_claudeCliGroup);
+            cliPathScope.Add(_cliPathField);
+            AddHint(cliPathScope, L10n.S.SettingsCliPathHint, L10n.S.SettingsCliPathTooltip);
+
+            _acpCliGroup = new VisualElement();
+            _agentAdvancedFoldout.Add(_acpCliGroup);
+            _acpCommandField = new TextField(L10n.S.SettingsAcpCommandLabel);
+            _acpCommandField.AddToClassList("uap-settings-field");
+            _acpCommandField.SetValueWithoutNotify(settings.acpCommand ?? string.Empty);
+            _acpCommandField.RegisterValueChangedCallback(OnAcpCommandChanged);
+            VisualElement acpCommandScope = AddHintScope(_acpCliGroup);
+            acpCommandScope.Add(_acpCommandField);
+            _acpCommandHintLabel = AddHint(acpCommandScope, string.Empty);
+            _acpArgumentsField = new TextField(L10n.S.SettingsAcpArgumentsLabel);
+            _acpArgumentsField.AddToClassList("uap-settings-field");
+            _acpArgumentsField.SetValueWithoutNotify(settings.acpArguments ?? string.Empty);
+            _acpArgumentsField.RegisterValueChangedCallback(OnAcpArgumentsChanged);
+            _acpCliGroup.Add(_acpArgumentsField);
+            _acpLoginHintLabel = AddHint(_acpCliGroup, string.Empty);
+            _acpLoginHintLabel.AddToClassList("uap-settings-hint--pending");
+            AddHint(_acpCliGroup, L10n.S.SettingsAcpLimitationsHint, L10n.S.SettingsAcpLimitationsTooltip);
+        }
+
+        /// <summary>
+        /// The agent picker, first row of the Agent card: the card's
+        /// resolve line, sign-in state, buttons and billing notes are all
+        /// about the selected agent. Applies at the next reconnect
+        /// (OnBackendChanged).
+        /// </summary>
+        private void BuildAccountBackendField(VisualElement section)
         {
             PanelSettings settings = PanelStateStore.instance.Settings;
+            var backendChoices = new List<AgentBackend>
+            {
+                AgentBackend.ClaudeCode,
+                AgentBackend.GeminiCli,
+                AgentBackend.CodexAcp,
+                AgentBackend.GrokBuild,
+                AgentBackend.AcpCustom
+            };
+            _backendField = new PopupField<AgentBackend>(L10n.S.SettingsBackendLabel,
+                backendChoices, settings.agentBackend, FormatBackendOption, FormatBackendOption);
+            _backendField.AddToClassList("uap-settings-field");
+            _backendField.RegisterValueChangedCallback(OnBackendChanged);
+            VisualElement backendScope = AddHintScope(section);
+            backendScope.Add(_backendField);
+            AddHint(backendScope, L10n.S.SettingsBackendHint, L10n.S.SettingsBackendTooltip);
+        }
+
+        // -- Sign-in method row (design note 2026-09-17-agent-card-merge.md
+        // section 3). One label, two shapes, toggled by RefreshBackendGroups:
+        //  * Claude Code: PanelSettings.claudeAuth (v0.40.0, docs/design-
+        //    notes/2026-09-10-claude-api-key-auth-passthrough.md) -- whether
+        //    the CLI may pick ANTHROPIC_API_KEY from the environment or
+        //    the panel strips it so the subscription login is used.
+        //  * ACP agents: PanelSettings.acpAuthMethod -- the ACP authenticate
+        //    method id the bridge asks for when the agent wants a sign-in
+        //    (Gemini CLI: oauth-personal / gemini-api-key / vertex-ai).
+        // Both are next-spawn-only (SettingsChangeDetector). ----------------
+
+        private void BuildSignInMethodFields(VisualElement section, PanelSettings settings)
+        {
+            _claudeSignInMethodGroup = new VisualElement();
+            section.Add(_claudeSignInMethodGroup);
             var choices = new List<ClaudeAuthMode>
             {
                 ClaudeAuthMode.Auto,
                 ClaudeAuthMode.SubscriptionOnly
             };
             _claudeAuthField = new PopupField<ClaudeAuthMode>(
-                L10n.S.SettingsClaudeAuthLabel, choices, settings.claudeAuth,
+                L10n.S.SettingsSignInMethodLabel, choices, settings.claudeAuth,
                 FormatClaudeAuthOption, FormatClaudeAuthOption);
             _claudeAuthField.AddToClassList("uap-settings-field");
             _claudeAuthField.RegisterValueChangedCallback(OnClaudeAuthChanged);
-            VisualElement claudeAuthScope = AddHintScope(section);
+            VisualElement claudeAuthScope = AddHintScope(_claudeSignInMethodGroup);
             claudeAuthScope.Add(_claudeAuthField);
-
             AddHint(claudeAuthScope, L10n.S.SettingsClaudeAuthHint, L10n.S.SettingsClaudeAuthTooltip);
+
+            _acpSignInMethodGroup = new VisualElement();
+            section.Add(_acpSignInMethodGroup);
+            _acpAuthMethodField = new TextField(L10n.S.SettingsSignInMethodLabel);
+            _acpAuthMethodField.AddToClassList("uap-settings-field");
+            _acpAuthMethodField.SetValueWithoutNotify(settings.acpAuthMethod ?? string.Empty);
+            _acpAuthMethodField.RegisterValueChangedCallback(OnAcpAuthMethodChanged);
+            VisualElement acpAuthScope = AddHintScope(_acpSignInMethodGroup);
+            acpAuthScope.Add(_acpAuthMethodField);
+            AddHint(acpAuthScope, L10n.S.SettingsAcpAuthMethodHint, L10n.S.SettingsAcpAuthMethodTooltip);
         }
 
         /// <summary>
@@ -5209,7 +5268,7 @@ namespace Colloid.AgentPanel.UI
             {
                 _accountAcpLoginOutputLabel.text = IconLoader.SanitizeForDisplay(lastLine);
             }
-            _accountAcpSignInButton.SetEnabled(!AgentHub.AcpSignInPending && !loginRunning);
+            _reconnectButton.SetEnabled(!AgentHub.AcpSignInPending && !loginRunning);
 
             // Which method got us in, and -- when it is a key/gateway one --
             // that the bill lands on that key rather than a subscription.
@@ -5307,7 +5366,10 @@ namespace Colloid.AgentPanel.UI
             // 2026-09-10-acp-backends.md section 4).
             bool acp = !AgentHub.IsClaudeBackend;
             SetDisplay(_accountAcpHintLabel, acp);
-            SetDisplay(_accountAcpSignInButton, acp);
+            if (!acp)
+            {
+                _reconnectButton.SetEnabled(true);
+            }
             if (acp)
             {
                 // RefreshAccountSectionAcp owns _accountApiKeyAuthNoteLabel
@@ -5318,7 +5380,6 @@ namespace Colloid.AgentPanel.UI
                 SetDisplay(_accountLogoutButton, false);
                 SetDisplay(_accountLoginSubCard, false);
                 SetDisplay(_accountEnvTokenNoteLabel, false);
-                SetDisplay(_claudeAuthField, false);
                 SetDisplay(_accountLoginFailedLabel, false);
                 return;
             }
@@ -5329,7 +5390,6 @@ namespace Colloid.AgentPanel.UI
             SetDisplay(_accountAcpLoginOutputLabel, false);
             SetDisplay(_accountAcpUrlField, false);
             SetDisplay(_accountAcpAuthMethodLabel, false);
-            SetDisplay(_claudeAuthField, true);
             if (_claudeAuthField != null)
             {
                 PanelSettings settings = PanelStateStore.instance.Settings;
@@ -5515,10 +5575,17 @@ namespace Colloid.AgentPanel.UI
         /// apiKeyHelper) is actually authenticating this session, so usage
         /// is billed to that key rather than a subscription (docs/design-
         /// notes/2026-09-10-claude-api-key-auth-passthrough.md #3).
+        /// An init an ACP bridge synthesized never counts: it is not the
+        /// Claude CLI's word on ANTHROPIC_API_KEY, and AgentHub keeps the
+        /// last init across a backend switch, so without this guard the
+        /// Claude branch of the Account card read the ACP agent's init as
+        /// "connected with an API key" (design note 2026-09-17-account-
+        /// card-agent-picker-and-acp-init.md section 2).
         /// </summary>
         internal static bool IsApiKeyAuth(SystemInitMessage message)
         {
-            return message != null && !string.IsNullOrEmpty(message.ApiKeySource)
+            return message != null && !message.IsAcpSynthesized
+                && !string.IsNullOrEmpty(message.ApiKeySource)
                 && !string.Equals(message.ApiKeySource, "none", System.StringComparison.OrdinalIgnoreCase);
         }
 
@@ -5544,8 +5611,8 @@ namespace Colloid.AgentPanel.UI
         /// freshly-started login sub-card, when one is in flight) is
         /// actually on screen -- AgentPanelWindow.ShowSettingsAccount's sole
         /// purpose (FirstRunView's chat-view "Log in" button jumps here per
-        /// design note section 2.2). BuildAccountSection registers Account
-        /// 9th of 10 sections, so without this the user would otherwise land
+        /// design note section 2.2). BuildAgentSection registers the Agent
+        /// card deep in a long list, so without this the user would otherwise land
         /// at the very top of a long scroll with no visible feedback that
         /// anything happened. Deferred one scheduler tick: ScrollView.
         /// ScrollTo needs the target's layout already resolved, which is not

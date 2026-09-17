@@ -20,7 +20,7 @@ namespace Colloid.AgentPanel.Tests
     public class SettingsViewSectionDisclosureTests
     {
         private static readonly string[] SectionIds =
-            { "cli", "uapops", "profiles", "pro", "uloop", "unity-plugin", "diagnostics" };
+            { "uapops", "profiles", "pro", "uloop", "unity-plugin", "diagnostics" };
 
         [SetUp]
         public void SetUp()
@@ -135,21 +135,23 @@ namespace Colloid.AgentPanel.Tests
         [Test]
         public void DisclosureState_PersistsViaSessionState()
         {
-            SessionState.SetBool(SettingsView.SectionDisclosureKey("cli"), true);
+            // "uapops" since 2026-09-17: the CLI card merged into the
+            // (plain, always-open) Agent card and its "cli" key is gone.
+            SessionState.SetBool(SettingsView.SectionDisclosureKey("uapops"), true);
             var window = ScriptableObject.CreateInstance<UI.AgentPanelWindow>();
             try
             {
                 window.CreateGUI();
-                Foldout cli = null;
+                Foldout uapOps = null;
                 foreach (Foldout foldout in SectionFoldouts(window))
                 {
-                    if (foldout.text == L10n.S.SettingsSectionCli)
+                    if (foldout.text == L10n.S.SettingsSectionUapOps)
                     {
-                        cli = foldout;
+                        uapOps = foldout;
                     }
                 }
-                Assert.IsNotNull(cli);
-                Assert.IsTrue(cli.value, "a session-remembered open section reopens");
+                Assert.IsNotNull(uapOps);
+                Assert.IsTrue(uapOps.value, "a session-remembered open section reopens");
             }
             finally
             {
@@ -160,9 +162,9 @@ namespace Colloid.AgentPanel.Tests
         [Test]
         public void SectionDisclosureKey_IsStableAndPerSection()
         {
-            Assert.AreEqual("Colloid.AgentPanel.Settings.SectionOpen.cli",
-                SettingsView.SectionDisclosureKey("cli"));
-            Assert.AreNotEqual(SettingsView.SectionDisclosureKey("cli"),
+            Assert.AreEqual("Colloid.AgentPanel.Settings.SectionOpen.uapops",
+                SettingsView.SectionDisclosureKey("uapops"));
+            Assert.AreNotEqual(SettingsView.SectionDisclosureKey("uapops"),
                 SettingsView.SectionDisclosureKey("uloop"));
         }
     }

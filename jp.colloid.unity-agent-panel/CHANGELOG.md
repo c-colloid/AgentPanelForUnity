@@ -9,6 +9,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (nothing yet)
 
+## [0.55.2] - 2026-09-17
+
+### Changed
+
+- **The CLI card and the Account card are now one "Agent" card.** It
+  reads top to bottom as: which agent, whether its command was found
+  (with the install button when not), whether it is signed in, the
+  sign-in method, the sign-in buttons, and a closed-by-default
+  "Advanced (executable / command)" foldout holding the former CLI
+  fields, which opens itself while the command is not found. One
+  "Reconnect" button replaces "Re-detect", "Reconnect now" and the ACP
+  "Reconnect". The "Diagnostics" card is renamed "CLI output (stderr)".
+  Settings values and the reconnect-banner behavior are unchanged.
+  Design notes:
+  `docs/design-notes/2026-09-17-account-card-agent-picker-and-acp-init.md`
+  (the picker's move out of the collapsed CLI card, the first step) and
+  `docs/design-notes/2026-09-17-agent-card-merge.md` (the merge).
+- **"API key authentication" (Claude Code only) and "Auth method id"
+  (ACP only) are now one "Sign-in method" row** whose shape follows the
+  selected agent: Claude Code offers "Auto (leave it to the CLI)" /
+  "Subscription only", an ACP agent takes its authenticate method id.
+  Switching to an ACP agent no longer leaves the Claude hint line
+  behind. Design note `2026-09-17-agent-card-merge.md`, section 3.
+
+### Fixed
+
+- **"Connected with an API key (acp)" no longer shows under a
+  "Subscription only" picker.** After switching from an ACP agent back to
+  Claude Code, the Account card read the ACP bridge's synthesized
+  system/init (which carried `apiKeySource: "acp"`) as Claude API-key
+  billing until Claude's own init arrived. An init an ACP bridge produced
+  is never counted as Claude API-key auth, and the bridge now reports
+  `apiKeySource: "none"`. Design note
+  `docs/design-notes/2026-09-17-account-card-agent-picker-and-acp-init.md`.
 ## [0.55.1] - 2026-09-17
 
 ### Fixed

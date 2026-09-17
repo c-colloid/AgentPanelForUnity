@@ -717,10 +717,43 @@ namespace Colloid.AgentPanel.Tests
             Assert.IsFalse(SettingsView.IsApiKeyAuth(null));
         }
 
-        private static SystemInitMessage MakeSystemInitMessage(string apiKeySource)
+        /// <summary>
+        /// Regression (2026-09-17): after switching from an ACP agent back
+        /// to Claude Code, the Account card said "connected with an API key
+        /// (acp)" under a "Subscription only" picker. AgentHub keeps the
+        /// last system/init across the switch, and the ACP bridge's
+        /// synthesized init carried apiKeySource "acp". An init marked
+        /// acp_backend never counts as Claude API-key auth, whatever its
+        /// apiKeySource says (the bridge now sends "none", but the guard
+        /// must not depend on that).
+        /// </summary>
+        [Test]
+        public void IsApiKeyAuth_IgnoresAnInitAnAcpBridgeSynthesized()
+        {
+            Assert.IsFalse(SettingsView.IsApiKeyAuth(MakeSystemInitMessage("acp", "Codex")));
+            Assert.IsFalse(SettingsView.IsApiKeyAuth(MakeSystemInitMessage("ANTHROPIC_API_KEY", "Gemini CLI")));
+            Assert.IsFalse(SettingsView.IsApiKeyAuth(MakeSystemInitMessage("none", "Codex")));
+            Assert.IsTrue(SettingsView.IsApiKeyAuth(MakeSystemInitMessage("ANTHROPIC_API_KEY")),
+                "a Claude CLI init (no acp_backend) still counts");
+        }
+
+        [Test]
+        public void SystemInitMessage_AcpBackend_ParsesAndFlagsSynthesizedInit()
+        {
+            SystemInitMessage acp = MakeSystemInitMessage("none", "Codex");
+            Assert.AreEqual("Codex", acp.AcpBackend);
+            Assert.IsTrue(acp.IsAcpSynthesized);
+            SystemInitMessage claude = MakeSystemInitMessage("none");
+            Assert.IsNull(claude.AcpBackend);
+            Assert.IsFalse(claude.IsAcpSynthesized);
+        }
+
+        private static SystemInitMessage MakeSystemInitMessage(string apiKeySource, string acpBackend = null)
         {
             string json = "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"s1\","
-                + "\"apiKeySource\":\"" + apiKeySource + "\"}";
+                + "\"apiKeySource\":\"" + apiKeySource + "\""
+                + (acpBackend == null ? string.Empty : ",\"acp_backend\":\"" + acpBackend + "\"")
+                + "}";
             JsonNode node;
             string error;
             JsonParser.TryParse(json, out node, out error);

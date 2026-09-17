@@ -899,7 +899,14 @@ namespace Colloid.AgentPanel.Core.Acp
                 .Set("model", _currentModelId ?? _spec.Model ?? string.Empty)
                 .Set("permissionMode", _spec.PermissionMode ?? string.Empty)
                 .Set("claude_code_version", version)
-                .Set("apiKeySource", "acp")
+                // "none", not a marker: apiKeySource is Claude Code's
+                // "is ANTHROPIC_API_KEY billing this session" field, and the
+                // Account card's Claude branch reads whatever init the hub
+                // last saw -- a marker value here rendered as "connected
+                // with API key (acp)" after switching back to Claude Code
+                // (design note 2026-09-17-account-card-agent-picker-and-
+                // acp-init.md section 2). acp_backend below is the marker.
+                .Set("apiKeySource", "none")
                 .Set("tools", JsonNode.NewArray())
                 .Set("slash_commands", slash)
                 .Set("agents", JsonNode.NewArray())

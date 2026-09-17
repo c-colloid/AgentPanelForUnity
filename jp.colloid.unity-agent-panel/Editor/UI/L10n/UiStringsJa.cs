@@ -39,12 +39,12 @@ namespace Colloid.AgentPanel.UI
                 firstRunBrowseButton: "参照...",
                 firstRunRedetectButton: "再検出",
                 firstRunLoginTitle: "Claude にサインイン",
-                firstRunLoginLead: "Claude Code CLI はインストール済みですが、サインインしていません。「ログイン」を押すと CLI のサインインフローが始まります。設定の「アカウント」カードが開き、ブラウザ用リンクと確認コードの入力欄が表示され、完了するとパネルは自動的に再接続します。",
+                firstRunLoginLead: "Claude Code CLI はインストール済みですが、サインインしていません。「ログイン」を押すと CLI のサインインフローが始まります。設定の「エージェント」カードが開き、ブラウザ用リンクと確認コードの入力欄が表示され、完了するとパネルは自動的に再接続します。",
                 firstRunLoginAltFoldout: "別の方法:ターミナルからサインイン",
                 firstRunLoginAltBody: "ターミナルで下記のコマンドを実行し、その中で /login コマンドを使用してください。完了したらここで「再確認」を押してください。",
                 firstRunLoginBody2: "Claude Pro/Max または Console アカウントでのサインインを推奨します。このエディタの環境に"
                     + " ANTHROPIC_API_KEY があればそれも使われ、課金がそのキーに切り替わります。どちらで接続しているかは"
-                    + " 設定 > アカウント で確認できます。",
+                    + " 設定 > エージェント で確認できます。",
                 firstRunCheckAgainButton: "再確認",
                 firstRunBrowseDialogTitle: "claude 実行ファイルを選択",
                 bannerContinueButton: "続行",
@@ -455,13 +455,11 @@ namespace Colloid.AgentPanel.UI
                 settingsGroupDisplay: "パネル",
                 settingsGroupUnity: "Unity 連携",
                 settingsGroupConnection: "接続とアカウント",
-                settingsSectionCli: "CLI",
                 settingsCliPathLabel: "実行ファイルのパス",
                 settingsCliPathHint:
                     "空欄で自動検出します。",
                 settingsCliPathTooltip:
                     "次回の再接続後に適用されます。すぐに適用するには下の「今すぐ再接続」を使ってください。",
-                settingsRedetectButton: "再検出",
                 settingsReconnectNowButton: "今すぐ再接続",
                 settingsCliResolvedFmt: "解決結果: {0}",
                 settingsCliNotFoundFmt: "見つかりません。確認したパス: {0}",
@@ -545,7 +543,7 @@ namespace Colloid.AgentPanel.UI
                 settingsCjkDiagnosticNone: "このマシンでは一致する CJK フォントが見つかりませんでした。このトグルの状態に関わらずエディタの既定フォントが使用されます。",
                 settingsCjkDiagnosticDetectedFmt: "検出されたフォント: {0}",
                 settingsCjkDiagnosticViaFontFixFmt: "検出されたフォント: {0}(UITK Font Fix 経由)",
-                settingsSectionDiagnostics: "診断",
+                settingsSectionDiagnostics: "CLI の出力(stderr)",
                 settingsDiagnosticsHint: "最近の CLI の stderr 出力です(このエディタセッション限定。ディスクには保存されません)。",
                 settingsCopyButton: "コピー",
                 settingsClearButton: "クリア",
@@ -631,7 +629,6 @@ namespace Colloid.AgentPanel.UI
                 settingsSubagentPrecedenceWarning: "サブエージェントモデルが設定されているため、これらのタイプ別の上書きは(クリアするまで)効果がありません。",
                 settingsAgentOverrideNamePlaceholder: "(エージェントを選択)",
                 firstRunLoginButton: "ログイン",
-                settingsSectionAccount: "アカウント",
                 settingsAccountCheckingStatus: "サインイン状態を確認しています...",
                 settingsAccountUnavailable: "サインイン状態を確認できません(CLI が見つかりません)。",
                 settingsAccountNotLoggedIn: "ログインしていません。",
@@ -747,7 +744,7 @@ namespace Colloid.AgentPanel.UI
                 settingsPermissionModeOptionDefault: "デフォルト(毎回確認)",
                 settingsPermissionModeOptionPlan: "プランモード",
                 settingsPermissionModeOptionAcceptEdits: "編集を自動承認",
-                hubAcpCommandNotFoundErrorFmt: "{0} のコマンド '{1}' が見つかりません。確認したパス: {2}。設定の CLI セクションでコマンドを指定してください。",
+                hubAcpCommandNotFoundErrorFmt: "{0} のコマンド '{1}' が見つかりません。確認したパス: {2}。設定 > エージェント > 詳細設定 でコマンドを指定してください。",
                 hubAcpStartFailedFmt: "{0} の起動に失敗しました: {1}",
                 firstRunAcpNotFoundTitleFmt: "{0} が見つかりません",
                 firstRunAcpNotFoundBody: "Agent Panel はこのエージェントを Agent Client Protocol(ACP)経由のサブプロセスとして実行します。インストールするか、下にコマンド(PATH 上の名前、またはフルパス)を入力してください。",
@@ -759,12 +756,11 @@ namespace Colloid.AgentPanel.UI
                 settingsAcpArgumentsLabel: "引数",
                 settingsAcpCommandHintFmt: "空欄なら `{0}` を使います。名前だけなら PATH から探し、フルパスはそのまま使います。",
                 settingsAcpCommandHintCustom: "ACP モードでエージェントを起動するコマンド(例: `qwen --experimental-acp`)。必須です。",
-                settingsAcpAuthMethodLabel: "認証メソッド ID",
-                settingsAcpAuthMethodHint: "任意。空欄ならエージェントが最初に提示するサインイン方法を使います。",
+                settingsAcpAuthMethodHint: "ACP の認証メソッド ID。空欄ならエージェントが最初に提示するサインイン方法を使います。",
                 settingsAcpAuthMethodTooltip: "エージェントがサインインを要求したときにブリッジが試す ACP の authenticate メソッド ID(Gemini CLI: oauth-personal / gemini-api-key / vertex-ai)。空欄ならエージェントが最初に提示するものを使います。",
                 settingsAcpLoginHintFmt: "必要になるとブラウザでサインインが開きます。ターミナルでの代替: {0}",
                 settingsAcpLimitationsHint: "一部の機能は ACP エージェントでは動作が異なります(ホバーで詳細を表示)。",
-                settingsAcpLimitationsTooltip: "ACP エージェントでは: スクリプトゲートのフックは使えません(Claude Code 専用)。カスタム指示とサブエージェントのモデル設定は、新しいセッションの最初に指示文として送られます。履歴にはパネル自身が保存した会話の写しが並び、セッションを再開できないエージェントは新しいセッションを開始して次のメッセージと一緒に会話ログを受け取ります。サインイン(設定 > アカウント)は、ログインコマンドを持つエージェントではそのコマンドをパネル内で実行します。権限カード・思考ブロック・Unity 操作ツールは同じように動作します。",
+                settingsAcpLimitationsTooltip: "ACP エージェントでは: スクリプトゲートのフックは使えません(Claude Code 専用)。カスタム指示とサブエージェントのモデル設定は、新しいセッションの最初に指示文として送られます。履歴にはパネル自身が保存した会話の写しが並び、セッションを再開できないエージェントは新しいセッションを開始して次のメッセージと一緒に会話ログを受け取ります。サインイン(設定 > エージェント)は、ログインコマンドを持つエージェントではそのコマンドをパネル内で実行します。権限カード・思考ブロック・Unity 操作ツールは同じように動作します。",
                 installButtonFmt: "{0} をインストール",
                 installManualFoldout: "手動でインストールする場合",
                 installManualBody: "ターミナルで次を実行してから「再検出」を押してください。",
@@ -786,13 +782,11 @@ namespace Colloid.AgentPanel.UI
                 settingsAccountAcpConnectedFmt: "{0} に接続済み。",
                 settingsAccountAcpNotConnected: "未接続。",
                 settingsAccountAcpSignInPendingFmt: "ブラウザでの {0} へのサインインを待っています...",
-                settingsAccountAcpSignInButton: "再接続",
                 settingsAccountAcpHint: "エージェント自身のブラウザ手順でサインインします。始まらない場合はボタンを押してください。",
-                hubAcpSignInRequiredNoteFmt: "{0} にサインインしていないため、再接続を繰り返しませんでした。設定 > アカウントからサインインする(またはターミナルで `{1}` を実行する)か、そのあと「再接続」を押してください。",
-                hubAcpHandshakeDeathNoteFmt: "{0} が接続確立前に終了したため({1})、自動では再試行しませんでした。インストールとサインイン(`{2}`)を確認してから、設定 > アカウントの「再接続」を押してください。",
+                hubAcpSignInRequiredNoteFmt: "{0} にサインインしていないため、再接続を繰り返しませんでした。設定 > エージェントからサインインする(またはターミナルで `{1}` を実行する)か、そのあと「再接続」を押してください。",
+                hubAcpHandshakeDeathNoteFmt: "{0} が接続確立前に終了したため({1})、自動では再試行しませんでした。インストールとサインイン(`{2}`)を確認してから、設定 > エージェントの「再接続」を押してください。",
                 agentGenericName: "エージェント",
                 hubSessionNotResumedAcrossBackendsNoteFmt: "ここまでの会話は {0} とのものです。{1} は新しいセッションを開始し、次のメッセージと一緒に上の会話ログを引き継ぎます。",
-                settingsClaudeAuthLabel: "APIキー認証",
                 settingsClaudeAuthHint: "「自動」は環境の ANTHROPIC_API_KEY を優先(従量課金)。「サブスクリプションのみ」はそれを取り除きます。",
                 settingsClaudeAuthTooltip: "Claude Code 専用(ACPエージェントには影響しません)。「自動」(推奨・デフォルト)は"
                     + "起動する CLI の環境から ANTHROPIC_API_KEY を取り除きません。ターミナルで実行した場合と全く同じ"
@@ -800,7 +794,7 @@ namespace Colloid.AgentPanel.UI
                     + "サブスクリプションログインが使われます。「サブスクリプションのみ」は CLI の環境からその変数を"
                     + "取り除くため、このエディタのプロセスに ANTHROPIC_API_KEY があっても常にサブスクリプション"
                     + "ログインが使われます。",
-                settingsClaudeAuthOptionAuto: "自動(推奨)",
+                settingsClaudeAuthOptionAuto: "自動(CLI に任せる)",
                 settingsClaudeAuthOptionSubscriptionOnly: "サブスクリプションのみ",
                 settingsAccountApiKeyAuthNoteFmt: "APIキー({0})で接続中です -- 利用料はサブスクリプションではなくこのキーに"
                     + "課金されます。ここでのログイン/ログアウトはこれを変えません。常にサブスクリプションログインを"
@@ -912,12 +906,17 @@ namespace Colloid.AgentPanel.UI
                 hubAcpLoginStartedNoteFmt: "{0} の `{1}` を実行しています。ブラウザでサインインを完了してください。コマンドが終了するとパネルが再接続します。",
                 hubAcpLoginFinishedNoteFmt: "`{1}` が終了しました(終了コード {2}){3}。{0} に再接続しています...",
                 firstRunAcpLoginTitleFmt: "{0} にサインイン",
-                firstRunAcpLoginLeadFmt: "{0} はインストールされていますが、サインインしていないと報告しました。「サインイン」を押すとパネル内で `{1}` を実行します。設定のアカウントカードにブラウザ用のリンクが表示され、コマンドが終了するとパネルが自動で再接続します。",
+                firstRunAcpLoginLeadFmt: "{0} はインストールされていますが、サインインしていないと報告しました。「サインイン」を押すとパネル内で `{1}` を実行します。設定の「エージェント」カードにブラウザ用のリンクが表示され、コマンドが終了するとパネルが自動で再接続します。",
                 firstRunAcpLoginAltBody: "ターミナルで次のコマンドを実行し、終わったらここで「もう一度確認」を押してください。",
                 settingsSubagentModelAcpTooltip: "ACP エージェントには Claude Code の CLAUDE_CODE_SUBAGENT_MODEL や .claude/agents に相当するものが無いため、強制固定のモデルとタイプ別設定は新しいセッションの最初のプロンプトに前置する定常指示に含めて送ります。エージェントがサブエージェントのモデルを選べる場合にそれに従い、サブエージェントを持たないエージェントは無視します。変更は次の新しいセッションから反映されます。",
                 hubModelSwitchQueuedNoteFmt: "モデル {0} への切り替えは接続の完了を待っています。エージェントが応答し次第、適用します。",
                 hubModelSwitchedNoteFmt: "このセッションのモデルを {0} に切り替えました。",
-                hubModelSwitchFailedNoteFmt: "モデル {0} への切り替えに失敗しました({1})。セッションは以前のモデルのままです。もう一度選ぶか、既定モデルにして新規セッションを開始してください。");
+                hubModelSwitchFailedNoteFmt: "モデル {0} への切り替えに失敗しました({1})。セッションは以前のモデルのままです。もう一度選ぶか、既定モデルにして新規セッションを開始してください。",
+                settingsBackendHint: "次回の再接続時に適用されます。以下はすべてこのエージェントについての表示と設定です。",
+                settingsSectionAgent: "エージェント",
+                settingsSignInMethodLabel: "サインイン方式",
+                settingsAgentAdvancedFoldout: "詳細設定(実行ファイル / コマンド)",
+                settingsReconnectButton: "再接続");
         }
     }
 }
