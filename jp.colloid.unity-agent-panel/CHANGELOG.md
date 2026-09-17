@@ -9,6 +9,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (nothing yet)
 
+## [0.54.7] - 2026-09-17
+
+### Fixed
+
+- **Grok / Codex: UapOps tool calls are recognized again, so the
+  auto-approve level applies.** Grok Build calls MCP tools through its
+  own `use_tool` dispatcher and names them `unity-ops__uap_ping`; the
+  ACP bridge missed that shape (it fixes the name on the first frame,
+  whose title is `use_tool`, never read `rawInput.tool_name`, and
+  rejected a `uap_` preceded by `_`), mapped the call to "Tool", and a
+  permission card titled `unity-ops__uap_ping` appeared for every
+  `uap_*` call even at "All Unity operations". These calls now map to
+  `mcp__unity-ops__uap_*` like Claude's, the card reads
+  "unity-ops: uap_ping", and the tool's own arguments are shown instead
+  of the agent's `tool_input` / `arguments` envelope.
+- **A tool call that merely mentions a `uap_*` id is no longer treated
+  as that UapOps tool.** The bridge used to search the agent's free-text
+  title for `uap_<name>`; with Codex the title of a shell call is the
+  command line, so `uap_ping && <anything>` would have been
+  auto-approved as the read-only `uap_ping`. The id is now only read
+  from fields that hold a tool id (leading title token, or
+  `tool_name` / `tool` / `toolName` with the unity-ops server), never
+  for a shell call.
+- **Agent-specific tools show their own name instead of "Tool".** Grok's
+  tool search and other tools of ACP kind `other` (or none) are titled
+  with the agent's tool title; Grok's shell calls are recognized as Bash
+  from the first frame (command shown, script gate applies); a Codex
+  call to another MCP server shows as that MCP tool instead of "Bash".
+  Design note: `docs/design-notes/2026-09-17-acp-tool-name-mapping.md`.
+
 ## [0.54.6] - 2026-09-17
 
 ### Fixed

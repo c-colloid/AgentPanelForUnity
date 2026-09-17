@@ -1508,6 +1508,10 @@ namespace Colloid.AgentPanel.Core.Acp
             {
                 state.Kind = update["kind"].AsString(state.Kind);
             }
+            else if (string.IsNullOrEmpty(state.Kind))
+            {
+                state.Kind = GrokMetaKind(update);
+            }
             if (update.HasKey("rawInput") && update["rawInput"].IsObject)
             {
                 state.Input = update["rawInput"];
@@ -1541,27 +1545,53 @@ namespace Colloid.AgentPanel.Core.Acp
         }
 
         /// <summary>
-        /// The Claude-side tool name the panel renders/policies on. UapOps
-        /// calls are recognized by their `uap_*` tool id (in the title or
-        /// the raw input) and mapped to the exact `mcp__unity-ops__uap_*`
-        /// wire name so UapOpsServer.FindByWireName, auto-approve levels
-        /// and the undo badge all keep working. Everything else maps by
+        /// The Claude-side tool name the panel renders/policies on (design
+        /// note 2026-09-17-acp-tool-name-mapping.md). UapOps calls map to
+        /// the exact `mcp__unity-ops__uap_*` wire name so
+        /// UapOpsServer.FindByWireName, auto-approve levels and the undo
+        /// badge all keep working. That name is a POLICY input (it can
+        /// auto-approve the call), so it is only ever read from a field
+        /// that IS a tool id -- never searched for inside free text:
+        /// - a shell call (`command`/`script` in the raw input) is never a
+        ///   UapOps call, whatever its text mentions;
+        /// - the title's leading token (Gemini: "uap_x (unity-ops MCP
+        ///   Server)", Grok's later title "unity-ops__uap_x"), except for
+        ///   kind "execute" whose title is the command line (Codex);
+        /// - the raw input's `tool_name` / `tool` / `toolName` (Grok's
+        ///   first frame is title "use_tool" + {tool_name, tool_input};
+        ///   Codex sends {server, tool, arguments}); a `server` next to it
+        ///   must be unity-ops.
+        /// Another MCP server's call in Codex's {server, tool} shape maps to
+        /// `mcp__server__tool` instead of "Bash". Everything else maps by
         /// ACP kind onto the closest Claude tool name (ToolCardDescriber
         /// reads `command`/`file_path`/`path` from the raw input when the
-        /// agent provides them and falls back to the name otherwise). Pure.
+        /// agent provides them and falls back to the name otherwise); kind
+        /// other/unknown shows the agent's own title when that cannot be
+        /// mistaken for a Claude tool name. Pure.
         /// </summary>
         internal static string MapToolName(string kind, string title, JsonNode rawInput)
         {
-            string uap = ExtractUapToolName(title);
-            if (uap == null && rawInput != null && rawInput.IsObject)
+            bool hasInput = rawInput != null && rawInput.IsObject;
+            bool isShell = hasInput && (rawInput["command"].IsString || rawInput["script"].IsString);
+            if (!isShell)
             {
-                uap = ExtractUapToolName(rawInput["name"].AsString())
-                    ?? ExtractUapToolName(rawInput["tool"].AsString())
-                    ?? ExtractUapToolName(rawInput["toolName"].AsString());
-            }
-            if (uap != null)
-            {
-                return "mcp__unity-ops__" + uap;
+                string uap = kind == "execute" ? null : ParseUapToolId(title, true);
+                string server = hasInput ? rawInput["server"].AsString() : null;
+                if (uap == null && hasInput && (server == null || server == UapServerName))
+                {
+                    uap = ParseUapToolId(rawInput["tool_name"].AsString(), false)
+                        ?? ParseUapToolId(rawInput["tool"].AsString(), false)
+                        ?? ParseUapToolId(rawInput["toolName"].AsString(), false);
+                }
+                if (uap != null)
+                {
+                    return "mcp__" + UapServerName + "__" + uap;
+                }
+                string tool = hasInput ? rawInput["tool"].AsString() : null;
+                if (IsMcpIdSegment(server) && IsMcpIdSegment(tool))
+                {
+                    return "mcp__" + server + "__" + tool;
+                }
             }
             switch (kind ?? string.Empty)
             {
@@ -1582,36 +1612,144 @@ namespace Colloid.AgentPanel.Core.Acp
                 case "think":
                     return "Think";
                 default:
-                    return "Tool";
+                    return AgentTitleAsToolName(title) ?? "Tool";
             }
         }
 
-        /// <summary>First `uap_<snake_case>` identifier in the text, or null.</summary>
-        internal static string ExtractUapToolName(string text)
+        /// <summary>
+        /// Grok Build's first tool_call frame has no ACP `kind` (it arrives
+        /// one update later, after the name is already announced) but
+        /// carries `_meta["x.ai/tool"].kind`, which is the ACP kind for its
+        /// file/shell tools ("execute", "read", ...) and the tool's own name
+        /// otherwise ("use_tool"). Only the ACP values are taken.
+        /// </summary>
+        internal static string GrokMetaKind(JsonNode toolCall)
+        {
+            string kind = toolCall["_meta"]["x.ai/tool"]["kind"].AsString();
+            switch (kind ?? string.Empty)
+            {
+                case "read":
+                case "edit":
+                case "delete":
+                case "move":
+                case "search":
+                case "execute":
+                case "fetch":
+                case "think":
+                    return kind;
+                default:
+                    return null;
+            }
+        }
+
+        private const string UapServerName = "unity-ops";
+
+        private static readonly string[] UapToolIdPrefixes =
+        {
+            "mcp__" + UapServerName + "__", // Claude wire name
+            "mcp." + UapServerName + ".",   // Codex title
+            UapServerName + "__",           // Grok / Codex function name
+            string.Empty                    // bare id (Gemini)
+        };
+
+        /// <summary>
+        /// `uap_<snake_case>` when the text IS a UapOps tool id, optionally
+        /// qualified with the unity-ops server; null otherwise. With
+        /// <paramref name="allowTrailingText"/> only the leading token (up
+        /// to the first whitespace) has to be the id.
+        /// </summary>
+        internal static string ParseUapToolId(string text, bool allowTrailingText)
         {
             if (string.IsNullOrEmpty(text))
             {
                 return null;
             }
-            int index = text.IndexOf("uap_", StringComparison.Ordinal);
-            while (index >= 0)
+            string token = text.Trim();
+            if (allowTrailingText)
             {
-                bool boundaryBefore = index == 0 || !IsIdentifierChar(text[index - 1]);
-                if (boundaryBefore)
+                for (int i = 0; i < token.Length; i++)
                 {
-                    int end = index;
-                    while (end < text.Length && IsIdentifierChar(text[end]))
+                    if (char.IsWhiteSpace(token[i]))
                     {
-                        end++;
-                    }
-                    if (end - index > 4)
-                    {
-                        return text.Substring(index, end - index);
+                        token = token.Substring(0, i);
+                        break;
                     }
                 }
-                index = text.IndexOf("uap_", index + 1, StringComparison.Ordinal);
             }
-            return null;
+            for (int p = 0; p < UapToolIdPrefixes.Length; p++)
+            {
+                if (token.StartsWith(UapToolIdPrefixes[p], StringComparison.Ordinal))
+                {
+                    token = token.Substring(UapToolIdPrefixes[p].Length);
+                    break;
+                }
+            }
+            if (token.Length <= 4 || !token.StartsWith("uap_", StringComparison.Ordinal))
+            {
+                return null;
+            }
+            for (int i = 0; i < token.Length; i++)
+            {
+                if (!IsIdentifierChar(token[i]))
+                {
+                    return null;
+                }
+            }
+            return token;
+        }
+
+        private static bool IsMcpIdSegment(string text)
+        {
+            if (string.IsNullOrEmpty(text) || text.IndexOf("__", StringComparison.Ordinal) >= 0)
+            {
+                return false;
+            }
+            for (int i = 0; i < text.Length; i++)
+            {
+                if (!IsIdentifierChar(text[i]) && text[i] != '-' && text[i] != '.')
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        private const int AgentTitleMaxChars = 48;
+
+        /// <summary>
+        /// The agent's own title as the tool name for kind other/unknown
+        /// ("search_tool", "X search:"), or null to keep "Tool". The panel
+        /// special-cases Claude's tool names (Write, Bash, Task,
+        /// AskUserQuestion, mcp__*), all of which are a single run of
+        /// letters or start with "mcp__"; a title of that form is refused
+        /// so an agent's title can never opt into that handling.
+        /// </summary>
+        internal static string AgentTitleAsToolName(string title)
+        {
+            if (string.IsNullOrEmpty(title))
+            {
+                return null;
+            }
+            string name = title.Trim();
+            int lineEnd = name.IndexOfAny(new[] { '\r', '\n' });
+            if (lineEnd >= 0)
+            {
+                name = name.Substring(0, lineEnd).TrimEnd();
+            }
+            if (name.Length > AgentTitleMaxChars)
+            {
+                name = name.Substring(0, AgentTitleMaxChars - 3) + "...";
+            }
+            if (name.StartsWith("mcp__", StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+            bool lettersOnly = true;
+            for (int i = 0; i < name.Length && lettersOnly; i++)
+            {
+                lettersOnly = (name[i] >= 'a' && name[i] <= 'z') || (name[i] >= 'A' && name[i] <= 'Z');
+            }
+            return lettersOnly ? null : name;
         }
 
         private static bool IsIdentifierChar(char c)
@@ -1619,12 +1757,37 @@ namespace Colloid.AgentPanel.Core.Acp
             return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_';
         }
 
+        /// <summary>
+        /// The tool's own arguments. Grok ({tool_name, tool_input}) and
+        /// Codex ({server, tool, arguments}) wrap an MCP call's arguments
+        /// in their dispatcher's envelope; for a call mapped to an MCP wire
+        /// name the panel shows what Claude would: the arguments.
+        /// </summary>
+        internal static JsonNode McpArguments(string mappedName, JsonNode rawInput)
+        {
+            if (rawInput == null || !rawInput.IsObject || mappedName == null
+                || !mappedName.StartsWith("mcp__", StringComparison.Ordinal))
+            {
+                return rawInput;
+            }
+            if (rawInput["tool_name"].IsString && rawInput["tool_input"].IsObject)
+            {
+                return rawInput["tool_input"];
+            }
+            if (rawInput["tool"].IsString && rawInput["arguments"].IsObject)
+            {
+                return rawInput["arguments"];
+            }
+            return rawInput;
+        }
+
         private static JsonNode BuildToolInput(ToolCallState state, JsonNode update)
         {
             JsonNode input = JsonNode.NewObject();
-            if (state.Input != null && state.Input.IsObject)
+            JsonNode arguments = McpArguments(state.Name, state.Input);
+            if (arguments != null && arguments.IsObject)
             {
-                foreach (KeyValuePair<string, JsonNode> pair in state.Input.Properties)
+                foreach (KeyValuePair<string, JsonNode> pair in arguments.Properties)
                 {
                     input.Set(pair.Key, pair.Value);
                 }
@@ -1851,8 +2014,13 @@ namespace Colloid.AgentPanel.Core.Acp
             _pendingPermissions[requestId] = pending;
 
             string toolName = state != null ? state.Name : MapToolName(toolCall["kind"].AsString(), toolCall["title"].AsString(), null);
-            string title = state != null && !string.IsNullOrEmpty(state.Title) ? state.Title : toolName;
-            JsonNode input = state != null && state.Input != null ? state.Input : JsonNode.NewObject();
+            // An MCP wire name is its own display name: PermissionCard
+            // formats it as "server: tool", where the agent's title would
+            // be the raw "unity-ops__uap_ping" (Grok).
+            string title = state != null && !string.IsNullOrEmpty(state.Title)
+                && !toolName.StartsWith("mcp__", StringComparison.Ordinal) ? state.Title : toolName;
+            JsonNode input = state != null && state.Input != null
+                ? McpArguments(toolName, state.Input) : JsonNode.NewObject();
             JsonNode suggestions = JsonNode.NewArray();
             if (pending.AllowAlwaysId != null)
             {
