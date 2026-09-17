@@ -1,6 +1,6 @@
 # Agent Panel Pro 収録機能一覧
 
-**対象版: pro-v0.12.1**(2026-09-16 時点)。
+**対象版: pro-v0.13.0**(2026-09-17 時点)。
 公開 URL: <https://github.com/c-colloid/AgentPanelForUnity/blob/main/docs/PRO-FEATURES.md>
 同梱プロファイルは別文書 [PRO-PROFILES.md](PRO-PROFILES.md) にあります。
 
@@ -16,7 +16,7 @@ Pro の機能が増えたときはここだけを更新し、販売ページに�
 そのままコピーして貼れるプレーンテキストです(Markdown 記法は使っていません)。
 
 ```text
-■ Agent Panel Pro 収録機能(pro-v0.12.1 時点)
+■ Agent Panel Pro 収録機能(pro-v0.13.0 時点)
 Agent Panel for Unity(無料・Core)に追加する Unity 操作ツール 37 本(テスト実行を含む)と、主要アセット向けの同梱プロファイル 17 件。
 すべて Core のチャット画面からエージェント(Claude Code)が呼び出すツールで、スクリプトのコンパイルなしに動きます。
 
@@ -27,7 +27,7 @@ Agent Panel for Unity(無料・Core)に追加する Unity 操作ツール 37 本
 ・プロファイル作成: このプロジェクト用の拡張プロファイル(.uap-profiles)の下書きと検証/Claude Code スキルの書き出し
 ・アバター: 三角形数・マテリアル・ボーン・PhysBone 等の計測とベイク前後の差分(VRChat SDK があれば PC/Quest ランクも)/NDMF の手動ベイク実行/VRChat エキスプレッションメニュー・パラメータの読み書き(SDK の制限を事前検証)
 ・パーティクル: Particle System の 23 モジュールをスクリプト API の名前で読み書き(バースト含む)
-・メッシュ: 数値からメッシュ生成(プリミティブ・押し出し・回転体・SDF・生データ)/頂点の調査/変形編集(移動・膨張・スムーズ・細分化・ノイズ)/ブーリアン/不整合の検証と修復/シーンの Z ファイティング検出
+・メッシュ: 数値からメッシュ生成(プリミティブ・押し出し・回転体・SDF・生データ)/頂点の調査/変形編集(移動・膨張・スムーズ・細分化・ノイズ)/ブーリアン/不整合の検証と修復/シーンの Z ファイティング検出/Scene ビューに描いたスケッチ線を取り込んでの溝・盛り上げ・チューブ・穴あけ
 ・一括実行: 複数ツール呼び出しを 1 回・許可カード 1 枚で実行
 ・テスト実行: EditMode テストの実行と失敗の報告(Test Framework 導入時)
 ・同梱プロファイル 17 件: VRChat SDK3(共通/アバター/ワールド)、Udon、UdonSharp、NDMF、Modular Avatar、AAO: Avatar Optimizer、VRCFury、lilycalInventory、lilToon、UniVRM、MagicaCloth2、Final IK、Bakery、ProBuilder、RPG Maker Unite
@@ -115,9 +115,9 @@ Core の `editor` モジュールのうち、ベイク系の 2 本が Pro です
 
 | ツール | できること | 追加 |
 |---|---|---|
-| `uap_mesh_create` | 数値からメッシュ生成: プリミティブ(box / plane / cylinder / cone / sphere / torus / stairs)、`extrude`(XZ 外形の押し出し)、`lathe`(XY プロファイルの回転体)、`sdf`(球・箱・カプセル・円柱・トーラス・楕円体を union / intersect / subtract で合成、`smooth` で継ぎ目を丸める)、`raw`(頂点・三角形・任意で uv / 法線 / サブメッシュ)。Mesh アセットに保存、または MeshFilter + MeshRenderer(任意で MeshCollider)を持つ GameObject としてシーンに配置。ProBuilder があれば ProBuilderize | 0.12.0 |
+| `uap_mesh_create` | 数値からメッシュ生成: プリミティブ(box / plane / cylinder / cone / sphere / torus / stairs)、`extrude`(XZ 外形の押し出し)、`lathe`(XY プロファイルの回転体)、`sdf`(球・箱・カプセル・円柱・トーラス・楕円体を union / intersect / subtract で合成、`smooth` で継ぎ目を丸める)、`raw`(頂点・三角形・任意で uv / 法線 / サブメッシュ)。Scene ビューに描いたスケッチ線(Core のスケッチ機能)も入力にでき、`sdf` の `stroke`(線に沿ったチューブ)/ `stroke_prism`(閉じた線の外形を厚み分押し出し)と `extrude` の `stroke`(外形の押し出し。ブーリアンの相手に)。Mesh アセットに保存、または MeshFilter + MeshRenderer(任意で MeshCollider)を持つ GameObject としてシーンに配置。ProBuilder があれば ProBuilderize | 0.12.0 / 0.13.0 |
 | `uap_mesh_inspect` | 既存メッシュの頂点数・bounds・保存場所(書き込めるか)・閉じているか、範囲内または点に最も近い頂点の一覧(法線つき) | 0.12.0 |
-| `uap_mesh_edit` | 既存メッシュをその場で編集: `displace`(範囲を移動。球 + 減衰 = プロポーショナル編集)、`inflate`、`smooth`(ラプラシアン)、`subdivide`、`noise`。複数操作を順に適用、法線はシームと折り目を保って再計算、Ctrl+Z 可。組み込み・インポート済みメッシュは `detach:true` でコピーしてから | 0.12.0 |
+| `uap_mesh_edit` | 既存メッシュをその場で編集: `displace`(範囲を移動。球 + 減衰 = プロポーショナル編集)、`inflate`、`smooth`(ラプラシアン)、`subdivide`、`noise`。範囲には Scene ビューに描いたスケッチ線も指定でき(`stroke` + 半径 + 減衰)、線に沿って溝を掘る・盛り上げる・寄せるが 1 回で済む。複数操作を順に適用、法線はシームと折り目を保って再計算、Ctrl+Z 可。組み込み・インポート済みメッシュは `detach:true` でコピーしてから | 0.12.0 / 0.13.0 |
 | `uap_mesh_boolean` | 閉じた 2 メッシュの union / intersect / subtract を新しいメッシュに(入力は不変)。CSG が残すスライバー・重複・同一平面の重なりを自動除去、`place.checkZFight` で配置直後の重なりを警告 | 0.12.0 |
 | `uap_mesh_validate` | メッシュ内部の不整合を重大度と代表位置つきで報告: 退化・重複三角形、非多様体エッジ、巻き方向の食い違い、開いた辺、未参照 / NaN 頂点、面と逆向きの法線、内向きの面、同一平面の重なり | 0.12.0 |
 | `uap_mesh_repair` | 検証結果を `fix` で選んで修復: 既定は退化・重複・未参照頂点の除去、巻き方向の統一、法線の再計算。溶接・同一平面の重なり除去・穴埋めはオプトイン。修復後の検証結果も返す。Ctrl+Z 可 | 0.12.0 |
@@ -149,6 +149,7 @@ Core の `editor` モジュールのうち、ベイク系の 2 本が Pro です
 
 | 版 | 追加されたもの |
 |---|---|
+| 0.13.0 | スケッチ線の取り込み: `uap_mesh_edit` の `stroke` 範囲、`uap_mesh_create` の `sdf` に `stroke` / `stroke_prism`、`extrude` に `stroke` |
 | 0.12.0 | メッシュモジュール一式(`uap_mesh_create` / `uap_mesh_inspect` / `uap_mesh_edit` / `uap_mesh_boolean` / `uap_mesh_validate` / `uap_mesh_repair` / `uap_scene_zfight_scan`) |
 | 0.11.0 | プロファイル: VRChat SDK3(共通)/ VRChat SDK3(ワールド)/ Udon / UdonSharp |
 | 0.10.0 | プロファイル: ProBuilder |
