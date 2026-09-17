@@ -1929,6 +1929,9 @@ namespace Colloid.AgentPanel.UI
             "Sign in";
         public readonly string SettingsAccountAcpHint =
             "The agent signs in through its own browser flow; press the button if it did not start.";
+        /// <summary>Account card status while the ACP agent process starts and has not asked for sign-in (design note 2026-09-17-acp-account-card-phases.md).</summary>
+        public readonly string SettingsAccountAcpConnectingFmt =
+            "Connecting to {0}...";
 
         /// <summary>{0} = the login command line. Replaces SettingsAccountAcpHint for backends with an in-panel login.</summary>
         public readonly string SettingsAccountAcpLoginHintFmt =
@@ -3062,7 +3065,8 @@ namespace Colloid.AgentPanel.UI
             string settingsSectionAgent = null,
             string settingsSignInMethodLabel = null,
             string settingsAgentAdvancedFoldout = null,
-            string settingsReconnectButton = null)
+            string settingsReconnectButton = null,
+            string settingsAccountAcpConnectingFmt = null)
         {
             FirstRunCliNotFoundTitle = firstRunCliNotFoundTitle;
             FirstRunCliNotFoundBody = firstRunCliNotFoundBody;
@@ -4057,6 +4061,10 @@ namespace Colloid.AgentPanel.UI
             if (settingsReconnectButton != null)
             {
                 SettingsReconnectButton = settingsReconnectButton;
+            }
+            if (settingsAccountAcpConnectingFmt != null)
+            {
+                SettingsAccountAcpConnectingFmt = settingsAccountAcpConnectingFmt;
             }
         }
     }

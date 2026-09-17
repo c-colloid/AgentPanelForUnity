@@ -946,7 +946,8 @@ namespace Colloid.AgentPanel.UI
                 settingsSectionAgent: "エージェント",
                 settingsSignInMethodLabel: "サインイン方式",
                 settingsAgentAdvancedFoldout: "詳細設定(実行ファイル / コマンド)",
-                settingsReconnectButton: "再接続");
+                settingsReconnectButton: "再接続",
+                settingsAccountAcpConnectingFmt: "{0} に接続しています...");
         }
     }
 }

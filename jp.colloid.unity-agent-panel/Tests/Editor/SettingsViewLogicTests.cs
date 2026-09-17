@@ -1403,6 +1403,25 @@ namespace Colloid.AgentPanel.Tests
                 SettingsView.ResolveAccountLoginFeedback(inFlight, waiting, submitted).ToString());
         }
 
+        // -- 2026-09-17 ACP Account card phases ---------------------------
+        // (docs/design-notes/2026-09-17-acp-account-card-phases.md)
+        // connected, starting, loginRunning, signInPending -> phase.
+
+        [TestCase(false, false, false, false, "SignedOut")]
+        [TestCase(false, true, false, false, "Connecting")]
+        [TestCase(true, false, false, false, "SignedIn")]
+        [TestCase(false, false, true, false, "SigningIn")]
+        [TestCase(false, false, false, true, "SigningIn")]
+        [TestCase(false, true, false, true, "SigningIn")]
+        [TestCase(true, false, true, false, "SigningIn")]
+        public void ResolveAcpAccountPhase_Table(
+            bool connected, bool starting, bool loginRunning, bool signInPending, string expected)
+        {
+            Assert.AreEqual(expected,
+                SettingsView.ResolveAcpAccountPhase(connected, starting, loginRunning, signInPending)
+                    .ToString());
+        }
+
         // -- 2026-09-12 core-only wording: Pro-absent module hint ----------
         // (docs/design-notes/2026-09-12-core-only-wording.md)
 

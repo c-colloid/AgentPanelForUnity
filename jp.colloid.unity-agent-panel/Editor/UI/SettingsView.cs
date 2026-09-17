@@ -5206,11 +5206,51 @@ namespace Colloid.AgentPanel.UI
             }
         }
 
+        /// <summary>
+        /// The ACP Account card's phase (design note 2026-09-17-acp-account-
+        /// card-phases.md): one of four mutually exclusive shapes, so the
+        /// card never shows a primary "Sign in" next to "connected".
+        /// </summary>
+        internal enum AcpAccountPhase
+        {
+            /// <summary>The agent process is starting and has not asked for sign-in (yet).</summary>
+            Connecting,
+            /// <summary>No live connection and nothing in flight: the way in is "Sign in".</summary>
+            SignedOut,
+            /// <summary>The in-panel login command runs, or the bridge waits on the agent's own browser flow.</summary>
+            SigningIn,
+            /// <summary>A live session: the only sign-in affordance left is switching accounts.</summary>
+            SignedIn
+        }
+
+        /// <summary>
+        /// Pure so the truth table is testable without a process. A sign-in
+        /// in flight wins over everything (its cancel/URL row must stay
+        /// reachable); a connected session is SignedIn regardless of an
+        /// error from an earlier attempt; Starting without a sign-in
+        /// request is Connecting, not SignedOut, so the card does not flash
+        /// "Sign in" during the handshake.
+        /// </summary>
+        internal static AcpAccountPhase ResolveAcpAccountPhase(
+            bool connected, bool starting, bool loginRunning, bool signInPending)
+        {
+            if (loginRunning || signInPending)
+            {
+                return AcpAccountPhase.SigningIn;
+            }
+            if (connected)
+            {
+                return AcpAccountPhase.SignedIn;
+            }
+            return starting ? AcpAccountPhase.Connecting : AcpAccountPhase.SignedOut;
+        }
+
         private void RefreshAccountSectionAcp()
         {
             AgentBackend backend = AgentHub.CurrentBackend;
             string name = AgentBackends.DisplayName(backend);
             AgentClient client = AgentHub.Client;
+            bool starting = client != null && client.State == AgentClientState.Starting;
             bool connected = client != null
                 && client.State != AgentClientState.NotStarted
                 && client.State != AgentClientState.Starting
@@ -5224,6 +5264,12 @@ namespace Colloid.AgentPanel.UI
             string commandLine = AgentHub.AcpLoginCommandLine;
             bool loginAvailable = commandLine.Length > 0;
             string url = loginRunning ? login.OAuthUrl : AgentHub.AcpSignInUrl;
+            AcpAccountPhase phase = ResolveAcpAccountPhase(
+                connected, starting, loginRunning, AgentHub.AcpSignInPending);
+            bool signingIn = phase == AcpAccountPhase.SigningIn;
+            bool signedIn = phase == AcpAccountPhase.SignedIn;
+            bool signedOut = phase == AcpAccountPhase.SignedOut;
+
             if (loginRunning)
             {
                 _accountStatusLabel.text = L10n.F(L10n.S.SettingsAccountAcpLoginRunningFmt, name, commandLine);
@@ -5231,6 +5277,14 @@ namespace Colloid.AgentPanel.UI
             else if (AgentHub.AcpSignInPending)
             {
                 _accountStatusLabel.text = L10n.F(L10n.S.SettingsAccountAcpSignInPendingFmt, name);
+            }
+            else if (signedIn)
+            {
+                _accountStatusLabel.text = L10n.F(L10n.S.SettingsAccountAcpConnectedFmt, name);
+            }
+            else if (phase == AcpAccountPhase.Connecting)
+            {
+                _accountStatusLabel.text = L10n.F(L10n.S.SettingsAccountAcpConnectingFmt, name);
             }
             else if (!string.IsNullOrEmpty(AgentHub.AcpLoginError))
             {
@@ -5240,18 +5294,20 @@ namespace Colloid.AgentPanel.UI
             {
                 _accountStatusLabel.text = L10n.F(L10n.S.HubAcpSignInFailedNoteFmt, name, AgentHub.AcpSignInError);
             }
-            else if (connected)
-            {
-                _accountStatusLabel.text = L10n.F(L10n.S.SettingsAccountAcpConnectedFmt, name);
-            }
             else
             {
                 _accountStatusLabel.text = L10n.S.SettingsAccountAcpNotConnected;
             }
+
+            // The "how to sign in" hint belongs to the signed-out shape
+            // only: once connected it merely repeats what the status line
+            // already says, and while signing in the status line narrates.
+            SetDisplay(_accountAcpHintLabel, signedOut);
             _accountAcpHintLabel.text = loginAvailable
                 ? L10n.F(L10n.S.SettingsAccountAcpLoginHintFmt, commandLine)
                 : L10n.S.SettingsAccountAcpHint;
-            bool hasUrl = (loginRunning || AgentHub.AcpSignInPending) && !string.IsNullOrEmpty(url);
+
+            bool hasUrl = signingIn && !string.IsNullOrEmpty(url);
             SetDisplay(_accountAcpOpenBrowserButton, hasUrl);
             SetDisplay(_accountAcpCopyUrlButton, hasUrl);
             SetDisplay(_accountAcpUrlField, hasUrl);
@@ -5259,8 +5315,17 @@ namespace Colloid.AgentPanel.UI
             {
                 _accountAcpUrlField.SetValueWithoutNotify(url);
             }
-            SetDisplay(_accountAcpLoginButton, loginAvailable);
-            _accountAcpLoginButton.SetEnabled(!loginRunning && !AgentHub.AcpSignInPending);
+
+            // One button, two shapes: the primary way in while signed out,
+            // a plain "Switch account" once signed in (same action -- the
+            // login command overwrites the stored credentials), and gone
+            // while a sign-in runs or the handshake is still in progress.
+            SetDisplay(_accountAcpLoginButton, loginAvailable && (signedOut || signedIn));
+            _accountAcpLoginButton.text = signedIn
+                ? L10n.S.SettingsAccountSwitchButton
+                : L10n.S.SettingsAccountAcpLoginButton;
+            _accountAcpLoginButton.EnableInClassList("uap-settings-btn--primary", signedOut);
+            _accountAcpLoginButton.SetEnabled(!signingIn);
             SetDisplay(_accountAcpCancelLoginButton, loginRunning);
             string lastLine = loginRunning ? (login.LatestOutputLine ?? string.Empty) : string.Empty;
             SetDisplay(_accountAcpLoginOutputLabel, lastLine.Length > 0);
@@ -5268,11 +5333,11 @@ namespace Colloid.AgentPanel.UI
             {
                 _accountAcpLoginOutputLabel.text = IconLoader.SanitizeForDisplay(lastLine);
             }
-            _reconnectButton.SetEnabled(!AgentHub.AcpSignInPending && !loginRunning);
+            _reconnectButton.SetEnabled(!signingIn);
 
             // Which method got us in, and -- when it is a key/gateway one --
             // that the bill lands on that key rather than a subscription.
-            bool showMethod = connected && !AgentHub.AcpSignInPending;
+            bool showMethod = signedIn;
             SetDisplay(_accountAcpAuthMethodLabel, showMethod);
             string methodName = AcpProtocolBridge.DescribeAuthMethod(
                 AgentHub.AcpAuthMethodId, AgentHub.AcpAuthMethodName);
@@ -5365,9 +5430,11 @@ namespace Colloid.AgentPanel.UI
             // ACP agent signs in through its own CLI (design note
             // 2026-09-10-acp-backends.md section 4).
             bool acp = !AgentHub.IsClaudeBackend;
-            SetDisplay(_accountAcpHintLabel, acp);
             if (!acp)
             {
+                // RefreshAccountSectionAcp owns the hint's visibility per
+                // phase; on the Claude side it is simply never shown.
+                SetDisplay(_accountAcpHintLabel, false);
                 _reconnectButton.SetEnabled(true);
             }
             if (acp)

@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (nothing yet)
 
+## [0.56.2] - 2026-09-17
+
+### Fixed
+
+- **The Agent card no longer offers a primary "Sign in" while an ACP agent
+  is already connected.** The card now has four distinct shapes: signed
+  out (primary "Sign in" plus the how-to hint), signing in (status,
+  Cancel and the browser link), connecting ("Connecting to {agent}...",
+  no buttons) and signed in (the sign-in method line and a plain "Switch
+  account"). Design note
+  `docs/design-notes/2026-09-17-acp-account-card-phases.md`.
+
 ## [0.56.1] - 2026-09-17
 
 ### Fixed
