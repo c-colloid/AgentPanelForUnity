@@ -245,9 +245,11 @@ namespace Colloid.AgentPanel.Tests
             var points = new List<Vector3>();
             for (int i = 0; i < 40; i++)
             {
-                // A zigzag whose corners (0.5 off the chord) exceed the
-                // 0.5%-of-length tolerance (~0.2), so every corner survives.
-                points.Add(new Vector3(i * 0.01f, i % 2, 0f));
+                // A wide zigzag (1 m steps, 1 m amplitude): every corner
+                // sits ~0.7 off any chord, far over the 0.5%-of-length
+                // tolerance (~0.28), so every point survives. (A narrow
+                // zigzag would not: it reads as a near-vertical line.)
+                points.Add(new Vector3(i, i % 2, 0f));
             }
             SceneStroke stroke = SceneStrokeSketch.BuildStroke(SceneStrokeMode.Plane, points, null, null, new Vector3(0f, 0f, 3f), new Vector3(0f, 0f, 2f));
             Assert.IsNotNull(stroke);
@@ -294,6 +296,19 @@ namespace Colloid.AgentPanel.Tests
             StringAssert.Contains("mode: plane", payload);
             StringAssert.Contains("plane: origin (0.00, 0.00, 0.00), normal (0.00, 1.00, 0.00)", payload);
             StringAssert.Contains("(" + SceneStrokeSketch.PayloadPointCount + " of 100 points shown; uap_stroke_list id=5 returns all)", payload);
+        }
+
+        [Test]
+        public void StepDirection_AxisPlanesMoveAlongTheirNormal_AwayFromTheCamera()
+        {
+            Vector3 lookingDown = Vector3.down;
+            Assert.AreEqual(Vector3.forward, SceneStrokeSketch.StepDirection(SceneStrokePlaneAxis.Z, Vector3.forward, lookingDown),
+                "a Z plane seen from above still moves along z (it used to fall back to the view direction)");
+            Assert.AreEqual(Vector3.back, SceneStrokeSketch.StepDirection(SceneStrokePlaneAxis.Z, Vector3.forward, Vector3.back),
+                "looking toward -z, farther is -z");
+            Assert.AreEqual(Vector3.up, SceneStrokeSketch.StepDirection(SceneStrokePlaneAxis.Y, Vector3.up, new Vector3(0.1f, 0.5f, 0.8f).normalized));
+            Vector3 view = new Vector3(1f, 2f, 3f).normalized;
+            Assert.AreEqual(view, SceneStrokeSketch.StepDirection(SceneStrokePlaneAxis.CameraFacing, -view, view), "camera-facing: the view direction");
         }
 
         [Test]

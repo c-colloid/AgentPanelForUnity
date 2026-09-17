@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
 
 namespace Colloid.AgentPanel.Ops.Markers
@@ -155,7 +156,32 @@ namespace Colloid.AgentPanel.Ops.Markers
             {
                 // Visibility manager is editor state that can be absent in odd contexts; treat as visible.
             }
-            return true;
+            return IsInCurrentStage(go);
+        }
+
+        /// <summary>
+        /// True when the current stage draws <paramref name="go"/>: in
+        /// Prefab Mode only the prefab's own objects, otherwise the loaded
+        /// scenes. FindObjectsByType still returns the main scene's
+        /// objects while a prefab is open (they are merely not rendered),
+        /// so without this a pin, a surface stroke or the sketch plane's
+        /// depth contour would land on / trace the room behind the prefab
+        /// (reported 2026-09-17 with a bench prefab).
+        /// </summary>
+        public static bool IsInCurrentStage(GameObject go)
+        {
+            if (go == null)
+            {
+                return false;
+            }
+            try
+            {
+                return StageUtility.GetCurrentStageHandle().Contains(go);
+            }
+            catch (Exception)
+            {
+                return true;
+            }
         }
 
         /// <summary>

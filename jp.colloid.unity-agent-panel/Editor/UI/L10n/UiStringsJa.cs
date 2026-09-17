@@ -698,7 +698,7 @@ namespace Colloid.AgentPanel.UI
                 settingsUapOpsModuleAnimLabel: "アニメーション",
                 settingsUapOpsModuleAnimHint: "アニメーションクリップ/AnimatorControllerの編集、マテリアル/シェーダプロパティ、インポータ/アバター設定。既定OFF。",
                 settingsUapOpsModuleMarkersLabel: "シーンビューのマーカー",
-                settingsUapOpsModuleMarkersHint: "エージェントが Scene ビューに置く番号付き 3D マーカー(uap_marker_add/list/clear)と、あなたが描いて渡すスケッチ線(uap_stroke_list)。表示だけでシーンは変えません。",
+                settingsUapOpsModuleMarkersHint: "エージェントが置く番号付き 3D マーカー(uap_marker_add/list/clear)と、あなたが描いて渡すスケッチ線(uap_stroke_list)。表示だけでシーンは変えません。",
                 ctxMarkersChipSingle: "マーカー 1 個",
                 ctxMarkersChipPluralFmt: "マーカー {0} 個",
                 ctxMarkersClearTooltip: "Scene ビューのマーカーとピンをすべて消す",

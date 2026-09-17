@@ -253,7 +253,8 @@ namespace Colloid.AgentPanel.Ops.Markers
             normal = Vector3.up;
             hit = string.Empty;
             RaycastHit raycastHit;
-            if (Physics.Raycast(ray, out raycastHit, MaxPickDistance))
+            if (Physics.Raycast(ray, out raycastHit, MaxPickDistance)
+                && SceneMeshRaycaster.IsInCurrentStage(raycastHit.collider.gameObject))
             {
                 position = raycastHit.point;
                 normal = raycastHit.normal;

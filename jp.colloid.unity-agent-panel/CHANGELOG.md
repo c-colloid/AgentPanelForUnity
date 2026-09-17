@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (nothing yet)
 
+## [0.56.1] - 2026-09-17
+
+### Fixed
+
+- **Sketch strokes and pins no longer see the hidden main scene while a
+  prefab is open.** In Prefab Mode the depth contour traced the room
+  behind the prefab, and a pin or a surface stroke could land on it:
+  the renderer scan returned the main scene's objects even though the
+  stage does not draw them. Picking and the contour now keep only what
+  the current stage contains. Design note
+  `docs/design-notes/2026-09-17-scene-sketch-strokes.md` section 9.
+- **The wheel now moves an axis-locked sketch plane from any viewpoint.**
+  A Z plane seen from above did not respond, because the depth step fell
+  back to the view direction when it was nearly perpendicular to the
+  plane; an axis plane now always moves along its own normal. Same note.
+- **The sketch plane's readout (depth, axis, key hints) sits at the Scene
+  view's top-left** instead of next to the cursor, so it is visible for
+  every plane and view. Same note.
+
 ## [0.56.0] - 2026-09-17
 
 ### Added

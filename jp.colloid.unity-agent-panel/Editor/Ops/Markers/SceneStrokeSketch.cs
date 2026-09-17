@@ -242,10 +242,13 @@ namespace Colloid.AgentPanel.Ops.Markers
 
         /// <summary>
         /// Moves the anchor one step away from (<paramref name="farther"/>)
-        /// or towards the camera. Camera-facing planes move along the view
-        /// direction; an axis plane moves along its own normal, in whichever
-        /// sense points away from the camera, so "farther" always means
-        /// farther for the viewer.
+        /// or towards the camera. A camera-facing plane moves along the
+        /// view direction. An axis plane ALWAYS moves along its own normal
+        /// (the only move that changes where it cuts), in whichever sense
+        /// points away from the camera; seen edge-on, "farther" is the
+        /// normal's positive side. (Reported 2026-09-17: a Z plane viewed
+        /// from above did not move on the wheel, because the step used
+        /// to fall back to the view direction.)
         /// </summary>
         public static void StepDepth(bool farther, Camera camera)
         {
@@ -254,19 +257,29 @@ namespace Colloid.AgentPanel.Ops.Markers
                 return;
             }
             Vector3 forward = camera.transform.forward;
-            float depth = Mathf.Max(0f, Vector3.Dot(_anchor - camera.transform.position, forward));
-            float step = Mathf.Max(DepthStepMin, depth * DepthStepFraction);
-            Vector3 direction = forward;
-            if (_axis != SceneStrokePlaneAxis.CameraFacing)
-            {
-                float along = Vector3.Dot(_planeNormal, forward);
-                if (Mathf.Abs(along) > 0.05f)
-                {
-                    direction = _planeNormal * Mathf.Sign(along);
-                }
-            }
+            float step = StepFor(camera);
+            Vector3 direction = StepDirection(_axis, _planeNormal, forward);
             _anchor += direction * (farther ? step : -step);
             SceneView.RepaintAll();
+        }
+
+        /// <summary>One depth step for the current anchor: 5% of its distance along the view axis, at least <see cref="DepthStepMin"/>.</summary>
+        private static float StepFor(Camera camera)
+        {
+            float depth = Mathf.Max(0f, Vector3.Dot(_anchor - camera.transform.position, camera.transform.forward));
+            return Mathf.Max(DepthStepMin, depth * DepthStepFraction);
+        }
+
+        /// <summary>Pure: the unit direction a "farther" step moves the anchor (see <see cref="StepDepth"/>).</summary>
+        public static Vector3 StepDirection(SceneStrokePlaneAxis axis, Vector3 planeNormal, Vector3 viewForward)
+        {
+            if (axis == SceneStrokePlaneAxis.CameraFacing || planeNormal.sqrMagnitude < 1e-8f)
+            {
+                return viewForward;
+            }
+            Vector3 n = planeNormal.normalized;
+            float along = Vector3.Dot(n, viewForward);
+            return along < 0f ? -n : n;
         }
 
         /// <summary>Depth of the anchor along the camera's view axis (the number the depth label shows).</summary>

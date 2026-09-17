@@ -20,10 +20,13 @@ namespace Colloid.AgentPanel.Ops.Markers
     ///   * a <b>plane patch</b>: a screen-constant grid around the cursor's
     ///     plane point, depth-tested, so geometry in front of the plane
     ///     hides it and geometry behind shows through;
-    ///   * the <b>depth readout</b>: the anchor's distance from the camera,
-    ///     the plane axis, and -- when the view ray also hits a surface --
-    ///     how far that surface is in front of or behind the plane point,
-    ///     with a tie line between the two.
+    ///   * the <b>depth readout</b>, fixed at the Scene view's top-left:
+    ///     the anchor's distance from the camera, the plane axis, and --
+    ///     when the view ray also hits a surface -- how far that surface
+    ///     is in front of or behind the plane point (a tie line joins the
+    ///     two), plus the key hints. Fixed rather than next to the cursor
+    ///     so it is always visible, whatever the plane and view (reported
+    ///     2026-09-17: it only showed reliably on the Y plane).
     ///
     /// The contour is the expensive part: it is recomputed only when the
     /// plane changes (or the scene's renderer set does), under a triangle
@@ -201,9 +204,7 @@ namespace Colloid.AgentPanel.Ops.Markers
                     : L10n.F(L10n.S.CtxSketchSurfaceInFrontFmt, amount);
             }
             string text = line2 != null ? line1 + "\n" + line2 + "\n" + L10n.S.CtxSketchKeyHints : line1 + "\n" + L10n.S.CtxSketchKeyHints;
-            Vector2 gui = hoverPoint.HasValue
-                ? HandleUtility.WorldToGUIPoint(hoverPoint.Value) + new Vector2(18f, 18f)
-                : new Vector2(12f, 12f);
+            var gui = new Vector2(12f, 12f);
             Handles.BeginGUI();
             var content = new GUIContent(text);
             Vector2 size = _labelStyle.CalcSize(content);

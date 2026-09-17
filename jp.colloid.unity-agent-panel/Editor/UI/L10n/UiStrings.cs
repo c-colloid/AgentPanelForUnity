@@ -1650,8 +1650,7 @@ namespace Colloid.AgentPanel.UI
         public readonly string SettingsUapOpsModuleMarkersLabel = "Scene-view markers";
 
         public readonly string SettingsUapOpsModuleMarkersHint =
-            "Numbered 3D markers the agent points with in the Scene view (uap_marker_add/list/clear) and the sketch"
-            + " strokes you draw for it (uap_stroke_list). Overlays only.";
+            "Scene-view markers (uap_marker_add/list/clear) and your sketch strokes (uap_stroke_list). Overlays only.";
 
         /// <summary>Context-bar chip while the agent has markers on screen (count == 1).</summary>
         public readonly string CtxMarkersChipSingle = "1 scene marker";
