@@ -48,19 +48,25 @@ namespace Colloid.AgentPanel.Tests
         [Test]
         public void Execute_UnknownMenuPath_ReportsNotFound_DoesNotThrow()
         {
-            // EditorApplication.ExecuteMenuItem itself logs a Unity Console
-            // Error for an unresolved path (production behavior, not a bug)
-            // -- the EditMode test runner otherwise fails the test on any
-            // unexpected Error-level log, so the expected one must be
-            // whitelisted here.
-            LogAssert.Expect(LogType.Error,
-                "ExecuteMenuItem failed because there is no menu named 'Tools/UapOpsTests/DoesNotExist12345'");
+            // EditorApplication.ExecuteMenuItem logs a Unity Console Error
+            // for an unresolved path ("ExecuteMenuItem failed because there
+            // is no menu named ..."). The tool asks Menu.MenuItemExists
+            // first and never makes that call, so the Console stays clean
+            // (design note 2026-09-17-tool-caused-console-errors.md: that
+            // error used to raise the user's "fix these errors" chip). No
+            // LogAssert.Expect here ON PURPOSE -- the test runner fails on
+            // the unexpected Error if the pre-check regresses.
+            bool exists;
+            Assert.IsTrue(UapEditorExecuteMenuTool.TryMenuItemExists(MenuPath, out exists),
+                "UnityEditor.Menu.MenuItemExists is expected to resolve on every supported Unity version.");
+            Assert.IsTrue(exists);
 
             JsonNode result = new UapEditorExecuteMenuTool().Execute(
                 JsonNode.NewObject().Set("menuPath", "Tools/UapOpsTests/DoesNotExist12345"));
 
             JsonNode parsed = JsonParser.Parse(result[0]["text"].AsString());
             Assert.IsFalse(parsed["found"].AsBool());
+            LogAssert.NoUnexpectedReceived();
         }
 
         [Test]

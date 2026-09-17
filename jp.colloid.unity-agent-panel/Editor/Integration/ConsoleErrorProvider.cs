@@ -118,6 +118,15 @@ namespace Colloid.AgentPanel.Integration
         /// </summary>
         private static int _validationBuildDepth;
 
+        /// <summary>Most messages one tool scope keeps (the rest are dropped, not queued).</summary>
+        internal const int MaxToolScopeErrors = 5;
+
+        // Tool scope state (BeginToolScope): guarded by _queueLock, because
+        // OnLogMessage reads it from whatever thread Unity logs on.
+        private static int _toolScopeDepth;
+        private static int _toolScopeThreadId;
+        private static readonly List<string> _toolScopeCaptured = new List<string>();
+
         /// <summary>
         /// Set when the validation-build window opens or closes; drained by
         /// PumpQueuedLogEntries on the next main-thread tick. The raise is
@@ -192,6 +201,81 @@ namespace Colloid.AgentPanel.Integration
             }
         }
 
+        /// <summary>
+        /// Opens a window in which errors logged ON THE CALLING THREAD are
+        /// attributed to the UapOps tool call that is running, instead of
+        /// being recorded for the "ask the agent to fix these" chip
+        /// (docs/design-notes/2026-09-17-tool-caused-console-errors.md).
+        /// Measured case: uap_editor_execute_menu with a menu path that
+        /// does not exist -- Unity itself logs an Error, the tool already
+        /// answers found:false, the agent works around it, and the chip
+        /// then offered the user a "fix" for something that is not wrong
+        /// with the project (and kept offering it to the next agent).
+        /// UapMainThreadDispatcher opens this around every tool tick and
+        /// appends what <see cref="EndToolScope"/> returns to the tool's
+        /// result, so the agent still learns about the error. Only the
+        /// opening thread is affected: an error from any other thread, or
+        /// one the project raises again after the call, reaches the chip
+        /// as before. Nestable; the outermost End returns the lines.
+        /// </summary>
+        public static void BeginToolScope()
+        {
+            lock (_queueLock)
+            {
+                if (_toolScopeDepth == 0)
+                {
+                    _toolScopeThreadId = Thread.CurrentThread.ManagedThreadId;
+                    _toolScopeCaptured.Clear();
+                }
+                _toolScopeDepth++;
+            }
+        }
+
+        /// <summary>
+        /// Closes one <see cref="BeginToolScope"/> window. The outermost
+        /// close returns the captured messages (first line each, at most
+        /// <see cref="MaxToolScopeErrors"/>); inner closes and unbalanced
+        /// calls return an empty array.
+        /// </summary>
+        public static string[] EndToolScope()
+        {
+            lock (_queueLock)
+            {
+                if (_toolScopeDepth <= 0)
+                {
+                    _toolScopeDepth = 0;
+                    return new string[0];
+                }
+                _toolScopeDepth--;
+                if (_toolScopeDepth > 0)
+                {
+                    return new string[0];
+                }
+                string[] captured = _toolScopeCaptured.ToArray();
+                _toolScopeCaptured.Clear();
+                return captured;
+            }
+        }
+
+        /// <summary>True when the message was taken by an open tool scope on this thread (and must not be queued).</summary>
+        private static bool TryCaptureForToolScope(string message)
+        {
+            lock (_queueLock)
+            {
+                if (_toolScopeDepth <= 0
+                    || _toolScopeThreadId != Thread.CurrentThread.ManagedThreadId)
+                {
+                    return false;
+                }
+                if (_toolScopeCaptured.Count < MaxToolScopeErrors
+                    && !_toolScopeCaptured.Contains(message))
+                {
+                    _toolScopeCaptured.Add(message);
+                }
+                return true;
+            }
+        }
+
         /// <summary>Number of distinct captured errors.</summary>
         public static int Count
         {
@@ -236,6 +320,7 @@ namespace Colloid.AgentPanel.Integration
         private static void ReleaseWindowsForDomainReload()
         {
             Interlocked.Exchange(ref _validationBuildDepth, 0);
+            ResetToolScope();
             _compileRunDepth = 0;
             _pendingCompilerEntries.Clear();
             _windowChangePending = false;
@@ -474,6 +559,13 @@ namespace Colloid.AgentPanel.Integration
             }
             string message = FirstLine(condition, MaxMessageChars);
             if (string.IsNullOrEmpty(message))
+            {
+                return;
+            }
+            // A UapOps tool is running on this thread: the error belongs to
+            // that call and goes back to the agent in its result -- see
+            // BeginToolScope.
+            if (TryCaptureForToolScope(message))
             {
                 return;
             }
@@ -789,7 +881,17 @@ namespace Colloid.AgentPanel.Integration
             _pendingCompilerEntries.Clear();
             _compileRunDepth = 0;
             Interlocked.Exchange(ref _validationBuildDepth, 0);
+            ResetToolScope();
             _windowChangePending = false;
+        }
+
+        private static void ResetToolScope()
+        {
+            lock (_queueLock)
+            {
+                _toolScopeDepth = 0;
+                _toolScopeCaptured.Clear();
+            }
         }
 
         private static string FirstLine(string text, int maxChars)

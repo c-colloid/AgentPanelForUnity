@@ -73,7 +73,7 @@ namespace Colloid.AgentPanel.Ops
                     + " including compiles, saves, windows, or destructive/irreversible actions. Menu items"
                     + " that open a native modal dialog (File/Save on an untitled scene, File/Save As...,"
                     + " File/Open Scene, Assets/Import New Asset..., ...) are REFUSED: such a dialog blocks the"
-                    + " Editor until a person closes it; save scenes with uap_scene_save instead. Not"
+                    + " Editor until a person closes it; use uap_scene_save / uap_scene_open instead. Not"
                     + " undoable and not scoped to a target; verify the result with a query tool or"
                     + " uap_editor_screenshot afterward. A menu item runs synchronously on the Editor"
                     + " main thread: if this call fails with 'still running on the Unity main thread',"
@@ -146,7 +146,14 @@ namespace Colloid.AgentPanel.Ops
             Record(run);
             try
             {
-                run.Found = EditorApplication.ExecuteMenuItem(menuPath);
+                // ExecuteMenuItem answers false for an unknown path AND
+                // logs a Console Error about it. The agent already gets
+                // found:false, so when Unity can tell us up front that the
+                // item does not exist, skip the call and keep the Console
+                // clean (design note 2026-09-17-tool-caused-console-errors.md).
+                bool exists;
+                run.Found = (!TryMenuItemExists(menuPath, out exists) || exists)
+                    && EditorApplication.ExecuteMenuItem(menuPath);
             }
             catch (Exception ex)
             {
@@ -162,6 +169,41 @@ namespace Colloid.AgentPanel.Ops
                 .Set("found", run.Found)
                 .Set("durationSeconds", Seconds(run));
             return UapToolResults.Text(JsonWriter.Write(result));
+        }
+
+        private static System.Reflection.MethodInfo _menuItemExists;
+        private static bool _menuItemExistsResolved;
+
+        /// <summary>
+        /// Asks UnityEditor.Menu.MenuItemExists (internal) whether a menu
+        /// path resolves. False when the method is not there in this Unity
+        /// version or throws -- the caller then simply runs the item as
+        /// before.
+        /// </summary>
+        internal static bool TryMenuItemExists(string menuPath, out bool exists)
+        {
+            exists = false;
+            if (!_menuItemExistsResolved)
+            {
+                _menuItemExistsResolved = true;
+                _menuItemExists = typeof(Menu).GetMethod("MenuItemExists",
+                    System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public
+                    | System.Reflection.BindingFlags.NonPublic,
+                    null, new[] { typeof(string) }, null);
+            }
+            if (_menuItemExists == null)
+            {
+                return false;
+            }
+            try
+            {
+                exists = (bool)_menuItemExists.Invoke(null, new object[] { menuPath });
+                return true;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
         }
 
         /// <summary>A loaded scene that was never saved: the case in which File/Save asks for a file name.</summary>

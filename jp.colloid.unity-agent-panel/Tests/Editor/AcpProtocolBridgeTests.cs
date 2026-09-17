@@ -632,6 +632,163 @@ namespace Colloid.AgentPanel.Tests
             StringAssert.Contains("+++ new", toolResult.ResultContent.AsString());
         }
 
+        // -- rawOutput in the MCP result shape (codex-acp) -----------------------------
+        // 2026-09-17-acp-mcp-rawoutput-images.md: codex-acp leaves `content`
+        // empty and carries an MCP tool's result as rawOutput =
+        // {"result":{"content":[...],"structuredContent":null,"_meta":null},"error":null}.
+
+        private const string TinyPngBase64 = "iVBORw0KGgo=";
+
+        private ContentBlock CompleteMcpToolCall(string callId, JsonNode rawOutput, JsonNode content = null)
+        {
+            CompleteHandshake();
+            SendUser("hello");
+            Notify("{\"sessionUpdate\":\"tool_call\",\"toolCallId\":\"" + callId + "\",\"kind\":\"other\","
+                + "\"title\":\"unity-ops.uap_editor_screenshot\",\"status\":\"in_progress\"}");
+            JsonNode update = JsonNode.NewObject()
+                .Set("sessionUpdate", "tool_call_update").Set("toolCallId", callId)
+                .Set("status", "completed").Set("content", content ?? JsonNode.NewArray())
+                .Set("rawOutput", rawOutput);
+            Notify(JsonWriter.Write(update));
+            return LastPanel<UserEchoMessage>().Content[0];
+        }
+
+        private static JsonNode McpRawOutput(params JsonNode[] blocks)
+        {
+            JsonNode content = JsonNode.NewArray();
+            foreach (JsonNode block in blocks)
+            {
+                content.Add(block);
+            }
+            return JsonNode.NewObject()
+                .Set("result", JsonNode.NewObject().Set("content", content)
+                    .Set("structuredContent", JsonNode.Null).Set("_meta", JsonNode.Null))
+                .Set("error", JsonNode.Null);
+        }
+
+        private static JsonNode McpText(string text)
+        {
+            return JsonNode.NewObject().Set("type", "text").Set("text", text);
+        }
+
+        private static JsonNode McpImage(string data)
+        {
+            return JsonNode.NewObject().Set("type", "image").Set("data", data).Set("mimeType", "image/png");
+        }
+
+        [Test]
+        public void RawOutputMcpResult_TextAndImage_BecomeBlocks_NotStringifiedBase64()
+        {
+            ContentBlock toolResult = CompleteMcpToolCall("call_m1", McpRawOutput(
+                McpText("Captured Scene view to C:/P/Temp/UapOpsScreenshots/uap_scene.png (826x430)."),
+                McpImage(TinyPngBase64)));
+            JsonNode result = toolResult.ResultContent;
+            Assert.IsTrue(result.IsArray, "an image makes the result an array of blocks");
+            Assert.AreEqual(2, result.Count);
+            Assert.AreEqual("text", result[0]["type"].AsString());
+            Assert.AreEqual("Captured Scene view to C:/P/Temp/UapOpsScreenshots/uap_scene.png (826x430).",
+                result[0]["text"].AsString());
+            Assert.AreEqual("image", result[1]["type"].AsString());
+            Assert.AreEqual("base64", result[1]["source"]["type"].AsString());
+            Assert.AreEqual("image/png", result[1]["source"]["media_type"].AsString());
+            Assert.AreEqual(TinyPngBase64, result[1]["source"]["data"].AsString());
+            StringAssert.DoesNotContain(TinyPngBase64, result[0]["text"].AsString());
+            Assert.IsFalse(toolResult.IsError);
+
+            // The panel's reader takes the embedded picture, not the path scan.
+            int saved = 0;
+            List<string> paths = Colloid.AgentPanel.Model.ToolResultImages.Resolve(result,
+                (bytes, media) => { saved++; return "/attachments/shot.png"; },
+                token => { Assert.Fail("path scan must not run once a picture was embedded"); return null; });
+            Assert.AreEqual(1, saved);
+            CollectionAssert.AreEqual(new[] { "/attachments/shot.png" }, paths);
+        }
+
+        [Test]
+        public void RawOutputMcpResult_TextOnly_IsThePlainText()
+        {
+            ContentBlock toolResult = CompleteMcpToolCall("call_m2", McpRawOutput(McpText("pong")));
+            Assert.IsTrue(toolResult.ResultContent.IsString);
+            Assert.AreEqual("pong", toolResult.ResultContent.AsString());
+        }
+
+        [Test]
+        public void RawOutputMcpResult_MultipleTextBlocks_JoinWithNewlines()
+        {
+            ContentBlock toolResult = CompleteMcpToolCall("call_m3", McpRawOutput(McpText("a"), McpText("b")));
+            Assert.AreEqual("a\nb", toolResult.ResultContent.AsString());
+        }
+
+        [Test]
+        public void RawOutputMcpResult_CapsImages_AndDropsOversizedPayloads()
+        {
+            var blocks = new List<JsonNode>();
+            blocks.Add(McpImage(new string('A', AcpProtocolBridge.MaxToolResultImageBase64Chars + 4)));
+            for (int i = 0; i < AcpProtocolBridge.MaxToolResultImages + 2; i++)
+            {
+                blocks.Add(McpImage(TinyPngBase64));
+            }
+            ContentBlock toolResult = CompleteMcpToolCall("call_m4", McpRawOutput(blocks.ToArray()));
+            JsonNode result = toolResult.ResultContent;
+            int images = 0;
+            foreach (JsonNode item in result.Items)
+            {
+                if (item["type"].AsString() == "image")
+                {
+                    images++;
+                    Assert.AreEqual(TinyPngBase64, item["source"]["data"].AsString(), "the oversized one is not carried");
+                }
+            }
+            Assert.AreEqual(AcpProtocolBridge.MaxToolResultImages, images);
+            Assert.AreEqual("[image]\n[image]\n[image]", result[0]["text"].AsString(),
+                "each dropped picture leaves the stand-in text");
+        }
+
+        [Test]
+        public void RawOutputImageCaps_MatchTheReaderThatDecodesThem()
+        {
+            Assert.AreEqual(Colloid.AgentPanel.Model.ToolResultImages.MaxImagesPerResult,
+                AcpProtocolBridge.MaxToolResultImages);
+            Assert.AreEqual(Colloid.AgentPanel.Model.ToolResultImages.MaxBase64Chars,
+                AcpProtocolBridge.MaxToolResultImageBase64Chars);
+        }
+
+        [Test]
+        public void RawOutput_OtherShapes_KeepTheStringifyFallback()
+        {
+            JsonNode other = JsonNode.NewObject().Set("stdout", "hi").Set("exit_code", 0);
+            ContentBlock toolResult = CompleteMcpToolCall("call_m5", other);
+            Assert.AreEqual(JsonWriter.Write(other), toolResult.ResultContent.AsString());
+        }
+
+        [Test]
+        public void RawOutput_String_IsUsedVerbatim()
+        {
+            ContentBlock toolResult = CompleteMcpToolCall("call_m6", JsonNode.Of("plain output"));
+            Assert.AreEqual("plain output", toolResult.ResultContent.AsString());
+        }
+
+        [Test]
+        public void RawOutputMcpResult_EmptyContent_FallsBackToStringify()
+        {
+            // {"result":{"content":[]},"error":...}: nothing to translate, so
+            // the whole object is still the most informative thing to show.
+            JsonNode raw = McpRawOutput();
+            raw.Set("error", "boom");
+            ContentBlock toolResult = CompleteMcpToolCall("call_m7", raw);
+            Assert.AreEqual(JsonWriter.Write(raw), toolResult.ResultContent.AsString());
+        }
+
+        [Test]
+        public void RawOutputMcpResult_IgnoredWhenContentAlreadyProducedOutput()
+        {
+            JsonNode content = JsonNode.NewArray().Add(JsonNode.NewObject().Set("type", "content")
+                .Set("content", McpText("from content")));
+            ContentBlock toolResult = CompleteMcpToolCall("call_m8",
+                McpRawOutput(McpText("from rawOutput"), McpImage(TinyPngBase64)), content);
+            Assert.AreEqual("from content", toolResult.ResultContent.AsString());
+        }
+
         [Test]
         public void ToolCallStillOpenAtTurnEnd_GetsSyntheticResultBeforeTheTurnResult()
         {
@@ -926,20 +1083,190 @@ namespace Colloid.AgentPanel.Tests
         }
 
         [Test]
-        public void MapToolName_UapInRawInputName_WinsOverKind()
+        public void MapToolName_UapInRawInputTool_WinsOverKind()
         {
-            JsonNode raw = JsonNode.NewObject().Set("name", "uap_property_set");
+            JsonNode raw = JsonNode.NewObject().Set("tool", "uap_property_set");
             Assert.AreEqual("mcp__unity-ops__uap_property_set", AcpProtocolBridge.MapToolName("execute", "MCP tool", raw));
         }
 
         [TestCase("uap_scene_create_object", "uap_scene_create_object")]
-        [TestCase("Call uap_prefab_apply_overrides now", "uap_prefab_apply_overrides")]
+        [TestCase("uap_scene_create_object (unity-ops MCP Server)", "uap_scene_create_object")]
+        [TestCase("unity-ops__uap_ping", "uap_ping")]
+        [TestCase("mcp__unity-ops__uap_ping", "uap_ping")]
+        [TestCase("mcp.unity-ops.uap_ping", "uap_ping")]
+        [TestCase("other-server__uap_ping", null)]
+        [TestCase("mcp.other.uap_ping", null)]
+        [TestCase("Call uap_prefab_apply_overrides now", null)]
+        [TestCase("Search tools: \"uap_ping\"", null)]
+        [TestCase("uap_ping;rm", null)]
         [TestCase("xuap_no", null)]
         [TestCase("uap_", null)]
         [TestCase("", null)]
-        public void ExtractUapToolName_FindsWholeIdentifiers(string text, string expected)
+        public void ParseUapToolId_AcceptsOnlyAToolIdInLeadingPosition(string text, string expected)
         {
-            Assert.AreEqual(expected, AcpProtocolBridge.ExtractUapToolName(text));
+            Assert.AreEqual(expected, AcpProtocolBridge.ParseUapToolId(text, true));
+        }
+
+        [Test]
+        public void ParseUapToolId_WholeValue_RejectsTrailingText()
+        {
+            Assert.AreEqual("uap_ping", AcpProtocolBridge.ParseUapToolId("unity-ops__uap_ping", false));
+            Assert.IsNull(AcpProtocolBridge.ParseUapToolId("uap_ping and more", false));
+        }
+
+        // A UapOps name auto-approves the call, so text that merely
+        // MENTIONS a tool id must never produce one (design note
+        // 2026-09-17-acp-tool-name-mapping.md).
+        [Test]
+        public void MapToolName_ShellCommandMentioningUapTool_StaysBash()
+        {
+            JsonNode raw = JsonNode.NewObject().Set("command", "uap_ping && rm -rf Assets");
+            Assert.AreEqual("Bash", AcpProtocolBridge.MapToolName("execute", "uap_ping && rm -rf Assets", raw));
+            Assert.AreEqual("Bash", AcpProtocolBridge.MapToolName("execute", "uap_ping && rm -rf Assets", null));
+            raw = JsonNode.NewObject().Set("command", "rm -rf Assets").Set("tool", "uap_ping");
+            Assert.AreEqual("Bash", AcpProtocolBridge.MapToolName("execute", "Run command", raw));
+        }
+
+        [Test]
+        public void MapToolName_UapToolOnAnotherServer_IsNotUnityOps()
+        {
+            JsonNode raw = JsonNode.NewObject().Set("server", "evil").Set("tool", "uap_ping");
+            Assert.AreEqual("mcp__evil__uap_ping", AcpProtocolBridge.MapToolName("execute", "mcp.evil.uap_ping", raw));
+        }
+
+        [TestCase("search_tool", "search_tool")]
+        [TestCase("X search:", "X search:")]
+        [TestCase("  Generate image \n second line", "Generate image")]
+        [TestCase("Write", null)]
+        [TestCase("AskUserQuestion", null)]
+        [TestCase("mcp__unity-ops__uap_ping", null)]
+        [TestCase("", null)]
+        public void AgentTitleAsToolName_RefusesClaudeToolNameShapes(string title, string expected)
+        {
+            Assert.AreEqual(expected, AcpProtocolBridge.AgentTitleAsToolName(title));
+        }
+
+        // -- real tool_call shapes: captured 2026-09-17 from Grok Build
+        //    1.0.34 (`grok agent stdio`) and codex-acp 1.12.0 / Codex
+        //    0.154.0 against a stub unity-ops MCP server; ids shortened.
+
+        private const string GrokUseToolMeta = "\"_meta\":{\"x.ai/tool\":{\"version\":1,\"name\":\"use_tool\","
+            + "\"kind\":\"use_tool\",\"namespace\":\"grok_build\",\"label\":\"Use Tool\",\"read_only\":false}}";
+
+        private const string GrokUseToolRawInput = "{\"variant\":\"UseTool\",\"tool_name\":\"unity-ops__uap_property_set\","
+            + "\"tool_input\":{\"target\":\"Crate\",\"property\":\"m_LocalScale.x\",\"value\":1.5}}";
+
+        private ControlRequestMessage SendPermissionRequest(string toolCallJson)
+        {
+            _bridge.OnAgentLine(AcpJsonRpc.Request(7, "session/request_permission", JsonNode.NewObject()
+                .Set("sessionId", "sess-1")
+                .Set("toolCall", JsonParser.Parse(toolCallJson))
+                .Set("options", JsonNode.NewArray()
+                    .Add(JsonNode.NewObject().Set("optionId", "always-allow").Set("name", "always allow").Set("kind", "allow_always"))
+                    .Add(JsonNode.NewObject().Set("optionId", "allow-once").Set("name", "allow once").Set("kind", "allow_once"))
+                    .Add(JsonNode.NewObject().Set("optionId", "reject-once").Set("name", "reject once").Set("kind", "reject_once")))));
+            List<StreamJsonMessage> messages = PanelMessages();
+            var request = messages[messages.Count - 1] as ControlRequestMessage;
+            Assert.IsNotNull(request);
+            return request;
+        }
+
+        [Test]
+        public void Grok_UseTool_MapsToUnityOpsWireName_FromTheFirstFrame()
+        {
+            CompleteHandshake();
+            SendUser("hello");
+            // Frame 1: no kind, the title is Grok's dispatcher, the tool id
+            // is only in rawInput.tool_name.
+            Notify("{\"sessionUpdate\":\"tool_call\",\"toolCallId\":\"call-3\",\"title\":\"use_tool\","
+                + "\"rawInput\":{\"tool_name\":\"unity-ops__uap_property_set\",\"tool_input\":"
+                + "{\"target\":\"Crate\",\"property\":\"m_LocalScale.x\",\"value\":1.5}}," + GrokUseToolMeta + "}");
+            ContentBlock announced = LastPanel<AssistantMessage>().Content[0];
+            Assert.AreEqual("mcp__unity-ops__uap_property_set", announced.Name);
+            Assert.AreEqual("Crate", announced.Input["target"].AsString(), "tool_input envelope unwrapped");
+            Assert.IsFalse(announced.Input.HasKey("tool_name"));
+
+            // Frame 2 and the permission request carry the `<server>__<tool>` title.
+            Notify("{\"sessionUpdate\":\"tool_call_update\",\"toolCallId\":\"call-3\",\"kind\":\"other\","
+                + "\"title\":\"unity-ops__uap_property_set\",\"locations\":[],\"rawInput\":" + GrokUseToolRawInput
+                + "," + GrokUseToolMeta + "}");
+            ControlRequestMessage request = SendPermissionRequest("{\"toolCallId\":\"call-3\",\"kind\":\"other\","
+                + "\"title\":\"unity-ops__uap_property_set\",\"rawInput\":" + GrokUseToolRawInput + "," + GrokUseToolMeta + "}");
+            Assert.AreEqual("mcp__unity-ops__uap_property_set", request.CanUseTool.ToolName);
+            Assert.AreEqual("mcp__unity-ops__uap_property_set", request.CanUseTool.DisplayName);
+            Assert.AreEqual("m_LocalScale.x", request.CanUseTool.Input["property"].AsString());
+        }
+
+        [Test]
+        public void Grok_PermissionRequestWithoutPriorToolCall_MapsFromTitle()
+        {
+            CompleteHandshake();
+            SendUser("hello");
+            ControlRequestMessage request = SendPermissionRequest("{\"toolCallId\":\"call-9\",\"kind\":\"other\","
+                + "\"title\":\"unity-ops__uap_ping\",\"rawInput\":{\"variant\":\"UseTool\","
+                + "\"tool_name\":\"unity-ops__uap_ping\",\"tool_input\":{}}," + GrokUseToolMeta + "}");
+            Assert.AreEqual("mcp__unity-ops__uap_ping", request.CanUseTool.ToolName);
+        }
+
+        [Test]
+        public void Grok_OwnTools_ShowTheirTitleInsteadOfTool()
+        {
+            CompleteHandshake();
+            SendUser("hello");
+            // search_tool looking FOR a UapOps tool: mentions the id, is not one.
+            Notify("{\"sessionUpdate\":\"tool_call\",\"toolCallId\":\"call-0\",\"title\":\"search_tool\","
+                + "\"rawInput\":{\"query\":\"uap_ping\",\"limit\":5},\"_meta\":{\"x.ai/tool\":{\"version\":1,"
+                + "\"name\":\"search_tool\",\"kind\":\"search_tool\",\"namespace\":\"grok_build\","
+                + "\"label\":\"Search Tools\",\"read_only\":false}}}");
+            Assert.AreEqual("search_tool", LastPanel<AssistantMessage>().Content[0].Name);
+
+            Notify("{\"sessionUpdate\":\"tool_call\",\"toolCallId\":\"ctc_4\",\"title\":\"X search:\",\"kind\":\"search\","
+                + "\"status\":\"in_progress\",\"rawInput\":{\"variant\":\"XSearch\",\"backend\":true},\"_meta\":{\"backend\":true}}");
+            Assert.AreEqual("Search", LastPanel<AssistantMessage>().Content[0].Name);
+
+            Notify("{\"sessionUpdate\":\"tool_call\",\"toolCallId\":\"call-5\",\"title\":\"run_terminal_command\","
+                + "\"rawInput\":{\"command\":\"echo uap_ping\",\"description\":\"Echo\"},\"_meta\":{\"x.ai/tool\":"
+                + "{\"version\":1,\"name\":\"run_terminal_command\",\"kind\":\"execute\",\"namespace\":\"grok_build\","
+                + "\"label\":\"Run Command\",\"read_only\":false}}}");
+            // No ACP kind on Grok's first frame: _meta's "execute" makes it
+            // Bash, so the command shows and the script gate sees it.
+            Assert.AreEqual("Bash", LastPanel<AssistantMessage>().Content[0].Name);
+        }
+
+        [Test]
+        public void Codex_McpToolCall_MapsToUnityOpsWireName_AndTitlelessPermissionKeepsIt()
+        {
+            CompleteHandshake();
+            SendUser("hello");
+            Notify("{\"sessionUpdate\":\"tool_call\",\"toolCallId\":\"exec-1\",\"kind\":\"execute\","
+                + "\"title\":\"mcp.unity-ops.uap_property_set\",\"status\":\"in_progress\",\"rawInput\":"
+                + "{\"server\":\"unity-ops\",\"tool\":\"uap_property_set\",\"arguments\":{\"target\":\"Crate\","
+                + "\"property\":\"m_LocalScale.x\",\"value\":1.5}},\"_meta\":{\"is_mcp_tool_call\":true}}");
+            ContentBlock announced = LastPanel<AssistantMessage>().Content[0];
+            Assert.AreEqual("mcp__unity-ops__uap_property_set", announced.Name);
+            Assert.AreEqual("Crate", announced.Input["target"].AsString(), "arguments envelope unwrapped");
+
+            // codex-acp's MCP approval request names neither title nor input.
+            ControlRequestMessage request = SendPermissionRequest(
+                "{\"toolCallId\":\"exec-1\",\"kind\":\"execute\",\"status\":\"pending\"}");
+            Assert.AreEqual("mcp__unity-ops__uap_property_set", request.CanUseTool.ToolName);
+            Assert.AreEqual("mcp__unity-ops__uap_property_set", request.CanUseTool.DisplayName);
+        }
+
+        [Test]
+        public void Codex_ExecCommand_StaysBash_AndAnotherMcpServerIsNotBash()
+        {
+            CompleteHandshake();
+            SendUser("hello");
+            Notify("{\"sessionUpdate\":\"tool_call\",\"toolCallId\":\"exec-2\",\"status\":\"in_progress\",\"kind\":\"execute\","
+                + "\"title\":\"echo hi > out.txt\",\"content\":[{\"type\":\"terminal\",\"terminalId\":\"exec-2\"}],"
+                + "\"rawInput\":{\"command\":\"echo hi > out.txt\",\"cwd\":\"C:\\\\work\"}}");
+            Assert.AreEqual("Bash", LastPanel<AssistantMessage>().Content[0].Name);
+
+            Notify("{\"sessionUpdate\":\"tool_call\",\"toolCallId\":\"exec-3\",\"kind\":\"execute\","
+                + "\"title\":\"mcp.blender.render\",\"status\":\"in_progress\",\"rawInput\":"
+                + "{\"server\":\"blender\",\"tool\":\"render\",\"arguments\":{}},\"_meta\":{\"is_mcp_tool_call\":true}}");
+            Assert.AreEqual("mcp__blender__render", LastPanel<AssistantMessage>().Content[0].Name);
         }
 
         [Test]

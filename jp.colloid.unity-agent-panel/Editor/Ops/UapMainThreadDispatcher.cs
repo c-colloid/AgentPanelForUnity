@@ -65,6 +65,24 @@ namespace Colloid.AgentPanel.Ops
         /// </summary>
         public UapJobLedger Jobs = UapJobLedger.Shared;
 
+        /// <summary>
+        /// Optional, set by the Integration layer (UapOpsServer): opens a
+        /// window around one tool tick in which Console errors raised on
+        /// the pumping thread belong to the TOOL CALL, not to the project
+        /// (design note 2026-09-17-tool-caused-console-errors.md). Paired
+        /// with <see cref="EndToolLogScope"/>, which closes the window and
+        /// returns what was captured; those lines are appended to the
+        /// tool's result so the agent still sees them. Hooks rather than a
+        /// direct ConsoleErrorProvider call: this class stays Unity-free.
+        /// </summary>
+        public Action BeginToolLogScope;
+
+        /// <summary>Closes the <see cref="BeginToolLogScope"/> window; returns the captured error lines (may be null/empty).</summary>
+        public Func<string[]> EndToolLogScope;
+
+        /// <summary>Heading of the block <see cref="AppendScopedErrors"/> adds to a result.</summary>
+        public const string ScopedErrorsHeading = "Unity Console errors logged during this call:";
+
         private long _lastPumpUtcTicks;
 
         /// <summary>
@@ -129,6 +147,8 @@ namespace Colloid.AgentPanel.Ops
             public JsonNode Result;
             public Exception Error;
             public readonly ManualResetEventSlim Done = new ManualResetEventSlim(false);
+            /// <summary>Console error lines captured across this item's ticks (null until the first one).</summary>
+            public List<string> ScopedErrors;
             /// <summary>Opaque per-invocation state for IUapPollableTool.Poll (see its doc comment). Unused for a plain IUapTool.</summary>
             public object PollState;
             /// <summary>
@@ -435,6 +455,7 @@ namespace Colloid.AgentPanel.Ops
             var pollable = item.Tool as IUapPollableTool;
             if (pollable == null)
             {
+                OpenToolLogScope();
                 try
                 {
                     item.Result = item.Tool.Execute(item.Input);
@@ -445,6 +466,11 @@ namespace Colloid.AgentPanel.Ops
                 }
                 finally
                 {
+                    CloseToolLogScope(item);
+                    if (item.Error == null)
+                    {
+                        item.Result = AppendScopedErrors(item.Result, item.ScopedErrors);
+                    }
                     if (item.Job != null)
                     {
                         item.Job.Complete(item.Result, item.Error);
@@ -456,12 +482,14 @@ namespace Colloid.AgentPanel.Ops
 
             JsonNode result;
             bool done;
+            OpenToolLogScope();
             try
             {
                 done = pollable.Poll(item.Input, ref item.PollState, out result);
             }
             catch (Exception ex)
             {
+                CloseToolLogScope(item);
                 item.Error = ex;
                 if (item.Job != null)
                 {
@@ -470,6 +498,7 @@ namespace Colloid.AgentPanel.Ops
                 item.Done.Set();
                 return;
             }
+            CloseToolLogScope(item);
             if (!done)
             {
                 lock (_lock)
@@ -478,12 +507,73 @@ namespace Colloid.AgentPanel.Ops
                 }
                 return;
             }
+            result = AppendScopedErrors(result, item.ScopedErrors);
             item.Result = result;
             if (item.Job != null)
             {
                 item.Job.Complete(result, null);
             }
             item.Done.Set();
+        }
+
+        private void OpenToolLogScope()
+        {
+            Action begin = BeginToolLogScope;
+            if (begin != null)
+            {
+                begin();
+            }
+        }
+
+        /// <summary>
+        /// Closes the log scope and keeps what it captured on the item: a
+        /// pollable tool spans several ticks, so its lines accumulate until
+        /// the tick that completes it.
+        /// </summary>
+        private void CloseToolLogScope(WorkItem item)
+        {
+            Func<string[]> end = EndToolLogScope;
+            if (end == null)
+            {
+                return;
+            }
+            string[] captured = end();
+            if (captured == null || captured.Length == 0)
+            {
+                return;
+            }
+            if (item.ScopedErrors == null)
+            {
+                item.ScopedErrors = new List<string>();
+            }
+            for (int i = 0; i < captured.Length && item.ScopedErrors.Count < MaxScopedErrorLines; i++)
+            {
+                item.ScopedErrors.Add(captured[i]);
+            }
+        }
+
+        /// <summary>Most Console error lines one result carries.</summary>
+        public const int MaxScopedErrorLines = 5;
+
+        /// <summary>
+        /// Adds one text block listing the Console errors the call raised,
+        /// so the agent learns about them from the result (they are kept
+        /// out of the panel's "ask the agent to fix" chip). A result that
+        /// is not a content array is returned untouched.
+        /// </summary>
+        internal static JsonNode AppendScopedErrors(JsonNode result, List<string> errors)
+        {
+            if (errors == null || errors.Count == 0 || result == null || !result.IsArray)
+            {
+                return result;
+            }
+            var text = new System.Text.StringBuilder(ScopedErrorsHeading);
+            for (int i = 0; i < errors.Count; i++)
+            {
+                text.Append("\n- ").Append(errors[i]);
+            }
+            result.Add(JsonNode.NewObject().Set("type", "text").Set("text", text.ToString()));
+            return result;
         }
     }
 }

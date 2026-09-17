@@ -405,6 +405,7 @@ namespace Colloid.AgentPanel.Tests
             // "File/Save" menu on an untitled scene and sat behind the
             // native Save Scene dialog for 288 s.
             StringAssert.Contains("uap_scene_save", section);
+            StringAssert.Contains("uap_scene_open", section);
         }
 
         [Test]

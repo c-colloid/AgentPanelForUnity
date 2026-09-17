@@ -44,7 +44,7 @@ namespace Colloid.AgentPanel.Ops
                         "Call uap_scene_save with 'path' instead (saveAsCopy:true keeps the open scene where it is).");
                 case "file/open scene":
                     return Refuse(menuPath, "it asks which scene file to open",
-                        "Ask the user to open the scene, or tell them which one you need.");
+                        "Call uap_scene_open with 'path' (\"Assets/.../Name.unity\"; find it with uap_asset_find) instead.");
                 case "file/build and run":
                     return Refuse(menuPath, "it asks for a build location",
                         "Ask the user to start the build, or use a build script with an explicit output path.");

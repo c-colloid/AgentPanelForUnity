@@ -142,6 +142,9 @@ namespace Colloid.AgentPanel.Ops
             // dialog on an untitled scene, 288 s of blocked Editor. Design
             // note docs/design-notes/2026-09-17-modal-menu-and-base64-scan.md.
             RegisterUnlessCovered(registry, new UapSceneSaveTool(), uloopDetected);
+            // The other refused File menu item ("File/Open Scene" asks for
+            // the file in the same kind of dialog); same note, section 1.6.
+            RegisterUnlessCovered(registry, new UapSceneOpenTool(), uloopDetected);
             RegisterUnlessCovered(registry, new UapComponentAddTool(), uloopDetected);
             RegisterUnlessCovered(registry, new UapComponentRemoveTool(), uloopDetected);
             RegisterUnlessCovered(registry, new UapPropertySetTool(), uloopDetected);

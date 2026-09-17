@@ -72,11 +72,15 @@ namespace Colloid.AgentPanel.Tests
 
         private const string MissingMenuPath = "Tools/UapOpsTests/DoesNotExist12345";
 
-        /// <summary>ExecuteMenuItem logs a Console Error for an unresolved path (production behavior); the runner fails on unexpected Errors, so whitelist it.</summary>
+        /// <summary>
+        /// Nothing to whitelist any more: the tool checks
+        /// Menu.MenuItemExists before ExecuteMenuItem, so Unity's
+        /// "ExecuteMenuItem failed because there is no menu named ..."
+        /// Error is never logged (2026-09-17-tool-caused-console-errors.md).
+        /// An Expect for it would now fail the test as an unmet expectation.
+        /// </summary>
         private static void ExpectMissingMenuError()
         {
-            LogAssert.Expect(LogType.Error,
-                "ExecuteMenuItem failed because there is no menu named '" + MissingMenuPath + "'");
         }
 
         [Test]

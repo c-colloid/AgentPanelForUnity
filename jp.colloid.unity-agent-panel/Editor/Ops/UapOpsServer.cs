@@ -121,6 +121,11 @@ namespace Colloid.AgentPanel.Ops
             }
             _dispatcher = new UapMainThreadDispatcher();
             _dispatcher.StallHintProvider = ReadStallHint;
+            // Console errors a tool call raises go back to the agent in the
+            // result instead of onto the user's "fix these errors" chip
+            // (design note 2026-09-17-tool-caused-console-errors.md).
+            _dispatcher.BeginToolLogScope = Colloid.AgentPanel.Integration.ConsoleErrorProvider.BeginToolScope;
+            _dispatcher.EndToolLogScope = Colloid.AgentPanel.Integration.ConsoleErrorProvider.EndToolScope;
             var handler = new UapOpsRequestHandler(Registry, () => _token,
                 () => _enabledModules, _dispatcher, null, ReadThrottleNotice);
             var server = new UapOpsHttpServer(handler, logger);

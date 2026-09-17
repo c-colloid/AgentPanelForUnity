@@ -4619,8 +4619,9 @@ namespace Colloid.AgentPanel.Integration
                       + " even while the Editor is blocked and returns the call's own result (uap_ping"
                       + " only tells you the Editor is free again). If it fails with \"was never"
                       + " started\", nothing ran; wait for uap_ping to answer, then issue it again.\n"
-                      + "Save scenes with uap_scene_save (an untitled scene needs 'path'), never with the"
-                      + " \"File/Save\" menu: a menu item that opens a native dialog blocks the Editor until"
+                      + "Save scenes with uap_scene_save (an untitled scene needs 'path') and open them with"
+                      + " uap_scene_open, never with the \"File/Save\" / \"File/Open Scene\" menus: a menu item"
+                      + " that opens a native dialog blocks the Editor until"
                       + " a person closes it, and uap_editor_execute_menu refuses the known ones.\n"
                       + "uap_asset_delete" + (enabledSet.Contains("prefab") ? " and uap_prefab_apply_overrides are" : " is")
                       + " destructive: a call without confirm:true is refused and only reports what would"

@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (nothing yet)
 
+## [0.55.1] - 2026-09-17
+
+### Fixed
+
+- **A Console error caused by the agent's own tool call no longer raises
+  the "ask the agent to fix these" chip.** Measured with Codex: it passed
+  `uap_editor_execute_menu` a menu path that does not exist
+  (`GameObject/Duplicate`); the tool answered `found:false` and the agent
+  worked around it, but Unity also logs an Error for that call, so the red
+  chip appeared, stayed for the rest of the session and was then offered
+  to the next agent as well ("Ask Grok to fix") although nothing was wrong
+  with the project. Errors logged on the main thread while a UapOps tool is
+  running are now attributed to that call: they are appended to the tool
+  result (`Unity Console errors logged during this call:`, at most 5
+  lines) so the agent still sees them, and they stay off the chip. Errors
+  from other threads, and anything the project logs again after the call,
+  reach the chip as before. `uap_editor_execute_menu` additionally checks
+  that the menu item exists before running it, so that particular Error is
+  no longer logged at all. Design note:
+  `docs/design-notes/2026-09-17-tool-caused-console-errors.md`.
+
 ## [0.55.0] - 2026-09-17
 
 ### Added
@@ -19,6 +40,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   without `path` is refused up front instead of reaching Unity, which
   would open the Save Scene dialog. There was no save tool before, so
   agents ran the `File/Save` menu instead -- see below.
+- **`uap_scene_open`: open a scene file without any dialog.** The
+  counterpart of `uap_scene_save` for the refused `File/Open Scene` menu
+  (whose refusal now points here). `mode:"single"` (default) replaces the
+  loaded scenes and is refused -- naming them -- while one has unsaved
+  changes, because the Editor API drops those without asking; save first,
+  pass `discardUnsaved:true`, or use `mode:"additive"`. Paths under
+  `Assets/` or `Packages/`; refused in Play Mode. Design note:
+  `docs/design-notes/2026-09-17-modal-menu-and-base64-scan.md` (1.6).
 
 ### Fixed
 
@@ -47,6 +76,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ... EditorUpdatePump.OnEditorUpdate"). The scan is now linear (same
   input: 1 ms) and finds the same paths. Design note:
   `docs/design-notes/2026-09-17-modal-menu-and-base64-scan.md`.
+
+## [0.54.8] - 2026-09-17
+
+### Fixed
+
+- **Codex: a picture returned by an MCP tool now shows in the tool card,
+  and its base64 no longer travels as result text.** codex-acp delivers an
+  MCP tool result only as `rawOutput` =
+  `{"result":{"content":[...]},"error":null}` with an empty `content`; the
+  ACP bridge stringified that whole object, so a
+  `uap_editor_screenshot(return_image)` result became a ~500 KB JSON
+  string and the screenshot appeared only when its file path happened to
+  resolve on disk. The bridge now translates the MCP blocks like regular
+  ACP content: text becomes the result text, image blocks become embedded
+  images (at most 4 per result, 8 MiB of base64 each; anything beyond
+  leaves an `[image]` stand-in). Any other `rawOutput` shape is shown as
+  before. Design note:
+  `docs/design-notes/2026-09-17-acp-mcp-rawoutput-images.md`.
+
+## [0.54.7] - 2026-09-17
+
+### Fixed
+
+- **Grok / Codex: UapOps tool calls are recognized again, so the
+  auto-approve level applies.** Grok Build calls MCP tools through its
+  own `use_tool` dispatcher and names them `unity-ops__uap_ping`; the
+  ACP bridge missed that shape (it fixes the name on the first frame,
+  whose title is `use_tool`, never read `rawInput.tool_name`, and
+  rejected a `uap_` preceded by `_`), mapped the call to "Tool", and a
+  permission card titled `unity-ops__uap_ping` appeared for every
+  `uap_*` call even at "All Unity operations". These calls now map to
+  `mcp__unity-ops__uap_*` like Claude's, the card reads
+  "unity-ops: uap_ping", and the tool's own arguments are shown instead
+  of the agent's `tool_input` / `arguments` envelope.
+- **A tool call that merely mentions a `uap_*` id is no longer treated
+  as that UapOps tool.** The bridge used to search the agent's free-text
+  title for `uap_<name>`; with Codex the title of a shell call is the
+  command line, so `uap_ping && <anything>` would have been
+  auto-approved as the read-only `uap_ping`. The id is now only read
+  from fields that hold a tool id (leading title token, or
+  `tool_name` / `tool` / `toolName` with the unity-ops server), never
+  for a shell call.
+- **Agent-specific tools show their own name instead of "Tool".** Grok's
+  tool search and other tools of ACP kind `other` (or none) are titled
+  with the agent's tool title; Grok's shell calls are recognized as Bash
+  from the first frame (command shown, script gate applies); a Codex
+  call to another MCP server shows as that MCP tool instead of "Bash".
+  Design note: `docs/design-notes/2026-09-17-acp-tool-name-mapping.md`.
 
 ## [0.54.6] - 2026-09-17
 
