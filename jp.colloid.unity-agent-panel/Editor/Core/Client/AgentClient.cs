@@ -548,6 +548,11 @@ namespace Colloid.AgentPanel.Core.Client
             {
                 Log("control_request timed out: " + expired[i].Kind
                     + " (" + expired[i].RequestId + ")");
+                // A request the CLI never answered resolves like a failed
+                // one, so subscribers (AgentHub's set_model note) can tell
+                // the user instead of leaving a switch silently unapplied
+                // (docs/design-notes/2026-09-17-model-switch-before-init.md).
+                Raise(ControlRequestResolved, expired[i].Kind, false, "timed out");
             }
 
             // Silence backstop suspension: while a can_use_tool prompt is

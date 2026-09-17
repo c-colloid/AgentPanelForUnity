@@ -411,5 +411,27 @@ namespace Colloid.AgentPanel.Tests
                 result.ModelUsage["claude-haiku-4-5-20251001"].CanonicalModel);
         }
 
+
+        // -- Held model switch on the chip (2026-09-17 model-switch-before-init note) --
+
+        [Test]
+        public void ResolveModelName_HeldSwitch_OutranksTheDefaultFallback()
+        {
+            string original = PanelStateStore.instance.Settings.model;
+            try
+            {
+                PanelStateStore.instance.Settings.model = "claude-opus-5";
+                Assert.AreEqual("fable-5-1",
+                    StatusBarView.ResolveModelName(null, "claude-fable-5-1"),
+                    "the model the user just picked shows while the handshake is pending");
+                Assert.AreEqual("opus-5", StatusBarView.ResolveModelName(null, null),
+                    "no held switch: the default fallback as before");
+                Assert.AreEqual("opus-5", StatusBarView.ResolveModelName(null, string.Empty));
+            }
+            finally
+            {
+                PanelStateStore.instance.Settings.model = original;
+            }
+        }
     }
 }

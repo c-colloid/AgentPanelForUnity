@@ -280,6 +280,27 @@ namespace Colloid.AgentPanel.UI
         }
 
         /// <summary>
+        /// Whether the details area is shown (the window host is always
+        /// expanded). Read by ChatView's resize refit
+        /// (PermissionCardLayout.ResolveInlineFit) so it acts only on a
+        /// card whose body is actually open.
+        /// </summary>
+        public bool IsExpanded
+        {
+            get { return IsExpandedEffective(); }
+        }
+
+        /// <summary>
+        /// Inline host: whether the request is currently shown in the
+        /// floating window (wait bar only here). Always false for the
+        /// window host.
+        /// </summary>
+        public bool IsShownInWindow
+        {
+            get { return _shownInWindow; }
+        }
+
+        /// <summary>
         /// Height cap for the expanded inline card, recomputed by the host
         /// from the chat root geometry (PermissionCardLayout). Non-positive
         /// clears the cap. The var(--uap-perm-card-min) USS floor outranks

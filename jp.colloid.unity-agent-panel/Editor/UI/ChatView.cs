@@ -50,9 +50,23 @@ namespace Colloid.AgentPanel.UI
         /// </summary>
         private static string s_autoWindowDecidedRequestId;
 
+        // Resize refit (docs/design-notes/2026-09-16-inline-card-refit-on-
+        // shrink.md): the request whose inline card THIS view collapsed
+        // because the panel became too small for the inline layout, so
+        // growing back past the threshold can re-expand it. Static for the
+        // same reason as the decision id above (UICODE-8): a ChatView
+        // rebuild mid-request must not forget that the collapse was ours.
+        // Cleared together with the decision id when nothing is pending.
+        private static string s_sizeCollapsedRequestId;
+
+        // Last "too small for the inline card" verdict from a real chat
+        // root size; the refit reacts to transitions of this flag only.
+        private bool _wasTooSmall;
+
         internal static void ResetAutoWindowDecisionForTests()
         {
             s_autoWindowDecidedRequestId = null;
+            s_sizeCollapsedRequestId = null;
         }
 
         internal static string AutoWindowDecidedRequestIdForTests
@@ -308,6 +322,7 @@ namespace Colloid.AgentPanel.UI
             if (hubPending == null)
             {
                 s_autoWindowDecidedRequestId = null;
+                s_sizeCollapsedRequestId = null;
             }
 
             var pending = chatVisible ? hubPending : null;
@@ -356,6 +371,14 @@ namespace Colloid.AgentPanel.UI
             bool tooSmall = PermissionCardLayout.ShouldOpenWindow(
                 _root.resolvedStyle.width, _root.resolvedStyle.height);
             _permissionCard.SetExpanded(!tooSmall);
+            if (tooSmall)
+            {
+                // Collapsed for the panel's size, not by the user's choice:
+                // let the resize refit expand it again once the panel is
+                // large enough (same bookkeeping as its own collapse).
+                var pending = AgentHub.PendingPermission;
+                s_sizeCollapsedRequestId = pending != null ? pending.RequestId : null;
+            }
             _dirty = true;
         }
 
@@ -363,6 +386,7 @@ namespace Colloid.AgentPanel.UI
         {
             _permissionCard.SetMaxCardHeight(
                 PermissionCardLayout.ComputeMaxCardHeight(evt.newRect.height));
+            RefitInlineCard(evt.newRect.width, evt.newRect.height);
             // A pending request whose inline-vs-window decision was DEFERRED
             // (geometry unknown at refresh time) gets its decision as soon
             // as the first real size arrives. Same condition as the decision
@@ -373,6 +397,52 @@ namespace Colloid.AgentPanel.UI
                     StringComparison.Ordinal))
             {
                 _dirty = true;
+            }
+        }
+
+        /// <summary>
+        /// The inline-vs-window decision is one-shot per request, so it
+        /// never revisits a card that was decided inline in a large panel
+        /// and is then dragged below the inline minimum: the expanded body
+        /// kept its usability floor (220px for a question) and, with no
+        /// outer scrollbar, pushed the composer and status bar out of the
+        /// window until the request was answered. Track the "too small"
+        /// verdict from every real chat root size and act on its
+        /// transitions (PermissionCardLayout.ResolveInlineFit): collapse
+        /// the expanded card on the way in, expand a card we collapsed on
+        /// the way out. A request shown in the floating window is left
+        /// alone (its inline stand-in is the slim wait bar already).
+        /// </summary>
+        private void RefitInlineCard(float width, float height)
+        {
+            if (!PermissionCardLayout.IsKnownGeometry(width, height))
+            {
+                // A collapsed host or the pre-layout NaN is not a size the
+                // user chose; deciding on it would collapse the card on a
+                // phantom shrink and expand it on a phantom grow.
+                return;
+            }
+            bool tooSmall = PermissionCardLayout.ShouldOpenWindow(width, height);
+            bool wasTooSmall = _wasTooSmall;
+            _wasTooSmall = tooSmall;
+            var pending = AgentHub.PendingPermission;
+            if (pending == null || _permissionCard.IsShownInWindow)
+            {
+                return;
+            }
+            bool collapsedBySize = string.Equals(pending.RequestId,
+                s_sizeCollapsedRequestId, StringComparison.Ordinal);
+            switch (PermissionCardLayout.ResolveInlineFit(
+                wasTooSmall, tooSmall, _permissionCard.IsExpanded, collapsedBySize))
+            {
+                case PermissionCardLayout.InlineFitAction.Collapse:
+                    s_sizeCollapsedRequestId = pending.RequestId;
+                    _permissionCard.SetExpanded(false);
+                    break;
+                case PermissionCardLayout.InlineFitAction.Expand:
+                    s_sizeCollapsedRequestId = null;
+                    _permissionCard.SetExpanded(true);
+                    break;
             }
         }
 

@@ -9,6 +9,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (nothing yet)
 
+## [0.54.6] - 2026-09-17
+
+### Fixed
+
+- **Switching the model right after "+" (or a reconnect) now applies to
+  that session.** In the seconds before the initialize handshake
+  answered, the header picker (and the narrow-panel chip) fell back to
+  the cached catalog menu, whose pick only wrote the next-session
+  default; the freshly spawned session kept its old model and the chip
+  briefly showed the new name before flipping back. A pick made while a
+  client is alive is now held and sent as `set_model` the moment the
+  handshake resolves; the chip shows the picked model meanwhile.
+- **Every model switch now confirms itself in the transcript.** A system
+  note says when a switch is waiting for the connection, when it
+  applied, and when it failed or timed out (the session then keeps its
+  previous model). A timed-out control request now resolves like a
+  failed one instead of vanishing. Design note:
+  `docs/design-notes/2026-09-17-model-switch-before-init.md`.
+
+## [0.54.5] - 2026-09-16
+
+### Fixed
+
+- **Shrinking the panel below the inline minimum no longer leaves an
+  expanded permission or question card pushing the composer out of the
+  window.** The inline-vs-window choice runs once when a request
+  arrives, so a card decided inline in a large panel kept its expanded
+  body and its 220px question floor after the panel was dragged below
+  380px tall or 300px wide; with no outer scrollbar the composer and
+  status bar were pushed off-screen until the request was answered. The
+  chat view now collapses the card to its summary row when the panel
+  becomes too small (the same answer "Show here" already gave there) and
+  re-expands it when the panel grows back, without overriding a card the
+  user opened or closed themselves. Design note:
+  `docs/design-notes/2026-09-16-inline-card-refit-on-shrink.md`.
+
 ## [0.54.4] - 2026-09-16
 
 ### Fixed

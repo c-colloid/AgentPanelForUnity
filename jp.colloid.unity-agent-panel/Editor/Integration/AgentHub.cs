@@ -1860,6 +1860,23 @@ namespace Colloid.AgentPanel.Integration
         }
 
         /// <summary>
+        /// Test-only, opt-in like WireStateChangedForTests: subscribes
+        /// AgentHub's control_request resolution handler (the set_model
+        /// notes and the held pre-handshake switch) to a test client.
+        /// </summary>
+        internal static void WireControlRequestResolvedForTests(AgentClient client)
+        {
+            client.ControlRequestResolved += OnControlRequestResolved;
+        }
+
+        /// <summary>Test-only: clears the held pre-handshake switch.</summary>
+        internal static void ResetPendingSessionModelForTests()
+        {
+            _pendingSessionModel = null;
+            _requestedSessionModel = null;
+        }
+
+        /// <summary>
         /// Test-only: assigns AgentHub's private static
         /// <see cref="_loginSession"/> seam directly, without going through
         /// BeginLogin (which resolves a REAL cli path and would spawn an
@@ -2336,6 +2353,41 @@ namespace Colloid.AgentPanel.Integration
             {
                 return;
             }
+            if (_client.InitializeResponse == null)
+            {
+                // Spawned but the initialize handshake has not answered
+                // yet (the seconds after "+" or a reconnect). A set_model
+                // written now races the handshake and was observed to be
+                // dropped without a response, so the switch silently never
+                // happened. Hold it and send it the moment the handshake
+                // resolves (OnControlRequestResolved); the transcript says
+                // so, since the header cannot show a model the CLI has
+                // not confirmed (docs/design-notes/2026-09-17-model-
+                // switch-before-init.md).
+                _pendingSessionModel = model;
+                AppendSystemNote(L10n.F(L10n.S.HubModelSwitchQueuedNoteFmt, model), false);
+                RaiseChanged();
+                return;
+            }
+            SendSessionModel(model);
+        }
+
+        /// <summary>
+        /// The model a SwitchSessionModel call is holding until the
+        /// initialize handshake answers; null otherwise. The header and
+        /// status bar show it in place of the not-yet-switched live model.
+        /// </summary>
+        public static string PendingSessionModel
+        {
+            get { return _pendingSessionModel; }
+        }
+
+        private static string _pendingSessionModel;
+        private static string _requestedSessionModel;
+
+        private static void SendSessionModel(string model)
+        {
+            _requestedSessionModel = model;
             _client.SetModel(model);
             _lastModelUsage = new Dictionary<string, ModelUsage>();
             _lastContextTokens = -1;
@@ -4670,6 +4722,10 @@ namespace Colloid.AgentPanel.Integration
             // can change between spawns).
             _scriptGateInertWarned = false;
             _apiKeyAuthNoted = false;
+            // A switch held for a handshake this client will never finish
+            // dies with the client; the next spawn reads the settings.
+            _pendingSessionModel = null;
+            _requestedSessionModel = null;
             AcpAuthMethodId = null;
             AcpAuthMethodName = null;
             _acpAuthMethodIdInFlight = null;
@@ -5921,7 +5977,31 @@ namespace Colloid.AgentPanel.Integration
         {
             if (string.Equals(kind, "set_model", StringComparison.Ordinal))
             {
+                // The user had no confirmation either way (2026-09-17 note):
+                // the chip only repaints on success, and a failure or a
+                // timeout left the old model in place with nothing said.
+                string requested = _requestedSessionModel;
+                _requestedSessionModel = null;
+                if (!string.IsNullOrEmpty(requested))
+                {
+                    if (success)
+                    {
+                        AppendSystemNote(L10n.F(L10n.S.HubModelSwitchedNoteFmt, requested), false);
+                    }
+                    else
+                    {
+                        AppendSystemNote(L10n.F(L10n.S.HubModelSwitchFailedNoteFmt, requested,
+                            string.IsNullOrEmpty(error) ? "unknown error" : error), true);
+                    }
+                }
                 RaiseChanged();
+            }
+            if (success && string.Equals(kind, "initialize", StringComparison.Ordinal)
+                && _pendingSessionModel != null && _client != null)
+            {
+                string pending = _pendingSessionModel;
+                _pendingSessionModel = null;
+                SendSessionModel(pending);
             }
             if (success && string.Equals(kind, "initialize", StringComparison.Ordinal))
             {

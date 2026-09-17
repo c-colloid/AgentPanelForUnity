@@ -1499,5 +1499,47 @@ namespace Colloid.AgentPanel.Tests
                 PermissionCard.ResolveDenyMessage("  ", "  "));
         }
 
+
+        // -- Host-readable state (resize refit, 2026-09-16 note) -------------------
+
+        [Test]
+        public void IsExpanded_MirrorsSetExpanded_ForTheInlineHost()
+        {
+            PermissionCard card = BuildCard(ThreeSingleSelectQuestions("r-fit-1"));
+            Assert.IsTrue(card.IsExpanded, "a question card starts expanded");
+
+            card.SetExpanded(false);
+            Assert.IsFalse(card.IsExpanded);
+            Assert.IsFalse(card.Root.ClassListContains("uap-perm--question"),
+                "the size-driven collapse must drop the question floor with the body");
+
+            card.SetExpanded(true);
+            Assert.IsTrue(card.IsExpanded);
+            Assert.IsTrue(card.Root.ClassListContains("uap-perm--question"));
+        }
+
+        [Test]
+        public void IsExpanded_IsAlwaysTrue_ForTheWindowHost()
+        {
+            PermissionCard card = BuildWindowCard(BuildToolRequest("r-fit-2"));
+            Assert.IsTrue(card.IsExpanded);
+            card.SetExpanded(false);
+            Assert.IsTrue(card.IsExpanded, "the floating window never collapses");
+        }
+
+        [Test]
+        public void IsShownInWindow_MirrorsSetShownInWindow_InlineOnly()
+        {
+            PermissionCard inline = BuildCard(BuildToolRequest("r-fit-3"));
+            Assert.IsFalse(inline.IsShownInWindow);
+            inline.SetShownInWindow(true);
+            Assert.IsTrue(inline.IsShownInWindow);
+            inline.SetShownInWindow(false);
+            Assert.IsFalse(inline.IsShownInWindow);
+
+            PermissionCard window = BuildWindowCard(BuildToolRequest("r-fit-4"));
+            window.SetShownInWindow(true);
+            Assert.IsFalse(window.IsShownInWindow, "no-op for the window host");
+        }
     }
 }

@@ -215,7 +215,7 @@ namespace Colloid.AgentPanel.UI
                 ElapsedMsSince(AgentHub.StartingSinceUtcTicks), SlowConnectThresholdMs);
             _slowReconnect.style.display = slow ? DisplayStyle.Flex : DisplayStyle.None;
 
-            _model.text = ResolveModelName(client);
+            _model.text = ResolveModelName(client, AgentHub.PendingSessionModel);
             _usage.text = FormatUsage(session, PanelStateStore.instance.Settings.showCostUsd,
                 AgentHub.InFlightTurnTokens);
             RefreshContextMeter(client);
@@ -345,7 +345,21 @@ namespace Colloid.AgentPanel.UI
         /// </summary>
         internal static string ResolveModelName(AgentClient client)
         {
-            string model = client != null ? client.CurrentModel : null;
+            return ResolveModelName(client, null);
+        }
+
+        /// <summary>
+        /// As above, with the switch AgentHub is holding until the
+        /// initialize handshake answers (AgentHub.PendingSessionModel):
+        /// it outranks the live model, which is the one being replaced,
+        /// so the chip shows what the user just picked instead of
+        /// flipping back to the old name until the switch lands.
+        /// </summary>
+        internal static string ResolveModelName(AgentClient client, string pendingSessionModel)
+        {
+            string model = !string.IsNullOrEmpty(pendingSessionModel)
+                ? pendingSessionModel
+                : (client != null ? client.CurrentModel : null);
             if (string.IsNullOrEmpty(model))
             {
                 model = PanelStateStore.instance.Settings.model;

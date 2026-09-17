@@ -914,7 +914,10 @@ namespace Colloid.AgentPanel.UI
                 firstRunAcpLoginTitleFmt: "{0} にサインイン",
                 firstRunAcpLoginLeadFmt: "{0} はインストールされていますが、サインインしていないと報告しました。「サインイン」を押すとパネル内で `{1}` を実行します。設定のアカウントカードにブラウザ用のリンクが表示され、コマンドが終了するとパネルが自動で再接続します。",
                 firstRunAcpLoginAltBody: "ターミナルで次のコマンドを実行し、終わったらここで「もう一度確認」を押してください。",
-                settingsSubagentModelAcpTooltip: "ACP エージェントには Claude Code の CLAUDE_CODE_SUBAGENT_MODEL や .claude/agents に相当するものが無いため、強制固定のモデルとタイプ別設定は新しいセッションの最初のプロンプトに前置する定常指示に含めて送ります。エージェントがサブエージェントのモデルを選べる場合にそれに従い、サブエージェントを持たないエージェントは無視します。変更は次の新しいセッションから反映されます。");
+                settingsSubagentModelAcpTooltip: "ACP エージェントには Claude Code の CLAUDE_CODE_SUBAGENT_MODEL や .claude/agents に相当するものが無いため、強制固定のモデルとタイプ別設定は新しいセッションの最初のプロンプトに前置する定常指示に含めて送ります。エージェントがサブエージェントのモデルを選べる場合にそれに従い、サブエージェントを持たないエージェントは無視します。変更は次の新しいセッションから反映されます。",
+                hubModelSwitchQueuedNoteFmt: "モデル {0} への切り替えは接続の完了を待っています。エージェントが応答し次第、適用します。",
+                hubModelSwitchedNoteFmt: "このセッションのモデルを {0} に切り替えました。",
+                hubModelSwitchFailedNoteFmt: "モデル {0} への切り替えに失敗しました({1})。セッションは以前のモデルのままです。もう一度選ぶか、既定モデルにして新規セッションを開始してください。");
         }
     }
 }

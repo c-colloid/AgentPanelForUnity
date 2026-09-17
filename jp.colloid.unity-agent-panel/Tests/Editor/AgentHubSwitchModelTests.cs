@@ -1,4 +1,5 @@
 using Colloid.AgentPanel.Core.Client;
+using Colloid.AgentPanel.Core.Json;
 using Colloid.AgentPanel.Integration;
 using Colloid.AgentPanel.Model;
 using NUnit.Framework;
@@ -47,6 +48,80 @@ namespace Colloid.AgentPanel.Tests
             PanelStateStore.instance.Settings.model = _originalModel;
             PanelStateStore.instance.SaveNow();
             AgentHub.SetClientForTests(null);
+            AgentHub.ResetPendingSessionModelForTests();
+        }
+
+        // -- Helpers (2026-09-17 note: the handshake gate) -----------------------
+
+        private static void PumpAll(AgentClient client)
+        {
+            while (client.Pump(50, 50.0) > 0)
+            {
+            }
+        }
+
+        private static string FixtureLine(string fixture, params string[] substrings)
+        {
+            foreach (string line in FixtureLoader.ReadLines(fixture))
+            {
+                bool all = true;
+                foreach (string s in substrings)
+                {
+                    if (line.IndexOf(s, System.StringComparison.Ordinal) < 0)
+                    {
+                        all = false;
+                        break;
+                    }
+                }
+                if (all)
+                {
+                    return line;
+                }
+            }
+            Assert.Fail("No line in " + fixture + " contains: " + string.Join(" + ", substrings));
+            return null;
+        }
+
+        /// <summary>Feeds the captured initialize control_response (models[] list) so InitializeResponse is set.</summary>
+        private static void CompleteHandshake(FakeCliProcess fake, AgentClient client)
+        {
+            fake.ScriptLine(FixtureLine("out_bidi.jsonl", "\"request_id\":\"req_1\""));
+            PumpAll(client);
+            Assert.IsNotNull(client.InitializeResponse, "fixture must resolve the initialize request");
+        }
+
+        private static int CountSetModelLines(FakeCliProcess fake, string model)
+        {
+            int n = 0;
+            foreach (string line in fake.WrittenLines)
+            {
+                if (line.Contains("\"set_model\"") && line.Contains("\"" + model + "\""))
+                {
+                    n++;
+                }
+            }
+            return n;
+        }
+
+        private static string LastRequestId(FakeCliProcess fake)
+        {
+            return JsonParser.Parse(fake.WrittenLines[fake.WrittenLines.Count - 1])["request_id"].AsString();
+        }
+
+        private static ChatMessageBlock LastSystemNote()
+        {
+            var messages = AgentHub.Session.messages;
+            for (int i = messages.Count - 1; i >= 0; i--)
+            {
+                for (int b = messages[i].blocks.Count - 1; b >= 0; b--)
+                {
+                    if (messages[i].blocks[b].kind == ChatBlockKind.SystemNote)
+                    {
+                        return messages[i].blocks[b];
+                    }
+                }
+            }
+            return null;
         }
 
         [Test]
@@ -148,6 +223,10 @@ namespace Colloid.AgentPanel.Tests
                     CliPath = "C:/fake/claude.exe",
                     WorkingDirectory = "C:/fake/project"
                 });
+                // 2026-09-17: the live branch only writes once the
+                // initialize handshake has answered (see the held-switch
+                // tests below); complete it first.
+                CompleteHandshake(fake, client);
                 AgentHub.SetClientForTests(client);
 
                 AgentHub.SwitchSessionModel("haiku");
@@ -171,6 +250,114 @@ namespace Colloid.AgentPanel.Tests
                     "Even when a live switch actually happens, "
                     + "PanelSettings.model (the default for NEW sessions) "
                     + "must stay untouched -- that is SetDefaultModel's sole job.");
+            }
+        }
+
+        // ------------------------------------------------------------------
+        // docs/design-notes/2026-09-17-model-switch-before-init.md: a pick
+        // made in the seconds after "+" (or a reconnect), before the
+        // initialize handshake answers, used to race the handshake and be
+        // dropped without a trace. It is now held and sent when the
+        // handshake resolves, and every outcome writes a transcript note.
+        // ------------------------------------------------------------------
+
+        [Test]
+        public void SwitchSessionModel_BeforeHandshake_IsHeld_AndSentWhenInitializeResolves()
+        {
+            AgentHub.ResetForTests();
+            var fake = new FakeCliProcess();
+            using (var client = new AgentClient(fake))
+            {
+                client.Start(new AgentClientOptions
+                {
+                    CliPath = "C:/fake/claude.exe",
+                    WorkingDirectory = "C:/fake/project"
+                });
+                AgentHub.SetClientForTests(client);
+                AgentHub.WireControlRequestResolvedForTests(client);
+
+                AgentHub.SwitchSessionModel("fable");
+
+                Assert.AreEqual(0, CountSetModelLines(fake, "fable"),
+                    "nothing may be written before the handshake answers");
+                Assert.AreEqual("fable", AgentHub.PendingSessionModel);
+                ChatMessageBlock queued = LastSystemNote();
+                Assert.IsNotNull(queued, "the hold is announced in the transcript");
+                StringAssert.Contains("fable", queued.text);
+
+                CompleteHandshake(fake, client);
+
+                Assert.AreEqual(1, CountSetModelLines(fake, "fable"),
+                    "the held switch is sent exactly once when initialize resolves");
+                Assert.IsNull(AgentHub.PendingSessionModel);
+
+                string requestId = LastRequestId(fake);
+                fake.ScriptLine("{\"type\":\"control_response\",\"response\":"
+                    + "{\"subtype\":\"success\",\"request_id\":\"" + requestId + "\","
+                    + "\"response\":{}}}");
+                PumpAll(client);
+
+                ChatMessageBlock done = LastSystemNote();
+                Assert.IsNotNull(done);
+                Assert.AreNotSame(queued, done, "success writes its own confirmation note");
+                StringAssert.Contains("fable", done.text);
+                Assert.IsFalse(done.warning, "a successful switch is not a warning");
+            }
+        }
+
+        [Test]
+        public void SetModelFailure_AppendsAWarningNote_AndKeepsTheOldModel()
+        {
+            AgentHub.ResetForTests();
+            var fake = new FakeCliProcess();
+            using (var client = new AgentClient(fake))
+            {
+                client.Start(new AgentClientOptions
+                {
+                    CliPath = "C:/fake/claude.exe",
+                    WorkingDirectory = "C:/fake/project"
+                });
+                CompleteHandshake(fake, client);
+                AgentHub.SetClientForTests(client);
+                AgentHub.WireControlRequestResolvedForTests(client);
+                string before = client.CurrentModel;
+
+                AgentHub.SwitchSessionModel("haiku");
+                string requestId = LastRequestId(fake);
+                fake.ScriptLine("{\"type\":\"control_response\",\"response\":"
+                    + "{\"subtype\":\"error\",\"request_id\":\"" + requestId + "\","
+                    + "\"error\":\"model not available\"}}");
+                PumpAll(client);
+
+                ChatMessageBlock note = LastSystemNote();
+                Assert.IsNotNull(note, "a failed switch must say so in the transcript");
+                Assert.IsTrue(note.warning);
+                StringAssert.Contains("haiku", note.text);
+                StringAssert.Contains("model not available", note.text);
+                Assert.AreEqual(before, client.CurrentModel);
+            }
+        }
+
+        [Test]
+        public void HeldSwitch_DiesWithTheClient()
+        {
+            AgentHub.ResetForTests();
+            var fake = new FakeCliProcess();
+            using (var client = new AgentClient(fake))
+            {
+                client.Start(new AgentClientOptions
+                {
+                    CliPath = "C:/fake/claude.exe",
+                    WorkingDirectory = "C:/fake/project"
+                });
+                AgentHub.SetClientForTests(client);
+                AgentHub.SwitchSessionModel("fable");
+                Assert.AreEqual("fable", AgentHub.PendingSessionModel);
+
+                AgentHub.TearDownClientForTests();
+
+                Assert.IsNull(AgentHub.PendingSessionModel,
+                    "a switch held for a handshake that will never finish must not leak into the next spawn");
             }
         }
     }

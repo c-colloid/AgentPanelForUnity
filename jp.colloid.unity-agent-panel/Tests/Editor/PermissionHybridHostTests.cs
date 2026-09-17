@@ -336,5 +336,89 @@ namespace Colloid.AgentPanel.Tests
             ChatView.ResetAutoWindowDecisionForTests();
             Assert.IsNull(ChatView.AutoWindowDecidedRequestIdForTests);
         }
+
+        // ------------------------------------------------------------------
+        // Resize refit (docs/design-notes/2026-09-16-inline-card-refit-on-
+        // shrink.md): the one-shot decision above never revisits a card
+        // decided inline in a large panel, so ChatView reacts to the
+        // "too small" TRANSITIONS of the chat root size instead. Pure
+        // function; every branch pinned.
+        // ------------------------------------------------------------------
+
+        [Test]
+        public void ResolveInlineFit_EnteringTooSmall_CollapsesAnExpandedCard()
+        {
+            Assert.AreEqual(PermissionCardLayout.InlineFitAction.Collapse,
+                PermissionCardLayout.ResolveInlineFit(
+                    wasTooSmall: false, tooSmall: true, expanded: true, collapsedBySize: false));
+        }
+
+        [Test]
+        public void ResolveInlineFit_EnteringTooSmall_LeavesACollapsedCardAlone()
+        {
+            // A tool card starts collapsed; nothing to fold.
+            Assert.AreEqual(PermissionCardLayout.InlineFitAction.None,
+                PermissionCardLayout.ResolveInlineFit(
+                    wasTooSmall: false, tooSmall: true, expanded: false, collapsedBySize: false));
+        }
+
+        [Test]
+        public void ResolveInlineFit_StayingTooSmall_NeverTouchesTheCard()
+        {
+            // The user re-expanded by the chevron while small: every
+            // further resize frame is still "too small" and must respect
+            // that choice (no transition, no action).
+            Assert.AreEqual(PermissionCardLayout.InlineFitAction.None,
+                PermissionCardLayout.ResolveInlineFit(
+                    wasTooSmall: true, tooSmall: true, expanded: true, collapsedBySize: true));
+            Assert.AreEqual(PermissionCardLayout.InlineFitAction.None,
+                PermissionCardLayout.ResolveInlineFit(
+                    wasTooSmall: true, tooSmall: true, expanded: false, collapsedBySize: true));
+        }
+
+        [Test]
+        public void ResolveInlineFit_LeavingTooSmall_ReExpandsOnlyWhatItCollapsed()
+        {
+            Assert.AreEqual(PermissionCardLayout.InlineFitAction.Expand,
+                PermissionCardLayout.ResolveInlineFit(
+                    wasTooSmall: true, tooSmall: false, expanded: false, collapsedBySize: true));
+            // Collapsed by the user (or a tool card's default): growth
+            // must not open a body they never asked for.
+            Assert.AreEqual(PermissionCardLayout.InlineFitAction.None,
+                PermissionCardLayout.ResolveInlineFit(
+                    wasTooSmall: true, tooSmall: false, expanded: false, collapsedBySize: false));
+            // Already expanded again by the user: nothing to do.
+            Assert.AreEqual(PermissionCardLayout.InlineFitAction.None,
+                PermissionCardLayout.ResolveInlineFit(
+                    wasTooSmall: true, tooSmall: false, expanded: true, collapsedBySize: true));
+        }
+
+        [Test]
+        public void ResolveInlineFit_StayingLarge_NeverTouchesTheCard()
+        {
+            Assert.AreEqual(PermissionCardLayout.InlineFitAction.None,
+                PermissionCardLayout.ResolveInlineFit(
+                    wasTooSmall: false, tooSmall: false, expanded: true, collapsedBySize: false));
+            Assert.AreEqual(PermissionCardLayout.InlineFitAction.None,
+                PermissionCardLayout.ResolveInlineFit(
+                    wasTooSmall: false, tooSmall: false, expanded: false, collapsedBySize: true));
+        }
+
+        [Test]
+        public void SourceScan_SizeCollapsedRequestId_IsStaticAcrossChatViewRebuilds()
+        {
+            // Same rebuild hazard as the decision id (UICODE-8): a language
+            // switch swaps in a new ChatView while the request is still
+            // pending; an instance field would forget that the collapse
+            // was the panel size's doing and never re-expand on growth.
+            string text = System.IO.File.ReadAllText(System.IO.Path.GetFullPath(
+                "Packages/jp.colloid.unity-agent-panel/Editor/UI/ChatView.cs"));
+            StringAssert.Contains("private static string s_sizeCollapsedRequestId", text);
+            Assert.IsFalse(text.Contains("private string _sizeCollapsedRequestId"),
+                "the instance-field variant must not come back");
+            StringAssert.Contains("RefitInlineCard(evt.newRect.width, evt.newRect.height)", text,
+                "the refit must run from the chat root's GeometryChangedEvent, "
+                + "the only place a resize is observed");
+        }
     }
 }

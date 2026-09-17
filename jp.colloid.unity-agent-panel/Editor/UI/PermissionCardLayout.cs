@@ -73,5 +73,56 @@ namespace Colloid.AgentPanel.UI
             }
             return panelContentHeight * CardHeightFraction;
         }
+
+        /// <summary>
+        /// What ChatView does to an INLINE card when the chat root is
+        /// resized (docs/design-notes/2026-09-16-inline-card-refit-on-
+        /// shrink.md).
+        /// </summary>
+        public enum InlineFitAction
+        {
+            /// <summary>Leave the card as it is.</summary>
+            None,
+            /// <summary>Collapse the expanded card to its summary row.</summary>
+            Collapse,
+            /// <summary>Re-expand a card this policy collapsed earlier.</summary>
+            Expand,
+        }
+
+        /// <summary>
+        /// Pure decision: the inline-vs-window choice runs ONCE per request
+        /// (ChatView, when the request arrives), so a card that was decided
+        /// inline in a large panel used to keep its expanded body -- and
+        /// the 96px / 220px usability floors -- after the panel was dragged
+        /// below the inline minimum. The floors plus the transcript and
+        /// composer minimums no longer fit, there is no outer scrollbar,
+        /// and the composer and status bar were pushed out of the window.
+        ///
+        /// This reacts to the TRANSITION only, in both directions:
+        /// - Entering "too small" (<see cref="ShouldOpenWindow"/> flips to
+        ///   true) with the body expanded: collapse to the summary row, the
+        ///   same answer "[Show here]" already gives in a panel that small.
+        /// - Leaving "too small" with a card that THIS policy collapsed
+        ///   (<paramref name="collapsedBySize"/>) and that is still
+        ///   collapsed: expand it again, so a momentary shrink costs the
+        ///   user nothing.
+        /// Anything the user did in between is respected: a card they
+        /// re-expanded by the chevron while small stays expanded on the
+        /// next resize frame (no transition), and a card they collapsed
+        /// themselves is not re-expanded on growth (not collapsedBySize).
+        /// </summary>
+        public static InlineFitAction ResolveInlineFit(
+            bool wasTooSmall, bool tooSmall, bool expanded, bool collapsedBySize)
+        {
+            if (tooSmall == wasTooSmall)
+            {
+                return InlineFitAction.None;
+            }
+            if (tooSmall)
+            {
+                return expanded ? InlineFitAction.Collapse : InlineFitAction.None;
+            }
+            return !expanded && collapsedBySize ? InlineFitAction.Expand : InlineFitAction.None;
+        }
     }
 }

@@ -244,7 +244,7 @@ namespace Colloid.AgentPanel.UI
 
         private void RefreshModelPicker(AgentClient client)
         {
-            string label = StatusBarView.ResolveModelName(client);
+            string label = StatusBarView.ResolveModelName(client, AgentHub.PendingSessionModel);
             if (_modelPicker.text != label)
             {
                 _modelPicker.text = label;
@@ -443,7 +443,19 @@ namespace Colloid.AgentPanel.UI
         /// </summary>
         private void ShowCachedCatalogMenu(List<ModelCatalogEntry> catalog, VisualElement anchor)
         {
-            string currentSettingsValue = PanelStateStore.instance.Settings.model;
+            // 2026-09-17 note: this menu also serves the seconds between a
+            // spawn ("+", reconnect) and the initialize handshake, when the
+            // live options are not known yet. The user pressed the SESSION
+            // picker, so with a live client the pick goes to the session
+            // (held until the handshake answers), not to the next-spawn
+            // default -- which used to be silently written instead, and the
+            // running session kept its old model.
+            AgentClient client = AgentHub.Client;
+            bool targetsSession = ResolveCachedMenuTargetsSession(
+                client != null, client != null ? client.State : AgentClientState.NotStarted);
+            string currentSettingsValue = targetsSession && !string.IsNullOrEmpty(AgentHub.PendingSessionModel)
+                ? AgentHub.PendingSessionModel
+                : PanelStateStore.instance.Settings.model;
             var menu = new GenericMenu();
             for (int i = 0; i < catalog.Count; i++)
             {
@@ -465,10 +477,32 @@ namespace Colloid.AgentPanel.UI
                 string value = entry.value;
                 menu.AddItem(new GUIContent(label), isCurrent, delegate
                 {
-                    AgentHub.SetDefaultModel(value);
+                    if (targetsSession)
+                    {
+                        AgentHub.SwitchSessionModel(value);
+                    }
+                    else
+                    {
+                        AgentHub.SetDefaultModel(value);
+                    }
                 });
             }
             menu.DropDown(anchor.worldBound);
+        }
+
+        /// <summary>
+        /// Pure decision for the cached-catalog menu: a pick targets the
+        /// running SESSION whenever a client exists that can still accept
+        /// a live switch (spawned and not dead: every state but NotStarted
+        /// and Errored, the same two SwitchSessionModel bails on); with no
+        /// such client there is no session to switch and the pick sets the
+        /// next-spawn default, as before.
+        /// </summary>
+        internal static bool ResolveCachedMenuTargetsSession(bool hasClient, AgentClientState state)
+        {
+            return hasClient
+                && state != AgentClientState.NotStarted
+                && state != AgentClientState.Errored;
         }
 
         /// <summary>

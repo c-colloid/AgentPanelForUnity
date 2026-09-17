@@ -1960,6 +1960,18 @@ namespace Colloid.AgentPanel.UI
         /// {0} = apiKeySource. Mirrors SettingsAccountApiKeyAuthNoteFmt for
         /// whoever is only watching the chat.
         /// </summary>
+        /// <summary>{0} = requested model value. The header picker was used before the initialize handshake answered; the switch is held until it does.</summary>
+        public readonly string HubModelSwitchQueuedNoteFmt =
+            "Model switch to {0} is waiting for the connection to finish; it is applied as soon as the agent answers.";
+
+        /// <summary>{0} = requested model value. Confirmation of a live set_model.</summary>
+        public readonly string HubModelSwitchedNoteFmt =
+            "Model switched to {0} for this session.";
+
+        /// <summary>{0} = requested model value, {1} = CLI error text (or "timed out"). The live switch did not happen; the previous model stays.</summary>
+        public readonly string HubModelSwitchFailedNoteFmt =
+            "Model switch to {0} failed ({1}). The session keeps its previous model; pick again or start a new session with it as the default.";
+
         public readonly string HubApiKeyAuthNoteFmt =
             "Connected with an API key ({0}) -- usage is billed to that key, not to a subscription.";
 
@@ -2965,7 +2977,10 @@ namespace Colloid.AgentPanel.UI
             string firstRunAcpLoginTitleFmt = null,
             string firstRunAcpLoginLeadFmt = null,
             string firstRunAcpLoginAltBody = null,
-            string settingsSubagentModelAcpTooltip = null)
+            string settingsSubagentModelAcpTooltip = null,
+            string hubModelSwitchQueuedNoteFmt = null,
+            string hubModelSwitchedNoteFmt = null,
+            string hubModelSwitchFailedNoteFmt = null)
         {
             FirstRunCliNotFoundTitle = firstRunCliNotFoundTitle;
             FirstRunCliNotFoundBody = firstRunCliNotFoundBody;
@@ -3907,6 +3922,18 @@ namespace Colloid.AgentPanel.UI
             if (settingsSubagentModelAcpTooltip != null)
             {
                 SettingsSubagentModelAcpTooltip = settingsSubagentModelAcpTooltip;
+            }
+            if (hubModelSwitchQueuedNoteFmt != null)
+            {
+                HubModelSwitchQueuedNoteFmt = hubModelSwitchQueuedNoteFmt;
+            }
+            if (hubModelSwitchedNoteFmt != null)
+            {
+                HubModelSwitchedNoteFmt = hubModelSwitchedNoteFmt;
+            }
+            if (hubModelSwitchFailedNoteFmt != null)
+            {
+                HubModelSwitchFailedNoteFmt = hubModelSwitchFailedNoteFmt;
             }
         }
     }

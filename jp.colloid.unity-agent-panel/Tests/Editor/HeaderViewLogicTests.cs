@@ -293,5 +293,24 @@ namespace Colloid.AgentPanel.Tests
             Assert.IsTrue(HeaderView.ResolveModelPickerState(false, false, true).Enabled);
         }
 
+
+        // -- Cached-catalog menu target (2026-09-17 model-switch-before-init note) --
+
+        [Test]
+        public void CachedMenu_TargetsTheSession_WheneverAClientCanTakeALiveSwitch()
+        {
+            // Spawned and waiting for the handshake: the seconds after "+".
+            Assert.IsTrue(HeaderView.ResolveCachedMenuTargetsSession(true, AgentClientState.Starting));
+            Assert.IsTrue(HeaderView.ResolveCachedMenuTargetsSession(true, AgentClientState.Ready));
+            Assert.IsTrue(HeaderView.ResolveCachedMenuTargetsSession(true, AgentClientState.WaitingPermission));
+        }
+
+        [Test]
+        public void CachedMenu_SetsTheDefault_WhenThereIsNoSessionToSwitch()
+        {
+            Assert.IsFalse(HeaderView.ResolveCachedMenuTargetsSession(false, AgentClientState.NotStarted));
+            Assert.IsFalse(HeaderView.ResolveCachedMenuTargetsSession(true, AgentClientState.NotStarted));
+            Assert.IsFalse(HeaderView.ResolveCachedMenuTargetsSession(true, AgentClientState.Errored));
+        }
     }
 }
