@@ -1,0 +1,13 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements">
+    <!-- One Settings card (SettingsView.AddSection): header strip (icon,
+         title, status pill) over a body. The icon is inserted by C#
+         (IconLoader resolves it per editor version); everything else is
+         fixed here so the skeleton is data, not code. -->
+    <ui:VisualElement class="uap-settings-card">
+        <ui:VisualElement name="header" class="uap-settings-card-header">
+            <ui:Label name="title" class="uap-settings-card-title" />
+            <ui:Label name="status" class="uap-pill uap-pill--neutral uap-settings-card-status" />
+        </ui:VisualElement>
+        <ui:VisualElement name="body" class="uap-settings-card-body" />
+    </ui:VisualElement>
+</ui:UXML>

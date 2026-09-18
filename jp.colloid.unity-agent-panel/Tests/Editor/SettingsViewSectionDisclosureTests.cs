@@ -122,8 +122,8 @@ namespace Colloid.AgentPanel.Tests
                     // guards; SettingsViewSectionIconTests handles the same
                     // two-shape reality for the plain cards.
                     bool hasIcon =
-                        foldout.Q<VisualElement>(className: "uap-settings-danger-icon") != null
-                        || foldout.Q<VisualElement>(className: "uap-settings-danger-icon-glyph") != null;
+                        foldout.Q<VisualElement>(className: "uap-settings-foldout-icon") != null
+                        || foldout.Q<VisualElement>(className: "uap-settings-foldout-icon-glyph") != null;
                     Assert.IsTrue(hasIcon, "'" + foldout.text + "' lost its header icon");
                 }
             }

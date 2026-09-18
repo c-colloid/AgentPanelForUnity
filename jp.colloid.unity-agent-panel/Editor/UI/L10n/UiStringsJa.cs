@@ -325,9 +325,9 @@ namespace Colloid.AgentPanel.UI
                 settingsUloopSnippetApplied: "スニペットをカスタム指示に追記しました。",
                 settingsAutoContinueLabel: "コンパイル後に自動継続する",
                 settingsAutoContinueHelp:
-                    "既定 OFF。エージェント自身のスクリプト変更でリロードが起きたとき、継続ターンを自動送信します。会話ログには必ず明示されます。回数の上限はなく、エージェントがコミットをやめるか、CLI の再接続が停止するか、停止ボタンを押すまで続きます。",
+                    "既定 OFF。エージェント自身のスクリプト変更でリロードが起きたとき、継続ターンを自動送信します。会話ログには必ず明示されます。",
                 settingsAutoContinueTooltip:
-                    "エージェント自身のスクリプト変更でコンパイルとドメインリロードが発生した場合に、コンパイル結果を添えた継続ターンを送り、作業がそこで止まらないようにします。エージェント自身の .cs/.asmdef 変更に起因する場合のみで、無通知の裏ターンは行わず、必ず会話ログに残ります。継続ターンがさらにスクリプトをコミットした場合も、そのリロード後に再び継続するので、書く→コンパイル→直す のループを無人で回せます。止まるのは、エージェントがコミットをやめたとき、CLI プロセスが繰り返し落ちて再接続が停止したとき、停止ボタンを押したときです。",
+                    "回数の上限はなく、エージェントがコミットをやめるか、CLI の再接続が停止するか、停止ボタンを押すまで続きます。エージェント自身のスクリプト変更でコンパイルとドメインリロードが発生した場合に、コンパイル結果を添えた継続ターンを送り、作業がそこで止まらないようにします。エージェント自身の .cs/.asmdef 変更に起因する場合のみで、無通知の裏ターンは行わず、必ず会話ログに残ります。継続ターンがさらにスクリプトをコミットした場合も、そのリロード後に再び継続するので、書く→コンパイル→直す のループを無人で回せます。止まるのは、エージェントがコミットをやめたとき、CLI プロセスが繰り返し落ちて再接続が停止したとき、停止ボタンを押したときです。",
                 settingsAutoContinueInterruptedLabel: "中断後に自動継続する",
                 settingsAutoContinueInterruptedHelp:
                     "既定 OFF。リロードやPlayモードでターンが中断されたとき、「続きを実行」を自動送信します。",
@@ -999,7 +999,13 @@ namespace Colloid.AgentPanel.UI
                 settingsPillLoadError: "読み込み失敗",
                 settingsPillNoCjkFont: "CJK フォントなし",
                 settingsPillAllOff: "すべてオフ",
-                settingsPillSkippingChecks: "確認をスキップ中");
+                settingsPillSkippingChecks: "確認をスキップ中",
+                settingsToolListsFoldout: "ツールの許可・禁止リスト",
+                settingsToolListsPillFmt: "許可 {0}・禁止 {1}",
+                settingsModulesFoldout: "モジュール",
+                settingsModulesPillFmt: "{0} / {1} オン",
+                settingsOverviewSignedInFmt: "{0} ({1})",
+                settingsOverviewReconnectLabel: "再接続");
         }
     }
 }

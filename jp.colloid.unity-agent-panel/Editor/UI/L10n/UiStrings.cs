@@ -629,9 +629,9 @@ namespace Colloid.AgentPanel.UI
 
         public readonly string SettingsAutoContinueLabel = "Continue automatically after a compile";
         public readonly string SettingsAutoContinueHelp =
-            "Off by default. Sends a continuation turn after the agent's own script changes trigger a reload, always announced in the transcript. Chains until the agent stops committing, the CLI is suspended, or you press Stop.";
+            "Off by default. Sends a continuation turn after the agent's own script changes trigger a reload, always announced in the transcript.";
         public readonly string SettingsAutoContinueTooltip =
-            "When the agent's own script changes trigger a compile and domain reload, the panel sends a continuation turn carrying the compile result, so the work does not simply stop there. Only for the agent's own .cs/.asmdef changes, and never a silent background turn -- the transcript always says it happened. A continuation that commits more scripts continues again after that reload too, so a write-compile-fix loop runs unattended; it ends when the agent stops committing, when the CLI connection is suspended after repeated crashes, or when you press Stop.";
+            "Chains until the agent stops committing, the CLI is suspended, or you press Stop. When the agent's own script changes trigger a compile and domain reload, the panel sends a continuation turn carrying the compile result, so the work does not simply stop there. Only for the agent's own .cs/.asmdef changes, and never a silent background turn -- the transcript always says it happened. A continuation that commits more scripts continues again after that reload too, so a write-compile-fix loop runs unattended; it ends when the agent stops committing, when the CLI connection is suspended after repeated crashes, or when you press Stop.";
 
         public readonly string SettingsAutoContinueInterruptedLabel = "Continue automatically after an interruption";
         public readonly string SettingsAutoContinueInterruptedHelp =
@@ -963,6 +963,12 @@ namespace Colloid.AgentPanel.UI
         public readonly string SettingsPillNoCjkFont = "No CJK font";
         public readonly string SettingsPillAllOff = "All off";
         public readonly string SettingsPillSkippingChecks = "Skipping checks";
+        public readonly string SettingsToolListsFoldout = "Tool allow / deny lists";
+        public readonly string SettingsToolListsPillFmt = "{0} allowed, {1} blocked";
+        public readonly string SettingsModulesFoldout = "Modules";
+        public readonly string SettingsModulesPillFmt = "{0} / {1} on";
+        public readonly string SettingsOverviewSignedInFmt = "{0} ({1})";
+        public readonly string SettingsOverviewReconnectLabel = "Reconnect";
 
         public readonly string SettingsCliPathLabel = "Executable path";
 
@@ -3189,7 +3195,13 @@ namespace Colloid.AgentPanel.UI
             string settingsPillLoadError = null,
             string settingsPillNoCjkFont = null,
             string settingsPillAllOff = null,
-            string settingsPillSkippingChecks = null)
+            string settingsPillSkippingChecks = null,
+            string settingsToolListsFoldout = null,
+            string settingsToolListsPillFmt = null,
+            string settingsModulesFoldout = null,
+            string settingsModulesPillFmt = null,
+            string settingsOverviewSignedInFmt = null,
+            string settingsOverviewReconnectLabel = null)
         {
             FirstRunCliNotFoundTitle = firstRunCliNotFoundTitle;
             FirstRunCliNotFoundBody = firstRunCliNotFoundBody;
@@ -4406,6 +4418,30 @@ namespace Colloid.AgentPanel.UI
             if (settingsPillSkippingChecks != null)
             {
                 SettingsPillSkippingChecks = settingsPillSkippingChecks;
+            }
+            if (settingsToolListsFoldout != null)
+            {
+                SettingsToolListsFoldout = settingsToolListsFoldout;
+            }
+            if (settingsToolListsPillFmt != null)
+            {
+                SettingsToolListsPillFmt = settingsToolListsPillFmt;
+            }
+            if (settingsModulesFoldout != null)
+            {
+                SettingsModulesFoldout = settingsModulesFoldout;
+            }
+            if (settingsModulesPillFmt != null)
+            {
+                SettingsModulesPillFmt = settingsModulesPillFmt;
+            }
+            if (settingsOverviewSignedInFmt != null)
+            {
+                SettingsOverviewSignedInFmt = settingsOverviewSignedInFmt;
+            }
+            if (settingsOverviewReconnectLabel != null)
+            {
+                SettingsOverviewReconnectLabel = settingsOverviewReconnectLabel;
             }
         }
     }

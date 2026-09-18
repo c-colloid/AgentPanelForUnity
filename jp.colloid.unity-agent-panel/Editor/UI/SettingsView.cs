@@ -113,8 +113,15 @@ namespace Colloid.AgentPanel.UI
         private readonly Dictionary<string, Label> _cardStatusPills =
             new Dictionary<string, Label>(System.StringComparer.Ordinal);
 
+        // -- Disclosure rows (design note 2026-09-17-settings-redesign-plan.md, D6 / phase 4) --
+        internal const string ToolListsDisclosureId = "tools";
+        internal const string ModulesDisclosureId = "modules";
+        private Label _toolListsPill;
+        private Label _modulesPill;
+
         // -- Search (design note 2026-09-17-settings-redesign-plan.md, D3 / phase 3) --
         private TextField _searchField;
+        private Label _searchPlaceholder;
         private Button _searchClearButton;
         private Label _searchEmptyLabel;
         private SettingsSearchFilter _searchFilter;
@@ -124,6 +131,7 @@ namespace Colloid.AgentPanel.UI
         private OverviewRow _overviewSignInRow;
         private OverviewRow _overviewUnityOpsRow;
         private OverviewRow _overviewDangerRow;
+        private OverviewRow _overviewReconnectRow;
         private OverviewRow _overviewPermissionRow;
         private OverviewRow _overviewAutoApproveRow;
         private OverviewRow _overviewModelRow;
@@ -162,7 +170,8 @@ namespace Colloid.AgentPanel.UI
         private Toggle _dangerousToggle;
 
         private PopupField<string> _defaultModelField;
-        private Label _defaultModelHintLabel;
+        /// <summary>Wraps the default-model popup; carries the selected model's description as its tooltip.</summary>
+        private VisualElement _defaultModelScope;
         private PopupField<SubagentCostPolicy> _subagentCostPolicyField;
         private PopupField<string> _subagentModelField;
         private Label _subagentPrecedenceWarningLabel;
@@ -433,12 +442,21 @@ namespace Colloid.AgentPanel.UI
             var titleSpacer = new VisualElement();
             titleSpacer.AddToClassList("uap-settings-titlebar-spacer");
             titleBar.Add(titleSpacer);
+            titleBar.Add(IconLoader.CreateIcon("d_Search Icon", "?",
+                "uap-settings-search-icon", "uap-settings-search-icon-glyph"));
             _searchField = new TextField();
             _searchField.AddToClassList("uap-settings-search");
             _searchField.isDelayed = false;
             _searchField.tooltip = L10n.S.SettingsSearchPlaceholder;
             _searchField.RegisterValueChangedCallback(OnSearchChanged);
             _searchField.RegisterCallback<KeyDownEvent>(OnSearchKeyDown, TrickleDown.TrickleDown);
+            // 2022.3's TextField has no placeholder: a label drawn over the
+            // empty, unfocused box stands in for it (never picks the mouse).
+            _searchPlaceholder = new Label(L10n.S.SettingsSearchPlaceholder);
+            _searchPlaceholder.AddToClassList("uap-settings-search-placeholder");
+            _searchPlaceholder.pickingMode = PickingMode.Ignore;
+            _searchPlaceholder.enableRichText = false;
+            _searchField.Add(_searchPlaceholder);
             titleBar.Add(_searchField);
             _searchClearButton = new Button(ClearSearch) { text = L10n.S.SettingsSearchClearButton };
             _searchClearButton.AddToClassList("uap-settings-link-btn");
@@ -1046,6 +1064,16 @@ namespace Colloid.AgentPanel.UI
             {
                 _reconnectBanner.style.display = pending ? DisplayStyle.Flex : DisplayStyle.None;
             }
+            // The Overview mirrors the banner (one more place the state
+            // can be read, with the same one action), so a user who lands
+            // on the Overview sees the pending change next to the values.
+            if (_overviewReconnectRow != null)
+            {
+                _overviewReconnectRow.Root.style.display = pending ? DisplayStyle.Flex : DisplayStyle.None;
+                SetOverviewRow(_overviewReconnectRow, OverviewTone.Attention,
+                    deferred ? L10n.S.SettingsReconnectPendingHintDeferred : L10n.S.SettingsReconnectPendingHint,
+                    null, deferred ? null : L10n.S.SettingsReconnectNowButton);
+            }
             if (_reconnectPendingPillLabel != null)
             {
                 _reconnectPendingPillLabel.text = deferred
@@ -1105,14 +1133,19 @@ namespace Colloid.AgentPanel.UI
             _allowedToolsField.SetValueWithoutNotify(
                 JoinLines(PanelStateStore.instance.Settings.allowedTools));
             _allowedToolsField.RegisterValueChangedCallback(OnAllowedToolsChanged);
-            VisualElement allowedToolsScope = AddHintScope(section);
+            // D6 (phase 4): the two tool lists are the Conversation card's
+            // long tail; they live under one collapsed row whose pill says
+            // how many entries each holds, so the everyday rows above stay
+            // in view.
+            Foldout toolLists = AddDisclosureFoldout(section, L10n.S.SettingsToolListsFoldout,
+                ToolListsDisclosureId, out _toolListsPill);
+            VisualElement allowedToolsScope = AddHintScope(toolLists);
             // Marks the start of the allow/deny tool-list block as its own
             // visual subgroup within the Conversation card (top border +
             // spacing) -- 2026-08-14 ui-polish audit item 8. Only the
             // FIRST element of the block (this one) carries the class; the
             // disallowed-tools scope right after it is part of the same
             // subgroup, not a second one.
-            allowedToolsScope.AddToClassList("uap-settings-subgroup-start");
             allowedToolsScope.Add(_allowedToolsField);
             AddHint(allowedToolsScope, L10n.S.SettingsAllowedToolsHint,
                 L10n.S.SettingsAllowedToolsTooltip);
@@ -1123,11 +1156,12 @@ namespace Colloid.AgentPanel.UI
             _disallowedToolsField.SetValueWithoutNotify(
                 JoinLines(PanelStateStore.instance.Settings.disallowedTools));
             _disallowedToolsField.RegisterValueChangedCallback(OnDisallowedToolsChanged);
-            VisualElement disallowedToolsScope = AddHintScope(section);
+            VisualElement disallowedToolsScope = AddHintScope(toolLists);
             disallowedToolsScope.Add(_disallowedToolsField);
             // D5: "one tool per line" is said once, on the allowed list
             // right above; this field keeps only the apply-timing tooltip.
             disallowedToolsScope.tooltip = L10n.S.SettingsDisallowedToolsTooltip;
+            RefreshToolListsPill();
 
         }
 
@@ -1226,10 +1260,32 @@ namespace Colloid.AgentPanel.UI
             PanelStateStore.instance.SaveNow();
         }
 
+        /// <summary>"N allowed, M blocked" on the tool-lists row; hidden while both lists are empty.</summary>
+        private void RefreshToolListsPill()
+        {
+            PanelSettings settings = PanelStateStore.instance.Settings;
+            SetDisclosurePill(_toolListsPill, FormatToolListsPill(
+                settings.allowedTools != null ? settings.allowedTools.Count : 0,
+                settings.disallowedTools != null ? settings.disallowedTools.Count : 0));
+        }
+
+        /// <summary>Pure: null (hidden) when both lists are empty, else the two counts.</summary>
+        internal static string FormatToolListsPill(int allowed, int disallowed)
+        {
+            if (allowed <= 0 && disallowed <= 0)
+            {
+                return null;
+            }
+            return L10n.F(L10n.S.SettingsToolListsPillFmt,
+                allowed.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                disallowed.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        }
+
         private void OnAllowedToolsChanged(ChangeEvent<string> evt)
         {
             PanelStateStore.instance.Settings.allowedTools = SplitLines(evt.newValue);
             PanelStateStore.instance.SaveNow();
+            RefreshToolListsPill();
             RefreshReconnectHint();
             AgentHub.RequestAutoApplyReconnect();
         }
@@ -1238,6 +1294,7 @@ namespace Colloid.AgentPanel.UI
         {
             PanelStateStore.instance.Settings.disallowedTools = SplitLines(evt.newValue);
             PanelStateStore.instance.SaveNow();
+            RefreshToolListsPill();
             RefreshReconnectHint();
             AgentHub.RequestAutoApplyReconnect();
         }
@@ -1270,13 +1327,11 @@ namespace Colloid.AgentPanel.UI
                 FormatModelChoiceValue, FormatModelChoiceValue);
             _defaultModelField.AddToClassList("uap-settings-field");
             _defaultModelField.RegisterValueChangedCallback(OnDefaultModelChanged);
-            section.Add(_defaultModelField);
-
-            _defaultModelHintLabel = new Label(string.Empty);
-            _defaultModelHintLabel.AddToClassList("uap-settings-hint");
-            _defaultModelHintLabel.enableRichText = false;
-            _defaultModelHintLabel.style.whiteSpace = WhiteSpace.Normal;
-            section.Add(_defaultModelHintLabel);
+            // D5 round 2: the model's description rides the field as a
+            // tooltip (RefreshModelSection keeps it current); the card's
+            // header pill already says which model a new session runs.
+            _defaultModelScope = AddHintScope(section);
+            _defaultModelScope.Add(_defaultModelField);
 
             BuildSubagentCostPolicyField(section);
             BuildAgentOverridesFoldout(section);
@@ -1308,8 +1363,10 @@ namespace Colloid.AgentPanel.UI
             VisualElement subagentCostPolicyScope = AddHintScope(section);
             subagentCostPolicyScope.Add(_subagentCostPolicyField);
 
-            AddHint(subagentCostPolicyScope, L10n.S.SettingsSubagentCostPolicyHint,
-                L10n.S.SettingsSubagentCostPolicyTooltip);
+            // D5 round 2: the popup's own option labels name the policy;
+            // the explanation is the ? mark.
+            subagentCostPolicyScope.tooltip = L10n.S.SettingsSubagentCostPolicyHint + "\n\n"
+                + L10n.S.SettingsSubagentCostPolicyTooltip;
         }
 
         /// <summary>
@@ -1386,7 +1443,7 @@ namespace Colloid.AgentPanel.UI
             _subagentPrecedenceWarningLabel.AddToClassList("uap-settings-hint");
             _subagentPrecedenceWarningLabel.AddToClassList("uap-settings-hint--pending");
             _subagentPrecedenceWarningLabel.enableRichText = false;
-            _subagentPrecedenceWarningLabel.style.whiteSpace = WhiteSpace.Normal;
+            _subagentPrecedenceWarningLabel.AddToClassList("uap-wrap");
             _subagentPrecedenceWarningLabel.style.display = DisplayStyle.None;
             section.Add(_subagentPrecedenceWarningLabel);
         }
@@ -1461,7 +1518,7 @@ namespace Colloid.AgentPanel.UI
             // near-duplicate USS rule for "this is a warning".
             _agentOverridesDuplicateWarningLabel.AddToClassList("uap-settings-hint--pending");
             _agentOverridesDuplicateWarningLabel.enableRichText = false;
-            _agentOverridesDuplicateWarningLabel.style.whiteSpace = WhiteSpace.Normal;
+            _agentOverridesDuplicateWarningLabel.AddToClassList("uap-wrap");
             _agentOverridesDuplicateWarningLabel.style.display = DisplayStyle.None;
             _agentOverridesFoldout.Add(_agentOverridesDuplicateWarningLabel);
 
@@ -1529,9 +1586,9 @@ namespace Colloid.AgentPanel.UI
             {
                 _defaultModelField.SetValueWithoutNotify(initial);
             }
-            if (_defaultModelHintLabel != null)
+            if (_defaultModelScope != null)
             {
-                _defaultModelHintLabel.text = ResolveDefaultModelHintText(catalog, settings.model);
+                _defaultModelScope.tooltip = ResolveDefaultModelHintText(catalog, settings.model);
             }
             SetSectionStatus(ModelCardId, ResolveModelPillText(catalog, settings.model), PillTone.Neutral);
 
@@ -2129,8 +2186,8 @@ namespace Colloid.AgentPanel.UI
             _showCostUsdToggle.AddToClassList("uap-switch");
             _showCostUsdToggle.SetValueWithoutNotify(PanelStateStore.instance.Settings.showCostUsd);
             _showCostUsdToggle.RegisterValueChangedCallback(OnShowCostUsdChanged);
+            _showCostUsdToggle.tooltip = L10n.S.SettingsShowCostHint;
             section.Add(_showCostUsdToggle);
-            AddHint(section, L10n.S.SettingsShowCostHint);
         }
 
         private void OnShowThinkingChanged(ChangeEvent<bool> evt)
@@ -2169,8 +2226,6 @@ namespace Colloid.AgentPanel.UI
         {
             VisualElement section = AddSection(parent, L10n.S.SettingsSectionQuickActions,
                 "d_Favorite", "+", QuickActionsCardId);
-            AddHint(AddHintScope(section), L10n.S.SettingsQuickActionsHint,
-                L10n.S.SettingsQuickActionsTooltip);
 
             _quickActionsHost = new VisualElement();
             _quickActionsHost.AddToClassList("uap-settings-qa-list");
@@ -2178,6 +2233,9 @@ namespace Colloid.AgentPanel.UI
 
             VisualElement addRow = AddRow(section);
             var add = new Button(OnAddQuickActionClicked) { text = L10n.S.SettingsAddQuickActionButton };
+            // D5 round 2: what a quick action is rides the one button the
+            // empty card shows.
+            add.tooltip = L10n.S.SettingsQuickActionsHint + "\n\n" + L10n.S.SettingsQuickActionsTooltip;
             add.AddToClassList("uap-settings-btn");
             addRow.Add(add);
 
@@ -2460,6 +2518,14 @@ namespace Colloid.AgentPanel.UI
             uapOpsEnabledScope.tooltip = L10n.A(L10n.S.SettingsUapOpsHint) + "\n\n"
                 + L10n.A(L10n.S.SettingsUapOpsTooltip) + "\n\n" + L10n.S.SettingsUapOpsEnabledTooltip;
 
+            // D6 (phase 4): the twelve module switches (and the web
+            // module's own fields) are the card's long tail; they sit under
+            // one collapsed row whose pill says how many are on, so the
+            // gate and auto-continue switches stay one screen away.
+            Foldout modulesHost = AddDisclosureFoldout(section, L10n.S.SettingsModulesFoldout,
+                ModulesDisclosureId, out _modulesPill);
+            modulesHost.contentContainer.RegisterCallback<ChangeEvent<bool>>(OnModuleSwitchChanged);
+
             // Module toggle rows (design section 7.1): real toggles over
             // PanelSettings.uapOpsModules. Phase 5a shipped "core"; Phase 5b
             // stream A adds "prefab" (section 7.3) and "editor" (section 3c
@@ -2470,7 +2536,7 @@ namespace Colloid.AgentPanel.UI
             _uapOpsCoreModuleToggle.AddToClassList("uap-settings-field--child");
             _uapOpsCoreModuleToggle.SetValueWithoutNotify(PanelStateStore.instance.Settings.uapOpsModules.Contains("core"));
             _uapOpsCoreModuleToggle.RegisterValueChangedCallback(OnUapOpsCoreModuleToggleChanged);
-            section.Add(_uapOpsCoreModuleToggle);
+            modulesHost.Add(_uapOpsCoreModuleToggle);
             _uapOpsCoreModuleToggle.tooltip = L10n.S.SettingsUapOpsModuleCoreHint;
 
             _uapOpsPrefabModuleToggle = new Toggle(L10n.S.SettingsUapOpsModulePrefabLabel);
@@ -2479,7 +2545,7 @@ namespace Colloid.AgentPanel.UI
             _uapOpsPrefabModuleToggle.AddToClassList("uap-settings-field--child");
             _uapOpsPrefabModuleToggle.SetValueWithoutNotify(PanelStateStore.instance.Settings.uapOpsModules.Contains("prefab"));
             _uapOpsPrefabModuleToggle.RegisterValueChangedCallback(OnUapOpsPrefabModuleToggleChanged);
-            section.Add(_uapOpsPrefabModuleToggle);
+            modulesHost.Add(_uapOpsPrefabModuleToggle);
             AddModuleHint(section, _uapOpsPrefabModuleToggle, "prefab", L10n.S.SettingsUapOpsModulePrefabHint);
 
             _uapOpsEditorModuleToggle = new Toggle(L10n.S.SettingsUapOpsModuleEditorLabel);
@@ -2488,7 +2554,7 @@ namespace Colloid.AgentPanel.UI
             _uapOpsEditorModuleToggle.AddToClassList("uap-settings-field--child");
             _uapOpsEditorModuleToggle.SetValueWithoutNotify(PanelStateStore.instance.Settings.uapOpsModules.Contains("editor"));
             _uapOpsEditorModuleToggle.RegisterValueChangedCallback(OnUapOpsEditorModuleToggleChanged);
-            section.Add(_uapOpsEditorModuleToggle);
+            modulesHost.Add(_uapOpsEditorModuleToggle);
             // "editor" keeps uap_editor_screenshot/uap_editor_execute_menu/
             // uap_editor_select in Core even with Pro absent (only the
             // lightmap/Bakery bake tools moved out), so this toggle is never disabled -- always show the
@@ -2502,7 +2568,7 @@ namespace Colloid.AgentPanel.UI
             _uapOpsMarkersModuleToggle.AddToClassList("uap-settings-field--child");
             _uapOpsMarkersModuleToggle.SetValueWithoutNotify(PanelStateStore.instance.Settings.uapOpsModules.Contains("markers"));
             _uapOpsMarkersModuleToggle.RegisterValueChangedCallback(OnUapOpsMarkersModuleToggleChanged);
-            section.Add(_uapOpsMarkersModuleToggle);
+            modulesHost.Add(_uapOpsMarkersModuleToggle);
             _uapOpsMarkersModuleToggle.tooltip = L10n.S.SettingsUapOpsModuleMarkersHint;
 
             // 2026-09-17: uap_web_fetch (default ON, generation 3). Core
@@ -2513,7 +2579,7 @@ namespace Colloid.AgentPanel.UI
             _uapOpsWebModuleToggle.AddToClassList("uap-settings-field--child");
             _uapOpsWebModuleToggle.SetValueWithoutNotify(PanelStateStore.instance.Settings.uapOpsModules.Contains("web"));
             _uapOpsWebModuleToggle.RegisterValueChangedCallback(OnUapOpsWebModuleToggleChanged);
-            section.Add(_uapOpsWebModuleToggle);
+            modulesHost.Add(_uapOpsWebModuleToggle);
             _uapOpsWebModuleToggle.tooltip = L10n.S.SettingsUapOpsModuleWebHint;
             // Host allow / deny lists for uap_web_fetch (stage 2). The
             // tool reads a snapshot (UapWebFetchTool.HostRules) from its
@@ -2525,8 +2591,8 @@ namespace Colloid.AgentPanel.UI
             _webFetchAllowedHostsField.SetValueWithoutNotify(
                 JoinLines(PanelStateStore.instance.Settings.webFetchAllowedHosts));
             _webFetchAllowedHostsField.RegisterValueChangedCallback(OnWebFetchAllowedHostsChanged);
-            section.Add(_webFetchAllowedHostsField);
-            AddHint(section, L10n.S.SettingsWebFetchAllowedHostsHint).AddToClassList("uap-settings-hint--child");
+            modulesHost.Add(_webFetchAllowedHostsField);
+            AddHint(modulesHost, L10n.S.SettingsWebFetchAllowedHostsHint).AddToClassList("uap-settings-hint--child");
             _webFetchBlockedHostsField = new TextField(L10n.S.SettingsWebFetchBlockedHostsLabel);
             _webFetchBlockedHostsField.multiline = true;
             _webFetchBlockedHostsField.AddToClassList("uap-settings-multiline");
@@ -2534,7 +2600,7 @@ namespace Colloid.AgentPanel.UI
             _webFetchBlockedHostsField.SetValueWithoutNotify(
                 JoinLines(PanelStateStore.instance.Settings.webFetchBlockedHosts));
             _webFetchBlockedHostsField.RegisterValueChangedCallback(OnWebFetchBlockedHostsChanged);
-            section.Add(_webFetchBlockedHostsField);
+            modulesHost.Add(_webFetchBlockedHostsField);
             _webFetchBlockedHostsField.tooltip = L10n.S.SettingsWebFetchBlockedHostsHint;
             // uap_web_search (stage 3): provider + API key, published to the
             // tool as one snapshot like the host rules.
@@ -2546,7 +2612,7 @@ namespace Colloid.AgentPanel.UI
             _webSearchProviderField.AddToClassList("uap-settings-field");
             _webSearchProviderField.AddToClassList("uap-settings-field--child");
             _webSearchProviderField.RegisterValueChangedCallback(OnWebSearchProviderChanged);
-            section.Add(_webSearchProviderField);
+            modulesHost.Add(_webSearchProviderField);
             _webSearchProviderField.tooltip = L10n.S.SettingsWebSearchProviderHint;
             _webSearchApiKeyField = new TextField(L10n.S.SettingsWebSearchApiKeyLabel);
             _webSearchApiKeyField.AddToClassList("uap-settings-field");
@@ -2554,7 +2620,7 @@ namespace Colloid.AgentPanel.UI
             _webSearchApiKeyField.isPasswordField = true;
             _webSearchApiKeyField.SetValueWithoutNotify(PanelStateStore.instance.Settings.webSearchApiKey ?? string.Empty);
             _webSearchApiKeyField.RegisterValueChangedCallback(OnWebSearchApiKeyChanged);
-            section.Add(_webSearchApiKeyField);
+            modulesHost.Add(_webSearchApiKeyField);
             _webSearchApiKeyField.tooltip = L10n.S.SettingsWebSearchApiKeyHint;
 
             // Phase 5b stream B adds "anim" (design section 1.2/8.8) --
@@ -2566,7 +2632,7 @@ namespace Colloid.AgentPanel.UI
             _uapOpsAnimModuleToggle.AddToClassList("uap-settings-field--child");
             _uapOpsAnimModuleToggle.SetValueWithoutNotify(PanelStateStore.instance.Settings.uapOpsModules.Contains("anim"));
             _uapOpsAnimModuleToggle.RegisterValueChangedCallback(OnUapOpsAnimModuleToggleChanged);
-            section.Add(_uapOpsAnimModuleToggle);
+            modulesHost.Add(_uapOpsAnimModuleToggle);
             AddModuleHint(section, _uapOpsAnimModuleToggle, "anim", L10n.S.SettingsUapOpsModuleAnimHint);
 
             // Phase 5c "ui" module (UI Toolkit window automation), default
@@ -2583,7 +2649,7 @@ namespace Colloid.AgentPanel.UI
             _uapOpsUiModuleToggle.AddToClassList("uap-settings-field--child");
             _uapOpsUiModuleToggle.SetValueWithoutNotify(PanelStateStore.instance.Settings.uapOpsModules.Contains("ui"));
             _uapOpsUiModuleToggle.RegisterValueChangedCallback(OnUapOpsUiModuleToggleChanged);
-            section.Add(_uapOpsUiModuleToggle);
+            modulesHost.Add(_uapOpsUiModuleToggle);
             AddModuleHint(section, _uapOpsUiModuleToggle, "ui", L10n.S.SettingsUapOpsModuleUiHint);
 
             // 2026-09-15 "authoring" module (Extension Profile scaffolding
@@ -2597,7 +2663,7 @@ namespace Colloid.AgentPanel.UI
             _uapOpsAuthoringModuleToggle.SetValueWithoutNotify(
                 PanelStateStore.instance.Settings.uapOpsModules.Contains("authoring"));
             _uapOpsAuthoringModuleToggle.RegisterValueChangedCallback(OnUapOpsAuthoringModuleToggleChanged);
-            section.Add(_uapOpsAuthoringModuleToggle);
+            modulesHost.Add(_uapOpsAuthoringModuleToggle);
             AddModuleHint(section, _uapOpsAuthoringModuleToggle, "authoring",
                 L10n.S.SettingsUapOpsModuleAuthoringHint);
 
@@ -2611,7 +2677,7 @@ namespace Colloid.AgentPanel.UI
             _uapOpsAvatarModuleToggle.SetValueWithoutNotify(
                 PanelStateStore.instance.Settings.uapOpsModules.Contains("avatar"));
             _uapOpsAvatarModuleToggle.RegisterValueChangedCallback(OnUapOpsAvatarModuleToggleChanged);
-            section.Add(_uapOpsAvatarModuleToggle);
+            modulesHost.Add(_uapOpsAvatarModuleToggle);
             AddModuleHint(section, _uapOpsAvatarModuleToggle, "avatar",
                 L10n.S.SettingsUapOpsModuleAvatarHint);
 
@@ -2626,7 +2692,7 @@ namespace Colloid.AgentPanel.UI
             _uapOpsBatchModuleToggle.SetValueWithoutNotify(
                 PanelStateStore.instance.Settings.uapOpsModules.Contains("batch"));
             _uapOpsBatchModuleToggle.RegisterValueChangedCallback(OnUapOpsBatchModuleToggleChanged);
-            section.Add(_uapOpsBatchModuleToggle);
+            modulesHost.Add(_uapOpsBatchModuleToggle);
             AddModuleHint(section, _uapOpsBatchModuleToggle, "batch",
                 L10n.S.SettingsUapOpsModuleBatchHint);
 
@@ -2641,7 +2707,7 @@ namespace Colloid.AgentPanel.UI
             _uapOpsTestsModuleToggle.SetValueWithoutNotify(
                 PanelStateStore.instance.Settings.uapOpsModules.Contains("tests"));
             _uapOpsTestsModuleToggle.RegisterValueChangedCallback(OnUapOpsTestsModuleToggleChanged);
-            section.Add(_uapOpsTestsModuleToggle);
+            modulesHost.Add(_uapOpsTestsModuleToggle);
             AddTestsModuleHint(section, _uapOpsTestsModuleToggle,
                 L10n.S.SettingsUapOpsModuleTestsHint);
 
@@ -2656,7 +2722,7 @@ namespace Colloid.AgentPanel.UI
             _uapOpsFxModuleToggle.SetValueWithoutNotify(
                 PanelStateStore.instance.Settings.uapOpsModules.Contains("fx"));
             _uapOpsFxModuleToggle.RegisterValueChangedCallback(OnUapOpsFxModuleToggleChanged);
-            section.Add(_uapOpsFxModuleToggle);
+            modulesHost.Add(_uapOpsFxModuleToggle);
             AddModuleHint(section, _uapOpsFxModuleToggle, "fx",
                 L10n.S.SettingsUapOpsModuleFxHint);
 
@@ -2672,7 +2738,7 @@ namespace Colloid.AgentPanel.UI
             _uapOpsMeshModuleToggle.SetValueWithoutNotify(
                 PanelStateStore.instance.Settings.uapOpsModules.Contains("mesh"));
             _uapOpsMeshModuleToggle.RegisterValueChangedCallback(OnUapOpsMeshModuleToggleChanged);
-            section.Add(_uapOpsMeshModuleToggle);
+            modulesHost.Add(_uapOpsMeshModuleToggle);
             AddModuleHint(section, _uapOpsMeshModuleToggle, "mesh",
                 L10n.S.SettingsUapOpsModuleMeshHint, L10n.S.SettingsUapOpsModuleMeshTooltip);
 
@@ -2774,6 +2840,9 @@ namespace Colloid.AgentPanel.UI
             // Phase 1 of the 2026-09-17 settings redesign (D9): the
             // cross-reference is a link that goes there, not a sentence.
             VisualElement autoApproveMovedScope = AddHintScope(section);
+            // A row, so the ? mark HelpAffordance appends sits beside the
+            // link instead of on a line of its own (2026-09-18 capture).
+            autoApproveMovedScope.AddToClassList("uap-settings-hint-row");
             var autoApproveMovedLink = new Button(OnAutoApproveMovedLinkClicked)
             {
                 text = L10n.S.SettingsAutoApproveMovedHint
@@ -2911,6 +2980,41 @@ namespace Colloid.AgentPanel.UI
         internal static bool ResolveModuleToggleEnabled(bool masterEnabled, bool moduleHasTools)
         {
             return masterEnabled && moduleHasTools;
+        }
+
+        private static readonly string[] ModuleIds =
+            { "core", "prefab", "editor", "markers", "web", "anim", "ui", "authoring", "avatar", "batch", "tests", "fx", "mesh" };
+
+        /// <summary>"N / 13 on" on the modules row: the count of module ids the settings list holds among the known modules.</summary>
+        private void RefreshModulesPill()
+        {
+            List<string> modules = PanelStateStore.instance.Settings.uapOpsModules;
+            int on = 0;
+            if (modules != null)
+            {
+                for (int i = 0; i < ModuleIds.Length; i++)
+                {
+                    if (modules.Contains(ModuleIds[i]))
+                    {
+                        on++;
+                    }
+                }
+            }
+            SetDisclosurePill(_modulesPill, FormatModulesPill(on, ModuleIds.Length));
+        }
+
+        /// <summary>Pure: "on / total".</summary>
+        internal static string FormatModulesPill(int on, int total)
+        {
+            return L10n.F(L10n.S.SettingsModulesPillFmt,
+                on.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                total.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        }
+
+        /// <summary>Bubbles up from any module switch inside the modules row (registered on the content container, so the row's own header toggle is not included).</summary>
+        private void OnModuleSwitchChanged(ChangeEvent<bool> evt)
+        {
+            RefreshModulesPill();
         }
 
         /// <summary>Disabled / running on port N / not running -- shared by the UapOps card's status line and the Overview row.</summary>
@@ -3377,6 +3481,7 @@ namespace Colloid.AgentPanel.UI
                         : L10n.S.SettingsUapOpsStatusStopped),
                 !enabledSetting ? PillTone.Neutral : (UapOpsServer.IsRunning ? PillTone.Ok : PillTone.Warn),
                 ResolveUapOpsStatusText());
+            RefreshModulesPill();
 
             // Keeps this dropdown's displayed value in sync with the header
             // control -- both surfaces write the SAME PanelSettings.
@@ -3746,7 +3851,7 @@ namespace Colloid.AgentPanel.UI
             _proStatusLabel.AddToClassList("uap-settings-hint");
             _proStatusLabel.AddToClassList("uap-settings-status");
             _proStatusLabel.enableRichText = false;
-            _proStatusLabel.style.whiteSpace = WhiteSpace.Normal;
+            _proStatusLabel.AddToClassList("uap-wrap");
             _proStatusLabel.style.display = DisplayStyle.None;
             section.Add(_proStatusLabel);
         }
@@ -3853,7 +3958,7 @@ namespace Colloid.AgentPanel.UI
             _uloopInstallProgressLabel.AddToClassList("uap-settings-hint");
             _uloopInstallProgressLabel.AddToClassList("uap-settings-hint--pending");
             _uloopInstallProgressLabel.enableRichText = false;
-            _uloopInstallProgressLabel.style.whiteSpace = WhiteSpace.Normal;
+            _uloopInstallProgressLabel.AddToClassList("uap-wrap");
             _uloopInstallProgressLabel.style.display = DisplayStyle.None;
             section.Add(_uloopInstallProgressLabel);
 
@@ -3930,13 +4035,13 @@ namespace Colloid.AgentPanel.UI
             var titleLabel = new Label(L10n.S.SettingsUloopInstallConfirmTitle);
             titleLabel.AddToClassList("uap-settings-hint");
             titleLabel.enableRichText = false;
-            titleLabel.style.whiteSpace = WhiteSpace.Normal;
+            titleLabel.AddToClassList("uap-wrap");
             _uloopInstallConfirmCard.Add(titleLabel);
 
             _uloopInstallRouteLabel = new Label(string.Empty);
             _uloopInstallRouteLabel.AddToClassList("uap-settings-hint");
             _uloopInstallRouteLabel.enableRichText = false;
-            _uloopInstallRouteLabel.style.whiteSpace = WhiteSpace.Normal;
+            _uloopInstallRouteLabel.AddToClassList("uap-wrap");
             _uloopInstallConfirmCard.Add(_uloopInstallRouteLabel);
 
             _uloopCaveatsHost = new VisualElement();
@@ -3982,7 +4087,7 @@ namespace Colloid.AgentPanel.UI
             _uloopInstallResultLabel = new Label(string.Empty);
             _uloopInstallResultLabel.AddToClassList("uap-settings-hint");
             _uloopInstallResultLabel.enableRichText = false;
-            _uloopInstallResultLabel.style.whiteSpace = WhiteSpace.Normal;
+            _uloopInstallResultLabel.AddToClassList("uap-wrap");
             _uloopInstallResultLabel.style.display = DisplayStyle.None;
             _uloopInstallConfirmCard.Add(_uloopInstallResultLabel);
 
@@ -4065,7 +4170,7 @@ namespace Colloid.AgentPanel.UI
                 var caveatLabel = new Label(DescribeUloopCaveat(caveat));
                 caveatLabel.AddToClassList("uap-settings-hint");
                 caveatLabel.enableRichText = false;
-                caveatLabel.style.whiteSpace = WhiteSpace.Normal;
+                caveatLabel.AddToClassList("uap-wrap");
                 if (caveat != null && caveat.Blocking)
                 {
                     // Reuses the existing warn-colored hint variant (danger
@@ -5116,7 +5221,7 @@ namespace Colloid.AgentPanel.UI
             _accountStatusLabel = new Label(string.Empty);
             _accountStatusLabel.AddToClassList("uap-settings-hint");
             _accountStatusLabel.enableRichText = false;
-            _accountStatusLabel.style.whiteSpace = WhiteSpace.Normal;
+            _accountStatusLabel.AddToClassList("uap-wrap");
             section.Add(_accountStatusLabel);
 
             // Live E2E (2026-08-02) found the editor environment can carry
@@ -5128,7 +5233,7 @@ namespace Colloid.AgentPanel.UI
             _accountEnvTokenNoteLabel.AddToClassList("uap-settings-hint");
             _accountEnvTokenNoteLabel.AddToClassList("uap-settings-hint--pending");
             _accountEnvTokenNoteLabel.enableRichText = false;
-            _accountEnvTokenNoteLabel.style.whiteSpace = WhiteSpace.Normal;
+            _accountEnvTokenNoteLabel.AddToClassList("uap-wrap");
             _accountEnvTokenNoteLabel.style.display = DisplayStyle.None;
             section.Add(_accountEnvTokenNoteLabel);
 
@@ -5141,7 +5246,7 @@ namespace Colloid.AgentPanel.UI
             _accountApiKeyAuthNoteLabel.AddToClassList("uap-settings-hint");
             _accountApiKeyAuthNoteLabel.AddToClassList("uap-settings-hint--pending");
             _accountApiKeyAuthNoteLabel.enableRichText = false;
-            _accountApiKeyAuthNoteLabel.style.whiteSpace = WhiteSpace.Normal;
+            _accountApiKeyAuthNoteLabel.AddToClassList("uap-wrap");
             _accountApiKeyAuthNoteLabel.style.display = DisplayStyle.None;
             section.Add(_accountApiKeyAuthNoteLabel);
 
@@ -5152,7 +5257,7 @@ namespace Colloid.AgentPanel.UI
             _accountAcpAuthMethodLabel = new Label(string.Empty);
             _accountAcpAuthMethodLabel.AddToClassList("uap-settings-hint");
             _accountAcpAuthMethodLabel.enableRichText = false;
-            _accountAcpAuthMethodLabel.style.whiteSpace = WhiteSpace.Normal;
+            _accountAcpAuthMethodLabel.AddToClassList("uap-wrap");
             _accountAcpAuthMethodLabel.style.display = DisplayStyle.None;
             section.Add(_accountAcpAuthMethodLabel);
 
@@ -5211,7 +5316,7 @@ namespace Colloid.AgentPanel.UI
             _accountAcpLoginOutputLabel = new Label(string.Empty);
             _accountAcpLoginOutputLabel.AddToClassList("uap-settings-hint");
             _accountAcpLoginOutputLabel.enableRichText = false;
-            _accountAcpLoginOutputLabel.style.whiteSpace = WhiteSpace.Normal;
+            _accountAcpLoginOutputLabel.AddToClassList("uap-wrap");
             _accountAcpLoginOutputLabel.style.display = DisplayStyle.None;
             MessageBlockFactory.ApplyMonoFont(_accountAcpLoginOutputLabel);
             section.Add(_accountAcpLoginOutputLabel);
@@ -5224,7 +5329,7 @@ namespace Colloid.AgentPanel.UI
             _accountLoginFailedLabel.AddToClassList("uap-settings-hint");
             _accountLoginFailedLabel.AddToClassList("uap-settings-hint--error");
             _accountLoginFailedLabel.enableRichText = false;
-            _accountLoginFailedLabel.style.whiteSpace = WhiteSpace.Normal;
+            _accountLoginFailedLabel.AddToClassList("uap-wrap");
             _accountLoginFailedLabel.style.display = DisplayStyle.None;
             section.Add(_accountLoginFailedLabel);
 
@@ -5404,7 +5509,7 @@ namespace Colloid.AgentPanel.UI
             _accountLoginInstructionLabel = new Label(string.Empty);
             _accountLoginInstructionLabel.AddToClassList("uap-settings-hint");
             _accountLoginInstructionLabel.enableRichText = false;
-            _accountLoginInstructionLabel.style.whiteSpace = WhiteSpace.Normal;
+            _accountLoginInstructionLabel.AddToClassList("uap-wrap");
             _accountLoginSubCard.Add(_accountLoginInstructionLabel);
 
             _accountLoginUrlField = new TextField(L10n.S.SettingsAccountLoginUrlLabel);
@@ -6228,6 +6333,17 @@ namespace Colloid.AgentPanel.UI
             ApplySearch(evt.newValue);
         }
 
+        /// <summary>Shown while the box is empty (focused or not, like a web placeholder); a query hides it.</summary>
+        private void RefreshSearchPlaceholder()
+        {
+            if (_searchPlaceholder == null || _searchField == null)
+            {
+                return;
+            }
+            bool show = string.IsNullOrEmpty(_searchField.value);
+            _searchPlaceholder.style.display = show ? DisplayStyle.Flex : DisplayStyle.None;
+        }
+
         private void OnSearchKeyDown(KeyDownEvent evt)
         {
             if (evt.keyCode == KeyCode.Escape)
@@ -6260,6 +6376,7 @@ namespace Colloid.AgentPanel.UI
                 return;
             }
             bool active = SettingsSearch.IsActive(query);
+            RefreshSearchPlaceholder();
             if (_searchClearButton != null)
             {
                 _searchClearButton.style.display = active ? DisplayStyle.Flex : DisplayStyle.None;
@@ -6327,6 +6444,8 @@ namespace Colloid.AgentPanel.UI
             public Label Value;
             public Label Detail;
             public Button Action;
+            public Label ActionLabel;
+            public VisualElement Chevron;
             public OverviewTone Tone = OverviewTone.Unset;
         }
 
@@ -6349,6 +6468,8 @@ namespace Colloid.AgentPanel.UI
 
             VisualElement effective = AddSection(parent, L10n.S.SettingsOverviewEffectiveTitle,
                 "d_Settings", IconLoader.GlyphGear, EffectiveCardId);
+            _overviewReconnectRow = AddOverviewRow(effective, L10n.S.SettingsOverviewReconnectLabel, OnReconnectClicked);
+            _overviewReconnectRow.Root.style.display = DisplayStyle.None;
             _overviewDangerRow = AddOverviewRow(effective, L10n.S.SettingsOverviewDangerLabel, OnOverviewDangerClicked);
             _overviewPermissionRow = AddOverviewRow(effective, L10n.S.SettingsOverviewPermissionLabel, OnOverviewConversationClicked);
             _overviewAutoApproveRow = AddOverviewRow(effective, L10n.S.SettingsOverviewAutoApproveLabel, OnOverviewConversationClicked);
@@ -6361,29 +6482,26 @@ namespace Colloid.AgentPanel.UI
 
         private static OverviewRow AddOverviewRow(VisualElement section, string labelText, System.Action onAction)
         {
+            // 2026-09-18: the row is SettingsOverviewRow.uxml; C# fills the
+            // label, wires the action and adds the two IconLoader parts.
             var row = new OverviewRow();
-            row.Root = new VisualElement();
-            row.Root.AddToClassList("uap-settings-overview-row");
-            row.IconHost = new VisualElement();
-            row.IconHost.AddToClassList("uap-settings-overview-icon-host");
-            row.Root.Add(row.IconHost);
-            var label = new Label(labelText);
-            label.AddToClassList("uap-settings-overview-label");
+            row.Root = InstantiateTemplate(OverviewRowTemplateFile);
+            row.IconHost = row.Root.Q("icon-host");
+            var label = row.Root.Q<Label>("label");
+            label.text = labelText;
             label.enableRichText = false;
-            row.Root.Add(label);
-            row.Value = new Label(string.Empty);
-            row.Value.AddToClassList("uap-settings-overview-value");
+            row.Value = row.Root.Q<Label>("value");
             row.Value.enableRichText = false;
-            row.Root.Add(row.Value);
-            row.Detail = new Label(string.Empty);
-            row.Detail.AddToClassList("uap-settings-overview-detail");
+            row.Detail = row.Root.Q<Label>("detail");
             row.Detail.enableRichText = false;
-            row.Detail.style.display = DisplayStyle.None;
-            row.Root.Add(row.Detail);
-            row.Action = new Button(onAction) { text = L10n.S.SettingsOverviewChangeButton };
-            row.Action.AddToClassList("uap-settings-link-btn");
-            row.Action.AddToClassList("uap-settings-overview-action");
-            row.Root.Add(row.Action);
+            row.Action = row.Root.Q<Button>("action");
+            row.Action.clicked += onAction;
+            row.ActionLabel = row.Root.Q<Label>("action-label");
+            row.ActionLabel.text = L10n.S.SettingsOverviewChangeButton;
+            row.ActionLabel.enableRichText = false;
+            row.Chevron = IconLoader.CreateIcon("d_tab_next", ">",
+                "uap-settings-overview-chevron", "uap-settings-overview-chevron-glyph");
+            row.Action.Add(row.Chevron);
             section.Add(row.Root);
             return row;
         }
@@ -6404,9 +6522,10 @@ namespace Colloid.AgentPanel.UI
             row.Value.text = value ?? string.Empty;
             bool hasDetail = !string.IsNullOrEmpty(detail);
             row.Detail.text = hasDetail ? detail : string.Empty;
-            row.Detail.style.display = hasDetail ? DisplayStyle.Flex : DisplayStyle.None;
+            row.Detail.EnableInClassList("uap-settings-overview-detail--empty", !hasDetail);
             bool primary = !string.IsNullOrEmpty(primaryText);
-            row.Action.text = primary ? primaryText : L10n.S.SettingsOverviewChangeButton;
+            row.ActionLabel.text = primary ? primaryText : L10n.S.SettingsOverviewChangeButton;
+            row.Chevron.style.display = primary ? DisplayStyle.None : DisplayStyle.Flex;
             row.Action.EnableInClassList("uap-settings-link-btn", !primary);
             row.Action.EnableInClassList("uap-settings-btn", primary);
             row.Action.EnableInClassList("uap-settings-btn--primary", primary);
@@ -6441,7 +6560,10 @@ namespace Colloid.AgentPanel.UI
                     break;
                 case OverviewTone.Off:
                 default:
-                    icon = IconLoader.CreateIcon("TestIgnored", "-",
+                    // The Test Runner's neutral dot ("not run yet") reads as
+                    // "not done"; the "ignored" icon it replaced said
+                    // something else. ASCII fallback where the name is absent.
+                    icon = IconLoader.CreateIcon("TestNormal", "-",
                         "uap-settings-overview-icon", "uap-settings-overview-icon-glyph");
                     modifier = "off";
                     break;
@@ -6560,7 +6682,18 @@ namespace Colloid.AgentPanel.UI
                 return L10n.S.SettingsAccountUnavailable;
             }
             signedIn = status.LoggedIn;
-            return status.LoggedIn ? BuildLoggedInStatusText(status) : L10n.S.SettingsAccountNotLoggedIn;
+            if (!status.LoggedIn)
+            {
+                return L10n.S.SettingsAccountNotLoggedIn;
+            }
+            // Phase 4: the row wants the fact, not the sentence -- at 300px
+            // the full "Logged in as ..." wrapped to three lines.
+            if (string.IsNullOrEmpty(status.Email))
+            {
+                return L10n.S.SettingsAccountLoggedInNoDetail;
+            }
+            return L10n.F(L10n.S.SettingsOverviewSignedInFmt, status.Email,
+                string.IsNullOrEmpty(status.SubscriptionType) ? L10n.S.SettingsAccountSubscriptionUnknown : status.SubscriptionType);
         }
 
         private void OnOverviewAgentClicked()
@@ -6845,27 +6978,59 @@ namespace Colloid.AgentPanel.UI
         private VisualElement AddSection(VisualElement parent, string titleText,
             string iconName, string fallbackGlyph, string cardId)
         {
-            var card = new VisualElement();
-            card.AddToClassList("uap-settings-card");
-
-            var header = new VisualElement();
-            header.AddToClassList("uap-settings-card-header");
-            header.Add(IconLoader.CreateIcon(iconName, fallbackGlyph,
+            // 2026-09-18: the skeleton is SettingsCard.uxml; C# only fills
+            // the parts that are computed (icon, title text, pill hookup).
+            VisualElement card = InstantiateTemplate(CardTemplateFile);
+            VisualElement header = card.Q("header");
+            header.Insert(0, IconLoader.CreateIcon(iconName, fallbackGlyph,
                 "uap-settings-card-icon", "uap-settings-card-icon-glyph"));
-            var title = new Label(titleText);
-            title.AddToClassList("uap-settings-card-title");
+            var title = card.Q<Label>("title");
+            title.text = titleText;
             title.enableRichText = false;
-            header.Add(title);
-            header.Add(CreateStatusPill(cardId));
-            card.Add(header);
+            var pill = card.Q<Label>("status");
+            pill.enableRichText = false;
+            pill.style.display = DisplayStyle.None;
+            _cardStatusPills[cardId] = pill;
 
-            var body = new VisualElement();
-            body.AddToClassList("uap-settings-card-body");
-            card.Add(body);
+            VisualElement body = card.Q("body");
             RegisterCard(cardId, card, titleText, body);
 
             parent.Add(card);
             return body;
+        }
+
+        internal const string UiFolder = "Packages/jp.colloid.unity-agent-panel/Editor/UI/Uss/";
+        internal const string CardTemplateFile = "SettingsCard.uxml";
+        internal const string OverviewRowTemplateFile = "SettingsOverviewRow.uxml";
+        private static readonly Dictionary<string, VisualTreeAsset> TemplateCache =
+            new Dictionary<string, VisualTreeAsset>(System.StringComparer.Ordinal);
+
+        /// <summary>
+        /// Instantiates one of the settings templates and returns its root
+        /// element WITHOUT the TemplateContainer wrapper, so parents, child
+        /// selectors and the card registry see the same tree the C# builder
+        /// used to make. A missing asset is a build error, reported as such.
+        /// </summary>
+        internal static VisualElement InstantiateTemplate(string file)
+        {
+            VisualTreeAsset tree;
+            if (!TemplateCache.TryGetValue(file, out tree) || tree == null)
+            {
+                tree = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(UiFolder + file);
+                if (tree == null)
+                {
+                    throw new System.InvalidOperationException("Settings template not found: " + UiFolder + file);
+                }
+                TemplateCache[file] = tree;
+            }
+            TemplateContainer container = tree.Instantiate();
+            if (container.childCount != 1)
+            {
+                throw new System.InvalidOperationException(file + " must have exactly one root element");
+            }
+            VisualElement root = container[0];
+            container.Remove(root);
+            return root;
         }
 
         /// <summary>
@@ -6902,14 +7067,14 @@ namespace Colloid.AgentPanel.UI
             _unityPluginStatusLabel.AddToClassList("uap-settings-hint");
             _unityPluginStatusLabel.AddToClassList("uap-settings-status");
             _unityPluginStatusLabel.enableRichText = false;
-            _unityPluginStatusLabel.style.whiteSpace = WhiteSpace.Normal;
+            _unityPluginStatusLabel.AddToClassList("uap-wrap");
             section.Add(_unityPluginStatusLabel);
 
             _unityPluginProgressLabel = new Label(string.Empty);
             _unityPluginProgressLabel.AddToClassList("uap-settings-hint");
             _unityPluginProgressLabel.AddToClassList("uap-settings-hint--pending");
             _unityPluginProgressLabel.enableRichText = false;
-            _unityPluginProgressLabel.style.whiteSpace = WhiteSpace.Normal;
+            _unityPluginProgressLabel.AddToClassList("uap-wrap");
             _unityPluginProgressLabel.style.display = DisplayStyle.None;
             section.Add(_unityPluginProgressLabel);
 
@@ -6926,7 +7091,7 @@ namespace Colloid.AgentPanel.UI
             var detailsBody = new Label(L10n.S.SettingsUnityPluginDetailsBody);
             detailsBody.AddToClassList("uap-settings-hint");
             detailsBody.enableRichText = false;
-            detailsBody.style.whiteSpace = WhiteSpace.Normal;
+            detailsBody.AddToClassList("uap-wrap");
             details.Add(detailsBody);
             var repoField = new TextField(L10n.S.SettingsUnityPluginRepoLabel);
             repoField.AddToClassList("uap-settings-field");
@@ -6965,7 +7130,7 @@ namespace Colloid.AgentPanel.UI
                 var label = new Label(lines[i]);
                 label.AddToClassList("uap-settings-hint");
                 label.enableRichText = false;
-                label.style.whiteSpace = WhiteSpace.Normal;
+                label.AddToClassList("uap-wrap");
                 _unityPluginInstallConfirmCard.Add(label);
             }
 
@@ -7311,6 +7476,53 @@ namespace Colloid.AgentPanel.UI
             return pill;
         }
 
+        /// <summary>
+        /// D6 (phase 4): a collapsed row inside a card body that holds a
+        /// card's long tail (tool lists, module switches). Same Foldout +
+        /// SessionState memory as the collapsible cards (SectionDisclosureKey
+        /// with a row id), a count pill at the header's right end, and the
+        /// search filter opens it on a hit like any Foldout row.
+        /// </summary>
+        private static Foldout AddDisclosureFoldout(VisualElement parent, string text, string rowId, out Label pill)
+        {
+            string stateKey = SectionDisclosureKey(rowId);
+            var foldout = new Foldout
+            {
+                text = text,
+                value = SessionState.GetBool(stateKey, false)
+            };
+            foldout.AddToClassList("uap-settings-disclosure");
+            foldout.RegisterValueChangedCallback(delegate(ChangeEvent<bool> evt)
+            {
+                // Switches inside the row bubble ChangeEvent<bool> through
+                // here; only the row's own header may write its state.
+                if (ReferenceEquals(evt.target, foldout))
+                {
+                    SessionState.SetBool(stateKey, evt.newValue);
+                }
+            });
+            pill = new Label(string.Empty);
+            pill.AddToClassList("uap-pill");
+            pill.AddToClassList("uap-pill--neutral");
+            pill.AddToClassList("uap-settings-disclosure-pill");
+            pill.enableRichText = false;
+            pill.style.display = DisplayStyle.None;
+            AddFoldoutHeaderPill(foldout, pill);
+            parent.Add(foldout);
+            return foldout;
+        }
+
+        private static void SetDisclosurePill(Label pill, string text)
+        {
+            if (pill == null)
+            {
+                return;
+            }
+            bool show = !string.IsNullOrEmpty(text);
+            pill.text = show ? text : string.Empty;
+            pill.style.display = show ? DisplayStyle.Flex : DisplayStyle.None;
+        }
+
         /// <summary>The pill goes at the END of the Foldout's header toggle row; the toggle's input column grows (USS) so the pill sits flush right.</summary>
         private static void AddFoldoutHeaderPill(Foldout foldout, Label pill)
         {
@@ -7346,7 +7558,7 @@ namespace Colloid.AgentPanel.UI
                 return;
             }
             VisualElement icon = IconLoader.CreateIcon(iconName, fallbackGlyph,
-                "uap-settings-danger-icon", "uap-settings-danger-icon-glyph");
+                "uap-settings-foldout-icon", "uap-settings-foldout-icon-glyph");
             Label label = header.Q<Label>(className: "unity-toggle__label");
             if (label != null && label.parent != null)
             {
@@ -7378,7 +7590,7 @@ namespace Colloid.AgentPanel.UI
             var hint = new Label(text);
             hint.AddToClassList("uap-settings-hint");
             hint.enableRichText = false;
-            hint.style.whiteSpace = WhiteSpace.Normal;
+            hint.AddToClassList("uap-wrap");
             parent.Add(hint);
             return hint;
         }
@@ -7451,7 +7663,7 @@ namespace Colloid.AgentPanel.UI
             warning.AddToClassList("uap-settings-hint");
             warning.AddToClassList("uap-settings-hint--warning");
             warning.enableRichText = false;
-            warning.style.whiteSpace = WhiteSpace.Normal;
+            warning.AddToClassList("uap-wrap");
             parent.Add(warning);
             return warning;
         }

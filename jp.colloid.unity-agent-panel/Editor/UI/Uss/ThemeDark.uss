@@ -177,6 +177,12 @@
     --uap-help-gutter-neg: -26px;
     --uap-settings-body-pad-r: 34px;
     --uap-settings-body-pad-r-narrow: 30px;
+    /* 2026-09-18 settings redesign: the Overview label column and the
+       search field width, plus their 300px values. */
+    --uap-settings-overview-label-w: 104px;
+    --uap-settings-overview-label-w-narrow: 76px;
+    --uap-settings-search-w: 200px;
+    --uap-settings-search-w-narrow: 120px;
     --uap-btn-pad-y: 3px;
     --uap-btn-pad-x: 10px;
     /* Pressed state (:active): one step SUNKEN from the surface, the

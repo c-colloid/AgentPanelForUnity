@@ -3328,7 +3328,7 @@
 
 .uap-settings-search {
     flex-shrink: 1;
-    width: 200px;
+    width: var(--uap-settings-search-w);
     margin-top: 0;
     margin-bottom: 0;
     margin-left: var(--uap-space-s);
@@ -3338,6 +3338,35 @@
 .uap-settings-search-clear {
     margin-left: var(--uap-space-s);
     margin-right: 0;
+}
+
+/* The search field's affordances (2026-09-18): a magnifier before the
+   box and a placeholder drawn over the empty box, since the 2022.3
+   TextField has no placeholder of its own. */
+.uap-settings-search-icon {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    margin-left: var(--uap-space-s);
+}
+
+.uap-settings-search-icon-glyph {
+    font-size: var(--uap-font-size-meta);
+    color: var(--uap-text-secondary);
+    margin-left: var(--uap-space-s);
+}
+
+.uap-settings-search-placeholder {
+    position: absolute;
+    left: 6px;
+    top: 1px;
+    color: var(--uap-text-disabled);
+    font-size: var(--uap-font-size-body);
+}
+
+/* Multi-line text where the class replaces an inline white-space. */
+.uap-wrap {
+    white-space: normal;
 }
 
 .uap-settings-search-crumb {
@@ -3417,7 +3446,26 @@
 .uap-settings-tab-label--short {
     margin: 0;
     padding: 0;
-    color: inherit;
+}
+
+/* The labels inside the tab button take the button's text colour per
+   state ("inherit" is not a USS value: it rendered the labels invisible
+   on the 2026-09-18 Xvfb capture). */
+.uap-settings-tab > .uap-settings-tab-label,
+.uap-settings-tab > .uap-settings-tab-label--short {
+    color: var(--uap-text-secondary);
+}
+
+.uap-settings-tab:hover > .uap-settings-tab-label,
+.uap-settings-tab:hover > .uap-settings-tab-label--short,
+.uap-settings-tab--active > .uap-settings-tab-label,
+.uap-settings-tab--active > .uap-settings-tab-label--short {
+    color: var(--uap-text-primary);
+}
+
+.uap-settings-tab--active > .uap-settings-tab-label,
+.uap-settings-tab--active > .uap-settings-tab-label--short {
+    -unity-font-style: bold;
 }
 
 /* D8: the short label replaces the full one at 300px. */
@@ -3485,7 +3533,7 @@
 }
 
 .uap-settings-overview-label {
-    width: 104px;
+    width: var(--uap-settings-overview-label-w);
     flex-shrink: 0;
     color: var(--uap-text-secondary);
 }
@@ -3510,10 +3558,34 @@
     margin-right: 0;
 }
 
+/* The "Change" link's chevron: the arrow the mockup drew, as an icon
+   (source stays ASCII). Hidden while the action is a primary button. */
+.uap-settings-overview-chevron {
+    width: 10px;
+    height: 10px;
+    margin-left: 2px;
+    flex-shrink: 0;
+}
+
+.uap-settings-overview-chevron-glyph {
+    margin-left: 2px;
+    font-size: var(--uap-font-size-meta);
+}
+
 .uap-settings-overview-footer {
     margin-top: var(--uap-space-m);
     padding-left: var(--uap-space-s);
     padding-right: var(--uap-space-s);
+}
+
+/* The two version pills wrap at 300px instead of forcing a horizontal
+   scrollbar on the Overview (2026-09-18 Xvfb capture). */
+.uap-settings-overview-footer > .uap-settings-row {
+    flex-wrap: wrap;
+}
+
+.uap-settings-overview-footer .uap-settings-version-pill {
+    margin-bottom: var(--uap-space-xs);
 }
 
 /* D7: the danger zone is a collapsible card of its own; it only takes
@@ -3556,7 +3628,8 @@
     background-color: var(--uap-bg-hover);
 }
 
-.uap-settings-card-header {
+.uap-settings-card-header,
+.uap-settings-section-foldout > .unity-foldout__toggle {
     flex-direction: row;
     align-items: center;
     background-color: var(--uap-settings-card-header-bg);
@@ -3606,7 +3679,9 @@
    after the title; collapsible cards: at the end of the foldout's toggle
    row). Tone classes are the shared pill tones; the text always says the
    state, the colour only tints it. */
-.uap-settings-card-status {
+.uap-settings-card-status,
+.uap-settings-disclosure-pill,
+.uap-settings-version-pill {
     align-self: center;
     flex-shrink: 0;
     margin-left: var(--uap-space-s);
@@ -3617,6 +3692,44 @@
 .uap-settings-section-foldout > .unity-foldout__toggle > .unity-toggle__input {
     flex-grow: 1;
     flex-shrink: 1;
+}
+
+/* 2026-09-17 settings redesign phase 4 (D6): a collapsed row inside a
+   card body for the card's long tail (tool lists, module switches). The
+   header row wears the pill at its right end like a collapsible card;
+   the body keeps the card's own field grammar. */
+.uap-settings-disclosure {
+    margin-top: var(--uap-space-m);
+    margin-bottom: 0;
+}
+
+.uap-settings-disclosure > .unity-foldout__toggle {
+    flex-direction: row;
+    align-items: center;
+    margin-left: 0;
+    margin-right: 0;
+    padding-top: var(--uap-space-xs);
+    padding-bottom: var(--uap-space-xs);
+}
+
+.uap-settings-disclosure > .unity-foldout__toggle:hover {
+    background-color: var(--uap-bg-hover);
+}
+
+.uap-settings-disclosure > .unity-foldout__toggle > .unity-toggle__input {
+    flex-grow: 1;
+    flex-shrink: 1;
+}
+
+.uap-settings-disclosure > .unity-foldout__toggle .unity-toggle__label {
+    color: var(--uap-text-primary);
+}
+
+/* The row's content sits flush with the card body: the Foldout's default
+   content inset plus the --child indent read as a double indent on the
+   2026-09-18 capture. */
+.uap-settings-disclosure > .unity-foldout__content {
+    margin-left: 0;
 }
 
 .uap-settings-card-body {
@@ -3648,17 +3761,6 @@
    the field is unchanged. */
 .uap-settings-field--group-start {
     margin-top: var(--uap-space-m);
-}
-
-/* 2026-08-14 UI polish audit: the allow/deny tool-list block inside the
-   Conversation card had no visual separation from the fields above it --
-   a top border plus its own top spacing marks it as a distinct subgroup
-   within the card, one step lighter than a full card boundary. */
-.uap-settings-subgroup-start {
-    margin-top: var(--uap-space-l);
-    padding-top: var(--uap-space-m);
-    border-top-width: 1px;
-    border-top-color: var(--uap-border-subtle);
 }
 
 .uap-settings-multiline {
@@ -3774,12 +3876,19 @@
 /* 2026-09-17 settings redesign phase 2: the "working" tone for a header
    status pill (port open, signed in, plugin loaded). */
 .uap-pill--ok {
-    background-color: var(--uap-status-idle);
-    color: var(--uap-bg-base);
+    background-color: var(--uap-bg-sunken);
+    color: var(--uap-status-idle);
+    border-width: 1px;
+    border-top-color: var(--uap-status-idle);
+    border-bottom-color: var(--uap-status-idle);
+    border-left-color: var(--uap-status-idle);
+    border-right-color: var(--uap-status-idle);
 }
 
-/* About section's two version pills, side by side (R06 section 4.5). */
+/* The Overview footer's two version pills, side by side (R06 section
+   4.5); size and placement come from the shared pill rule above. */
 .uap-settings-version-pill {
+    margin-left: 0;
     margin-right: var(--uap-space-s);
 }
 
@@ -3858,14 +3967,20 @@
     margin-left: 0;
     margin-right: var(--uap-space-m);
     font-size: var(--uap-font-size-meta);
-    color: var(--uap-text-secondary);
+    /* 2026-09-18: link colour, and never stretched to the column width
+       (a stretched Button centres its caption, which read as the one
+       centred island on the UapOps card). */
+    color: var(--uap-accent-link);
+    align-self: flex-start;
+    flex-direction: row;
+    align-items: center;
 }
 
 .uap-settings-link-btn:hover,
 .uap-settings-link-btn:focus,
 .uap-settings-link-btn:active {
     background-color: rgba(0, 0, 0, 0);
-    color: var(--uap-accent-link);
+    color: var(--uap-text-primary);
 }
 
 /* Account card (docs/design-notes/2026-08-02-auth-in-panel.md): Submit
@@ -3940,40 +4055,14 @@
     -unity-text-align: middle-right;
 }
 
-.uap-settings-danger-foldout {
-    margin-top: var(--uap-space-m);
-    padding-top: var(--uap-space-s);
-    padding-bottom: var(--uap-space-s);
-    padding-left: var(--uap-space-s);
-    padding-right: var(--uap-space-s);
-    background-color: var(--uap-warn-bg);
-    border-width: 1px;
-    border-top-color: var(--uap-warn-border);
-    border-bottom-color: var(--uap-warn-border);
-    border-left-color: var(--uap-warn-border);
-    border-right-color: var(--uap-warn-border);
-    border-top-left-radius: var(--uap-radius);
-    border-top-right-radius: var(--uap-radius);
-    border-bottom-left-radius: var(--uap-radius);
-    border-bottom-right-radius: var(--uap-radius);
-}
-
-/* Foldout's own header Toggle: force checkmark-then-icon-then-label onto
-   one row (R06 section 3.5) so AddFoldoutHeaderIcon's spliced-in icon
-   (SettingsView.cs) sits inline with "Danger zone" instead of wrapping. */
-.uap-settings-danger-foldout > .unity-foldout__toggle {
-    flex-direction: row;
-    align-items: center;
-}
-
-.uap-settings-danger-icon {
+.uap-settings-foldout-icon {
     width: 12px;
     height: 12px;
     margin-right: var(--uap-space-s);
     flex-shrink: 0;
 }
 
-.uap-settings-danger-icon-glyph {
+.uap-settings-foldout-icon-glyph {
     font-size: var(--uap-font-size-meta);
     color: var(--uap-status-warn);
     margin-right: var(--uap-space-s);
@@ -4256,8 +4345,9 @@
 
 /* Advanced per-type overrides Foldout (v0.9.0, docs/design-notes/
    2026-08-01-model-settings-rework.md section 4.2): a neutral (non-warn)
-   collapsed-by-default container, unlike .uap-settings-danger-foldout's
-   warn-tinted surface -- this table is power-user detail, not a hazard. */
+   collapsed-by-default container (the danger zone, once a warn-tinted
+   foldout here, is its own card since 2026-09-17) -- this table is
+   power-user detail, not a hazard. */
 .uap-settings-advanced-foldout {
     margin-top: var(--uap-space-m);
 }
@@ -4277,19 +4367,12 @@
    foldout toggle row, so its hover (defined next to .uap-settings-card)
    and its click target coincide. */
 .uap-settings-section-foldout > .unity-foldout__toggle {
-    flex-direction: row;
-    align-items: center;
+    /* The strip itself is shared with .uap-settings-card-header above
+       (one header grammar); only the Toggle's default margins differ. */
     margin-top: 0;
     margin-bottom: 0;
     margin-left: 0;
     margin-right: 0;
-    padding-top: var(--uap-space-s);
-    padding-bottom: var(--uap-space-s);
-    padding-left: var(--uap-space-m);
-    padding-right: var(--uap-space-m);
-    background-color: var(--uap-settings-card-header-bg);
-    border-bottom-width: 1px;
-    border-bottom-color: var(--uap-border-subtle);
 }
 
 /* Module switches under a master switch: indented one step, and their
@@ -4304,7 +4387,6 @@
    set them apart from the explanatory hints around them. */
 .uap-settings-status {
     color: var(--uap-text-secondary);
-    -unity-font-style: italic;
 }
 
 /* Font-size slider: SliderInt's own label carries a default left inset
@@ -5406,13 +5488,14 @@
 }
 
 .uap-narrow .uap-settings-overview-label {
-    width: 76px;
+    width: var(--uap-settings-overview-label-w-narrow);
 }
 
-.uap-narrow .uap-settings-overview-detail {
+.uap-narrow .uap-settings-overview-detail,
+.uap-settings-overview-detail--empty {
     display: none;
 }
 
 .uap-narrow .uap-settings-search {
-    width: 120px;
+    width: var(--uap-settings-search-w-narrow);
 }

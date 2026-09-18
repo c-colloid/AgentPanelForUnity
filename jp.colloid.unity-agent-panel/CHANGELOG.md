@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (nothing yet)
 
+## [0.58.1] - 2026-09-18
+
+### Fixed
+
+- The `v0.58.0` tag, and therefore the public mirror and its release zip,
+  captured the tree before the redesign's last five commits (phase 4
+  disclosure rows, the second hint diet round and Overview reconnect row,
+  the UXML card/row templates with the USS fixes, the guide screenshots).
+  Those commits kept the version at 0.58.0, so the tag landed on the commit
+  that introduced the version, not on the merged head. This release
+  republishes the complete tree; no code change since `0.58.0` on `main`.
+
 ## [0.58.0] - 2026-09-17
 
 ### Added
@@ -25,6 +37,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   "Enable") when a step is not done. The About card's version pills and
   links are the Overview's footer. Phase 1 of
   `docs/design-notes/2026-09-17-settings-redesign-plan.md`.
+- **The long tails fold away.** The Conversation card's allow / deny tool
+  lists and the Unity operations card's thirteen module switches (with the
+  web module's own fields) sit under one collapsed row each, whose pill
+  says "N allowed, M blocked" / "N / 13 on"; the row remembers its state
+  for the editor session and opens on a search hit inside it. Phase 4.
 - **One "go to this setting" entry point.** `AgentPanelWindow.ShowSettings
   (tab, cardId)` selects the tab, opens a collapsed card and scrolls to it;
   the first-run "Log in" button, the Overview links and the UapOps card's
@@ -68,6 +85,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   auto-continue switches, sign-in method, Ctrl+Enter).
 - The Unity operations, uLoop and Appearance cards no longer end with a
   status line; the header pill carries it.
+- The Overview's sign-in row shows "email (plan)" instead of the full
+  "Logged in as ..." sentence, which wrapped to three lines at 300px.
+- Five more hint lines moved onto tooltips (default model description,
+  subagent cost policy, "show cost in USD", what a quick action is) and
+  the "continue after a compile" line lost its second sentence to the
+  "?" mark; about 24 always-visible hint lines remain, from about 50.
+- The Overview's "In effect now" card leads with a "Reconnect" row while
+  a change is waiting for the next reconnect, with the same "Reconnect
+  now" button as the banner.
+- Links in Settings look like links: the Overview's "Change" links, the
+  footer links and the auto-approve cross-reference use the link colour,
+  "Change" carries a chevron, and a link inside a column no longer
+  stretches (the "Open Project Settings" button was the one centred
+  thing on the page). The search box gained a magnifier and a placeholder.
+  The module switches under "Modules" are indented once, not twice; the
+  Overview's "off" state uses the Test Runner's neutral dot instead of its
+  "ignored" icon; the two status lines that stayed in card bodies drop
+  their italics; every pill in Settings is one size, and the green "ok"
+  pill is outlined so it reads in the light theme too.
 
 ## [0.57.0] - 2026-09-17
 

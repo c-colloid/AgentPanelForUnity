@@ -168,6 +168,36 @@ namespace Colloid.AgentPanel.Tests
         }
 
         [Test]
+        public void OverviewReconnectRow_MirrorsTheBanner()
+        {
+            var window = ScriptableObject.CreateInstance<UI.AgentPanelWindow>();
+            try
+            {
+                window.CreateGUI();
+                VisualElement root = window.rootVisualElement.Q(className: "uap-settings");
+                VisualElement banner = root.Q(className: "uap-settings-banner");
+                var rows = root.Q("uap-card-" + SettingsView.EffectiveCardId)
+                    .Query(className: "uap-settings-overview-row").ToList();
+                VisualElement reconnect = rows[0];
+                Assert.AreEqual(L10n.S.SettingsOverviewReconnectLabel,
+                    reconnect.Q<Label>(className: "uap-settings-overview-label").text,
+                    "the reconnect row leads the 'in effect now' card");
+                // Same process-state dependence as the banner test: pin the
+                // mirror, not one fixed answer.
+                Assert.AreEqual(banner.style.display.value, reconnect.style.display.value,
+                    "the Overview row shows exactly when the banner does");
+                if (reconnect.style.display.value == DisplayStyle.Flex)
+                {
+                    Assert.IsFalse(string.IsNullOrEmpty(reconnect.Q<Label>(className: "uap-settings-overview-value").text));
+                }
+            }
+            finally
+            {
+                Object.DestroyImmediate(window);
+            }
+        }
+
+        [Test]
         public void HintDiet_ModuleAndNotificationDescriptions_AreTooltipsNotLines()
         {
             var window = ScriptableObject.CreateInstance<UI.AgentPanelWindow>();
@@ -212,7 +242,7 @@ namespace Colloid.AgentPanel.Tests
                     }
                     visible.Add(hint.text);
                 }
-                Assert.LessOrEqual(visible.Count, 30,
+                Assert.LessOrEqual(visible.Count, 26,
                     "always-visible hint lines crept back up (" + visible.Count + "):\n" + string.Join("\n", visible));
             }
             finally

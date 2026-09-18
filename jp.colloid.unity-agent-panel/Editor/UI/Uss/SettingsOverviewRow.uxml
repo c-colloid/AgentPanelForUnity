@@ -1,0 +1,14 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements">
+    <!-- One Overview row (SettingsView.AddOverviewRow): state icon host,
+         label, value, detail, one action. The state icon and the action's
+         chevron are inserted by C# through IconLoader. -->
+    <ui:VisualElement class="uap-settings-overview-row">
+        <ui:VisualElement name="icon-host" class="uap-settings-overview-icon-host" />
+        <ui:Label name="label" class="uap-settings-overview-label" />
+        <ui:Label name="value" class="uap-settings-overview-value" />
+        <ui:Label name="detail" class="uap-settings-overview-detail uap-settings-overview-detail--empty" />
+        <ui:Button name="action" class="uap-settings-link-btn uap-settings-overview-action">
+            <ui:Label name="action-label" class="uap-settings-overview-action-label" />
+        </ui:Button>
+    </ui:VisualElement>
+</ui:UXML>
