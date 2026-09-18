@@ -321,6 +321,16 @@ namespace Colloid.AgentPanel.Tests
         }
 
         [Test]
+        public void HostileStructure_StrayClosersAndDeepNesting_DoNotOverflow()
+        {
+            string closers = new string(']', 200000) + new string('>', 50000);
+            string opens = new string('[', 100000);
+            byte[] pdf = SimplePdf("BT /F1 12 Tf 72 700 Td " + closers + " (Still) Tj " + opens + " (here) Tj ET");
+            UapPdfText.Result r = UapPdfText.Extract(pdf, 1, int.MaxValue);
+            StringAssert.Contains("Still", r.Pages[0]);
+        }
+
+        [Test]
         public void Encrypted_FlaggedAndWarned()
         {
             byte[] pdf = Concat(

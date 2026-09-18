@@ -9,6 +9,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (nothing yet)
 
+## [0.58.0] - 2026-09-17
+
+### Added
+
+- **Settings has five tabs and an Overview.** The single sixteen-card
+  scroll became Overview / Agent / Panel / Unity integration / Connection,
+  one tab body at a time, with the tab you left remembered for the editor
+  session (the header gear reopens it). The new Overview tab holds no
+  control: a Setup card (agent found?, signed in?, Unity operations on?)
+  and an "In effect now" card (permission mode, auto-approve level,
+  default model, language, and a red line whenever every permission check
+  is being skipped), each row with a "Change" link to the setting's one
+  home; the setup rows offer the obvious next move ("Set up", "Sign in",
+  "Enable") when a step is not done. The About card's version pills and
+  links are the Overview's footer. Phase 1 of
+  `docs/design-notes/2026-09-17-settings-redesign-plan.md`.
+- **One "go to this setting" entry point.** `AgentPanelWindow.ShowSettings
+  (tab, cardId)` selects the tab, opens a collapsed card and scrolls to it;
+  the first-run "Log in" button, the Overview links and the UapOps card's
+  auto-approve cross-reference (now a link instead of a sentence) all use
+  it.
+- **Settings search.** A search field at the right of the Settings title:
+  typing hides the tab strip and shows, from every tab at once, only the
+  rows whose label, hint, tooltip, button caption or current value contains
+  the text (case-insensitive), each surviving card headed by a
+  "Tab > Card" crumb; a hit inside a collapsed card or foldout opens it.
+  Clearing the field (or Esc) puts the tab you were on back exactly as it
+  was. The Overview tab is not searched, since it only mirrors other
+  settings. Phase 3 of `docs/design-notes/2026-09-17-settings-redesign-plan.md`.
+- **A status pill on every Settings card header.** The one-word state a
+  card used to bury in a line at the bottom of its body now sits at the
+  right end of its header, readable with the card collapsed: Unity
+  operations "Port N" / "Off" / "Not running", Agent "Signed in" /
+  "Not signed in" / "Not found", Appearance the detected CJK font, Model
+  the model a new session will run, Custom instructions "Not set" /
+  "N lines", Quick actions and Console errors their counts, Extension
+  profiles "N detected", uLoop and the Unity plugin "Installed" / "Not
+  installed", the danger zone "All off" / "Skipping checks". Tone (green
+  / amber / neutral) only tints; the text always says the state. Phase 2
+  of `docs/design-notes/2026-09-17-settings-redesign-plan.md`.
+
+### Changed
+
+- **The danger zone is its own collapsed card at the end of the Agent
+  tab**, no longer the third row of the Conversation card, and it only
+  takes the warning surface while "Skip ALL permission checks" is ON.
+- At 300px the tab strip shows short labels ("Unity", "Connect").
+- **Fewer always-visible hint lines in Settings.** Twenty-two lines that
+  restated a label, repeated what the reconnect banner says, or described
+  one of twelve module switches moved onto the control's tooltip (a "?"
+  mark when long): the per-module descriptions, the Unity operations and
+  Extension profiles opening paragraphs, the notifications focus caveat,
+  the web fetch / search field notes, the staging-folder line, the
+  disallowed-tools "one per line", the subagent-card caveat and the agent
+  picker's "applies at the next reconnect". What stays visible is the one
+  line you need to choose (auto-approve scope, validation gate, the two
+  auto-continue switches, sign-in method, Ctrl+Enter).
+- The Unity operations, uLoop and Appearance cards no longer end with a
+  status line; the header pill carries it.
+
 ## [0.57.0] - 2026-09-17
 
 ### Added
@@ -66,6 +126,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   stay on the line). Encrypted files, XObject forms and scanned pages
   yield no text and say so. Design note
   `docs/design-notes/2026-09-17-web-fetch-tool.md` sections 4.3 and 12.
+- **`uap_web_search` for agents without a web search of their own.** The
+  same `web` module gains a search tool that uses the provider and API
+  key you enter under Settings > Web fetch (Brave Search API or Tavily;
+  the key lives in the project's UserSettings) and returns up to 20 hits
+  as title, URL and snippet, ready to open with `uap_web_fetch`. Without
+  a key the tool answers with where to set one and sends nothing. Not
+  read-only either, since the query leaves the machine; the permission
+  card shows it. Design note section 8.
 
 ## [0.56.2] - 2026-09-17
 

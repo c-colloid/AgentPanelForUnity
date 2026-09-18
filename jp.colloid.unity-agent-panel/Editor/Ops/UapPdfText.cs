@@ -307,6 +307,10 @@ namespace Colloid.AgentPanel.Ops
 
             public byte[] Bytes { get { return _b; } }
 
+            /// <summary>Nesting of arrays/dicts being parsed; past <see cref="MaxDepth"/> an opener is read as a bare operator so "[[[[..." cannot recurse without bound.</summary>
+            private int _depth;
+            private const int MaxDepth = 200;
+
             private static bool IsWhite(byte c)
             {
                 return c == 0x20 || c == 0x0A || c == 0x0D || c == 0x09 || c == 0x0C || c == 0x00;
@@ -348,12 +352,28 @@ namespace Colloid.AgentPanel.Ops
             /// </summary>
             public object Next(bool allowRefs)
             {
-                SkipWhite();
-                if (Pos >= End)
+                // Stray closers / lone delimiter bytes are skipped in this
+                // loop rather than by recursion: a crafted run of "]]]]..."
+                // must not grow the stack (StackOverflowException would
+                // take the Editor down).
+                byte c;
+                while (true)
                 {
-                    return EndOfInput;
+                    SkipWhite();
+                    if (Pos >= End)
+                    {
+                        return EndOfInput;
+                    }
+                    c = _b[Pos];
+                    if (c == ']' || c == '>' || c == ')' || c == '{' || c == '}')
+                    {
+                        Pos++;
+                        continue;
+                    }
+                    // Anything else starts a name, string, dict, array,
+                    // number or bare keyword ('%' comments were skipped).
+                    break;
                 }
-                byte c = _b[Pos];
                 if (c == '/')
                 {
                     Pos++;
@@ -373,13 +393,30 @@ namespace Colloid.AgentPanel.Ops
                     if (Pos + 1 < End && _b[Pos + 1] == '<')
                     {
                         Pos += 2;
-                        return ReadDict(allowRefs);
+                        if (_depth >= MaxDepth)
+                        {
+                            return new Operator("<<");
+                        }
+                        _depth++;
+                        try
+                        {
+                            return ReadDict(allowRefs);
+                        }
+                        finally
+                        {
+                            _depth--;
+                        }
                     }
                     return ReadHexString();
                 }
                 if (c == '[')
                 {
                     Pos++;
+                    if (_depth >= MaxDepth)
+                    {
+                        return new Operator("[");
+                    }
+                    _depth++;
                     var list = new List<object>();
                     while (true)
                     {
@@ -400,12 +437,8 @@ namespace Colloid.AgentPanel.Ops
                         }
                         list.Add(item);
                     }
+                    _depth--;
                     return list;
-                }
-                if (c == ']' || c == '>' || c == ')' || c == '{' || c == '}')
-                {
-                    Pos++;
-                    return Next(allowRefs);
                 }
                 if ((c >= '0' && c <= '9') || c == '+' || c == '-' || c == '.')
                 {
@@ -453,8 +486,9 @@ namespace Colloid.AgentPanel.Ops
                 }
                 if (Pos == kStart)
                 {
+                    // Unreachable after the loop above, kept as a guard.
                     Pos++;
-                    return Next(allowRefs);
+                    return new Operator(string.Empty);
                 }
                 string keyword = Latin1(_b, kStart, Pos - kStart);
                 if (keyword == "true")

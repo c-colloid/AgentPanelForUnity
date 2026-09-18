@@ -154,8 +154,9 @@ namespace Colloid.AgentPanel.Tests
         {
             ToolRegistry registry = ToolRegistry.CreateDefault(false);
             List<IUapTool> tools = registry.ListEnabled(new[] { "web" });
-            Assert.AreEqual(1, tools.Count);
-            Assert.AreEqual("uap_web_fetch", tools[0].Name);
+            Assert.AreEqual(2, tools.Count, "uap_web_fetch and uap_web_search");
+            Assert.IsTrue(tools.Exists(t => t.Name == "uap_web_fetch"));
+            Assert.IsTrue(tools.Exists(t => t.Name == "uap_web_search"));
             Assert.IsTrue(registry.HasToolsInModule("web"));
         }
 

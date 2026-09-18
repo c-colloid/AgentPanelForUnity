@@ -8,7 +8,7 @@ namespace Colloid.AgentPanel.Ops
     {
         /// <summary>PNG / JPEG: decodable by the editor, re-encoded to the attachment size and sent inline.</summary>
         Image,
-        /// <summary>GIF / WebP / BMP: the editor cannot decode it; sent as-is when small enough, else saved only.</summary>
+        /// <summary>GIF / WebP: the editor cannot decode it, but the model APIs accept it as-is; sent inline when small enough, else saved only.</summary>
         ImagePassthrough,
         /// <summary>PDF: saved to a file the agent reads with its own file reader.</summary>
         Pdf,
@@ -176,8 +176,11 @@ namespace Colloid.AgentPanel.Ops
                     return UapWebContentKind.Image;
                 case "image/gif":
                 case "image/webp":
-                case "image/bmp":
                     return UapWebContentKind.ImagePassthrough;
+                // image/bmp and other image types fall through to Binary:
+                // the editor cannot decode them and the model APIs do not
+                // accept them inline, so the file is saved and the path
+                // returned.
                 case "application/pdf":
                     return UapWebContentKind.Pdf;
                 case "text/html":

@@ -1361,7 +1361,13 @@ namespace Colloid.AgentPanel.Tests
                 "private void BuildConversationSection(VisualElement parent)");
             StringAssert.Contains("BuildAutoApproveLevelField(section)", conversation,
                 "the level must sit in the permission cluster, right after the mode");
-            StringAssert.Contains("BuildDangerZone(section)", conversation);
+            // 2026-09-17 settings redesign phase 1 (D7): the danger zone is
+            // its own collapsed card at the end of the Agent tab, no longer
+            // the third row of the Conversation card.
+            Assert.IsFalse(conversation.Contains("BuildDangerCard("),
+                "the Conversation card must not build the danger zone");
+            string createGui = ExtractMember(source, "public VisualElement CreateGUI()");
+            StringAssert.Contains("BuildDangerCard(agentTab)", createGui);
 
             string uapOps = ExtractMember(source,
                 "private void BuildUapOpsSection(VisualElement parent)");

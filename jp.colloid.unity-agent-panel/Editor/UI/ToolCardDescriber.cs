@@ -111,6 +111,12 @@ namespace Colloid.AgentPanel.UI
                     url != null ? WebFetchSummary(url) : ShortenToolDisplayName(name));
             }
 
+            if (name.EndsWith("uap_web_search", System.StringComparison.OrdinalIgnoreCase))
+            {
+                string query = FirstString(input, "query");
+                return Make("d_Search Icon", GlyphWeb, query != null ? Truncate(query.Trim(), ArgHintMaxChars) : ShortenToolDisplayName(name));
+            }
+
             // Unknown / MCP tools: generic row with whatever key is useful.
             // The name echo uses the SAME shortened form ToolActivityCard
             // puts in its header label (ShortenToolDisplayName): before,

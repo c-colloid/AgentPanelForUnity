@@ -59,13 +59,15 @@ namespace Colloid.AgentPanel.UI
         private PanelViewKind? _pendingView;
 
         /// <summary>
-        /// A ScrollToAccountSection() requested (via ShowSettingsAccount)
-        /// before this window's CreateGUI has finished building yet --
+        /// A SettingsView.Show(tab, cardId) requested (ShowSettings(tab,
+        /// cardId) / ShowSettingsAccount) before this window's CreateGUI
+        /// has finished building yet --
         /// same rationale/timing as <see cref="_pendingView"/>. Applied
         /// once CreateGUI reaches _built = true, right after _pendingView
         /// itself is applied.
         /// </summary>
-        private bool _pendingScrollToAccount;
+        private SettingsTab? _pendingSettingsTab;
+        private string _pendingSettingsCard;
 
         /// <summary>
         /// Back-to-chat affordance living in the ViewContainer region
@@ -288,12 +290,15 @@ namespace Colloid.AgentPanel.UI
             // for a ShowSettingsAccount() scroll requested before this
             // build finished. Must run AFTER _pendingView is applied so the
             // Settings root is already visible when the scroll executes.
-            if (_pendingScrollToAccount)
+            if (_pendingSettingsTab.HasValue)
             {
-                _pendingScrollToAccount = false;
+                SettingsTab tab = _pendingSettingsTab.Value;
+                string cardId = _pendingSettingsCard;
+                _pendingSettingsTab = null;
+                _pendingSettingsCard = null;
                 if (_settingsView != null)
                 {
-                    _settingsView.ScrollToAccountSection();
+                    _settingsView.Show(tab, cardId);
                 }
             }
 
@@ -650,37 +655,58 @@ namespace Colloid.AgentPanel.UI
         }
 
         /// <summary>
-        /// Opens/focuses the panel, switches to Settings AND scrolls to the
-        /// Account card -- FirstRunView's chat-view "Log in" setup card uses
+        /// Opens/focuses the panel, switches to Settings AND lands on the
+        /// Agent card -- FirstRunView's chat-view "Log in" setup card uses
         /// this (docs/design-notes/2026-08-02-auth-in-panel.md section 2.2)
         /// instead of plain ShowSettings() so the just-started login
-        /// sub-card (OAuth URL, code field) is not silently off-screen at
-        /// the top of a long Settings scroll.
+        /// sub-card (OAuth URL, code field) is not silently off-screen.
         /// </summary>
         public static void ShowSettingsAccount()
         {
-            AgentPanelWindow window = Open();
-            window.RequestActiveView(PanelViewKind.Settings);
-            window.RequestScrollToAccountSection();
+            ShowSettings(SettingsTab.Connection, SettingsView.AgentCardId);
         }
 
         /// <summary>
-        /// Applies a ScrollToAccountSection() immediately when this window
-        /// has already finished building; otherwise queues it for CreateGUI
-        /// to apply once the skeleton exists, mirroring
+        /// Opens Settings on one tab and, given a card id, opens and scrolls
+        /// to that card (docs/design-notes/2026-09-17-settings-redesign-
+        /// plan.md, D9). The plain ShowSettings() reopens whichever tab the
+        /// user left, which SettingsView remembers per editor session.
+        /// </summary>
+        public static void ShowSettings(SettingsTab tab, string cardId = null)
+        {
+            AgentPanelWindow window = Open();
+            window.RequestActiveView(PanelViewKind.Settings);
+            window.RequestShowSettingsCard(tab, cardId);
+        }
+
+        /// <summary>
+        /// Applies a SettingsView.Show(tab, cardId) immediately when this
+        /// window has already finished building; otherwise queues it for
+        /// CreateGUI to apply once the skeleton exists, mirroring
         /// <see cref="RequestActiveView"/>. Internal so EditMode tests can
         /// drive it without GetWindow/Show.
         /// </summary>
-        internal void RequestScrollToAccountSection()
+        /// <summary>
+        /// The Settings view, for EditMode tests that drive it directly
+        /// (a ScriptableObject window that is never shown has no panel, so
+        /// a TextField's value change raises no ChangeEvent there).
+        /// </summary>
+        internal SettingsView SettingsViewForTests
+        {
+            get { return _settingsView; }
+        }
+
+        internal void RequestShowSettingsCard(SettingsTab tab, string cardId)
         {
             if (!_built)
             {
-                _pendingScrollToAccount = true;
+                _pendingSettingsTab = tab;
+                _pendingSettingsCard = cardId;
                 return;
             }
             if (_settingsView != null)
             {
-                _settingsView.ScrollToAccountSection();
+                _settingsView.Show(tab, cardId);
             }
         }
 

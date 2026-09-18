@@ -10,17 +10,18 @@ namespace Colloid.AgentPanel.Tests
 {
     /// <summary>
     /// UXIA-2: the fifteen always-expanded settings cards gained
-    /// progressive disclosure -- five advanced/plumbing sections (UapOps,
-    /// Extension Profiles, uLoop, CLI, Diagnostics) render as
-    /// collapsed-by-default foldout cards while the everyday sections stay
-    /// plain expanded cards. Same headless CreateGUI harness as
-    /// SettingsViewSectionIconTests.
+    /// progressive disclosure -- the advanced/plumbing sections (UapOps,
+    /// Extension Profiles, Pro updates, uLoop, Unity plugin, Diagnostics)
+    /// render as collapsed-by-default foldout cards while the everyday
+    /// sections stay plain expanded cards. Since the 2026-09-17 settings
+    /// redesign phase 1 the danger zone is a collapsed card too ("danger").
+    /// Same headless CreateGUI harness as SettingsViewSectionIconTests.
     /// </summary>
     [TestFixture]
     public class SettingsViewSectionDisclosureTests
     {
         private static readonly string[] SectionIds =
-            { "uapops", "profiles", "pro", "uloop", "unity-plugin", "diagnostics" };
+            { "uapops", "profiles", "pro", "uloop", "unity-plugin", "diagnostics", "danger" };
 
         [SetUp]
         public void SetUp()

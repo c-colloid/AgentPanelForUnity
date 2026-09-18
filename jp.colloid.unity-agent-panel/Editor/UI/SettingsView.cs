@@ -27,6 +27,20 @@ using PanelSettings = Colloid.AgentPanel.Model.PanelSettings;
 namespace Colloid.AgentPanel.UI
 {
     /// <summary>
+    /// The five Settings tabs (docs/design-notes/2026-09-17-settings-
+    /// redesign-plan.md, D1). Order is display order; the int values are
+    /// what SessionState persists, so never renumber.
+    /// </summary>
+    public enum SettingsTab
+    {
+        Overview = 0,
+        Agent = 1,
+        Panel = 2,
+        Unity = 3,
+        Connection = 4
+    }
+
+    /// <summary>
     /// Settings view (ARCHITECTURE.md Phase 3 / R05 section 6.1): conversation
     /// defaults (permission mode, Ctrl+Enter, tool allow/deny lists, the
     /// dangerouslySkipPermissions danger zone) and model choice lead --
@@ -54,6 +68,70 @@ namespace Colloid.AgentPanel.UI
         private ScrollView _scroll;
         private VisualElement _reconnectBanner;
         private bool _active;
+
+        // -- Tabs (design note 2026-09-17-settings-redesign-plan.md, phase 1) --
+        internal const int TabCount = 5;
+        /// <summary>SessionState key of the last selected tab (int of SettingsTab): survives domain reloads, resets with the editor session -- same lifetime as SectionDisclosureKey.</summary>
+        internal const string TabStateKey = "Colloid.AgentPanel.Settings.Tab";
+        internal const string ConversationCardId = "conversation";
+        internal const string ModelCardId = "model";
+        internal const string InstructionsCardId = "instructions";
+        internal const string QuickActionsCardId = "quickactions";
+        internal const string DangerCardId = "danger";
+        internal const string DisplayCardId = "display";
+        internal const string AppearanceCardId = "appearance";
+        internal const string NotificationsCardId = "notifications";
+        internal const string ConsoleErrorsCardId = "console-errors";
+        internal const string UapOpsCardId = "uapops";
+        internal const string ProfilesCardId = "profiles";
+        internal const string UloopCardId = "uloop";
+        internal const string UnityPluginCardId = "unity-plugin";
+        internal const string AgentCardId = "agent";
+        internal const string DiagnosticsCardId = "diagnostics";
+        internal const string ProCardId = "pro";
+        internal const string SetupCardId = "setup";
+        internal const string EffectiveCardId = "effective";
+        private VisualElement _tabStrip;
+        private readonly Button[] _tabButtons = new Button[TabCount];
+        private readonly VisualElement[] _tabBodies = new VisualElement[TabCount];
+        private SettingsTab _activeTab = SettingsTab.Overview;
+        private readonly Dictionary<string, VisualElement> _cardsById =
+            new Dictionary<string, VisualElement>(System.StringComparer.Ordinal);
+        /// <summary>Card id -&gt; title text, for the search crumbs (RegisterCard fills it via AddSection / AddCollapsibleSection).</summary>
+        private readonly Dictionary<string, string> _cardTitles =
+            new Dictionary<string, string>(System.StringComparer.Ordinal);
+        private readonly Dictionary<string, VisualElement> _cardBodies =
+            new Dictionary<string, VisualElement>(System.StringComparer.Ordinal);
+
+        // -- Header status pills (design note 2026-09-17-settings-redesign-plan.md, D4 / phase 2) --
+        internal enum PillTone
+        {
+            Neutral,
+            Ok,
+            Warn
+        }
+        private readonly Dictionary<string, Label> _cardStatusPills =
+            new Dictionary<string, Label>(System.StringComparer.Ordinal);
+
+        // -- Search (design note 2026-09-17-settings-redesign-plan.md, D3 / phase 3) --
+        private TextField _searchField;
+        private Button _searchClearButton;
+        private Label _searchEmptyLabel;
+        private SettingsSearchFilter _searchFilter;
+
+        // -- Overview tab ---------------------------------------------------------
+        private OverviewRow _overviewAgentRow;
+        private OverviewRow _overviewSignInRow;
+        private OverviewRow _overviewUnityOpsRow;
+        private OverviewRow _overviewDangerRow;
+        private OverviewRow _overviewPermissionRow;
+        private OverviewRow _overviewAutoApproveRow;
+        private OverviewRow _overviewModelRow;
+        private OverviewRow _overviewLanguageRow;
+        /// <summary>Resolved executable of the last RefreshCliStatus, for the Overview's agent row (null when nothing resolved).</summary>
+        private string _cliResolvedPath;
+        /// <summary>Last ACP sign-in phase RefreshAccountSectionAcp computed, for the Overview's sign-in row.</summary>
+        private AcpAccountPhase _lastAcpPhase = AcpAccountPhase.SignedOut;
 
         private TextField _cliPathField;
         private Label _cliResolvedLabel;
@@ -122,7 +200,6 @@ namespace Colloid.AgentPanel.UI
         private SliderInt _fontSizeSlider;
         private Label _fontSizeValueLabel;
         private Toggle _cjkToggle;
-        private Label _cjkDiagnosticLabel;
 
         private Toggle _uapOpsEnabledToggle;
         private Label _autoApproveWarningLabel;
@@ -137,6 +214,8 @@ namespace Colloid.AgentPanel.UI
         private Toggle _uapOpsWebModuleToggle;
         private TextField _webFetchAllowedHostsField;
         private TextField _webFetchBlockedHostsField;
+        private PopupField<string> _webSearchProviderField;
+        private TextField _webSearchApiKeyField;
         private Toggle _uapOpsUiModuleToggle;
         private Toggle _uapOpsAuthoringModuleToggle;
         private Toggle _uapOpsAvatarModuleToggle;
@@ -157,14 +236,12 @@ namespace Colloid.AgentPanel.UI
         private Label _autoContinueInterruptedWarningLabel;
         private Label _playModeReloadHintLabel;
         private PopupField<UapAutoApproveLevel> _autoApproveLevelField;
-        private Label _uapOpsStatusLabel;
 
         private Toggle _extensionProfilesEnabledToggle;
         private VisualElement _extensionProfilesHost;
 
         // -- uLoop integration (Phase 5c, design section 2/2.5) -------------------
 
-        private Label _uloopStatusLabel;
         private Button _uloopInstallButton;
         private VisualElement _uloopInstallConfirmCard;
         private Label _uloopInstallRouteLabel;
@@ -344,48 +421,81 @@ namespace Colloid.AgentPanel.UI
             // this view holds several hundred wrapped labels.
             ScrollReflowThrottle.Attach(scroll);
 
+            // Title bar: the page title and, at its right end, the search
+            // field (phase 3, D3). Typing hides the tab strip and shows the
+            // matching rows of every tab under "Tab > Card" crumbs.
+            var titleBar = new VisualElement();
+            titleBar.AddToClassList("uap-settings-titlebar");
             var title = new Label(L10n.S.SettingsTitle);
             title.AddToClassList("uap-settings-title");
             title.enableRichText = false;
-            scroll.Add(title);
+            titleBar.Add(title);
+            var titleSpacer = new VisualElement();
+            titleSpacer.AddToClassList("uap-settings-titlebar-spacer");
+            titleBar.Add(titleSpacer);
+            _searchField = new TextField();
+            _searchField.AddToClassList("uap-settings-search");
+            _searchField.isDelayed = false;
+            _searchField.tooltip = L10n.S.SettingsSearchPlaceholder;
+            _searchField.RegisterValueChangedCallback(OnSearchChanged);
+            _searchField.RegisterCallback<KeyDownEvent>(OnSearchKeyDown, TrickleDown.TrickleDown);
+            titleBar.Add(_searchField);
+            _searchClearButton = new Button(ClearSearch) { text = L10n.S.SettingsSearchClearButton };
+            _searchClearButton.AddToClassList("uap-settings-link-btn");
+            _searchClearButton.AddToClassList("uap-settings-search-clear");
+            _searchClearButton.style.display = DisplayStyle.None;
+            titleBar.Add(_searchClearButton);
+            root.Insert(root.IndexOf(scroll), titleBar);
 
-            // Section order (2026-08-14 ui-polish audit item 8): Conversation
-            // and Model lead -- they are what a user opening Settings is
-            // almost always here to change (permission mode, tool lists,
-            // which model runs). CLI moved DOWN out of the lead slot to sit
-            // beside Appearance/Diagnostics near the bottom: it is
-            // connection plumbing/troubleshooting, read rarely and mostly
-            // when something is already wrong, which is exactly the company
-            // the read-only stderr tail (Diagnostics) and the uLoop
-            // installer keep. Every other section's relative order is
-            // unchanged from before this pass.
-            // 2026-09-05 UI redesign (settings, S1): four topic groups.
-            // Conversation and Model keep the lead slots the 2026-08-14
-            // pass gave them (SettingsViewSectionIconTests' card indices
-            // still hold -- group labels are not cards). Everything a
-            // user changes while WORKING sits in the first group; how the
-            // panel looks and when it beeps in the second; the Unity-side
-            // machinery in the third; plumbing, entitlement and identity
-            // last.
-            AddGroupLabel(scroll, L10n.S.SettingsGroupConversation, true);
-            BuildConversationSection(scroll);
-            BuildModelSection(scroll);
-            BuildCustomInstructionsSection(scroll);
-            BuildQuickActionsSection(scroll);
+            // Five tabs (docs/design-notes/2026-09-17-settings-redesign-plan.md,
+            // phase 1, D1/D2): the 2026-09-05 group headings became tabs,
+            // with an Overview tab in front. Title and tab strip sit above
+            // the scroll so they stay put while a tab body scrolls; the
+            // reconnect banner (S2) stays above both. Every card keeps its
+            // Build*Section builder; only the parent it is appended to
+            // changed.
+            BuildTabStrip();
+            root.Insert(root.IndexOf(scroll), _tabStrip);
+            _searchEmptyLabel = new Label(L10n.S.SettingsSearchNoMatch);
+            _searchEmptyLabel.AddToClassList("uap-settings-hint");
+            _searchEmptyLabel.AddToClassList("uap-settings-search-empty");
+            _searchEmptyLabel.enableRichText = false;
+            _searchEmptyLabel.style.display = DisplayStyle.None;
+            scroll.Add(_searchEmptyLabel);
+            for (int i = 0; i < TabCount; i++)
+            {
+                var body = new VisualElement();
+                body.AddToClassList("uap-settings-tab-body");
+                body.style.display = DisplayStyle.None;
+                _tabBodies[i] = body;
+                scroll.Add(body);
+            }
 
-            AddGroupLabel(scroll, L10n.S.SettingsGroupDisplay, false);
-            BuildDisplaySection(scroll);
-            BuildAppearanceSection(scroll);
-            BuildNotificationsSection(scroll);
-            BuildConsoleErrorsSection(scroll);
+            BuildOverviewTab(_tabBodies[(int)SettingsTab.Overview]);
 
-            AddGroupLabel(scroll, L10n.S.SettingsGroupUnity, false);
-            BuildUapOpsSection(scroll);
-            BuildExtensionProfilesSection(scroll);
-            BuildUloopSection(scroll);
-            BuildUnityPluginSection(scroll);
+            VisualElement agentTab = _tabBodies[(int)SettingsTab.Agent];
+            BuildConversationSection(agentTab);
+            BuildModelSection(agentTab);
+            BuildCustomInstructionsSection(agentTab);
+            BuildQuickActionsSection(agentTab);
+            // D7: the danger zone leaves the Conversation card and closes
+            // the tab as its own collapsed card, away from the everyday
+            // controls a first-time user sees first.
+            BuildDangerCard(agentTab);
 
-            AddGroupLabel(scroll, L10n.S.SettingsGroupConnection, false);
+            VisualElement panelTab = _tabBodies[(int)SettingsTab.Panel];
+            BuildDisplaySection(panelTab);
+            BuildAppearanceSection(panelTab);
+            BuildNotificationsSection(panelTab);
+            BuildConsoleErrorsSection(panelTab);
+
+            VisualElement unityTab = _tabBodies[(int)SettingsTab.Unity];
+            BuildUapOpsSection(unityTab);
+            BuildExtensionProfilesSection(unityTab);
+            BuildUloopSection(unityTab);
+            BuildUnityPluginSection(unityTab);
+
+            VisualElement connectionTab = _tabBodies[(int)SettingsTab.Connection];
             // 2026-09-17 user feedback (design notes 2026-09-17-account-
             // card-agent-picker-and-acp-init.md, then 2026-09-17-agent-card-
             // merge.md): the agent picker, the executable/command fields
@@ -395,46 +505,23 @@ namespace Colloid.AgentPanel.UI
             // "Agent" card now: pick -> is it found -> is it signed in ->
             // sign-in method, with the launch fields under an Advanced
             // foldout that opens itself when the command is not found.
-            BuildAgentSection(scroll);
-            BuildDiagnosticsSection(scroll);
-            // 2026-09-15 user feedback: "Agent Panel Pro updates" sat in
-            // the Unity group, which is where the Unity-side MACHINERY
-            // lives (what the agent may touch in the editor, which SDKs it
-            // knows about, which helper CLIs are installed). This card is
-            // none of that: it takes the registry URL and product key a
-            // purchase came with and writes them to the package manager's
-            // credentials -- an entitlement, read at install/upgrade time,
-            // exactly the "connection and account" subject the sign-in card
-            // above it covers. It also went unfound where it was, which a
-            // card a buyer has to reach ONCE, right after paying, cannot
-            // afford. Sits in the same group as Account (same subject) and
-            // before About.
-            BuildProUpdatesSection(scroll);
-            BuildAboutSection(scroll);
+            BuildAgentSection(connectionTab);
+            BuildDiagnosticsSection(connectionTab);
+            // 2026-09-15 user feedback: the Pro updates card is an
+            // entitlement (registry URL + product key), the same subject as
+            // the sign-in card, so it sits with it rather than under Unity.
+            BuildProUpdatesSection(connectionTab);
+            // The About card is gone: its version pills and links are the
+            // Overview tab's footer (BuildOverviewFooter).
 
             // 2026-09-06 settings review: long tooltips get a visible ? mark
             // (HelpAffordance) so the third copy layer is discoverable.
             HelpAffordance.ApplyMarks(scroll);
 
+            _searchFilter = new SettingsSearchFilter(BuildSearchCards());
+            SelectTab(ReadPersistedTab(), false);
             RefreshAll();
             return root;
-        }
-
-        /// <summary>
-        /// One small secondary-toned heading between card groups. `first`
-        /// drops the top margin so the first heading sits flush under the
-        /// page title instead of opening a gap there.
-        /// </summary>
-        private static void AddGroupLabel(VisualElement parent, string text, bool first)
-        {
-            var label = new Label(text);
-            label.AddToClassList("uap-settings-group");
-            if (first)
-            {
-                label.AddToClassList("uap-settings-group--first");
-            }
-            label.enableRichText = false;
-            parent.Add(label);
         }
 
         /// <summary>
@@ -562,6 +649,7 @@ namespace Colloid.AgentPanel.UI
             RefreshUapOpsStatus();
             RefreshUloopSectionThrottled();
             RefreshUnityPluginSectionThrottled();
+            RefreshOverview();
         }
 
         /// <summary>
@@ -811,6 +899,7 @@ namespace Colloid.AgentPanel.UI
             _cliStatusResolvedForManualPath = ProbeKey(PanelStateStore.instance.Settings);
             ICliPathProbe probe = CreateCliPathProbe();
             string resolved = probe.Resolve();
+            _cliResolvedPath = string.IsNullOrEmpty(resolved) ? null : resolved;
             _cliResolvedLabel.text = !string.IsNullOrEmpty(resolved)
                 ? L10n.F(L10n.S.SettingsCliResolvedFmt, resolved)
                 : L10n.F(L10n.S.SettingsCliNotFoundFmt, string.Join("; ", probe.DescribeCandidates()));
@@ -970,7 +1059,7 @@ namespace Colloid.AgentPanel.UI
         private void BuildConversationSection(VisualElement parent)
         {
             VisualElement section = AddSection(parent, L10n.S.SettingsSectionConversation,
-                "d_Profiler.NetworkMessages", IconLoader.GlyphGear);
+                "d_Profiler.NetworkMessages", IconLoader.GlyphGear, ConversationCardId);
 
             var modeChoices = new List<PermissionModeOption>
             {
@@ -1000,7 +1089,6 @@ namespace Colloid.AgentPanel.UI
             // (when to ask / what auto-approves / skip everything) sit
             // adjacent and their interplay is readable in one place.
             BuildAutoApproveLevelField(section);
-            BuildDangerZone(section);
 
             _ctrlEnterToggle = new Toggle(L10n.S.SettingsCtrlEnterLabel);
             _ctrlEnterToggle.AddToClassList("uap-settings-field");
@@ -1037,8 +1125,9 @@ namespace Colloid.AgentPanel.UI
             _disallowedToolsField.RegisterValueChangedCallback(OnDisallowedToolsChanged);
             VisualElement disallowedToolsScope = AddHintScope(section);
             disallowedToolsScope.Add(_disallowedToolsField);
-            AddHint(disallowedToolsScope, L10n.S.SettingsDisallowedToolsHint,
-                L10n.S.SettingsDisallowedToolsTooltip);
+            // D5: "one tool per line" is said once, on the allowed list
+            // right above; this field keeps only the apply-timing tooltip.
+            disallowedToolsScope.tooltip = L10n.S.SettingsDisallowedToolsTooltip;
 
         }
 
@@ -1070,19 +1159,26 @@ namespace Colloid.AgentPanel.UI
             return _autoApproveLevelField;
         }
 
-        private void BuildDangerZone(VisualElement section)
+        /// <summary>
+        /// D7 (design note 2026-09-17-settings-redesign-plan.md): the
+        /// "skip every permission check" switch is its own collapsed card
+        /// at the END of the Agent tab, not the third row of the card a
+        /// first-time user sees first. Same warn icon in the header while
+        /// collapsed (2026-08-01 visual refresh phase A); the card only
+        /// takes the warn surface while the switch is ON
+        /// (RefreshDangerCardTone), so an unarmed danger zone reads as a
+        /// plain card with a warning glyph, and an armed one cannot be
+        /// missed.
+        /// </summary>
+        private void BuildDangerCard(VisualElement parent)
         {
-            var foldout = new Foldout { text = L10n.S.SettingsDangerZoneTitle, value = false };
-            foldout.AddToClassList("uap-settings-danger-foldout");
-            // Warn icon stays visible in the header even while the Foldout
-            // is collapsed, so "this is dangerous" does not require opening
-            // it first to see (design-notes/2026-08-01-settings-visual-
-            // refresh.md phase A).
-            AddFoldoutHeaderIcon(foldout, "d_console.warnicon.sml", IconLoader.GlyphWarn);
+            VisualElement body = AddCollapsibleSection(parent, L10n.S.SettingsDangerZoneTitle,
+                "d_console.warnicon.sml", IconLoader.GlyphWarn, DangerCardId);
+            _cardsById[DangerCardId].AddToClassList("uap-settings-card--danger");
 
             var warning = new HelpBox(L10n.A(L10n.S.SettingsDangerZoneWarning), HelpBoxMessageType.Warning);
             warning.AddToClassList("uap-settings-helpbox");
-            foldout.Add(warning);
+            body.Add(warning);
 
             _dangerousToggle = new Toggle(L10n.S.SettingsDangerZoneToggle);
             _dangerousToggle.AddToClassList("uap-settings-field");
@@ -1090,11 +1186,24 @@ namespace Colloid.AgentPanel.UI
             _dangerousToggle.SetValueWithoutNotify(
                 PanelStateStore.instance.Settings.dangerouslySkipPermissions);
             _dangerousToggle.RegisterValueChangedCallback(OnDangerousToggleChanged);
-            VisualElement dangerScope = AddHintScope(foldout);
+            VisualElement dangerScope = AddHintScope(body);
             dangerScope.Add(_dangerousToggle);
             dangerScope.tooltip = L10n.S.SettingsDangerZoneTooltip;
+            RefreshDangerCardTone();
+        }
 
-            section.Add(foldout);
+        private void RefreshDangerCardTone()
+        {
+            VisualElement card;
+            if (!_cardsById.TryGetValue(DangerCardId, out card))
+            {
+                return;
+            }
+            bool armed = PanelStateStore.instance.Settings.dangerouslySkipPermissions;
+            card.EnableInClassList("uap-settings-card--danger-armed", armed);
+            SetSectionStatus(DangerCardId,
+                armed ? L10n.S.SettingsPillSkippingChecks : L10n.S.SettingsPillAllOff,
+                armed ? PillTone.Warn : PillTone.Neutral);
         }
 
         private void OnPermissionModeChanged(ChangeEvent<PermissionModeOption> evt)
@@ -1137,6 +1246,7 @@ namespace Colloid.AgentPanel.UI
         {
             PanelStateStore.instance.Settings.dangerouslySkipPermissions = evt.newValue;
             PanelStateStore.instance.SaveNow();
+            RefreshDangerCardTone();
             RefreshReconnectHint();
             AgentHub.RequestAutoApplyReconnect();
         }
@@ -1150,7 +1260,7 @@ namespace Colloid.AgentPanel.UI
             // version, so sharing a name meant BOTH cards silently rendered
             // the identical icon -- confirmed by SettingsViewSectionIconTests).
             VisualElement section = AddSection(parent, L10n.S.SettingsSectionModel,
-                "d_Preset.Context", IconLoader.GlyphSpark);
+                "d_Preset.Context", IconLoader.GlyphSpark, ModelCardId);
 
             PanelSettings settings = PanelStateStore.instance.Settings;
             List<ModelCatalogEntry> catalog = ResolveCurrentModelCatalog();
@@ -1423,6 +1533,7 @@ namespace Colloid.AgentPanel.UI
             {
                 _defaultModelHintLabel.text = ResolveDefaultModelHintText(catalog, settings.model);
             }
+            SetSectionStatus(ModelCardId, ResolveModelPillText(catalog, settings.model), PillTone.Neutral);
 
             if (_subagentCostPolicyField != null && _subagentCostPolicyField.value != settings.subagentCostPolicy)
             {
@@ -1440,6 +1551,26 @@ namespace Colloid.AgentPanel.UI
                 }
             }
             RefreshSubagentPrecedenceWarning();
+        }
+
+        /// <summary>
+        /// The Model card's header pill: the model a new session will
+        /// actually run (the catalog's resolved id, shortened), the chosen
+        /// value when the catalog cannot resolve it, nothing for "Default"
+        /// with no catalog. Pure (SettingsSectionStatusTests).
+        /// </summary>
+        internal static string ResolveModelPillText(List<ModelCatalogEntry> catalog, string selectedValue)
+        {
+            ModelCatalogEntry entry = FindCatalogEntry(catalog, selectedValue);
+            if (entry != null && !string.IsNullOrEmpty(entry.resolvedModel))
+            {
+                return ShortenResolvedModel(entry.resolvedModel);
+            }
+            if (entry != null && !string.IsNullOrEmpty(entry.displayName))
+            {
+                return entry.displayName;
+            }
+            return string.IsNullOrEmpty(selectedValue) ? null : selectedValue;
         }
 
         private static List<AgentModelOverride> LoadAgentModelOverrides()
@@ -1913,7 +2044,7 @@ namespace Colloid.AgentPanel.UI
         private void BuildCustomInstructionsSection(VisualElement parent)
         {
             VisualElement section = AddSection(parent, L10n.S.SettingsSectionCustomInstructions,
-                "d_TextAsset Icon", IconLoader.GlyphFile);
+                "d_TextAsset Icon", IconLoader.GlyphFile, InstructionsCardId);
             AddHint(AddHintScope(section), L10n.A(L10n.S.SettingsCustomInstructionsHint),
                 L10n.A(L10n.S.SettingsCustomInstructionsTooltip));
 
@@ -1927,6 +2058,17 @@ namespace Colloid.AgentPanel.UI
             _customInstructionsField.RegisterValueChangedCallback(OnCustomInstructionsChanged);
             scroll.Add(_customInstructionsField);
             section.Add(scroll);
+            RefreshCustomInstructionsPill(_customInstructionsField.value);
+        }
+
+        /// <summary>"Not set" / "N lines" in the card header (D4).</summary>
+        private void RefreshCustomInstructionsPill(string text)
+        {
+            int lines = SplitLines(text).Count;
+            SetSectionStatus(InstructionsCardId,
+                lines == 0 ? L10n.S.SettingsPillNotSet
+                    : L10n.F(L10n.S.SettingsPillLinesFmt, lines.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+                PillTone.Neutral);
         }
 
         /// <summary>
@@ -1941,6 +2083,7 @@ namespace Colloid.AgentPanel.UI
         private void OnCustomInstructionsChanged(ChangeEvent<string> evt)
         {
             CustomInstructionsFile.CreateDefault(AgentHub.ProjectRoot).Save(evt.newValue ?? string.Empty);
+            RefreshCustomInstructionsPill(evt.newValue);
             RefreshReconnectHint();
             AgentHub.RequestAutoApplyReconnect();
         }
@@ -1950,7 +2093,7 @@ namespace Colloid.AgentPanel.UI
         private void BuildDisplaySection(VisualElement parent)
         {
             VisualElement section = AddSection(parent, L10n.S.SettingsSectionDisplay,
-                "d_UnityEditor.GameView", IconLoader.GlyphBullet);
+                "d_UnityEditor.GameView", IconLoader.GlyphBullet, DisplayCardId);
 
             _showThinkingToggle = new Toggle(L10n.S.SettingsShowThinkingLabel);
             _showThinkingToggle.AddToClassList("uap-settings-field");
@@ -1973,8 +2116,10 @@ namespace Colloid.AgentPanel.UI
             _subagentDefaultExpandedToggle.SetValueWithoutNotify(
                 PanelStateStore.instance.Settings.subagentDefaultExpanded);
             _subagentDefaultExpandedToggle.RegisterValueChangedCallback(OnSubagentDefaultExpandedChanged);
+            // D5: the "only cards you have not touched" caveat is a tooltip,
+            // not a line under every visit.
+            _subagentDefaultExpandedToggle.tooltip = L10n.S.SettingsExpandSubagentHint;
             section.Add(_subagentDefaultExpandedToggle);
-            AddHint(section, L10n.S.SettingsExpandSubagentHint);
 
             _showCostUsdToggle = new Toggle(L10n.S.SettingsShowCostLabel);
             _showCostUsdToggle.AddToClassList("uap-settings-field");
@@ -2023,7 +2168,7 @@ namespace Colloid.AgentPanel.UI
         private void BuildQuickActionsSection(VisualElement parent)
         {
             VisualElement section = AddSection(parent, L10n.S.SettingsSectionQuickActions,
-                "d_Favorite", "+");
+                "d_Favorite", "+", QuickActionsCardId);
             AddHint(AddHintScope(section), L10n.S.SettingsQuickActionsHint,
                 L10n.S.SettingsQuickActionsTooltip);
 
@@ -2057,6 +2202,8 @@ namespace Colloid.AgentPanel.UI
             {
                 AddQuickActionRow(actions, actions[i]);
             }
+            SetSectionStatus(QuickActionsCardId, FormatCountPill(L10n.S.SettingsPillItemsFmt, actions.Count),
+                PillTone.Neutral);
         }
 
         /// <summary>
@@ -2123,8 +2270,9 @@ namespace Colloid.AgentPanel.UI
         private void BuildNotificationsSection(VisualElement parent)
         {
             VisualElement section = AddSection(parent, L10n.S.SettingsSectionNotifications,
-                "d_AudioSource Icon", IconLoader.GlyphBullet);
-            AddHint(section, L10n.S.SettingsNotificationsHint);
+                "d_AudioSource Icon", IconLoader.GlyphBullet, NotificationsCardId);
+            // D5: the focus caveat rides both switches as a tooltip instead
+            // of opening the card as a sentence.
 
             _permissionBeepToggle = new Toggle(L10n.S.SettingsPermissionBeepLabel);
             _permissionBeepToggle.AddToClassList("uap-settings-field");
@@ -2135,6 +2283,7 @@ namespace Colloid.AgentPanel.UI
             _permissionBeepToggle.AddToClassList("uap-switch");
             _permissionBeepToggle.SetValueWithoutNotify(PanelStateStore.instance.Settings.permissionBeep);
             _permissionBeepToggle.RegisterValueChangedCallback(OnPermissionBeepChanged);
+            _permissionBeepToggle.tooltip = L10n.S.SettingsNotificationsHint;
             section.Add(_permissionBeepToggle);
 
             _turnCompleteBeepToggle = new Toggle(L10n.S.SettingsTurnCompleteBeepLabel);
@@ -2142,6 +2291,7 @@ namespace Colloid.AgentPanel.UI
             _turnCompleteBeepToggle.AddToClassList("uap-switch");
             _turnCompleteBeepToggle.SetValueWithoutNotify(PanelStateStore.instance.Settings.turnCompleteBeep);
             _turnCompleteBeepToggle.RegisterValueChangedCallback(OnTurnCompleteBeepChanged);
+            _turnCompleteBeepToggle.tooltip = L10n.S.SettingsNotificationsHint;
             section.Add(_turnCompleteBeepToggle);
         }
 
@@ -2167,7 +2317,7 @@ namespace Colloid.AgentPanel.UI
         private void BuildConsoleErrorsSection(VisualElement parent)
         {
             VisualElement section = AddSection(parent, L10n.S.SettingsSectionConsoleErrors,
-                "d_console.erroricon.sml", IconLoader.GlyphWarn);
+                "d_console.erroricon.sml", IconLoader.GlyphWarn, ConsoleErrorsCardId);
             AddHint(AddHintScope(section), L10n.S.SettingsConsoleErrorsHint,
                 L10n.S.SettingsConsoleErrorsTooltip);
 
@@ -2184,8 +2334,10 @@ namespace Colloid.AgentPanel.UI
             _ignoredErrorPatternsField.RegisterValueChangedCallback(OnIgnoredErrorPatternsChanged);
             VisualElement patternsScope = AddHintScope(section);
             patternsScope.Add(_ignoredErrorPatternsField);
-            AddHint(patternsScope, L10n.S.SettingsIgnoredErrorPatternsHint,
-                L10n.S.SettingsIgnoredErrorPatternsTooltip);
+            // D5: the card's own hint already says what is ignored here;
+            // the per-line rule is this field's tooltip.
+            patternsScope.tooltip = L10n.S.SettingsIgnoredErrorPatternsHint + " "
+                + L10n.S.SettingsIgnoredErrorPatternsTooltip;
 
             _ignoredErrorsHost = new VisualElement();
             _ignoredErrorsHost.AddToClassList("uap-settings-errignore-list");
@@ -2220,11 +2372,20 @@ namespace Colloid.AgentPanel.UI
         /// remove button in ONE straight column (2026-08-03 list-row-
         /// control-alignment rule).
         /// </summary>
+        /// <summary>A count pill: null (hidden) at zero, else the format with the number. Pure.</summary>
+        internal static string FormatCountPill(string format, int count)
+        {
+            return count <= 0 ? null
+                : L10n.F(format, count.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        }
+
         private void RebuildIgnoredErrorRows()
         {
             _ignoredErrorsHost.Clear();
             List<string> ignored = PanelStateStore.instance.Settings.ignoredConsoleErrors;
             bool any = ignored != null && ignored.Count > 0;
+            SetSectionStatus(ConsoleErrorsCardId,
+                FormatCountPill(L10n.S.SettingsPillIgnoredFmt, any ? ignored.Count : 0), PillTone.Neutral);
             _ignoredErrorsHost.style.display = any ? DisplayStyle.Flex : DisplayStyle.None;
             _ignoredErrorsClearRow.style.display = any ? DisplayStyle.Flex : DisplayStyle.None;
             if (!any)
@@ -2286,7 +2447,6 @@ namespace Colloid.AgentPanel.UI
         {
             VisualElement section = AddCollapsibleSection(parent, L10n.S.SettingsSectionUapOps,
                 "d_UnityEditor.SceneHierarchyWindow", IconLoader.GlyphGear, "uapops");
-            AddHint(AddHintScope(section), L10n.A(L10n.S.SettingsUapOpsHint), L10n.A(L10n.S.SettingsUapOpsTooltip));
 
             _uapOpsEnabledToggle = new Toggle(L10n.S.SettingsUapOpsEnabledLabel);
             _uapOpsEnabledToggle.AddToClassList("uap-settings-field");
@@ -2295,7 +2455,10 @@ namespace Colloid.AgentPanel.UI
             _uapOpsEnabledToggle.RegisterValueChangedCallback(OnUapOpsEnabledChanged);
             VisualElement uapOpsEnabledScope = AddHintScope(section);
             uapOpsEnabledScope.Add(_uapOpsEnabledToggle);
-            uapOpsEnabledScope.tooltip = L10n.S.SettingsUapOpsEnabledTooltip;
+            // D5: the card's opening paragraph (what the MCP server is) is
+            // the master switch's ? mark, not a line above it.
+            uapOpsEnabledScope.tooltip = L10n.A(L10n.S.SettingsUapOpsHint) + "\n\n"
+                + L10n.A(L10n.S.SettingsUapOpsTooltip) + "\n\n" + L10n.S.SettingsUapOpsEnabledTooltip;
 
             // Module toggle rows (design section 7.1): real toggles over
             // PanelSettings.uapOpsModules. Phase 5a shipped "core"; Phase 5b
@@ -2308,7 +2471,7 @@ namespace Colloid.AgentPanel.UI
             _uapOpsCoreModuleToggle.SetValueWithoutNotify(PanelStateStore.instance.Settings.uapOpsModules.Contains("core"));
             _uapOpsCoreModuleToggle.RegisterValueChangedCallback(OnUapOpsCoreModuleToggleChanged);
             section.Add(_uapOpsCoreModuleToggle);
-            AddHint(section, L10n.S.SettingsUapOpsModuleCoreHint).AddToClassList("uap-settings-hint--child");
+            _uapOpsCoreModuleToggle.tooltip = L10n.S.SettingsUapOpsModuleCoreHint;
 
             _uapOpsPrefabModuleToggle = new Toggle(L10n.S.SettingsUapOpsModulePrefabLabel);
             _uapOpsPrefabModuleToggle.AddToClassList("uap-settings-field");
@@ -2330,7 +2493,7 @@ namespace Colloid.AgentPanel.UI
             // uap_editor_select in Core even with Pro absent (only the
             // lightmap/Bakery bake tools moved out), so this toggle is never disabled -- always show the
             // ordinary hint, never the Pro-absent one.
-            AddHint(section, L10n.S.SettingsUapOpsModuleEditorHint).AddToClassList("uap-settings-hint--child");
+            _uapOpsEditorModuleToggle.tooltip = L10n.S.SettingsUapOpsModuleEditorHint;
 
             // 2026-09-07: Scene-view 3D markers (default ON, generation 2).
             _uapOpsMarkersModuleToggle = new Toggle(L10n.S.SettingsUapOpsModuleMarkersLabel);
@@ -2340,7 +2503,7 @@ namespace Colloid.AgentPanel.UI
             _uapOpsMarkersModuleToggle.SetValueWithoutNotify(PanelStateStore.instance.Settings.uapOpsModules.Contains("markers"));
             _uapOpsMarkersModuleToggle.RegisterValueChangedCallback(OnUapOpsMarkersModuleToggleChanged);
             section.Add(_uapOpsMarkersModuleToggle);
-            AddHint(section, L10n.S.SettingsUapOpsModuleMarkersHint).AddToClassList("uap-settings-hint--child");
+            _uapOpsMarkersModuleToggle.tooltip = L10n.S.SettingsUapOpsModuleMarkersHint;
 
             // 2026-09-17: uap_web_fetch (default ON, generation 3). Core
             // ships the tool, so the row is never Pro-disabled.
@@ -2351,7 +2514,7 @@ namespace Colloid.AgentPanel.UI
             _uapOpsWebModuleToggle.SetValueWithoutNotify(PanelStateStore.instance.Settings.uapOpsModules.Contains("web"));
             _uapOpsWebModuleToggle.RegisterValueChangedCallback(OnUapOpsWebModuleToggleChanged);
             section.Add(_uapOpsWebModuleToggle);
-            AddHint(section, L10n.S.SettingsUapOpsModuleWebHint).AddToClassList("uap-settings-hint--child");
+            _uapOpsWebModuleToggle.tooltip = L10n.S.SettingsUapOpsModuleWebHint;
             // Host allow / deny lists for uap_web_fetch (stage 2). The
             // tool reads a snapshot (UapWebFetchTool.HostRules) from its
             // worker thread, so every edit replaces the snapshot here.
@@ -2372,7 +2535,27 @@ namespace Colloid.AgentPanel.UI
                 JoinLines(PanelStateStore.instance.Settings.webFetchBlockedHosts));
             _webFetchBlockedHostsField.RegisterValueChangedCallback(OnWebFetchBlockedHostsChanged);
             section.Add(_webFetchBlockedHostsField);
-            AddHint(section, L10n.S.SettingsWebFetchBlockedHostsHint).AddToClassList("uap-settings-hint--child");
+            _webFetchBlockedHostsField.tooltip = L10n.S.SettingsWebFetchBlockedHostsHint;
+            // uap_web_search (stage 3): provider + API key, published to the
+            // tool as one snapshot like the host rules.
+            var providerChoices = new List<string> { "brave", "tavily" };
+            string currentProvider = UapWebSearchConfig.ProviderId(
+                UapWebSearchConfig.ParseProvider(PanelStateStore.instance.Settings.webSearchProvider));
+            _webSearchProviderField = new PopupField<string>(L10n.S.SettingsWebSearchProviderLabel, providerChoices,
+                currentProvider, FormatSearchProviderChoice, FormatSearchProviderChoice);
+            _webSearchProviderField.AddToClassList("uap-settings-field");
+            _webSearchProviderField.AddToClassList("uap-settings-field--child");
+            _webSearchProviderField.RegisterValueChangedCallback(OnWebSearchProviderChanged);
+            section.Add(_webSearchProviderField);
+            _webSearchProviderField.tooltip = L10n.S.SettingsWebSearchProviderHint;
+            _webSearchApiKeyField = new TextField(L10n.S.SettingsWebSearchApiKeyLabel);
+            _webSearchApiKeyField.AddToClassList("uap-settings-field");
+            _webSearchApiKeyField.AddToClassList("uap-settings-field--child");
+            _webSearchApiKeyField.isPasswordField = true;
+            _webSearchApiKeyField.SetValueWithoutNotify(PanelStateStore.instance.Settings.webSearchApiKey ?? string.Empty);
+            _webSearchApiKeyField.RegisterValueChangedCallback(OnWebSearchApiKeyChanged);
+            section.Add(_webSearchApiKeyField);
+            _webSearchApiKeyField.tooltip = L10n.S.SettingsWebSearchApiKeyHint;
 
             // Phase 5b stream B adds "anim" (design section 1.2/8.8) --
             // default OFF, unlike core/prefab/editor above, so its toggle
@@ -2510,9 +2693,11 @@ namespace Colloid.AgentPanel.UI
             gateEnabledScope.Add(_uapOpsGateEnabledToggle);
             _gateWarningLabel = AddWarning(gateEnabledScope, L10n.S.SettingsUapOpsGateEnabledHint,
                 L10n.S.SettingsUapOpsGateEnabledTooltip);
-            AddHint(AddHintScope(section),
-                L10n.F(L10n.S.SettingsUapOpsStagingFolderHintFmt, ScriptGate.StagingFolder),
-                L10n.S.SettingsUapOpsStagingFolderTooltip);
+            // D5: where the staging folder is belongs to the ? mark, with
+            // the gate's own explanation.
+            gateEnabledScope.tooltip = L10n.S.SettingsUapOpsGateEnabledTooltip + "\n\n"
+                + L10n.F(L10n.S.SettingsUapOpsStagingFolderHintFmt, ScriptGate.StagingFolder) + " "
+                + L10n.S.SettingsUapOpsStagingFolderTooltip;
 
             // Auto-continue after compile (Phase 5c L3(3), design section
             // 3/8.5): a plain bool toggle added directly to this
@@ -2586,15 +2771,16 @@ namespace Colloid.AgentPanel.UI
             // section nobody found it. Only this cross-reference hint
             // remains so a user who looks for it HERE (its old home, and
             // the section whose tools it governs) is pointed to the field.
+            // Phase 1 of the 2026-09-17 settings redesign (D9): the
+            // cross-reference is a link that goes there, not a sentence.
             VisualElement autoApproveMovedScope = AddHintScope(section);
-            AddHint(autoApproveMovedScope, L10n.S.SettingsAutoApproveMovedHint,
-                L10n.S.SettingsAutoApproveMovedTooltip);
-
-            _uapOpsStatusLabel = new Label(string.Empty);
-            _uapOpsStatusLabel.AddToClassList("uap-settings-hint");
-            _uapOpsStatusLabel.AddToClassList("uap-settings-status");
-            _uapOpsStatusLabel.enableRichText = false;
-            section.Add(_uapOpsStatusLabel);
+            var autoApproveMovedLink = new Button(OnAutoApproveMovedLinkClicked)
+            {
+                text = L10n.S.SettingsAutoApproveMovedHint
+            };
+            autoApproveMovedLink.AddToClassList("uap-settings-link-btn");
+            autoApproveMovedScope.Add(autoApproveMovedLink);
+            autoApproveMovedScope.tooltip = L10n.A(L10n.S.SettingsAutoApproveMovedTooltip);
 
             RefreshUapOpsStatus();
         }
@@ -2639,16 +2825,12 @@ namespace Colloid.AgentPanel.UI
                     moduleToggle.tooltip = tooltip;
                 }
             }
-            Label hint = AddHint(section, ResolveModuleHint(hasTools, normalHint));
-            hint.AddToClassList("uap-settings-hint--child");
-            if (!hasTools)
-            {
-                hint.tooltip = L10n.S.SettingsUapOpsProAbsentTooltip;
-            }
-            else if (!string.IsNullOrEmpty(tooltip))
-            {
-                hint.tooltip = tooltip;
-            }
+            // D5 (2026-09-17 settings redesign, phase 2): the module's
+            // one-line description is the switch's own tooltip (a ? mark
+            // when long), not a hint line under each of twelve switches.
+            string hint = ResolveModuleHint(hasTools, normalHint);
+            string extra = hasTools ? tooltip : L10n.S.SettingsUapOpsProAbsentTooltip;
+            moduleToggle.tooltip = string.IsNullOrEmpty(extra) ? hint : hint + "\n\n" + extra;
         }
 
         /// <summary>
@@ -2677,12 +2859,8 @@ namespace Colloid.AgentPanel.UI
                     ? L10n.S.SettingsUapOpsTestFrameworkAbsentTooltip
                     : L10n.S.SettingsUapOpsProAbsentTooltip;
             }
-            Label hint = AddHint(section, ResolveTestsModuleHint(hasTools, proPresent, normalHint));
-            hint.AddToClassList("uap-settings-hint--child");
-            if (!hasTools)
-            {
-                hint.tooltip = moduleToggle.tooltip;
-            }
+            string hint = ResolveTestsModuleHint(hasTools, proPresent, normalHint);
+            moduleToggle.tooltip = hasTools ? hint : hint + "\n\n" + moduleToggle.tooltip;
         }
 
         /// <summary>
@@ -2733,6 +2911,24 @@ namespace Colloid.AgentPanel.UI
         internal static bool ResolveModuleToggleEnabled(bool masterEnabled, bool moduleHasTools)
         {
             return masterEnabled && moduleHasTools;
+        }
+
+        /// <summary>Disabled / running on port N / not running -- shared by the UapOps card's status line and the Overview row.</summary>
+        private static string ResolveUapOpsStatusText()
+        {
+            if (!PanelStateStore.instance.Settings.uapOpsEnabled)
+            {
+                return L10n.S.SettingsUapOpsStatusDisabled;
+            }
+            return UapOpsServer.IsRunning
+                ? L10n.F(L10n.S.SettingsUapOpsStatusRunningFmt,
+                    UapOpsServer.Port.ToString(System.Globalization.CultureInfo.InvariantCulture))
+                : L10n.S.SettingsUapOpsStatusStopped;
+        }
+
+        private void OnAutoApproveMovedLinkClicked()
+        {
+            Show(SettingsTab.Agent, ConversationCardId);
         }
 
         private void OnUapOpsEnabledChanged(ChangeEvent<bool> evt)
@@ -2989,6 +3185,32 @@ namespace Colloid.AgentPanel.UI
             PublishWebFetchHostRules();
         }
 
+        private static string FormatSearchProviderChoice(string id)
+        {
+            return id == "tavily" ? "Tavily" : "Brave Search API";
+        }
+
+        private void OnWebSearchProviderChanged(ChangeEvent<string> evt)
+        {
+            PanelStateStore.instance.Settings.webSearchProvider = evt.newValue;
+            PanelStateStore.instance.SaveNow();
+            PublishWebSearchConfig();
+        }
+
+        private void OnWebSearchApiKeyChanged(ChangeEvent<string> evt)
+        {
+            PanelStateStore.instance.Settings.webSearchApiKey = (evt.newValue ?? string.Empty).Trim();
+            PanelStateStore.instance.SaveNow();
+            PublishWebSearchConfig();
+        }
+
+        private static void PublishWebSearchConfig()
+        {
+            PanelSettings s = PanelStateStore.instance.Settings;
+            Colloid.AgentPanel.Ops.UapWebSearchTool.Config = new Colloid.AgentPanel.Ops.UapWebSearchConfig(
+                Colloid.AgentPanel.Ops.UapWebSearchConfig.ParseProvider(s.webSearchProvider), s.webSearchApiKey);
+        }
+
         private static void PublishWebFetchHostRules()
         {
             PanelSettings s = PanelStateStore.instance.Settings;
@@ -3118,7 +3340,7 @@ namespace Colloid.AgentPanel.UI
         /// </summary>
         private void RefreshUapOpsStatus()
         {
-            if (_uapOpsStatusLabel == null)
+            if (_uapOpsEnabledToggle == null)
             {
                 return;
             }
@@ -3135,6 +3357,8 @@ namespace Colloid.AgentPanel.UI
             _uapOpsWebModuleToggle?.SetEnabled(ModuleToggleEnabled(enabledSetting, "web"));
             _webFetchAllowedHostsField?.SetEnabled(ModuleToggleEnabled(enabledSetting, "web"));
             _webFetchBlockedHostsField?.SetEnabled(ModuleToggleEnabled(enabledSetting, "web"));
+            _webSearchProviderField?.SetEnabled(ModuleToggleEnabled(enabledSetting, "web"));
+            _webSearchApiKeyField?.SetEnabled(ModuleToggleEnabled(enabledSetting, "web"));
             _uapOpsAnimModuleToggle?.SetEnabled(ModuleToggleEnabled(enabledSetting, "anim"));
             _uapOpsUiModuleToggle?.SetEnabled(ModuleToggleEnabled(enabledSetting, "ui"));
             _uapOpsAuthoringModuleToggle?.SetEnabled(ModuleToggleEnabled(enabledSetting, "authoring"));
@@ -3143,12 +3367,16 @@ namespace Colloid.AgentPanel.UI
             _uapOpsTestsModuleToggle?.SetEnabled(ModuleToggleEnabled(enabledSetting, "tests"));
             _uapOpsFxModuleToggle?.SetEnabled(ModuleToggleEnabled(enabledSetting, "fx"));
             _uapOpsMeshModuleToggle?.SetEnabled(ModuleToggleEnabled(enabledSetting, "mesh"));
-            _uapOpsStatusLabel.text = !enabledSetting
-                ? L10n.S.SettingsUapOpsStatusDisabled
-                : (UapOpsServer.IsRunning
-                    ? L10n.F(L10n.S.SettingsUapOpsStatusRunningFmt,
-                        UapOpsServer.Port.ToString(System.Globalization.CultureInfo.InvariantCulture))
-                    : L10n.S.SettingsUapOpsStatusStopped);
+            // The card's state lives in its header pill (D4): off / port N /
+            // not running -- readable with the card collapsed.
+            SetSectionStatus(UapOpsCardId,
+                !enabledSetting ? L10n.S.SettingsPillOff
+                    : (UapOpsServer.IsRunning
+                        ? L10n.F(L10n.S.SettingsPillPortFmt,
+                            UapOpsServer.Port.ToString(System.Globalization.CultureInfo.InvariantCulture))
+                        : L10n.S.SettingsUapOpsStatusStopped),
+                !enabledSetting ? PillTone.Neutral : (UapOpsServer.IsRunning ? PillTone.Ok : PillTone.Warn),
+                ResolveUapOpsStatusText());
 
             // Keeps this dropdown's displayed value in sync with the header
             // control -- both surfaces write the SAME PanelSettings.
@@ -3181,9 +3409,6 @@ namespace Colloid.AgentPanel.UI
         {
             VisualElement section = AddCollapsibleSection(parent, L10n.S.SettingsSectionExtensionProfiles,
                 "d_ScriptableObject Icon", IconLoader.GlyphFile, "profiles");
-            AddHint(AddHintScope(section), L10n.A(L10n.S.SettingsExtensionProfilesHint),
-                L10n.A(L10n.S.SettingsExtensionProfilesTooltip));
-
             _extensionProfilesEnabledToggle = new Toggle(L10n.S.SettingsExtensionProfilesEnabledLabel);
             _extensionProfilesEnabledToggle.AddToClassList("uap-settings-field");
             _extensionProfilesEnabledToggle.AddToClassList("uap-switch");
@@ -3192,7 +3417,10 @@ namespace Colloid.AgentPanel.UI
             _extensionProfilesEnabledToggle.RegisterValueChangedCallback(OnExtensionProfilesEnabledChanged);
             VisualElement extensionProfilesEnabledScope = AddHintScope(section);
             extensionProfilesEnabledScope.Add(_extensionProfilesEnabledToggle);
-            extensionProfilesEnabledScope.tooltip = L10n.S.SettingsExtensionProfilesEnabledTooltip;
+            // D5: the card's opening paragraph is the switch's ? mark.
+            extensionProfilesEnabledScope.tooltip = L10n.A(L10n.S.SettingsExtensionProfilesHint) + "\n\n"
+                + L10n.A(L10n.S.SettingsExtensionProfilesTooltip) + "\n\n"
+                + L10n.S.SettingsExtensionProfilesEnabledTooltip;
 
             _extensionProfilesHost = new VisualElement();
             _extensionProfilesHost.AddToClassList("uap-settings-qa-list");
@@ -3260,6 +3488,18 @@ namespace Colloid.AgentPanel.UI
                         .tooltip = L10n.S.SettingsExtensionProfilesNoBundledTooltip;
                 }
             }
+            int detected = 0;
+            for (int i = 0; i < statuses.Count; i++)
+            {
+                if (statuses[i].Detected)
+                {
+                    detected++;
+                }
+            }
+            SetSectionStatus(ProfilesCardId,
+                detected == 0 ? L10n.S.SettingsPillNoneDetected
+                    : FormatCountPill(L10n.S.SettingsPillDetectedFmt, detected),
+                PillTone.Neutral);
             AddExtensionProfileGapAffordance(statuses);
         }
 
@@ -3600,11 +3840,6 @@ namespace Colloid.AgentPanel.UI
             VisualElement section = AddCollapsibleSection(parent, L10n.S.SettingsUloopSectionTitle,
                 "d_Package Manager", IconLoader.GlyphOpenWindow, "uloop");
 
-            _uloopStatusLabel = new Label(string.Empty);
-            _uloopStatusLabel.AddToClassList("uap-settings-hint");
-            _uloopStatusLabel.AddToClassList("uap-settings-status");
-            _uloopStatusLabel.enableRichText = false;
-            section.Add(_uloopStatusLabel);
 
             // Live install progress line, right under the status it will
             // eventually flip (see the field's own doc comment for why it
@@ -3943,14 +4178,14 @@ namespace Colloid.AgentPanel.UI
         /// </summary>
         private void RefreshUloopSection()
         {
-            if (_uloopStatusLabel == null)
+            if (_uloopInstallButton == null)
             {
                 return;
             }
             bool installed = UloopDetector.DetectInProject(AgentHub.ProjectRoot);
-            _uloopStatusLabel.text = installed
-                ? L10n.S.SettingsUloopStatusInstalled
-                : L10n.S.SettingsUloopStatusMissing;
+            SetSectionStatus(UloopCardId,
+                installed ? L10n.S.SettingsUloopStatusInstalled : L10n.S.SettingsUloopStatusMissing,
+                installed ? PillTone.Ok : PillTone.Neutral);
             _uloopInstallButton.style.display = installed ? DisplayStyle.None : DisplayStyle.Flex;
             if (installed)
             {
@@ -4657,7 +4892,7 @@ namespace Colloid.AgentPanel.UI
         private void BuildAppearanceSection(VisualElement parent)
         {
             VisualElement section = AddSection(parent, L10n.S.SettingsSectionAppearance,
-                "d_Font Icon", "Aa");
+                "d_Font Icon", "Aa", AppearanceCardId);
 
             // Language dropdown (docs/design-notes/2026-08-01-i18n.md #4):
             // this is the ONLY production call site that resolves
@@ -4704,11 +4939,6 @@ namespace Colloid.AgentPanel.UI
             _cjkToggle.RegisterValueChangedCallback(OnCjkToggleChanged);
             section.Add(_cjkToggle);
 
-            _cjkDiagnosticLabel = new Label(string.Empty);
-            _cjkDiagnosticLabel.AddToClassList("uap-settings-hint");
-            _cjkDiagnosticLabel.AddToClassList("uap-settings-status");
-            _cjkDiagnosticLabel.enableRichText = false;
-            section.Add(_cjkDiagnosticLabel);
         }
 
         /// <summary>
@@ -4772,17 +5002,23 @@ namespace Colloid.AgentPanel.UI
 
         private void RefreshCjkDiagnostic()
         {
-            if (_cjkDiagnosticLabel == null)
+            if (_cjkToggle == null)
             {
                 return;
             }
+            // The detected font is the Appearance card's header pill (D4);
+            // the full sentence (detected / via Font Fix / none) is its tooltip.
             string source = FontLoader.JapaneseUiFontSource;
-            _cjkDiagnosticLabel.text = string.IsNullOrEmpty(source)
+            string detail = string.IsNullOrEmpty(source)
                 ? L10n.S.SettingsCjkDiagnosticNone
                 : L10n.F(FontLoader.JapaneseUiFontFromFontFix
                         ? L10n.S.SettingsCjkDiagnosticViaFontFixFmt
                         : L10n.S.SettingsCjkDiagnosticDetectedFmt,
                     DescribeFontSource(source));
+            SetSectionStatus(AppearanceCardId,
+                string.IsNullOrEmpty(source) ? L10n.S.SettingsPillNoCjkFont : DescribeFontSource(source),
+                string.IsNullOrEmpty(source) ? PillTone.Warn : PillTone.Neutral,
+                detail);
         }
 
         private static string FormatFontSize(int px)
@@ -4846,7 +5082,7 @@ namespace Colloid.AgentPanel.UI
         private void BuildAgentSection(VisualElement parent)
         {
             VisualElement section = AddSection(parent, L10n.S.SettingsSectionAgent,
-                "d_CloudConnect", "@");
+                "d_CloudConnect", "@", AgentCardId);
             _accountSectionRoot = section;
             PanelSettings settings = PanelStateStore.instance.Settings;
 
@@ -5073,7 +5309,9 @@ namespace Colloid.AgentPanel.UI
             _backendField.RegisterValueChangedCallback(OnBackendChanged);
             VisualElement backendScope = AddHintScope(section);
             backendScope.Add(_backendField);
-            AddHint(backendScope, L10n.S.SettingsBackendHint, L10n.S.SettingsBackendTooltip);
+            // D5: "applies at the next reconnect" is what the banner says;
+            // the sentence rides the picker as a tooltip.
+            backendScope.tooltip = L10n.S.SettingsBackendHint + " " + L10n.S.SettingsBackendTooltip;
         }
 
         // -- Sign-in method row (design note 2026-09-17-agent-card-merge.md
@@ -5344,6 +5582,7 @@ namespace Colloid.AgentPanel.UI
             string url = loginRunning ? login.OAuthUrl : AgentHub.AcpSignInUrl;
             AcpAccountPhase phase = ResolveAcpAccountPhase(
                 connected, starting, loginRunning, AgentHub.AcpSignInPending);
+            _lastAcpPhase = phase;
             bool signingIn = phase == AcpAccountPhase.SigningIn;
             bool signedIn = phase == AcpAccountPhase.SignedIn;
             bool signedOut = phase == AcpAccountPhase.SignedOut;
@@ -5766,10 +6005,37 @@ namespace Colloid.AgentPanel.UI
         /// </summary>
         public void ScrollToAccountSection()
         {
+            Show(SettingsTab.Connection, AgentCardId);
+        }
+
+        /// <summary>
+        /// The one "go to this setting" entry point (design note
+        /// 2026-09-17-settings-redesign-plan.md, D9): selects the tab and,
+        /// given a card id, opens the card if it is collapsible and scrolls
+        /// to it. Callers: AgentPanelWindow.ShowSettings(tab, cardId) (the
+        /// FirstRunView sign-in button, the Overview rows), the UapOps
+        /// cross-reference link. The scroll is deferred one scheduler
+        /// tick: ScrollView.ScrollTo needs the target's layout resolved,
+        /// which is not guaranteed the same frame a Chat -&gt; Settings
+        /// switch or a tab switch just flipped a display from None to Flex.
+        /// </summary>
+        public void Show(SettingsTab tab, string cardId = null)
+        {
+            if (IsSearchActive)
+            {
+                ClearSearch();
+            }
+            SelectTab(tab, true);
             ScrollView scroll = _scroll;
-            if (scroll == null || _accountSectionRoot == null)
+            VisualElement card;
+            if (scroll == null || string.IsNullOrEmpty(cardId) || !_cardsById.TryGetValue(cardId, out card))
             {
                 return;
+            }
+            Foldout foldout = card.Q<Foldout>(className: "uap-settings-section-foldout");
+            if (foldout != null)
+            {
+                foldout.value = true;
             }
             // Explicit zero-arg lambda (not a parameterless "delegate { }"
             // literal): IVisualElementScheduler.Execute is overloaded on
@@ -5777,7 +6043,574 @@ namespace Colloid.AgentPanel.UI
             // implicitly match either -- CS0121 ambiguous call -- while a
             // "() => ..." lambda's explicit empty parameter list only
             // matches the Action overload.
-            scroll.schedule.Execute(() => scroll.ScrollTo(_accountSectionRoot)).ExecuteLater(0);
+            scroll.schedule.Execute(() => scroll.ScrollTo(card)).ExecuteLater(0);
+        }
+
+        /// <summary>Which tab a card lives on. Pure (SettingsViewTabTests); unknown ids land on Overview.</summary>
+        internal static SettingsTab TabFor(string cardId)
+        {
+            switch (cardId)
+            {
+                case ConversationCardId:
+                case ModelCardId:
+                case InstructionsCardId:
+                case QuickActionsCardId:
+                case DangerCardId:
+                    return SettingsTab.Agent;
+                case DisplayCardId:
+                case AppearanceCardId:
+                case NotificationsCardId:
+                case ConsoleErrorsCardId:
+                    return SettingsTab.Panel;
+                case UapOpsCardId:
+                case ProfilesCardId:
+                case UloopCardId:
+                case UnityPluginCardId:
+                    return SettingsTab.Unity;
+                case AgentCardId:
+                case DiagnosticsCardId:
+                case ProCardId:
+                    return SettingsTab.Connection;
+                default:
+                    return SettingsTab.Overview;
+            }
+        }
+
+        /// <summary>Int -&gt; tab with an out-of-range value (a future removed tab, a corrupt key) falling back to Overview. Pure.</summary>
+        internal static SettingsTab ClampTab(int value)
+        {
+            return value >= 0 && value < TabCount ? (SettingsTab)value : SettingsTab.Overview;
+        }
+
+        private static SettingsTab ReadPersistedTab()
+        {
+            return ClampTab(SessionState.GetInt(TabStateKey, (int)SettingsTab.Overview));
+        }
+
+        internal static string TabLabel(SettingsTab tab)
+        {
+            switch (tab)
+            {
+                case SettingsTab.Agent:
+                    return L10n.S.SettingsGroupConversation;
+                case SettingsTab.Panel:
+                    return L10n.S.SettingsGroupDisplay;
+                case SettingsTab.Unity:
+                    return L10n.S.SettingsGroupUnity;
+                case SettingsTab.Connection:
+                    return L10n.S.SettingsGroupConnection;
+                case SettingsTab.Overview:
+                default:
+                    return L10n.S.SettingsTabOverview;
+            }
+        }
+
+        /// <summary>The 300px label (D8): the same word where it already fits, a shorter one where it does not.</summary>
+        internal static string TabShortLabel(SettingsTab tab)
+        {
+            switch (tab)
+            {
+                case SettingsTab.Agent:
+                    return L10n.S.SettingsTabShortAgent;
+                case SettingsTab.Panel:
+                    return L10n.S.SettingsTabShortPanel;
+                case SettingsTab.Unity:
+                    return L10n.S.SettingsTabShortUnity;
+                case SettingsTab.Connection:
+                    return L10n.S.SettingsTabShortConnection;
+                case SettingsTab.Overview:
+                default:
+                    return L10n.S.SettingsTabShortOverview;
+            }
+        }
+
+        private void BuildTabStrip()
+        {
+            _tabStrip = new VisualElement();
+            _tabStrip.AddToClassList("uap-settings-tabs");
+            for (int i = 0; i < TabCount; i++)
+            {
+                var tab = (SettingsTab)i;
+                var button = new Button(delegate { SelectTab(tab, true); });
+                button.AddToClassList("uap-settings-tab");
+                button.name = "uap-settings-tab-" + i.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                var full = new Label(TabLabel(tab));
+                full.AddToClassList("uap-settings-tab-label");
+                full.enableRichText = false;
+                button.Add(full);
+                var brief = new Label(TabShortLabel(tab));
+                brief.AddToClassList("uap-settings-tab-label--short");
+                brief.enableRichText = false;
+                button.Add(brief);
+                _tabButtons[i] = button;
+                _tabStrip.Add(button);
+            }
+        }
+
+        /// <summary>
+        /// Shows one tab body, marks its button, and (when `persist`)
+        /// remembers the choice for the editor session so the header gear
+        /// reopens the tab the user left. Selecting Overview re-reads the
+        /// values it mirrors, since they may have changed on another tab
+        /// since the last hub tick.
+        /// </summary>
+        private void SelectTab(SettingsTab tab, bool persist)
+        {
+            _activeTab = tab;
+            for (int i = 0; i < TabCount; i++)
+            {
+                bool active = i == (int)tab;
+                if (_tabBodies[i] != null)
+                {
+                    _tabBodies[i].style.display = active ? DisplayStyle.Flex : DisplayStyle.None;
+                }
+                if (_tabButtons[i] != null)
+                {
+                    _tabButtons[i].EnableInClassList("uap-settings-tab--active", active);
+                }
+            }
+            if (persist)
+            {
+                SessionState.SetInt(TabStateKey, (int)tab);
+            }
+            if (tab == SettingsTab.Overview)
+            {
+                RefreshOverview();
+            }
+            if (_scroll != null)
+            {
+                _scroll.scrollOffset = Vector2.zero;
+            }
+        }
+
+        internal SettingsTab ActiveTab
+        {
+            get { return _activeTab; }
+        }
+
+        private void RegisterCard(string cardId, VisualElement card, string titleText, VisualElement body)
+        {
+            card.name = "uap-card-" + cardId;
+            _cardsById[cardId] = card;
+            _cardTitles[cardId] = titleText;
+            _cardBodies[cardId] = body;
+        }
+
+        // -- Search (D3) ----------------------------------------------------------
+
+        /// <summary>
+        /// Every card except the Overview's: those mirror other settings
+        /// and would only duplicate hits.
+        /// </summary>
+        private List<SettingsSearchCard> BuildSearchCards()
+        {
+            var cards = new List<SettingsSearchCard>();
+            foreach (KeyValuePair<string, VisualElement> pair in _cardsById)
+            {
+                SettingsTab tab = TabFor(pair.Key);
+                if (tab == SettingsTab.Overview)
+                {
+                    continue;
+                }
+                cards.Add(new SettingsSearchCard
+                {
+                    TabLabel = TabLabel(tab),
+                    Title = _cardTitles[pair.Key],
+                    Card = pair.Value,
+                    Body = _cardBodies[pair.Key]
+                });
+            }
+            return cards;
+        }
+
+        private void OnSearchChanged(ChangeEvent<string> evt)
+        {
+            ApplySearch(evt.newValue);
+        }
+
+        private void OnSearchKeyDown(KeyDownEvent evt)
+        {
+            if (evt.keyCode == KeyCode.Escape)
+            {
+                ClearSearch();
+                evt.StopPropagation();
+            }
+        }
+
+        private void ClearSearch()
+        {
+            if (_searchField != null)
+            {
+                _searchField.SetValueWithoutNotify(string.Empty);
+            }
+            ApplySearch(string.Empty);
+        }
+
+        /// <summary>
+        /// Search on: tab strip hidden, every non-Overview tab body shown,
+        /// rows filtered, "no match" line when nothing is left. Search off:
+        /// the filter restores the inline displays it touched, the active
+        /// tab comes back, and the next hub tick re-renders the
+        /// state-driven rows (a status line may have changed meanwhile).
+        /// </summary>
+        internal void ApplySearch(string query)
+        {
+            if (_searchFilter == null)
+            {
+                return;
+            }
+            bool active = SettingsSearch.IsActive(query);
+            if (_searchClearButton != null)
+            {
+                _searchClearButton.style.display = active ? DisplayStyle.Flex : DisplayStyle.None;
+            }
+            if (!active)
+            {
+                bool wasActive = _searchFilter.IsActive;
+                _searchFilter.Clear();
+                if (_searchEmptyLabel != null)
+                {
+                    _searchEmptyLabel.style.display = DisplayStyle.None;
+                }
+                if (_tabStrip != null)
+                {
+                    _tabStrip.style.display = DisplayStyle.Flex;
+                }
+                if (wasActive)
+                {
+                    SelectTab(_activeTab, false);
+                    _hubDirty = true;
+                }
+                return;
+            }
+            if (_tabStrip != null)
+            {
+                _tabStrip.style.display = DisplayStyle.None;
+            }
+            for (int i = 0; i < TabCount; i++)
+            {
+                if (_tabBodies[i] != null)
+                {
+                    _tabBodies[i].style.display = i == (int)SettingsTab.Overview
+                        ? DisplayStyle.None : DisplayStyle.Flex;
+                }
+            }
+            int visible = _searchFilter.Apply(query);
+            if (_searchEmptyLabel != null)
+            {
+                _searchEmptyLabel.style.display = visible == 0 ? DisplayStyle.Flex : DisplayStyle.None;
+            }
+            if (_scroll != null)
+            {
+                _scroll.scrollOffset = Vector2.zero;
+            }
+        }
+
+        internal bool IsSearchActive
+        {
+            get { return _searchFilter != null && _searchFilter.IsActive; }
+        }
+
+        // -- Overview tab (design note 2026-09-17-settings-redesign-plan.md, D2) --
+
+        /// <summary>
+        /// One Overview line: state icon, label, value, optional detail,
+        /// one action. The row never holds a control -- every setting has
+        /// exactly one home, and the action goes there (or, for the two
+        /// setup steps with an obvious next move, performs that move and
+        /// then goes there).
+        /// </summary>
+        private sealed class OverviewRow
+        {
+            public VisualElement Root;
+            public VisualElement IconHost;
+            public Label Value;
+            public Label Detail;
+            public Button Action;
+            public OverviewTone Tone = OverviewTone.Unset;
+        }
+
+        internal enum OverviewTone
+        {
+            Unset,
+            Ok,
+            Attention,
+            Off
+        }
+
+        private void BuildOverviewTab(VisualElement parent)
+        {
+            VisualElement setup = AddSection(parent, L10n.S.SettingsOverviewSetupTitle,
+                "d_Valid", IconLoader.GlyphCheck, SetupCardId);
+            _overviewAgentRow = AddOverviewRow(setup, L10n.S.SettingsOverviewAgentLabel, OnOverviewAgentClicked);
+            _overviewSignInRow = AddOverviewRow(setup, L10n.S.SettingsOverviewSignInLabel, OnOverviewSignInClicked);
+            _overviewUnityOpsRow = AddOverviewRow(setup, L10n.S.SettingsOverviewUnityOpsLabel, OnOverviewUnityOpsClicked);
+            _overviewUnityOpsRow.Root.AddToClassList("uap-settings-overview-row--last");
+
+            VisualElement effective = AddSection(parent, L10n.S.SettingsOverviewEffectiveTitle,
+                "d_Settings", IconLoader.GlyphGear, EffectiveCardId);
+            _overviewDangerRow = AddOverviewRow(effective, L10n.S.SettingsOverviewDangerLabel, OnOverviewDangerClicked);
+            _overviewPermissionRow = AddOverviewRow(effective, L10n.S.SettingsOverviewPermissionLabel, OnOverviewConversationClicked);
+            _overviewAutoApproveRow = AddOverviewRow(effective, L10n.S.SettingsOverviewAutoApproveLabel, OnOverviewConversationClicked);
+            _overviewModelRow = AddOverviewRow(effective, L10n.S.SettingsOverviewModelLabel, OnOverviewModelClicked);
+            _overviewLanguageRow = AddOverviewRow(effective, L10n.S.SettingsOverviewLanguageLabel, OnOverviewLanguageClicked);
+            _overviewLanguageRow.Root.AddToClassList("uap-settings-overview-row--last");
+
+            BuildOverviewFooter(parent);
+        }
+
+        private static OverviewRow AddOverviewRow(VisualElement section, string labelText, System.Action onAction)
+        {
+            var row = new OverviewRow();
+            row.Root = new VisualElement();
+            row.Root.AddToClassList("uap-settings-overview-row");
+            row.IconHost = new VisualElement();
+            row.IconHost.AddToClassList("uap-settings-overview-icon-host");
+            row.Root.Add(row.IconHost);
+            var label = new Label(labelText);
+            label.AddToClassList("uap-settings-overview-label");
+            label.enableRichText = false;
+            row.Root.Add(label);
+            row.Value = new Label(string.Empty);
+            row.Value.AddToClassList("uap-settings-overview-value");
+            row.Value.enableRichText = false;
+            row.Root.Add(row.Value);
+            row.Detail = new Label(string.Empty);
+            row.Detail.AddToClassList("uap-settings-overview-detail");
+            row.Detail.enableRichText = false;
+            row.Detail.style.display = DisplayStyle.None;
+            row.Root.Add(row.Detail);
+            row.Action = new Button(onAction) { text = L10n.S.SettingsOverviewChangeButton };
+            row.Action.AddToClassList("uap-settings-link-btn");
+            row.Action.AddToClassList("uap-settings-overview-action");
+            row.Root.Add(row.Action);
+            section.Add(row.Root);
+            return row;
+        }
+
+        /// <summary>
+        /// Rewrites one row. `primaryText` non-null turns the action into
+        /// the row's one filled button (the setup step's obvious next move);
+        /// null keeps the plain "Change" link. Icon elements are rebuilt
+        /// only when the tone changes.
+        /// </summary>
+        private static void SetOverviewRow(OverviewRow row, OverviewTone tone, string value,
+            string detail, string primaryText)
+        {
+            if (row == null)
+            {
+                return;
+            }
+            row.Value.text = value ?? string.Empty;
+            bool hasDetail = !string.IsNullOrEmpty(detail);
+            row.Detail.text = hasDetail ? detail : string.Empty;
+            row.Detail.style.display = hasDetail ? DisplayStyle.Flex : DisplayStyle.None;
+            bool primary = !string.IsNullOrEmpty(primaryText);
+            row.Action.text = primary ? primaryText : L10n.S.SettingsOverviewChangeButton;
+            row.Action.EnableInClassList("uap-settings-link-btn", !primary);
+            row.Action.EnableInClassList("uap-settings-btn", primary);
+            row.Action.EnableInClassList("uap-settings-btn--primary", primary);
+            if (row.Tone == tone)
+            {
+                return;
+            }
+            row.Tone = tone;
+            row.IconHost.Clear();
+            if (tone != OverviewTone.Unset)
+            {
+                row.IconHost.Add(CreateOverviewIcon(tone));
+            }
+        }
+
+        /// <summary>Colour AND shape per tone (never colour alone): check / warn triangle / the Test Runner "ignored" glyph.</summary>
+        internal static VisualElement CreateOverviewIcon(OverviewTone tone)
+        {
+            VisualElement icon;
+            string modifier;
+            switch (tone)
+            {
+                case OverviewTone.Ok:
+                    icon = IconLoader.CreateIcon("TestPassed", IconLoader.GlyphCheck,
+                        "uap-settings-overview-icon", "uap-settings-overview-icon-glyph");
+                    modifier = "ok";
+                    break;
+                case OverviewTone.Attention:
+                    icon = IconLoader.CreateIcon("d_console.warnicon.sml", IconLoader.GlyphWarn,
+                        "uap-settings-overview-icon", "uap-settings-overview-icon-glyph");
+                    modifier = "warn";
+                    break;
+                case OverviewTone.Off:
+                default:
+                    icon = IconLoader.CreateIcon("TestIgnored", "-",
+                        "uap-settings-overview-icon", "uap-settings-overview-icon-glyph");
+                    modifier = "off";
+                    break;
+            }
+            // Image or glyph Label (IconLoader's two shapes): the modifier
+            // rides whichever class the element got.
+            icon.AddToClassList((icon is Image ? "uap-settings-overview-icon--" : "uap-settings-overview-icon-glyph--") + modifier);
+            return icon;
+        }
+
+        /// <summary>
+        /// Mirrors the values the Overview shows from the fields that own
+        /// them (the popups' own display text, so the two surfaces can
+        /// never word a value differently) and from the state the other
+        /// refreshes already computed (_cliResolvedPath, the sign-in
+        /// status, UapOpsServer). Runs on the coalesced hub tick and when
+        /// the Overview tab is selected; never touches the disk itself
+        /// (2026-08-23 IO gate).
+        /// </summary>
+        private void RefreshOverview()
+        {
+            if (_overviewAgentRow == null)
+            {
+                return;
+            }
+            PanelSettings settings = PanelStateStore.instance.Settings;
+
+            string agentName = FormatBackendOption(settings.agentBackend);
+            bool found = !string.IsNullOrEmpty(_cliResolvedPath);
+            SetOverviewRow(_overviewAgentRow, found ? OverviewTone.Ok : OverviewTone.Attention,
+                agentName, found ? _cliResolvedPath : L10n.S.SettingsOverviewAgentNotFound,
+                found ? null : L10n.S.SettingsOverviewSetUpButton);
+
+            bool signedIn;
+            string signInText = ResolveOverviewSignInText(out signedIn);
+            SetOverviewRow(_overviewSignInRow, signedIn ? OverviewTone.Ok : OverviewTone.Attention,
+                signInText, null, signedIn || !found ? null : L10n.S.SettingsOverviewSignInButton);
+            RefreshAgentPill(found, signedIn);
+
+            bool uapEnabled = settings.uapOpsEnabled;
+            OverviewTone uapTone = !uapEnabled ? OverviewTone.Off
+                : (UapOpsServer.IsRunning ? OverviewTone.Ok : OverviewTone.Attention);
+            SetOverviewRow(_overviewUnityOpsRow, uapTone, ResolveUapOpsStatusText(),
+                uapEnabled ? null : L10n.S.SettingsOverviewUnityOpsOffDetail,
+                uapEnabled ? null : L10n.S.SettingsOverviewEnableButton);
+
+            bool armed = settings.dangerouslySkipPermissions;
+            _overviewDangerRow.Root.style.display = armed ? DisplayStyle.Flex : DisplayStyle.None;
+            SetOverviewRow(_overviewDangerRow, OverviewTone.Attention,
+                L10n.S.SettingsOverviewDangerArmed, null, null);
+
+            SetOverviewRow(_overviewPermissionRow, OverviewTone.Unset,
+                _permissionModeField != null ? _permissionModeField.text : string.Empty, null, null);
+            SetOverviewRow(_overviewAutoApproveRow, OverviewTone.Unset,
+                _autoApproveLevelField != null ? _autoApproveLevelField.text : string.Empty, null, null);
+            SetOverviewRow(_overviewModelRow, OverviewTone.Unset,
+                _defaultModelField != null ? _defaultModelField.text : string.Empty, null, null);
+            SetOverviewRow(_overviewLanguageRow, OverviewTone.Unset,
+                _languageField != null ? _languageField.text : string.Empty, null, null);
+            RefreshDangerCardTone();
+        }
+
+        /// <summary>The Agent card's header pill: not found > sign-in phase. Same inputs as the Overview's setup rows.</summary>
+        private void RefreshAgentPill(bool found, bool signedIn)
+        {
+            if (!found)
+            {
+                SetSectionStatus(AgentCardId, L10n.S.SettingsOverviewAgentNotFound, PillTone.Warn);
+                return;
+            }
+            if (signedIn)
+            {
+                SetSectionStatus(AgentCardId, L10n.S.SettingsPillSignedIn, PillTone.Ok);
+                return;
+            }
+            if (!AgentHub.IsClaudeBackend)
+            {
+                switch (_lastAcpPhase)
+                {
+                    case AcpAccountPhase.Connecting:
+                        SetSectionStatus(AgentCardId, L10n.S.SettingsPillConnecting, PillTone.Neutral);
+                        return;
+                    case AcpAccountPhase.SigningIn:
+                        SetSectionStatus(AgentCardId, L10n.S.SettingsPillSigningIn, PillTone.Neutral);
+                        return;
+                }
+                SetSectionStatus(AgentCardId, L10n.S.SettingsPillNotSignedIn, PillTone.Warn);
+                return;
+            }
+            AuthStatus status = AgentHub.CurrentAuthStatus;
+            if (status == null)
+            {
+                SetSectionStatus(AgentCardId, L10n.S.SettingsPillChecking, PillTone.Neutral);
+                return;
+            }
+            SetSectionStatus(AgentCardId, L10n.S.SettingsPillNotSignedIn, PillTone.Warn);
+        }
+
+        /// <summary>The sign-in row's text and whether it counts as done, from the same inputs the Agent card renders.</summary>
+        private string ResolveOverviewSignInText(out bool signedIn)
+        {
+            if (!AgentHub.IsClaudeBackend)
+            {
+                signedIn = _lastAcpPhase == AcpAccountPhase.SignedIn;
+                return _accountStatusLabel != null ? _accountStatusLabel.text : string.Empty;
+            }
+            AuthStatus status = AgentHub.CurrentAuthStatus;
+            if (status == null)
+            {
+                signedIn = false;
+                return L10n.S.SettingsAccountCheckingStatus;
+            }
+            if (!status.IsAvailable)
+            {
+                signedIn = false;
+                return L10n.S.SettingsAccountUnavailable;
+            }
+            signedIn = status.LoggedIn;
+            return status.LoggedIn ? BuildLoggedInStatusText(status) : L10n.S.SettingsAccountNotLoggedIn;
+        }
+
+        private void OnOverviewAgentClicked()
+        {
+            Show(SettingsTab.Connection, AgentCardId);
+        }
+
+        private void OnOverviewSignInClicked()
+        {
+            // Same move as FirstRunView's "Log in": start Claude Code's
+            // login and land on the card that shows the URL and takes the
+            // code. An ACP agent signs in from the card itself.
+            AuthStatus status = AgentHub.CurrentAuthStatus;
+            if (AgentHub.IsClaudeBackend && status != null && status.IsAvailable && !status.LoggedIn)
+            {
+                AgentHub.BeginLogin();
+            }
+            Show(SettingsTab.Connection, AgentCardId);
+        }
+
+        private void OnOverviewUnityOpsClicked()
+        {
+            // "Enable" drives the one switch that owns the setting (its
+            // change handler saves, reconnects and refreshes), then shows
+            // the card so the module list is in view.
+            if (!PanelStateStore.instance.Settings.uapOpsEnabled && _uapOpsEnabledToggle != null)
+            {
+                _uapOpsEnabledToggle.value = true;
+            }
+            Show(SettingsTab.Unity, UapOpsCardId);
+        }
+
+        private void OnOverviewDangerClicked()
+        {
+            Show(SettingsTab.Agent, DangerCardId);
+        }
+
+        private void OnOverviewConversationClicked()
+        {
+            Show(SettingsTab.Agent, ConversationCardId);
+        }
+
+        private void OnOverviewModelClicked()
+        {
+            Show(SettingsTab.Agent, ModelCardId);
+        }
+
+        private void OnOverviewLanguageClicked()
+        {
+            Show(SettingsTab.Panel, AppearanceCardId);
         }
 
         // -- (e) About ------------------------------------------------------------------
@@ -5788,10 +6621,16 @@ namespace Colloid.AgentPanel.UI
         // every user but the author (2026-09-12 core-only wording note, P0).
         internal const string GitHubRepoUrl = "https://github.com/c-colloid/AgentPanelForUnity";
 
-        private void BuildAboutSection(VisualElement parent)
+        /// <summary>
+        /// The Overview tab's footer: what the About card used to hold
+        /// (version pills, CHANGELOG and GitHub links), under the two
+        /// Overview cards instead of as a card of its own.
+        /// </summary>
+        private void BuildOverviewFooter(VisualElement parent)
         {
-            VisualElement section = AddSection(parent, L10n.S.SettingsSectionAbout,
-                "d_console.infoicon.sml", "(?)");
+            var section = new VisualElement();
+            section.AddToClassList("uap-settings-overview-footer");
+            parent.Add(section);
 
             // Neutral-colored pills (not a status color) for the two
             // version numbers, and Package-Manager-style suppressed links
@@ -5990,6 +6829,7 @@ namespace Colloid.AgentPanel.UI
             RefreshUapOpsStatus();
             RefreshExtensionProfilesSection();
             RefreshUloopSection();
+            RefreshOverview();
         }
 
         /// <summary>
@@ -6002,8 +6842,8 @@ namespace Colloid.AgentPanel.UI
         /// doc comment); `fallbackGlyph` must be plain ASCII or an existing
         /// IconLoader.Glyph* constant (GlyphAuditTests guards this).
         /// </summary>
-        private static VisualElement AddSection(VisualElement parent, string titleText,
-            string iconName, string fallbackGlyph)
+        private VisualElement AddSection(VisualElement parent, string titleText,
+            string iconName, string fallbackGlyph, string cardId)
         {
             var card = new VisualElement();
             card.AddToClassList("uap-settings-card");
@@ -6016,11 +6856,13 @@ namespace Colloid.AgentPanel.UI
             title.AddToClassList("uap-settings-card-title");
             title.enableRichText = false;
             header.Add(title);
+            header.Add(CreateStatusPill(cardId));
             card.Add(header);
 
             var body = new VisualElement();
             body.AddToClassList("uap-settings-card-body");
             card.Add(body);
+            RegisterCard(cardId, card, titleText, body);
 
             parent.Add(card);
             return body;
@@ -6239,6 +7081,39 @@ namespace Colloid.AgentPanel.UI
         /// (UnityPluginInstallProgress.Evaluate). No precedence logic of its
         /// own -- both tables are EditMode-tested where they live.
         /// </summary>
+        /// <summary>The Unity plugin card's header pill: a one-word state, null (hidden) while the CLI itself is missing.</summary>
+        internal static string ResolveUnityPluginPillText(UnityPluginState state)
+        {
+            switch (state)
+            {
+                case UnityPluginState.NotInstalled:
+                    return L10n.S.SettingsUloopStatusMissing;
+                case UnityPluginState.Disabled:
+                    return L10n.S.SettingsPillDisabled;
+                case UnityPluginState.EnabledNotLoaded:
+                case UnityPluginState.Loaded:
+                    return L10n.S.SettingsPillInstalled;
+                case UnityPluginState.LoadError:
+                    return L10n.S.SettingsPillLoadError;
+                case UnityPluginState.CliUnavailable:
+                default:
+                    return null;
+            }
+        }
+
+        internal static PillTone ResolveUnityPluginPillTone(UnityPluginState state)
+        {
+            switch (state)
+            {
+                case UnityPluginState.Loaded:
+                    return PillTone.Ok;
+                case UnityPluginState.LoadError:
+                    return PillTone.Warn;
+                default:
+                    return PillTone.Neutral;
+            }
+        }
+
         private void RefreshUnityPluginSection()
         {
             if (_unityPluginStatusLabel == null)
@@ -6251,6 +7126,8 @@ namespace Colloid.AgentPanel.UI
                 || status.State == UnityPluginState.Loaded;
 
             _unityPluginStatusLabel.text = DescribeUnityPluginStatus(status);
+            SetSectionStatus(UnityPluginCardId, ResolveUnityPluginPillText(status.State),
+                ResolveUnityPluginPillTone(status.State));
             bool showInstall = status.State == UnityPluginState.NotInstalled && !_unityPluginInstallRunning;
             _unityPluginInstallButton.style.display = showInstall ? DisplayStyle.Flex : DisplayStyle.None;
             _unityPluginInstallButton.SetEnabled(cliAvailable);
@@ -6367,7 +7244,7 @@ namespace Colloid.AgentPanel.UI
         /// container, exactly like AddSection, so the Build*Section
         /// callers only swap the one call.
         /// </summary>
-        private static VisualElement AddCollapsibleSection(VisualElement parent, string titleText,
+        private VisualElement AddCollapsibleSection(VisualElement parent, string titleText,
             string iconName, string fallbackGlyph, string sectionId)
         {
             var card = new VisualElement();
@@ -6382,6 +7259,7 @@ namespace Colloid.AgentPanel.UI
             };
             foldout.AddToClassList("uap-settings-section-foldout");
             AddFoldoutHeaderIcon(foldout, iconName, fallbackGlyph);
+            AddFoldoutHeaderPill(foldout, CreateStatusPill(sectionId));
             foldout.RegisterValueChangedCallback(delegate(ChangeEvent<bool> evt)
             {
                 // Toggles INSIDE the section body bubble ChangeEvent<bool>
@@ -6397,6 +7275,7 @@ namespace Colloid.AgentPanel.UI
             var body = new VisualElement();
             body.AddToClassList("uap-settings-card-body");
             foldout.Add(body);
+            RegisterCard(sectionId, card, titleText, body);
 
             parent.Add(card);
             return body;
@@ -6413,6 +7292,52 @@ namespace Colloid.AgentPanel.UI
         /// label-before-input for every control type (Toggle shows
         /// checkmark-then-label, unlike most other fields).
         /// </summary>
+        /// <summary>
+        /// D4 (design note 2026-09-17-settings-redesign-plan.md, phase 2):
+        /// one small pill at the right end of a card header carrying the
+        /// card's one-word state (port, sign-in, detected font, a count),
+        /// so a collapsed card still answers "is it working?". Hidden until
+        /// SetSectionStatus gives it text.
+        /// </summary>
+        private Label CreateStatusPill(string cardId)
+        {
+            var pill = new Label(string.Empty);
+            pill.AddToClassList("uap-pill");
+            pill.AddToClassList("uap-pill--neutral");
+            pill.AddToClassList("uap-settings-card-status");
+            pill.enableRichText = false;
+            pill.style.display = DisplayStyle.None;
+            _cardStatusPills[cardId] = pill;
+            return pill;
+        }
+
+        /// <summary>The pill goes at the END of the Foldout's header toggle row; the toggle's input column grows (USS) so the pill sits flush right.</summary>
+        private static void AddFoldoutHeaderPill(Foldout foldout, Label pill)
+        {
+            Toggle header = foldout.Q<Toggle>(className: "unity-foldout__toggle");
+            if (header != null)
+            {
+                header.Add(pill);
+            }
+        }
+
+        /// <summary>Text null/empty hides the pill. Colour is never the only encoding: the text says the state, the tone only tints it.</summary>
+        private void SetSectionStatus(string cardId, string text, PillTone tone, string tooltip = null)
+        {
+            Label pill;
+            if (!_cardStatusPills.TryGetValue(cardId, out pill))
+            {
+                return;
+            }
+            bool show = !string.IsNullOrEmpty(text);
+            pill.text = show ? text : string.Empty;
+            pill.tooltip = tooltip ?? string.Empty;
+            pill.style.display = show ? DisplayStyle.Flex : DisplayStyle.None;
+            pill.EnableInClassList("uap-pill--neutral", tone == PillTone.Neutral);
+            pill.EnableInClassList("uap-pill--ok", tone == PillTone.Ok);
+            pill.EnableInClassList("uap-pill--warn", tone == PillTone.Warn);
+        }
+
         private static void AddFoldoutHeaderIcon(Foldout foldout, string iconName, string fallbackGlyph)
         {
             Toggle header = foldout.Q<Toggle>(className: "unity-foldout__toggle");

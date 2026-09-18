@@ -90,6 +90,17 @@ namespace Colloid.AgentPanel.Model
         /// <summary>uap_web_fetch host deny list, same format; deny wins over allow.</summary>
         public List<string> webFetchBlockedHosts = new List<string>();
 
+        /// <summary>uap_web_search provider id: "brave" (default) or "tavily" (design note section 8, stage 3).</summary>
+        public string webSearchProvider = "brave";
+
+        /// <summary>
+        /// uap_web_search API key for that provider; empty = the tool
+        /// answers with where to set one. Lives in this UserSettings asset
+        /// (per project, per user, outside version control by Unity's
+        /// default .gitignore).
+        /// </summary>
+        public string webSearchApiKey = string.Empty;
+
         /// <summary>
         /// Explicit opt-in for --dangerously-skip-permissions. Default OFF
         /// and it must stay that way (ARCHITECTURE.md D3): the settings UI

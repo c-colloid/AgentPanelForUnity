@@ -194,6 +194,10 @@ namespace Colloid.AgentPanel.Ops
             // own web fetch flattens to text. Runs off the main thread.
             // Design note docs/design-notes/2026-09-17-web-fetch-tool.md.
             RegisterUnlessCovered(registry, new UapWebFetchTool(), uloopDetected);
+            // Same note, section 8: a search for agents without one of their
+            // own; needs the user's provider API key (Settings > Web fetch),
+            // otherwise it answers with where to set it.
+            RegisterUnlessCovered(registry, new UapWebSearchTool(), uloopDetected);
             // Phase 5b streams "prefab"/"anim" and Phase 5c "ui" moved to
             // Agent Panel Pro in full (2026-09-11 core/pro split, design
             // note docs/design-notes/2026-09-11-core-pro-split.md) -- see

@@ -88,6 +88,8 @@ namespace Colloid.AgentPanel.Tests
             // prompt-injected agent. The permission card showing the URL is
             // the safeguard (design note 2026-09-17-web-fetch-tool.md 5.1).
             "uap_web_fetch",
+            // Same reasoning: the query leaves the machine.
+            "uap_web_search",
         };
 
         private static ToolRegistry CreateFullRegistry()

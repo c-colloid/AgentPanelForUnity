@@ -88,10 +88,25 @@ namespace Colloid.AgentPanel.Ops
                         i = end < 0 ? n : end + 3;
                         continue;
                     }
-                    int tagEnd = FindTagEnd(html, i);
+                    // A tag starts with a letter, '/', '!' or '?' right after
+                    // the '<'; "a < b", "<<" and "< 2" are text.
+                    char after = i + 1 < n ? html[i + 1] : '\0';
+                    bool opensTag = char.IsLetter(after) || after == '/' || after == '!' || after == '?';
+                    int tagEnd = opensTag ? FindTagEnd(html, i) : i;
                     if (tagEnd < 0)
                     {
                         break;
+                    }
+                    if (tagEnd <= i)
+                    {
+                        // "<<" or "a < b": this '<' opens no tag; keep it
+                        // as text and carry on after it.
+                        if (skipUntil == null && !inTitle)
+                        {
+                            Append(all, main, inMain, "<");
+                        }
+                        i++;
+                        continue;
                     }
                     string tag = html.Substring(i + 1, tagEnd - i - 1);
                     i = tagEnd + 1;
@@ -467,7 +482,9 @@ namespace Colloid.AgentPanel.Ops
                 }
                 if (c == '<')
                 {
-                    // Unclosed tag: treat the run up to here as the tag.
+                    // Another '<' before any '>': the first one opened no
+                    // tag (the caller treats it as text). i - 1 == start
+                    // for "<<", which the caller recognizes as "not a tag".
                     return i - 1;
                 }
             }

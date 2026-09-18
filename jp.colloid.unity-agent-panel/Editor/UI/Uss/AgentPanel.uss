@@ -3308,26 +3308,222 @@
 .uap-settings-title {
     font-size: var(--uap-font-size-title);
     -unity-font-style: bold;
-    /* 2026-09-06 review fix 4: one more step of air under the page title
-       so the first group heading reads as a heading, not a subtitle. */
-    margin-bottom: var(--uap-space-xl);
+    margin-bottom: 0;
 }
 
-/* 2026-09-05 UI redesign (settings, S1): group heading between cards.
-   Small, secondary, bold -- a signpost, not a card title -- with the
-   larger gap ABOVE it (group boundary) than below (heading to its first
-   card), per the "gap between groups > gap inside" rule. */
-.uap-settings-group {
-    font-size: var(--uap-font-size-meta);
-    -unity-font-style: bold;
-    color: var(--uap-text-secondary);
-    margin-top: var(--uap-space-m);
+/* 2026-09-17 settings redesign phase 3 (D3): title bar = title, spacer,
+   search field, clear link. The bar carries the air the title used to
+   (2026-09-06 review fix 4) so the tab strip reads as its own row. */
+.uap-settings-titlebar {
+    flex-direction: row;
+    align-items: center;
+    flex-shrink: 0;
     margin-bottom: var(--uap-space-m);
+}
+
+.uap-settings-titlebar-spacer {
+    flex-grow: 1;
+    flex-shrink: 1;
+}
+
+.uap-settings-search {
+    flex-shrink: 1;
+    width: 200px;
+    margin-top: 0;
+    margin-bottom: 0;
+    margin-left: var(--uap-space-s);
+    margin-right: 0;
+}
+
+.uap-settings-search-clear {
+    margin-left: var(--uap-space-s);
+    margin-right: 0;
+}
+
+.uap-settings-search-crumb {
+    font-size: var(--uap-font-size-meta);
+    color: var(--uap-text-secondary);
+    padding-top: var(--uap-space-xs);
+    padding-left: var(--uap-space-s);
+    padding-right: var(--uap-space-s);
+}
+
+.uap-settings-search-empty {
+    margin-top: var(--uap-space-m);
     margin-left: var(--uap-space-xs);
 }
 
-.uap-settings-group--first {
+/* 2026-09-17 settings redesign, phase 1 (docs/design-notes/2026-09-17-
+   settings-redesign-plan.md D1): the tab strip under the page title. Same
+   button anatomy as .uap-viewstrip-btn (transparent, text-secondary,
+   hover/active/focus from the shared tokens); the active tab is bold,
+   text-primary, with a 2px accent underline -- three encodings, never
+   colour alone. */
+.uap-settings-tabs {
+    flex-direction: row;
+    flex-shrink: 0;
+    padding-left: var(--uap-space-s);
+    padding-right: var(--uap-space-s);
+    border-bottom-width: 1px;
+    border-bottom-color: var(--uap-border);
+    margin-bottom: var(--uap-space-m);
+}
+
+.uap-settings-tab {
+    flex-direction: row;
+    align-items: center;
     margin-top: 0;
+    margin-bottom: 0;
+    margin-left: 0;
+    margin-right: var(--uap-space-xs);
+    padding-top: var(--uap-space-s);
+    padding-bottom: var(--uap-space-s);
+    padding-left: var(--uap-space-m);
+    padding-right: var(--uap-space-m);
+    background-color: rgba(0, 0, 0, 0);
+    border-top-width: 0;
+    border-left-width: 0;
+    border-right-width: 0;
+    border-bottom-width: 2px;
+    border-bottom-color: rgba(0, 0, 0, 0);
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    color: var(--uap-text-secondary);
+    font-size: var(--uap-font-size-body);
+}
+
+.uap-settings-tab:hover {
+    background-color: var(--uap-bg-hover);
+    color: var(--uap-text-primary);
+}
+
+.uap-settings-tab:active {
+    background-color: var(--uap-bg-active);
+}
+
+.uap-settings-tab:focus {
+    border-bottom-color: var(--uap-focus-ring);
+}
+
+.uap-settings-tab--active {
+    color: var(--uap-text-primary);
+    -unity-font-style: bold;
+    border-bottom-color: var(--uap-accent-user);
+}
+
+.uap-settings-tab-label,
+.uap-settings-tab-label--short {
+    margin: 0;
+    padding: 0;
+    color: inherit;
+}
+
+/* D8: the short label replaces the full one at 300px. */
+.uap-settings-tab-label--short {
+    display: none;
+}
+
+.uap-settings-tab-body {
+    flex-shrink: 0;
+}
+
+/* Overview tab rows (D2): icon / label / value / detail / one action on
+   one line; the value column is the one that grows and wraps. */
+.uap-settings-overview-row {
+    flex-direction: row;
+    align-items: center;
+    padding-top: var(--uap-space-s);
+    padding-bottom: var(--uap-space-s);
+    border-bottom-width: 1px;
+    border-bottom-color: var(--uap-border-subtle);
+}
+
+.uap-settings-overview-row--last {
+    border-bottom-width: 0;
+}
+
+.uap-settings-overview-icon-host {
+    flex-direction: row;
+    align-items: center;
+    flex-shrink: 0;
+    width: 16px;
+    margin-right: var(--uap-space-s);
+}
+
+.uap-settings-overview-icon {
+    width: 12px;
+    height: 12px;
+    flex-shrink: 0;
+}
+
+.uap-settings-overview-icon--ok,
+.uap-settings-overview-icon--warn {
+    opacity: 1;
+}
+
+.uap-settings-overview-icon--off {
+    opacity: 0.5;
+}
+
+.uap-settings-overview-icon-glyph {
+    font-size: var(--uap-font-size-meta);
+    flex-shrink: 0;
+}
+
+.uap-settings-overview-icon-glyph--ok {
+    color: var(--uap-status-idle);
+}
+
+.uap-settings-overview-icon-glyph--warn {
+    color: var(--uap-status-warn);
+}
+
+.uap-settings-overview-icon-glyph--off {
+    color: var(--uap-text-disabled);
+}
+
+.uap-settings-overview-label {
+    width: 104px;
+    flex-shrink: 0;
+    color: var(--uap-text-secondary);
+}
+
+.uap-settings-overview-value {
+    flex-grow: 1;
+    flex-shrink: 1;
+    white-space: normal;
+}
+
+.uap-settings-overview-detail {
+    flex-shrink: 1;
+    margin-left: var(--uap-space-s);
+    color: var(--uap-text-secondary);
+    font-size: var(--uap-font-size-meta);
+    white-space: normal;
+}
+
+.uap-settings-overview-action {
+    flex-shrink: 0;
+    margin-left: var(--uap-space-s);
+    margin-right: 0;
+}
+
+.uap-settings-overview-footer {
+    margin-top: var(--uap-space-m);
+    padding-left: var(--uap-space-s);
+    padding-right: var(--uap-space-s);
+}
+
+/* D7: the danger zone is a collapsible card of its own; it only takes
+   the warn surface while the switch is ON. */
+.uap-settings-card--danger-armed {
+    background-color: var(--uap-warn-bg);
+    border-top-color: var(--uap-warn-border);
+    border-bottom-color: var(--uap-warn-border);
+    border-left-color: var(--uap-warn-border);
+    border-right-color: var(--uap-warn-border);
 }
 
 /* Section-as-card (design-notes/2026-08-01-settings-visual-refresh.md phase
@@ -3400,6 +3596,27 @@
     font-size: var(--uap-font-size-body);
     -unity-font-style: bold;
     color: var(--uap-text-primary);
+    /* 2026-09-17 settings redesign phase 2 (D4): the title takes the
+       header's free width so the status pill after it sits flush right. */
+    flex-grow: 1;
+    flex-shrink: 1;
+}
+
+/* D4: the one-word state at the right end of a card header (plain cards:
+   after the title; collapsible cards: at the end of the foldout's toggle
+   row). Tone classes are the shared pill tones; the text always says the
+   state, the colour only tints it. */
+.uap-settings-card-status {
+    align-self: center;
+    flex-shrink: 0;
+    margin-left: var(--uap-space-s);
+    font-size: var(--uap-font-size-meta);
+    -unity-font-style: normal;
+}
+
+.uap-settings-section-foldout > .unity-foldout__toggle > .unity-toggle__input {
+    flex-grow: 1;
+    flex-shrink: 1;
 }
 
 .uap-settings-card-body {
@@ -3552,6 +3769,13 @@
 .uap-pill--neutral {
     background-color: var(--uap-bg-sunken);
     color: var(--uap-text-secondary);
+}
+
+/* 2026-09-17 settings redesign phase 2: the "working" tone for a header
+   status pill (port open, signed in, plugin loaded). */
+.uap-pill--ok {
+    background-color: var(--uap-status-idle);
+    color: var(--uap-bg-base);
 }
 
 /* About section's two version pills, side by side (R06 section 4.5). */
@@ -5163,4 +5387,32 @@
     height: 150px;
     max-width: 240px;
     max-height: 150px;
+}
+
+/* 2026-09-17 settings redesign phase 1, D8: at 300px the tab strip shows
+   the short labels, and the Overview rows drop the secondary detail
+   (the value column keeps the state; the card it links to has the rest). */
+.uap-narrow .uap-settings-tab {
+    padding-left: var(--uap-space-s);
+    padding-right: var(--uap-space-s);
+}
+
+.uap-narrow .uap-settings-tab-label {
+    display: none;
+}
+
+.uap-narrow .uap-settings-tab-label--short {
+    display: flex;
+}
+
+.uap-narrow .uap-settings-overview-label {
+    width: 76px;
+}
+
+.uap-narrow .uap-settings-overview-detail {
+    display: none;
+}
+
+.uap-narrow .uap-settings-search {
+    width: 120px;
 }

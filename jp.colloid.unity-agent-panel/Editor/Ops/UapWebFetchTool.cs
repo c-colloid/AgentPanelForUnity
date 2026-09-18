@@ -330,7 +330,7 @@ namespace Colloid.AgentPanel.Ops
                         return detected;
                     }
                     throw new InvalidOperationException("as:\"image\" was requested but " + url + " is " + mime
-                        + ", not an image the tool recognizes (png, jpeg, gif, webp, bmp).");
+                        + ", not an image the tool can show inline (png, jpeg, gif, webp).");
                 case "text":
                     if (detected == UapWebContentKind.Html || detected == UapWebContentKind.Text)
                     {

@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -40,16 +39,19 @@ namespace Colloid.AgentPanel.Tests
             try
             {
                 window.CreateGUI();
-                List<VisualElement> icons = window.rootVisualElement
-                    .Query<VisualElement>(className: "uap-settings-card-icon").ToList();
-
-                // SettingsView.CreateGUI build order (2026-08-14 ui-polish
-                // audit item 8: Conversation and Model lead, CLI moved down
-                // near Appearance/Diagnostics): Conversation(0), Model(1), ...
-                Assert.GreaterOrEqual(icons.Count, 2,
-                    "Expected at least the Conversation/Model section icons to exist.");
-                VisualElement conversationIcon = icons[0];
-                VisualElement modelIcon = icons[1];
+                // Since the 2026-09-17 settings redesign phase 1 the cards
+                // carry their id as the element name, so look the two up
+                // instead of relying on build order.
+                VisualElement conversationCard = window.rootVisualElement.Q(
+                    "uap-card-" + UI.SettingsView.ConversationCardId);
+                VisualElement modelCard = window.rootVisualElement.Q(
+                    "uap-card-" + UI.SettingsView.ModelCardId);
+                Assert.IsNotNull(conversationCard);
+                Assert.IsNotNull(modelCard);
+                VisualElement conversationIcon = conversationCard.Q(className: "uap-settings-card-icon");
+                VisualElement modelIcon = modelCard.Q(className: "uap-settings-card-icon");
+                Assert.IsNotNull(conversationIcon);
+                Assert.IsNotNull(modelIcon);
 
                 if (conversationIcon is Image conversationImage && modelIcon is Image modelImage)
                 {

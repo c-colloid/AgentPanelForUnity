@@ -124,6 +124,15 @@ namespace Colloid.AgentPanel.Ops
                 }
                 return;
             }
+            // Known limit: HttpWebRequest resolves the name again when it
+            // connects, so a host whose record flips to a private address
+            // between the two lookups (TTL-0 "DNS rebinding") can slip
+            // through. Pinning the connection to the vetted address would
+            // need connecting by IP with a Host header, which breaks TLS
+            // certificate matching on https. The panel's own UapOps server
+            // still needs its bearer token, so a rebinding to loopback
+            // cannot drive the editor; the residual exposure is other
+            // unauthenticated LAN services. Design note section 5.2.
             IPAddress[] addresses;
             try
             {

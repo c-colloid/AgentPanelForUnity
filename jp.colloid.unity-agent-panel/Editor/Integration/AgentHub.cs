@@ -4533,7 +4533,8 @@ namespace Colloid.AgentPanel.Integration
             new[] { "prefab", "prefab overrides (including revert)" },
             new[] { "anim", "animation clips/animator/material" },
             new[] { "editor", "screenshots, menu execution and asynchronous lightmap bakes (Unity or Bakery)" },
-            new[] { "markers", "Scene-view 3D markers (uap_marker_add/list/clear) to point at places and objects, and the user's sketch strokes (uap_stroke_list)" }
+            new[] { "markers", "Scene-view 3D markers (uap_marker_add/list/clear) to point at places and objects, and the user's sketch strokes (uap_stroke_list)" },
+            new[] { "web", "fetching a URL as an image, saved file, extracted PDF text or page text (uap_web_fetch; your own web fetch returns text only) and, when the user configured a key, web search (uap_web_search)" }
         };
 
         /// <summary>

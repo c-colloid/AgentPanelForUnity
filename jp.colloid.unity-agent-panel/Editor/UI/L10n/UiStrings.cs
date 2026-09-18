@@ -917,7 +917,52 @@ namespace Colloid.AgentPanel.UI
         public readonly string SettingsGroupConversation = "Agent";
         public readonly string SettingsGroupDisplay = "Panel";
         public readonly string SettingsGroupUnity = "Unity integration";
-        public readonly string SettingsGroupConnection = "Connection & account";
+        public readonly string SettingsGroupConnection = "Connection";
+        public readonly string SettingsTabOverview = "Overview";
+        public readonly string SettingsTabShortOverview = "Overview";
+        public readonly string SettingsTabShortAgent = "Agent";
+        public readonly string SettingsTabShortPanel = "Panel";
+        public readonly string SettingsTabShortUnity = "Unity";
+        public readonly string SettingsTabShortConnection = "Connect";
+        public readonly string SettingsOverviewSetupTitle = "Setup";
+        public readonly string SettingsOverviewEffectiveTitle = "In effect now";
+        public readonly string SettingsOverviewAgentLabel = "Agent";
+        public readonly string SettingsOverviewSignInLabel = "Sign-in";
+        public readonly string SettingsOverviewUnityOpsLabel = "Unity operations";
+        public readonly string SettingsOverviewDangerLabel = "Permissions";
+        public readonly string SettingsOverviewPermissionLabel = "Permission mode";
+        public readonly string SettingsOverviewAutoApproveLabel = "Auto-approve";
+        public readonly string SettingsOverviewModelLabel = "Default model";
+        public readonly string SettingsOverviewLanguageLabel = "Language";
+        public readonly string SettingsOverviewChangeButton = "Change";
+        public readonly string SettingsOverviewSetUpButton = "Set up";
+        public readonly string SettingsOverviewSignInButton = "Sign in";
+        public readonly string SettingsOverviewEnableButton = "Enable";
+        public readonly string SettingsOverviewUnityOpsOffDetail = "Lets the agent operate the editor directly.";
+        public readonly string SettingsOverviewAgentNotFound = "Not found";
+        public readonly string SettingsOverviewDangerArmed = "Skipping ALL permission checks";
+        public readonly string SettingsSearchPlaceholder = "Search settings";
+        public readonly string SettingsSearchClearButton = "Clear";
+        public readonly string SettingsSearchNoMatch = "No setting matches. Try a word from its label or hint.";
+        public readonly string SettingsPillOff = "Off";
+        public readonly string SettingsPillPortFmt = "Port {0}";
+        public readonly string SettingsPillSignedIn = "Signed in";
+        public readonly string SettingsPillNotSignedIn = "Not signed in";
+        public readonly string SettingsPillSigningIn = "Signing in...";
+        public readonly string SettingsPillConnecting = "Connecting...";
+        public readonly string SettingsPillChecking = "Checking...";
+        public readonly string SettingsPillNotSet = "Not set";
+        public readonly string SettingsPillLinesFmt = "{0} lines";
+        public readonly string SettingsPillItemsFmt = "{0} items";
+        public readonly string SettingsPillIgnoredFmt = "{0} ignored";
+        public readonly string SettingsPillDetectedFmt = "{0} detected";
+        public readonly string SettingsPillNoneDetected = "None detected";
+        public readonly string SettingsPillInstalled = "Installed";
+        public readonly string SettingsPillDisabled = "Disabled";
+        public readonly string SettingsPillLoadError = "Load error";
+        public readonly string SettingsPillNoCjkFont = "No CJK font";
+        public readonly string SettingsPillAllOff = "All off";
+        public readonly string SettingsPillSkippingChecks = "Skipping checks";
 
         public readonly string SettingsCliPathLabel = "Executable path";
 
@@ -971,8 +1016,6 @@ namespace Colloid.AgentPanel.UI
 
         public readonly string SettingsDisallowedToolsLabel = "Disallowed tools";
 
-        public readonly string SettingsDisallowedToolsHint =
-            "One tool per line.";
         public readonly string SettingsDisallowedToolsTooltip =
             "Applies after the next reconnect.";
 
@@ -1089,7 +1132,6 @@ namespace Colloid.AgentPanel.UI
 
         public readonly string SettingsClearButton = "Clear";
         public readonly string SettingsDiagnosticsEmpty = "(no stderr output yet)";
-        public readonly string SettingsSectionAbout = "About";
 
         /// <summary>{0} = package version string.</summary>
         public readonly string SettingsPackageVersionFmt = "Package version: {0}";
@@ -1666,6 +1708,16 @@ namespace Colloid.AgentPanel.UI
             "One host per line, subdomains included (example.com). Empty = any public host. Applies to the next fetch.";
 
         public readonly string SettingsWebFetchBlockedHostsLabel = "Blocked hosts";
+
+        public readonly string SettingsWebSearchProviderLabel = "Search provider";
+
+        public readonly string SettingsWebSearchProviderHint =
+            "uap_web_search for agents without a web search of their own: Brave Search API or Tavily, with your key.";
+
+        public readonly string SettingsWebSearchApiKeyLabel = "Search API key";
+
+        public readonly string SettingsWebSearchApiKeyHint =
+            "Stored in this project's UserSettings. Empty = the tool tells the agent where to set it.";
 
         public readonly string SettingsWebFetchBlockedHostsHint =
             "One host per line; a blocked host is refused even when it is on the allowed list.";
@@ -2708,7 +2760,6 @@ namespace Colloid.AgentPanel.UI
             string settingsAllowedToolsHint,
             string settingsAllowedToolsTooltip,
             string settingsDisallowedToolsLabel,
-            string settingsDisallowedToolsHint,
             string settingsDisallowedToolsTooltip,
             string settingsDangerZoneTitle,
             string settingsDangerZoneWarning,
@@ -2757,7 +2808,6 @@ namespace Colloid.AgentPanel.UI
             string settingsCopyButton,
             string settingsClearButton,
             string settingsDiagnosticsEmpty,
-            string settingsSectionAbout,
             string settingsPackageVersionFmt,
             string settingsPackageVersionUnknown,
             string settingsCliVersionFmt,
@@ -3085,12 +3135,61 @@ namespace Colloid.AgentPanel.UI
             string settingsAgentAdvancedFoldout = null,
             string settingsReconnectButton = null,
             string settingsAccountAcpConnectingFmt = null,
+            string settingsTabOverview = null,
+            string settingsTabShortOverview = null,
+            string settingsTabShortAgent = null,
+            string settingsTabShortPanel = null,
+            string settingsTabShortUnity = null,
+            string settingsTabShortConnection = null,
+            string settingsOverviewSetupTitle = null,
+            string settingsOverviewEffectiveTitle = null,
+            string settingsOverviewAgentLabel = null,
+            string settingsOverviewSignInLabel = null,
+            string settingsOverviewUnityOpsLabel = null,
+            string settingsOverviewDangerLabel = null,
+            string settingsOverviewPermissionLabel = null,
+            string settingsOverviewAutoApproveLabel = null,
+            string settingsOverviewModelLabel = null,
+            string settingsOverviewLanguageLabel = null,
+            string settingsOverviewChangeButton = null,
+            string settingsOverviewSetUpButton = null,
+            string settingsOverviewSignInButton = null,
+            string settingsOverviewEnableButton = null,
+            string settingsOverviewUnityOpsOffDetail = null,
+            string settingsOverviewAgentNotFound = null,
+            string settingsOverviewDangerArmed = null,
             string settingsUapOpsModuleWebLabel = null,
             string settingsUapOpsModuleWebHint = null,
             string settingsWebFetchAllowedHostsLabel = null,
             string settingsWebFetchAllowedHostsHint = null,
             string settingsWebFetchBlockedHostsLabel = null,
-            string settingsWebFetchBlockedHostsHint = null)
+            string settingsWebFetchBlockedHostsHint = null,
+            string settingsWebSearchProviderLabel = null,
+            string settingsWebSearchProviderHint = null,
+            string settingsWebSearchApiKeyLabel = null,
+            string settingsWebSearchApiKeyHint = null,
+            string settingsSearchPlaceholder = null,
+            string settingsSearchClearButton = null,
+            string settingsSearchNoMatch = null,
+            string settingsPillOff = null,
+            string settingsPillPortFmt = null,
+            string settingsPillSignedIn = null,
+            string settingsPillNotSignedIn = null,
+            string settingsPillSigningIn = null,
+            string settingsPillConnecting = null,
+            string settingsPillChecking = null,
+            string settingsPillNotSet = null,
+            string settingsPillLinesFmt = null,
+            string settingsPillItemsFmt = null,
+            string settingsPillIgnoredFmt = null,
+            string settingsPillDetectedFmt = null,
+            string settingsPillNoneDetected = null,
+            string settingsPillInstalled = null,
+            string settingsPillDisabled = null,
+            string settingsPillLoadError = null,
+            string settingsPillNoCjkFont = null,
+            string settingsPillAllOff = null,
+            string settingsPillSkippingChecks = null)
         {
             FirstRunCliNotFoundTitle = firstRunCliNotFoundTitle;
             FirstRunCliNotFoundBody = firstRunCliNotFoundBody;
@@ -3461,7 +3560,6 @@ namespace Colloid.AgentPanel.UI
             SettingsAllowedToolsHint = settingsAllowedToolsHint;
             SettingsAllowedToolsTooltip = settingsAllowedToolsTooltip;
             SettingsDisallowedToolsLabel = settingsDisallowedToolsLabel;
-            SettingsDisallowedToolsHint = settingsDisallowedToolsHint;
             SettingsDisallowedToolsTooltip = settingsDisallowedToolsTooltip;
             SettingsDangerZoneTitle = settingsDangerZoneTitle;
             SettingsDangerZoneWarning = settingsDangerZoneWarning;
@@ -3510,7 +3608,6 @@ namespace Colloid.AgentPanel.UI
             SettingsCopyButton = settingsCopyButton;
             SettingsClearButton = settingsClearButton;
             SettingsDiagnosticsEmpty = settingsDiagnosticsEmpty;
-            SettingsSectionAbout = settingsSectionAbout;
             SettingsPackageVersionFmt = settingsPackageVersionFmt;
             SettingsPackageVersionUnknown = settingsPackageVersionUnknown;
             SettingsCliVersionFmt = settingsCliVersionFmt;
@@ -4113,6 +4210,202 @@ namespace Colloid.AgentPanel.UI
             if (settingsWebFetchBlockedHostsHint != null)
             {
                 SettingsWebFetchBlockedHostsHint = settingsWebFetchBlockedHostsHint;
+            }
+            if (settingsWebSearchProviderLabel != null)
+            {
+                SettingsWebSearchProviderLabel = settingsWebSearchProviderLabel;
+            }
+            if (settingsWebSearchProviderHint != null)
+            {
+                SettingsWebSearchProviderHint = settingsWebSearchProviderHint;
+            }
+            if (settingsWebSearchApiKeyLabel != null)
+            {
+                SettingsWebSearchApiKeyLabel = settingsWebSearchApiKeyLabel;
+            }
+            if (settingsWebSearchApiKeyHint != null)
+            {
+                SettingsWebSearchApiKeyHint = settingsWebSearchApiKeyHint;
+            }
+            if (settingsTabOverview != null)
+            {
+                SettingsTabOverview = settingsTabOverview;
+            }
+            if (settingsTabShortOverview != null)
+            {
+                SettingsTabShortOverview = settingsTabShortOverview;
+            }
+            if (settingsTabShortAgent != null)
+            {
+                SettingsTabShortAgent = settingsTabShortAgent;
+            }
+            if (settingsTabShortPanel != null)
+            {
+                SettingsTabShortPanel = settingsTabShortPanel;
+            }
+            if (settingsTabShortUnity != null)
+            {
+                SettingsTabShortUnity = settingsTabShortUnity;
+            }
+            if (settingsTabShortConnection != null)
+            {
+                SettingsTabShortConnection = settingsTabShortConnection;
+            }
+            if (settingsOverviewSetupTitle != null)
+            {
+                SettingsOverviewSetupTitle = settingsOverviewSetupTitle;
+            }
+            if (settingsOverviewEffectiveTitle != null)
+            {
+                SettingsOverviewEffectiveTitle = settingsOverviewEffectiveTitle;
+            }
+            if (settingsOverviewAgentLabel != null)
+            {
+                SettingsOverviewAgentLabel = settingsOverviewAgentLabel;
+            }
+            if (settingsOverviewSignInLabel != null)
+            {
+                SettingsOverviewSignInLabel = settingsOverviewSignInLabel;
+            }
+            if (settingsOverviewUnityOpsLabel != null)
+            {
+                SettingsOverviewUnityOpsLabel = settingsOverviewUnityOpsLabel;
+            }
+            if (settingsOverviewDangerLabel != null)
+            {
+                SettingsOverviewDangerLabel = settingsOverviewDangerLabel;
+            }
+            if (settingsOverviewPermissionLabel != null)
+            {
+                SettingsOverviewPermissionLabel = settingsOverviewPermissionLabel;
+            }
+            if (settingsOverviewAutoApproveLabel != null)
+            {
+                SettingsOverviewAutoApproveLabel = settingsOverviewAutoApproveLabel;
+            }
+            if (settingsOverviewModelLabel != null)
+            {
+                SettingsOverviewModelLabel = settingsOverviewModelLabel;
+            }
+            if (settingsOverviewLanguageLabel != null)
+            {
+                SettingsOverviewLanguageLabel = settingsOverviewLanguageLabel;
+            }
+            if (settingsOverviewChangeButton != null)
+            {
+                SettingsOverviewChangeButton = settingsOverviewChangeButton;
+            }
+            if (settingsOverviewSetUpButton != null)
+            {
+                SettingsOverviewSetUpButton = settingsOverviewSetUpButton;
+            }
+            if (settingsOverviewSignInButton != null)
+            {
+                SettingsOverviewSignInButton = settingsOverviewSignInButton;
+            }
+            if (settingsOverviewEnableButton != null)
+            {
+                SettingsOverviewEnableButton = settingsOverviewEnableButton;
+            }
+            if (settingsOverviewUnityOpsOffDetail != null)
+            {
+                SettingsOverviewUnityOpsOffDetail = settingsOverviewUnityOpsOffDetail;
+            }
+            if (settingsOverviewAgentNotFound != null)
+            {
+                SettingsOverviewAgentNotFound = settingsOverviewAgentNotFound;
+            }
+            if (settingsOverviewDangerArmed != null)
+            {
+                SettingsOverviewDangerArmed = settingsOverviewDangerArmed;
+            }
+            if (settingsSearchPlaceholder != null)
+            {
+                SettingsSearchPlaceholder = settingsSearchPlaceholder;
+            }
+            if (settingsSearchClearButton != null)
+            {
+                SettingsSearchClearButton = settingsSearchClearButton;
+            }
+            if (settingsSearchNoMatch != null)
+            {
+                SettingsSearchNoMatch = settingsSearchNoMatch;
+            }
+            if (settingsPillOff != null)
+            {
+                SettingsPillOff = settingsPillOff;
+            }
+            if (settingsPillPortFmt != null)
+            {
+                SettingsPillPortFmt = settingsPillPortFmt;
+            }
+            if (settingsPillSignedIn != null)
+            {
+                SettingsPillSignedIn = settingsPillSignedIn;
+            }
+            if (settingsPillNotSignedIn != null)
+            {
+                SettingsPillNotSignedIn = settingsPillNotSignedIn;
+            }
+            if (settingsPillSigningIn != null)
+            {
+                SettingsPillSigningIn = settingsPillSigningIn;
+            }
+            if (settingsPillConnecting != null)
+            {
+                SettingsPillConnecting = settingsPillConnecting;
+            }
+            if (settingsPillChecking != null)
+            {
+                SettingsPillChecking = settingsPillChecking;
+            }
+            if (settingsPillNotSet != null)
+            {
+                SettingsPillNotSet = settingsPillNotSet;
+            }
+            if (settingsPillLinesFmt != null)
+            {
+                SettingsPillLinesFmt = settingsPillLinesFmt;
+            }
+            if (settingsPillItemsFmt != null)
+            {
+                SettingsPillItemsFmt = settingsPillItemsFmt;
+            }
+            if (settingsPillIgnoredFmt != null)
+            {
+                SettingsPillIgnoredFmt = settingsPillIgnoredFmt;
+            }
+            if (settingsPillDetectedFmt != null)
+            {
+                SettingsPillDetectedFmt = settingsPillDetectedFmt;
+            }
+            if (settingsPillNoneDetected != null)
+            {
+                SettingsPillNoneDetected = settingsPillNoneDetected;
+            }
+            if (settingsPillInstalled != null)
+            {
+                SettingsPillInstalled = settingsPillInstalled;
+            }
+            if (settingsPillDisabled != null)
+            {
+                SettingsPillDisabled = settingsPillDisabled;
+            }
+            if (settingsPillLoadError != null)
+            {
+                SettingsPillLoadError = settingsPillLoadError;
+            }
+            if (settingsPillNoCjkFont != null)
+            {
+                SettingsPillNoCjkFont = settingsPillNoCjkFont;
+            }
+            if (settingsPillAllOff != null)
+            {
+                SettingsPillAllOff = settingsPillAllOff;
+            }
+            if (settingsPillSkippingChecks != null)
+            {
+                SettingsPillSkippingChecks = settingsPillSkippingChecks;
             }
         }
     }

@@ -143,7 +143,10 @@ namespace Colloid.AgentPanel.Tests
             r = UapHtmlText.Extract("<script>never closed", Base);
             Assert.AreEqual(string.Empty, r.Text);
             r = UapHtmlText.Extract("text <", Base);
-            Assert.AreEqual("text", r.Text);
+            Assert.AreEqual("text <", r.Text, "a trailing lone '<' is text");
+            // Two adjacent '<' and a bare comparison: literal text, no throw.
+            r = UapHtmlText.Extract("<p>a << b and 1 < 2 <b>ok</b></p>", Base);
+            Assert.AreEqual("a << b and 1 < 2 ok", r.Text);
         }
     }
 }

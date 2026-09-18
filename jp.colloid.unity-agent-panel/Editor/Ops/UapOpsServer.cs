@@ -132,6 +132,8 @@ namespace Colloid.AgentPanel.Ops
             UapWebFetchTool.MainThreadExecutor = _dispatcher;
             Colloid.AgentPanel.Model.PanelSettings webSettings = Colloid.AgentPanel.Model.PanelStateStore.instance.Settings;
             UapWebFetchTool.HostRules = new UapWebHostRules(webSettings.webFetchAllowedHosts, webSettings.webFetchBlockedHosts);
+            UapWebSearchTool.Config = new UapWebSearchConfig(
+                UapWebSearchConfig.ParseProvider(webSettings.webSearchProvider), webSettings.webSearchApiKey);
             var handler = new UapOpsRequestHandler(Registry, () => _token,
                 () => _enabledModules, _dispatcher, null, ReadThrottleNotice);
             var server = new UapOpsHttpServer(handler, logger);
