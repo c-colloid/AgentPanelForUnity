@@ -218,6 +218,7 @@ namespace Colloid.AgentPanel.UI
                     SetExpanded(true);
                 }
             }
+            TextEscapes.Disable(this);
         }
 
         /// <summary>
@@ -492,6 +493,7 @@ namespace Colloid.AgentPanel.UI
                 empty.AddToClassList("uap-subcard-drop-note");
                 _details.Insert(0, empty);
             }
+            TextEscapes.Disable(_details);
         }
 
         /// <summary>Records a real user scroll of the nested transcript

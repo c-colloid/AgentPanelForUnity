@@ -7,7 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-(nothing yet)
+### Fixed
+
+- **Backslash sequences in paths and code no longer turn into line breaks
+  and tabs.** A Windows path such as `...\Roaming\npm\node_modules\...`
+  showed as three lines with the `n` missing, and a `\t` lost its letter,
+  because a text element made from C# in Unity 2022.3 parses `\n` / `\t`
+  by default. Every text element the panel builds now has that parsing off
+  (`TextEscapes`): the Overview's agent path, the executable field, tool
+  card input / output, diffs, code blocks, history rows and the rest.
+  `docs/design-notes/2026-09-18-text-escape-sequences.md`.
 
 ## [0.58.1] - 2026-09-18
 

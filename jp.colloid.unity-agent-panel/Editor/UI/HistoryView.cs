@@ -603,6 +603,7 @@ namespace Colloid.AgentPanel.UI
                 more.AddToClassList("uap-history-showmore");
                 _listHost.Add(more);
             }
+            TextEscapes.Disable(_listHost);
         }
 
         private VisualElement BuildGroupHeader(HistoryGroup group)
@@ -850,6 +851,7 @@ namespace Colloid.AgentPanel.UI
                 note.enableRichText = false;
                 row.Add(note);
             }
+            TextEscapes.Disable(row);
         }
 
         private VisualElement BuildSwitchConfirmBar(HistoryRow data)

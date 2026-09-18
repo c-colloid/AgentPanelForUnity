@@ -539,6 +539,9 @@ namespace Colloid.AgentPanel.UI
             _searchFilter = new SettingsSearchFilter(BuildSearchCards());
             SelectTab(ReadPersistedTab(), false);
             RefreshAll();
+            // Built standalone (tests) as well as inside the window: paths
+            // keep their backslashes either way (TextEscapes doc comment).
+            TextEscapes.Disable(root);
             return root;
         }
 
@@ -1837,6 +1840,7 @@ namespace Colloid.AgentPanel.UI
             remove.AddToClassList("uap-settings-model-remove");
             row.Add(remove);
 
+            TextEscapes.Disable(row);
             _agentOverridesHost.Add(row);
         }
 
@@ -2312,6 +2316,7 @@ namespace Colloid.AgentPanel.UI
             remove.AddToClassList("uap-settings-qa-remove");
             row.Add(remove);
 
+            TextEscapes.Disable(row);
             _quickActionsHost.Add(row);
         }
 
@@ -2482,6 +2487,7 @@ namespace Colloid.AgentPanel.UI
             remove.AddToClassList("uap-settings-errignore-remove");
             row.Add(remove);
 
+            TextEscapes.Disable(row);
             _ignoredErrorsHost.Add(row);
         }
 
@@ -3668,6 +3674,7 @@ namespace Colloid.AgentPanel.UI
             copy.tooltip = L10n.S.SettingsExtensionProfilesGapsTooltip;
             row.Add(copy);
             row.Add(status);
+            TextEscapes.Disable(row);
         }
 
         private void AddExtensionProfileRow(ExtensionProfileStatus status)
@@ -3717,6 +3724,7 @@ namespace Colloid.AgentPanel.UI
                 approve.AddToClassList("uap-settings-btn--primary");
                 row.Add(approve);
             }
+            TextEscapes.Disable(row);
         }
 
         /// <summary>
@@ -4180,6 +4188,7 @@ namespace Colloid.AgentPanel.UI
                 }
                 _uloopCaveatsHost.Add(caveatLabel);
             }
+            TextEscapes.Disable(_uloopCaveatsHost);
 
             _uloopDiffField.SetValueWithoutNotify(
                 IconLoader.StripVariationSelectors(BuildManifestDiffText(plan.ManifestBefore, plan.ManifestAfter)));

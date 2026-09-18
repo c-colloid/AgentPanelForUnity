@@ -181,6 +181,7 @@ namespace Colloid.AgentPanel.UI.Markdown
             {
                 root.Add(CreateRichLabel(string.Empty, "uap-md-p"));
             }
+            TextEscapes.Disable(root);
             return root;
         }
 
@@ -193,6 +194,7 @@ namespace Colloid.AgentPanel.UI.Markdown
         {
             var label = new Label(convertedRichText ?? string.Empty);
             label.enableRichText = true;
+            label.parseEscapeSequences = false;
             if (!string.IsNullOrEmpty(ussClass))
             {
                 label.AddToClassList(ussClass);

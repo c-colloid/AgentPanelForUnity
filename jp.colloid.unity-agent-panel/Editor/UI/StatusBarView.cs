@@ -716,6 +716,7 @@ namespace Colloid.AgentPanel.UI
                     ctx.enableRichText = false;
                     row.Add(ctx);
                 }
+                TextEscapes.Disable(row);
                 return row;
             }
         }

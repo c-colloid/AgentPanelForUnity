@@ -270,6 +270,7 @@ namespace Colloid.AgentPanel.UI
             // panel's focusController).
             _card.SetAutoFocusEnabled(!_autoOpened);
             host.Add(_card.Root);
+            TextEscapes.Disable(host);
 
             AgentHub.Changed += OnHubChanged;
             _refreshLoop = root.schedule.Execute(RefreshIfDirty).Every(RefreshIntervalMillis);
