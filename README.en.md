@@ -78,6 +78,19 @@ Git must be installed (get it from [git-scm.com](https://git-scm.com/) and resta
 
 Extract `jp.colloid.unity-agent-panel-<version>.zip` from the [latest release](https://github.com/c-colloid/AgentPanelForUnity/releases/latest) into `Packages/jp.colloid.unity-agent-panel/` in your project (so that `package.json` sits directly in that folder). Update by replacing the folder.
 
+### Trying a beta
+
+Every finished piece of work ships as a beta, `X.Y.Z-beta.N`; a stable release bundles them every few days to weeks. Betas are invisible to a normal install and reach you through these routes:
+
+- **VCC / ALCOM**: turn on **Settings > Packages > Show Pre-release Packages** in VCC, or **Show pre-release packages** in ALCOM's settings, and the betas appear in the same list.
+- **Git URL**: append `#beta` to the URL.
+
+  ```
+  https://github.com/c-colloid/AgentPanelForUnity.git?path=jp.colloid.unity-agent-panel#beta
+  ```
+
+- **zip**: the entries marked **Pre-release** under [Releases](https://github.com/c-colloid/AgentPanelForUnity/releases).
+
 ## Getting started
 
 1. Open **Window > Agent Panel**.

@@ -78,6 +78,19 @@ Git がインストールされている必要があります(無ければ [git-
 
 [最新リリース](https://github.com/c-colloid/AgentPanelForUnity/releases/latest) の `jp.colloid.unity-agent-panel-<バージョン>.zip` を、Unity プロジェクトの `Packages/jp.colloid.unity-agent-panel/` に展開します(`package.json` がそのフォルダ直下に来る形)。更新は zip の差し替えです。
 
+### ベータ版を試す
+
+作業がひとつ終わるごとに `X.Y.Z-beta.N` のベータ版が出ます。安定版はそれをまとめて、数日から週単位で出します。ベータ版は次の経路で受け取れます(通常の導入では見えません)。
+
+- **VCC / ALCOM**: VCC は **Settings > Packages > Show Pre-release Packages**、ALCOM は設定の **プレリリース版を表示** をオンにすると、同じ一覧にベータ版が並びます。
+- **Git URL**: URL の末尾に `#beta` を付けます。
+
+  ```
+  https://github.com/c-colloid/AgentPanelForUnity.git?path=jp.colloid.unity-agent-panel#beta
+  ```
+
+- **zip**: [Releases](https://github.com/c-colloid/AgentPanelForUnity/releases) で **Pre-release** の印が付いたものです。
+
 ## はじめかた
 
 1. **Window > Agent Panel** を開きます。

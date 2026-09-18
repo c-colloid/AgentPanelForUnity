@@ -303,7 +303,7 @@ Claude Code の代わりに、ACP(Agent Client Protocol)対応の CLI をパネ�
 | **Unity 連携 > Unity 公式プラグイン** | Unity 公式の Claude Code プラグインの検出と導入 |
 | **接続 > エージェント** | エージェント(Claude Code / Gemini CLI / Codex / Grok Build / その他の ACP エージェント)、解決結果とインストール、サインイン状態(メール/プラン、実際に使われた認証方式)、サインイン方式、ログイン / サインイン / アカウントを切り替え / ログアウト、詳細設定(実行ファイルのパス、または起動コマンドと引数。未検出のとき自動で開く)、再接続 |
 | **接続 > CLI の出力(stderr)** | 最近の CLI の stderr(コピー / クリア) |
-| **接続 > Agent Panel Pro の更新** | 購入時のレジストリ URL と製品キー。「キーを保存」で `~/.upmconfig.toml`(または `UPM_USER_CONFIG_DIR`)にトークンを、`Packages/manifest.json` に scoped registry を書き込み、以後 Package Manager の My Registries から Pro を導入・更新できる。「VCC / ALCOM に追加」は同じキーで VPM リポジトリを VRChat Creator Companion / ALCOM に登録する。パネルはキーを保存しない |
+| **接続 > Agent Panel Pro の更新** | 購入時のレジストリ URL と製品キー。「キーを保存」で `~/.upmconfig.toml`(または `UPM_USER_CONFIG_DIR`)にトークンを、`Packages/manifest.json` に scoped registry を書き込み、以後 Package Manager の My Registries から Pro を導入・更新できる。「VCC / ALCOM に追加」は同じキーで VPM リポジトリを VRChat Creator Companion / ALCOM に登録する。パネルはキーを保存しない。ベータ版も受け取りたいときはレジストリ URL の `/npm` の前に `/beta` を入れる(`https://<host>/beta/npm`) |
 
 ![設定 > エージェント(左)と Unity 連携(右)。見出し右端の状態ピル](images/guide/15-settings-tabs.png)
 

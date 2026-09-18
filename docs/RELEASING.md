@@ -6,6 +6,20 @@
 
 - **Semantic Versioning**(`X.Y.Z`)。0.x 期は **minor = 機能フェーズ(新機能のまとまり)**、
   **patch = 修正のみ** のリリース。1.0.0 は「他プロジェクトへの配布に耐える」と判断した時点。
+- **ベータ版と安定版**(2026-09-18、`docs/design-notes/2026-09-18-prerelease-channel.md`)。
+  タスクごとに切るのは **ベータ版** `X.Y.Z-beta.N`(`X.Y.Z` は次の安定版、`N` はタスクごとに
+  +1)。**安定版** `X.Y.Z` は「リリースして」と指示があったとき、または利用者を止める不具合の
+  ホットフィックス(ベータを経ない)のときだけ切る。ベータ版は公開ミラーの `beta` ブランチと
+  GitHub の pre-release、VPM リスティングでは「プレリリース版を表示」をオンにした人にだけ
+  届き、`main` / `releases/latest` / 既定の VCC 表示は最後の安定版のまま。
+  - `X.Y.Z` の決め方: 直前が安定版なら、`[Unreleased]` に `### Added` があれば minor、
+    無ければ patch を上げて `-beta.1`。直前がベータなら同じ `X.Y.Z` で `N + 1`。系列の
+    途中で最初の `### Added` が入り、それまで patch 上げだったなら minor へ昇格して
+    `-beta.1` から数え直す。降格(minor → patch)はしない(SemVer の順序が崩れる)。
+  - ベータのコミットは `Beta vX.Y.Z-beta.N: <概要>`、安定版は `Release vX.Y.Z: <概要>`。
+  - CHANGELOG はベータでは節を切らず `[Unreleased]` に積んだまま。安定版で切り出す。
+  - 下の表にはベータの行を作らない。タスクの日本語の要約は「次の安定版に含める作業」の
+    箇条書きに 1 行足し、安定版を切るときに 1 行にまとめて表へ移す。
 - git タグは **`vX.Y.Z`**(annotated)。`jp.colloid.unity-agent-panel/package.json` の
   `version` とタグは常に一致させる(v0.2.0 以前はタグのみの遡及マイルストーンで、
   当時の package.json は 0.1.0 のまま — 歴史的例外)。
@@ -15,11 +29,21 @@
 
 ## 手順
 
+### ベータ版(タスクごと)
+
+1. `jp.colloid.unity-agent-panel/package.json` の `version` を規約どおり `X.Y.Z-beta.N` に上げる
+   (CHANGELOG は `[Unreleased]` のまま)。
+2. 「次の安定版に含める作業」の箇条書きに 1 行足す。
+3. コミット(例: `Beta v0.59.0-beta.2: settings escape sequences`)。タグ・ミラー・Release
+   は安定版と同じ自動化が動き、ミラー側は `beta` ブランチと pre-release に載る。
+
+### 安定版(指示があったとき / ホットフィックス)
+
 1. `[Unreleased]` の内容を確認し、`## [X.Y.Z] - YYYY-MM-DD` として切り出す
-   (`[Unreleased]` は `(nothing yet)` で残す)。
+   (`[Unreleased]` は `(nothing yet)` で残す)。`X.Y.Z` はベータ系列のラベルを外した値。
 2. `jp.colloid.unity-agent-panel/package.json` の `version` を同じ値に上げる。
 3. 検証用サンドボックスプロジェクト(CONTRIBUTING.md 参照)でコンパイル+EditModeテストが全緑であることを確認する。
-4. コミット(例: `Release v0.3.0`)。
+4. コミット(例: `Release v0.3.0`)。「次の安定版に含める作業」を表の 1 行にまとめて空にする。
 5. タグ付け: **`.github/workflows/tag-release.yml` が自動で行う。**
    `jp.colloid.unity-agent-panel/package.json` の変更が main に入ると、
    そのバージョンを**導入したコミット**(マージコミットでも push の先頭でもなく、
@@ -60,9 +84,10 @@ https://github.com/c-colloid/AgentPanelForUnity.git?path=jp.colloid.unity-agent-
 
 Core とは別系統。CHANGELOG は `jp.colloid.agent-panel-pro/CHANGELOG.md`、
 バージョンは同パッケージの `package.json`。**Pro に変更があったときだけ**
-上げる(Core だけの変更ではバンプしない)。リリースコミットのメッセージは
+上げる(Core だけの変更ではバンプしない)。ベータ / 安定版の規約は Core と
+同じで、ベータのコミットは `Beta pro-vX.Y.Z-beta.N: <概要>`、安定版は
 `Release pro-vX.Y.Z: <概要>` とし(`Release vX.Y.Z` と紛れないよう接頭辞
-`pro-` を付ける)、タグ `pro-vX.Y.Z` は `build-pro-bundle.yml` が自動で打つ
+`pro-` を付ける)、タグ `pro-vX.Y.Z[-beta.N]` は `build-pro-bundle.yml` が自動で打つ
 (手で打つ必要はない。`tag-release.yml` は Core の package.json しか見て
 いないので、Core のタグとは別経路)。Core と Pro を同じ作業ブランチで
 同時に変更した場合は、この手順のとおり Core のリリースコミットを切った
@@ -70,6 +95,13 @@ Core とは別系統。CHANGELOG は `jp.colloid.agent-panel-pro/CHANGELOG.md`�
 (1 コミットに両方を混在させない)。
 
 ### Pro の配信(更新レジストリ)
+
+ベータ版(`pro-vX.Y.Z-beta.N`)もレジストリに登録されるが、既定の URL
+(`https://<host>/npm`)からは返さない(Unity 2022.3 はスコープドレジストリの
+最大版を pre-release 設定に関係なく latest として出すため。
+`docs/design-notes/2026-09-18-prerelease-channel.md`)。ベータを受け取る
+プロジェクトはレジストリ URL を `https://<host>/beta/npm` にする(VPM
+リスティングも `/beta/vpm/index.json` に付いてくる)。
 
 Pro は zip の手渡しではなく、トークン認証付きの npm 互換 scoped registry
 (Cloudflare Worker、`registry/`。設計は
@@ -186,6 +218,12 @@ Release に載るので、以後の実行はロット名もキーもそこから
 `ci/public-mirror/allowlist.txt` の許可リストに従って抽出し、公開リポジトリ
 `${{ vars.PUBLIC_MIRROR_REPO }}`(例: `c-colloid/AgentPanelForUnity`)へ
 1スカッシュコミット「`Release <tag>`」として `main` と同じタグを push する。
+**ベータ版**(タグに `-` を含む: `v0.59.0-beta.2`)は `main` に触れず、
+「`main` + その 1 コミット」を `beta` ブランチに force-push し(常に
+「現在の main + 最新ベータ 1 つ」に書き直す。安定版のときも `beta` を新しい
+`main` に揃える)、GitHub Release は pre-release として作る(ノートは
+CHANGELOG の `[Unreleased]` 節)。`releases/latest` は安定版を指し続け、
+VPM リスティングには両方が載って VCC / ALCOM 側の表示設定で選ばれる。
 セットアップ:
 
 - リポジトリ変数 `PUBLIC_MIRROR_REPO`: `owner/repo` 形式で公開リポジトリを指定。
@@ -234,6 +272,12 @@ Release に載るので、以後の実行はロット名もキーもそこから
 
 Core(`vX.Y.Z`)の一覧。Pro のタグは `pro-vX.Y.Z` で、この表には積まない
 (一覧は GitHub の Releases と `jp.colloid.agent-panel-pro/CHANGELOG.md`)。
+ベータ版(`vX.Y.Z-beta.N`)も表には積まず、次の箇条書きに 1 行ずつ足して、
+安定版を切るときに表の 1 行へまとめる。
+
+### 次の安定版に含める作業
+
+- v0.58.2-beta.1: 設定 > 概要のエージェント行に出る実行ファイルのパス(`...\Roaming\npm\node_modules\...`)が `\n` の位置で改行され `n` が消える、`\t` がタブに化けて文字が消える件の修正(`docs/design-notes/2026-09-18-text-escape-sequences.md`)。Unity 2022.3 の C# 生成 `TextElement` は `parseEscapeSequences` が既定 true で `\n` / `\t` を制御文字に書き換えるため、`TextEscapes.Disable` で window root と後から生える部分木(メッセージ、Markdown、コードブロック、ツール / サブエージェント / 許可カード、履歴、チップ、設定の動的行)のすべての `TextElement` を false にした。同じ画面のタブ文字が見えない件は v0.58.0 §10 で修正済み(撮影は §10 より前の版)。テスト 1 ファイル(4 本)追加(2026-09-18)
 
 | タグ | 内容 |
 |---|---|
