@@ -6,6 +6,22 @@
 
 A chat panel that puts a coding agent inside the Unity Editor. Claude Code is the default, and Codex, Grok Build and other ACP-capable CLIs can be selected instead. From a docked panel you can ask the agent to write code, fix files and work on the scene. A permission card appears before every tool runs, and the conversation survives script recompiles.
 
+## Your choice of agent and model, inside Unity
+
+![Choose Claude Code, Codex, Grok Build, Gemini CLI or a custom ACP agent inside Unity. Gemini CLI has access requirements; custom ACP requires manual configuration.](docs/images/agents-overview.svg)
+
+| Agent | Connection | Models and requirements |
+|---|---|---|
+| **Claude Code** / Anthropic | Native | Choose from the models offered by Claude Code |
+| **Codex** / OpenAI | ACP adapter | Choose from the models offered by Codex |
+| **Grok Build** / xAI | ACP | Choose from the models offered by Grok Build |
+| **Gemini CLI** / Google | ACP | Requires a Gemini API key or an eligible Code Assist license; see the setup guide below |
+| **Custom ACP** / Qwen Code, Kimi CLI and others | Configure command and arguments | Models and features exposed by the connected agent |
+
+**Select an agent in Settings → connect → choose a model in the header.** Available models depend on the CLI version, authentication method and account. Model listing and switching also depend on the connected agent.
+
+[Agent setup and switching (Japanese)](docs/USER-GUIDE.md#11-claude-以外のエージェントを使う) · [Model selection (Japanese)](docs/USER-GUIDE.md#10-モデルの選択)
+
 | Chat | Permission card | Settings |
 |---|---|---|
 | ![Chat](docs/images/chat.png) | ![Permission card](docs/images/permission-card.png) | ![Settings](docs/images/settings.png) |

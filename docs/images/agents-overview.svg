@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="600" viewBox="0 0 1080 600" role="img" aria-labelledby="title desc">
+<title id="title">Your choice of agent. Inside Unity.</title><desc id="desc">Claude Code, Codex, Grok Build, Gemini CLI, Custom ACP. Available models depend on the connected CLI and account.</desc>
+<rect width="1080" height="600" rx="16" fill="#f5f4f0"/>
+<g font-family="Arial, Noto Sans CJK JP, sans-serif" fill="#222b32">
+<text x="40" y="46" font-size="17" letter-spacing="2">AGENT PANEL FOR UNITY</text>
+<text x="40" y="105" font-size="38" font-weight="700">Your choice of agent. Inside Unity.</text>
+<text x="40" y="147" font-size="21" fill="#505963">Choose an agent. Switch between the models it offers.</text>
+<rect x="40" y="181" width="320" height="140" rx="8" fill="#fff" stroke="#d8dbdc"/>
+<rect x="40" y="199" width="5" height="34" fill="#a45134"/>
+<text x="60" y="211" font-size="16" fill="#505963">Anthropic</text>
+<text x="60" y="249" font-size="29" font-weight="700">Claude Code</text>
+<text x="60" y="292" font-size="19" fill="#a45134">Native connection</text>
+<rect x="376" y="181" width="320" height="140" rx="8" fill="#fff" stroke="#d8dbdc"/>
+<rect x="376" y="199" width="5" height="34" fill="#267264"/>
+<text x="396" y="211" font-size="16" fill="#505963">OpenAI</text>
+<text x="396" y="249" font-size="29" font-weight="700">Codex</text>
+<text x="396" y="292" font-size="19" fill="#267264">ACP adapter</text>
+<rect x="712" y="181" width="320" height="140" rx="8" fill="#fff" stroke="#d8dbdc"/>
+<rect x="712" y="199" width="5" height="34" fill="#435367"/>
+<text x="732" y="211" font-size="16" fill="#505963">xAI</text>
+<text x="732" y="249" font-size="29" font-weight="700">Grok Build</text>
+<text x="732" y="292" font-size="19" fill="#435367">ACP connection</text>
+<rect x="40" y="338" width="320" height="140" rx="8" fill="#fff" stroke="#d8dbdc"/>
+<rect x="40" y="356" width="5" height="34" fill="#386fa4"/>
+<text x="60" y="368" font-size="16" fill="#505963">Google</text>
+<text x="60" y="406" font-size="29" font-weight="700">Gemini CLI</text>
+<text x="60" y="449" font-size="19" fill="#386fa4">Access requirements apply</text>
+<rect x="376" y="338" width="320" height="140" rx="8" fill="#fff" stroke="#d8dbdc"/>
+<rect x="376" y="356" width="5" height="34" fill="#725798"/>
+<text x="396" y="368" font-size="16" fill="#505963">Qwen Code / Kimi CLI / …</text>
+<text x="396" y="406" font-size="29" font-weight="700">Custom ACP</text>
+<text x="396" y="449" font-size="19" fill="#725798">Configure your CLI command</text>
+<text x="732" y="380" font-size="20" font-weight="700">Select → Connect → Switch</text>
+<text x="732" y="419" font-size="18" fill="#505963">Stay in your Unity Editor.</text>
+<path d="M40 510H1040" stroke="#d8dbdc"/>
+<text x="40" y="548" font-size="19" fill="#505963">Available models and features depend on your CLI and account.</text>
+</g></svg>

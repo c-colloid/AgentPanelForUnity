@@ -6,6 +6,22 @@
 
 コーディングエージェントを Unity エディタの中で使うためのチャットパネルです。Claude Code を中心に、Codex・Grok Build などの ACP 対応 CLI にも切り替えられます。エディタにドッキングしたパネルから、コードを書く・ファイルを直す・シーンを操作するといった作業をエージェントに頼めます。ツールを実行する前には許可カードが出て、スクリプトの再コンパイルをまたいでも会話は続きます。
 
+## 好きなエージェントとモデルを、Unity で
+
+![Claude Code・Codex・Grok Build・Gemini CLI・カスタム ACP を Unity 内で選択。Gemini CLI は利用条件あり、カスタム ACP は手動設定。](docs/images/agents-overview.svg)
+
+| エージェント | 接続方法 | モデル・利用条件 |
+|---|---|---|
+| **Claude Code** / Anthropic | 標準接続 | Claude Code が提供するモデルを選択 |
+| **Codex** / OpenAI | ACP アダプター | Codex が提供するモデルを選択 |
+| **Grok Build** / xAI | ACP | Grok Build が提供するモデルを選択 |
+| **Gemini CLI** / Google | ACP | Gemini API キーまたは対応する Code Assist ライセンスが必要。詳しくは下記の導入ガイドへ |
+| **カスタム ACP** / Qwen Code・Kimi CLI など | コマンド・引数を手動設定 | 接続先が公開するモデルと機能に対応 |
+
+**設定でエージェントを選択 → 接続 → ヘッダーでモデルを選択。** 利用できるモデルは CLI のバージョン・認証方式・アカウントによって異なります。モデル一覧・切り替えの対応も接続先に依存します。
+
+[エージェントの導入・切り替え](docs/USER-GUIDE.md#11-claude-以外のエージェントを使う) · [モデルの選択方法](docs/USER-GUIDE.md#10-モデルの選択)
+
 | チャット | 許可カード | 設定画面 |
 |---|---|---|
 | ![チャット画面](docs/images/chat.png) | ![許可カード](docs/images/permission-card.png) | ![設定画面](docs/images/settings.png) |
