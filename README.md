@@ -6,6 +6,29 @@
 
 コーディングエージェントを Unity エディタの中で使うためのチャットパネルです。Claude Code を中心に、Codex・Grok Build などの ACP 対応 CLI にも切り替えられます。エディタにドッキングしたパネルから、コードを書く・ファイルを直す・シーンを操作するといった作業をエージェントに頼めます。ツールを実行する前には許可カードが出て、スクリプトの再コンパイルをまたいでも会話は続きます。
 
+## 対応エージェント
+
+| エージェント | 接続方法 |
+|---|---|
+| **Claude Code** / Anthropic | 標準接続 |
+| **Codex** / OpenAI | ACP 接続 |
+| **Grok Build** / xAI | ACP 接続 |
+| **Gemini CLI** / Google | ACP 接続 |
+| **カスタム ACP** / Qwen Code・Kimi CLI など | コマンド・引数を手動設定 |
+
+**設定でエージェントを選択 → 接続 → ヘッダーでモデルを選択。**
+
+[エージェントの導入・切り替え](docs/USER-GUIDE.md#11-claude-以外のエージェントを使う) · [モデルの選択方法](docs/USER-GUIDE.md#10-モデルの選択)
+
+### シーン編集の使用例
+
+| Claude Code | Codex | Grok Build |
+|---|---|---|
+| [![ライト追加とオブジェクト拡大](docs/images/agents/claude-common-task-with-request.png)](docs/AGENT-SHOWCASE.md#共通の使い方シーン編集と変更点の確認) | [![3個の Crate の配置と色分け](docs/images/agents/codex-common-task-with-request.png)](docs/AGENT-SHOWCASE.md#共通の使い方シーン編集と変更点の確認) | [![ライトの色・強度の調整](docs/images/agents/grok-x-search.png)](docs/AGENT-SHOWCASE.md#共通の使い方シーン編集と変更点の確認) |
+| ライト追加・オブジェクト拡大 | オブジェクト配置・色分け | ライトの色・強度の調整 |
+
+[使用例・切り替え方法](docs/AGENT-SHOWCASE.md) · [画像生成](docs/AGENT-SHOWCASE.md#画像生成素材を作ってシーンに適用) · [X 検索](docs/AGENT-SHOWCASE.md#x-検索調べた内容を制作に活かす)
+
 | チャット | 許可カード | 設定画面 |
 |---|---|---|
 | ![チャット画面](docs/images/chat.png) | ![許可カード](docs/images/permission-card.png) | ![設定画面](docs/images/settings.png) |

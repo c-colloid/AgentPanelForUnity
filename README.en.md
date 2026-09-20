@@ -6,6 +6,29 @@
 
 A chat panel that puts a coding agent inside the Unity Editor. Claude Code is the default, and Codex, Grok Build and other ACP-capable CLIs can be selected instead. From a docked panel you can ask the agent to write code, fix files and work on the scene. A permission card appears before every tool runs, and the conversation survives script recompiles.
 
+## Supported agents
+
+| Agent | Connection |
+|---|---|
+| **Claude Code** / Anthropic | Native |
+| **Codex** / OpenAI | ACP connection |
+| **Grok Build** / xAI | ACP connection |
+| **Gemini CLI** / Google | ACP connection |
+| **Custom ACP** / Qwen Code, Kimi CLI and others | Configure command and arguments |
+
+**Select an agent in Settings → connect → choose a model in the header.**
+
+[Agent setup and switching (Japanese)](docs/USER-GUIDE.md#11-claude-以外のエージェントを使う) · [Model selection (Japanese)](docs/USER-GUIDE.md#10-モデルの選択)
+
+### Scene-editing examples
+
+| Claude Code | Codex | Grok Build |
+|---|---|---|
+| [![Adding a light and resizing an object](docs/images/agents/claude-common-task-with-request.png)](docs/AGENT-SHOWCASE.en.md#shared-workflow-edit-and-review-a-scene) | [![Arranging and coloring three crates](docs/images/agents/codex-common-task-with-request.png)](docs/AGENT-SHOWCASE.en.md#shared-workflow-edit-and-review-a-scene) | [![Adjusting light colors and intensity](docs/images/agents/grok-x-search.png)](docs/AGENT-SHOWCASE.en.md#shared-workflow-edit-and-review-a-scene) |
+| Add lights and resize objects | Arrange and color objects | Adjust scene lighting |
+
+[Examples and switching agents](docs/AGENT-SHOWCASE.en.md) · [Image generation](docs/AGENT-SHOWCASE.en.md#image-generation-create-and-apply-materials) · [X search](docs/AGENT-SHOWCASE.en.md#x-search-bring-research-into-your-scene)
+
 | Chat | Permission card | Settings |
 |---|---|---|
 | ![Chat](docs/images/chat.png) | ![Permission card](docs/images/permission-card.png) | ![Settings](docs/images/settings.png) |
