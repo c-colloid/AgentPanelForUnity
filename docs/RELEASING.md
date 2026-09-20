@@ -278,6 +278,8 @@ Core(`vX.Y.Z`)の一覧。Pro のタグは `pro-vX.Y.Z` で、この表には積
 ### 次の安定版に含める作業
 
 - v0.58.2-beta.1: 設定 > 概要のエージェント行に出る実行ファイルのパス(`...\Roaming\npm\node_modules\...`)が `\n` の位置で改行され `n` が消える、`\t` がタブに化けて文字が消える件の修正(`docs/design-notes/2026-09-18-text-escape-sequences.md`)。Unity 2022.3 の C# 生成 `TextElement` は `parseEscapeSequences` が既定 true で `\n` / `\t` を制御文字に書き換えるため、`TextEscapes.Disable` で window root と後から生える部分木(メッセージ、Markdown、コードブロック、ツール / サブエージェント / 許可カード、履歴、チップ、設定の動的行)のすべての `TextElement` を false にした。同じ画面のタブ文字が見えない件は v0.58.0 §10 で修正済み(撮影は §10 より前の版)。テスト 1 ファイル(4 本)追加(2026-09-18)
+- v0.58.2-beta.2: Scene ビューのツールバーを「Agent Tools」1 本に統合(`docs/design-notes/2026-09-18-agent-tools-overlay.md`)。ピン(Agent Pin)と平面 / 表面スケッチ(Agent Sketch)が別オーバーレイで 2 本のストリップに分かれていたのを、`SceneAgentToolsOverlay`(id `uap-agent-tools`)の 3 トグルにまとめ、ピンとスケッチのアームを排他にした(同じ左クリックを取り合うため)。テスト 1 本追加(2026-09-18)
+- v0.58.2-beta.3: Agent Tools ツールバーを GameCI の 2022.3.62f3 + Xvfb で実機撮影し(`ci/shop-images/agent-tools-capture.sh` / `drive-x11.py` / `UapShotAgentTools.cs`、xdotool の実ポインタでクリック・ドラッグ)、操作ガイド §13 をピン・平面 / 表面スケッチ・チップの 7 枚の画像付きに書き直した(`docs/images/guide/13-agent-tools-*.png`)。撮影で見つけた 2 件を修正: 平面モードの深度読み出しが Tools オーバーレイに隠れる(上端中央へ)、平面トグルのアイコンが矢印カーソル(`d_Grid.Default`)だった(ピン `d_ToolHandlePivot` / 平面 `d_Mesh Icon` / 表面 `d_TerrainInspector.TerrainToolRaise`)。2022.3.22f1 の GameCI イメージは llvmpipe で UI Toolkit を描かないことを記録(設計ノート §4)(2026-09-18)。翌日、実機で採った「エージェントが受け取るもの」(チップの payload / 送信本文 / `uap_marker_list` / `uap_stroke_list`)を `docs/examples/agent-tools-request.md` と §13.6 の使用例に追加(2026-09-19)
 
 | タグ | 内容 |
 |---|---|
