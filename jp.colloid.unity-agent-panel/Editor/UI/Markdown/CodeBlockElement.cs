@@ -68,6 +68,7 @@ namespace Colloid.AgentPanel.UI.Markdown
 
             scroll.Add(column);
             Add(scroll);
+            TextEscapes.Disable(this);
         }
     }
 }

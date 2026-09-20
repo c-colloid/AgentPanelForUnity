@@ -204,11 +204,15 @@ namespace Colloid.AgentPanel.Ops.Markers
                     : L10n.F(L10n.S.CtxSketchSurfaceInFrontFmt, amount);
             }
             string text = line2 != null ? line1 + "\n" + line2 + "\n" + L10n.S.CtxSketchKeyHints : line1 + "\n" + L10n.S.CtxSketchKeyHints;
-            var gui = new Vector2(12f, 12f);
             Handles.BeginGUI();
             var content = new GUIContent(text);
             Vector2 size = _labelStyle.CalcSize(content);
-            GUI.Label(new Rect(gui.x, gui.y, size.x, size.y), content, _labelStyle);
+            // Centred under the top edge: the top-left corner is where
+            // Unity docks its Tools overlay by default, which hid the
+            // readout on 2022.3 (2026-09-18 capture, design note
+            // 2026-09-18-agent-tools-overlay.md section 4).
+            float width = camera.pixelRect.width / EditorGUIUtility.pixelsPerPoint;
+            GUI.Label(new Rect(Mathf.Max(12f, (width - size.x) * 0.5f), 12f, size.x, size.y), content, _labelStyle);
             Handles.EndGUI();
         }
 

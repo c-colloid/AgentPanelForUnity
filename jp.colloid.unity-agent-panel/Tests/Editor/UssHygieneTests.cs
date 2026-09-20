@@ -61,6 +61,36 @@ namespace Colloid.AgentPanel.Tests
                 + string.Join(", ", offenders));
         }
 
+        /// <summary>
+        /// The CSS cascade keyword "inherit" is not a USS value. The
+        /// importer accepts it as a Keyword token, and style resolution
+        /// then throws "Trying to read value of type Color while reading a
+        /// value of type Keyword" from StyleSheet.CheckAccess on every
+        /// event (the 2026-09-18 tab labels: ten invisible labels, one
+        /// Console error, x12). Comments are stripped first so a note that
+        /// mentions the word is allowed; a declaration is not
+        /// (docs/design-notes/2026-09-17-settings-redesign-plan.md section 10).
+        /// </summary>
+        [Test]
+        public void SourceScan_NoDeclaration_UsesTheCascadeInheritKeyword()
+        {
+            var declaration = new Regex(@"^\s*[a-zA-Z-]+\s*:\s*inherit\s*;", RegexOptions.Multiline);
+            var offenders = new List<string>();
+            foreach (string file in UssFiles())
+            {
+                string text = StripComments(File.ReadAllText(file));
+                foreach (Match m in declaration.Matches(text))
+                {
+                    offenders.Add(Path.GetFileName(file) + ": " + m.Value.Trim());
+                }
+            }
+            Assert.IsEmpty(offenders,
+                "USS has no 'inherit' keyword: the declaration is imported as a Keyword and "
+                + "throws at style resolution, leaving the property unset (invisible text). "
+                + "Delete the declaration -- color and font properties inherit on their own. "
+                + "Offenders: " + string.Join("; ", offenders));
+        }
+
         // One combined pattern per shorthand property: "<prop>:" (optionally
         // preceded by other selector/whitespace chars on the same line,
         // since USS/CSS declarations are one-per-line by convention in this

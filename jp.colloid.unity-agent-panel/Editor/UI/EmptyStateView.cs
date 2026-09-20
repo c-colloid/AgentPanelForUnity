@@ -217,6 +217,7 @@ namespace Colloid.AgentPanel.UI
             chip.enableRichText = false;
             chip.text = label;
             chip.AddToClassList("uap-chip");
+            TextEscapes.Disable(chip);
             _chipHost.Add(chip);
         }
     }

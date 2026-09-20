@@ -33,7 +33,7 @@ namespace Colloid.AgentPanel.Ops.Markers
     /// Plane mode also owns the depth controls (wheel / [ ] / F / X Y Z C)
     /// and hands the current plane to <see cref="SceneStrokeDepthGuide"/>
     /// for the on-screen depth cues. Escape leaves the mode. The
-    /// Scene-view toolbar (<see cref="SceneStrokeOverlay"/>) and the
+    /// Scene-view toolbar (<see cref="SceneAgentToolsOverlay"/>) and the
     /// context bar's sketch menu both drive <see cref="Armed"/> /
     /// <see cref="Mode"/>.
     /// </summary>
@@ -90,6 +90,10 @@ namespace Colloid.AgentPanel.Ops.Markers
                 }
                 else
                 {
+                    // One marking tool at a time: the pin and the sketch
+                    // share the Scene-view click, so arming one disarms
+                    // the other (the toolbar shows them as one tool set).
+                    SceneMarkerPin.Armed = false;
                     InitializePlaneIfNeeded();
                 }
                 RaiseArmedChanged();
@@ -126,6 +130,7 @@ namespace Colloid.AgentPanel.Ops.Markers
             CancelDrawing();
             _mode = mode;
             _armed = true;
+            SceneMarkerPin.Armed = false;
             InitializePlaneIfNeeded();
             RaiseArmedChanged();
         }

@@ -906,6 +906,7 @@ namespace Colloid.AgentPanel.UI
                 });
                 _slashPopup.Add(row);
             }
+            TextEscapes.Disable(_slashPopup);
         }
 
         private SlashCommandEntry SelectedSlashEntry()
@@ -1108,6 +1109,7 @@ namespace Colloid.AgentPanel.UI
                 item.Add(remove);
                 _attachStrip.Add(item);
             }
+            TextEscapes.Disable(_attachStrip);
         }
 
         private void PersistPendingImages()
