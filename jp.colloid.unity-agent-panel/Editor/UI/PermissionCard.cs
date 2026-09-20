@@ -497,6 +497,7 @@ namespace Colloid.AgentPanel.UI
             {
                 BuildToolVariant();
             }
+            TextEscapes.Disable(_root);
             // AskUserQuestion needs its options visible to be answerable, so
             // it starts EXPANDED (same cap, internal scrolling). Plain tool
             // prompts start collapsed to a single summary row. The question
@@ -1130,6 +1131,7 @@ namespace Colloid.AgentPanel.UI
                 expand.AddToClassList("uap-perm-diff-expand");
                 host.Add(expand);
             }
+            TextEscapes.Disable(host);
         }
 
         private static Label MakeDiffLineLabel(PermissionEditPreview.DiffLine line)

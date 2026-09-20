@@ -97,6 +97,7 @@ namespace Colloid.AgentPanel.UI
                 }
                 i++;
             }
+            TextEscapes.Disable(root);
             return root;
         }
 

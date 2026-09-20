@@ -334,5 +334,31 @@ namespace Colloid.AgentPanel.Tests
                 SceneStrokeSketch.ArmedChanged -= handler;
             }
         }
+
+        [Test]
+        public void Arm_DisarmsThePin_AndArmingThePinDisarmsTheSketch()
+        {
+            SceneMarkerPin.ResetForTests();
+            try
+            {
+                SceneMarkerPin.Armed = true;
+                SceneStrokeSketch.Arm(SceneStrokeMode.Surface);
+                Assert.IsFalse(SceneMarkerPin.Armed, "arming a sketch mode disarms the pin (one tool per Scene-view click)");
+                Assert.IsTrue(SceneStrokeSketch.Armed);
+
+                SceneMarkerPin.Armed = true;
+                Assert.IsFalse(SceneStrokeSketch.Armed, "arming the pin disarms the sketch");
+                Assert.IsTrue(SceneMarkerPin.Armed);
+
+                SceneMarkerPin.Armed = false;
+                SceneStrokeSketch.Armed = true;
+                Assert.IsFalse(SceneMarkerPin.Armed, "the pin was already off; disarming it again touches nothing");
+                Assert.IsTrue(SceneStrokeSketch.Armed);
+            }
+            finally
+            {
+                SceneMarkerPin.ResetForTests();
+            }
+        }
     }
 }

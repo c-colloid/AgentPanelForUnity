@@ -9,6 +9,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (nothing yet)
 
+## [0.58.2] - 2026-09-20
+
+### Changed
+
+- **One "Agent Tools" toolbar in the Scene view instead of two.** The pin
+  toggle ("Agent Pin") and the plane / surface sketch toggles ("Agent
+  Sketch") were separate overlays, each with its own drag handle and
+  strip; they are now three toggles on one "Agent Tools" toolbar, and
+  arming the pin disarms the sketch and vice versa (they share the
+  Scene-view click). Overlay id `uap-agent-tools`; a moved "Agent Pin" /
+  "Agent Sketch" strip falls back to the default position once.
+  `docs/design-notes/2026-09-18-agent-tools-overlay.md`.
+- **Toolbar icons that say what they do.** The plane-sketch toggle drew as
+  a plain cursor arrow (`d_Grid.Default` is the Grid overlay's *select*
+  tool); the three toggles now use a pushpin-like pivot handle (pin), a
+  flat grid (plane sketch) and the terrain brush (surface sketch), picked
+  from a survey of the built-in icons on 2022.3 (design note section 4).
+
+### Fixed
+
+- **Plane-sketch depth readout no longer hides behind the Tools overlay.**
+  It sat at the Scene view's top-left corner, where Unity docks its Tools
+  overlay by default; it is now centred under the top edge.
+- **Backslash sequences in paths and code no longer turn into line breaks
+  and tabs.** A Windows path such as `...\Roaming\npm\node_modules\...`
+  showed as three lines with the `n` missing, and a `\t` lost its letter,
+  because a text element made from C# in Unity 2022.3 parses `\n` / `\t`
+  by default. Every text element the panel builds now has that parsing off
+  (`TextEscapes`): the Overview's agent path, the executable field, tool
+  card input / output, diffs, code blocks, history rows and the rest.
+  `docs/design-notes/2026-09-18-text-escape-sequences.md`.
+
 ## [0.58.1] - 2026-09-18
 
 ### Fixed

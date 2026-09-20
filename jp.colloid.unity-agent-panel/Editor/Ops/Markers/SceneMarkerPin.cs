@@ -18,7 +18,7 @@ namespace Colloid.AgentPanel.Ops.Markers
     /// context-chip payload (world position, hit object, nearest objects,
     /// Scene camera). Arming ends after one pin unless Shift is held;
     /// Escape disarms. The Scene-view toolbar toggle
-    /// (<see cref="SceneMarkerPinOverlay"/>) and the context bar's pin
+    /// (<see cref="SceneAgentToolsOverlay"/>) and the context bar's pin
     /// button both drive <see cref="Armed"/>.
     ///
     /// The pin itself lives in <see cref="SceneMarkerStore"/> like any
@@ -68,6 +68,11 @@ namespace Colloid.AgentPanel.Ops.Markers
                 if (!_armed)
                 {
                     HoverPoint = null;
+                }
+                else
+                {
+                    // One marking tool at a time (see SceneStrokeSketch.Armed).
+                    SceneStrokeSketch.Armed = false;
                 }
                 Action handler = ArmedChanged;
                 if (handler != null)

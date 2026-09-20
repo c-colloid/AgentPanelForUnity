@@ -219,6 +219,7 @@ namespace Colloid.AgentPanel.UI
             var crumb = new Label(card.TabLabel + "  >  " + card.Title);
             crumb.AddToClassList("uap-settings-search-crumb");
             crumb.enableRichText = false;
+            crumb.parseEscapeSequences = false;
             crumb.style.display = DisplayStyle.None;
             card.Card.Insert(0, crumb);
             card.Crumb = crumb;

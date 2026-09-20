@@ -302,6 +302,11 @@ namespace Colloid.AgentPanel.UI
                 }
             }
 
+            // Every text element this build made, the first refresh's rows
+            // included: paths and code keep their backslashes (TextEscapes
+            // doc comment). Subtrees grown later sweep themselves.
+            TextEscapes.Disable(root);
+
             // Spawn/reconnect outside of GUI construction so a slow probe
             // never blocks the window from appearing.
             EditorApplication.delayCall += StartHubDeferred;

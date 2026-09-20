@@ -173,6 +173,7 @@ namespace Colloid.AgentPanel.UI
                     SetExpanded(true);
                 }
             }
+            TextEscapes.Disable(this);
         }
 
         private void ToggleExpanded()
@@ -267,6 +268,7 @@ namespace Colloid.AgentPanel.UI
                     record.isError ? L10n.S.ToolCardSectionError : L10n.S.ToolCardSectionResult,
                     record.resultSummary));
             }
+            TextEscapes.Disable(details);
             return details;
         }
 
@@ -382,6 +384,7 @@ namespace Colloid.AgentPanel.UI
                 host.Add(CreateTruncationFooter(
                     L10n.F(L10n.S.ToolCardMoreLinesFmt, lines.Count - hardCap)));
             }
+            TextEscapes.Disable(host);
         }
 
         private static Button CreateCopyButton(string rawText)
@@ -694,6 +697,7 @@ namespace Colloid.AgentPanel.UI
             {
                 apply(true);
             }
+            TextEscapes.Disable(group);
             return group;
         }
 

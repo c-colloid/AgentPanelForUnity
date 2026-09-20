@@ -722,6 +722,7 @@ namespace Colloid.AgentPanel.UI
 
             chip.Element = element;
             _chips.Add(chip);
+            TextEscapes.Disable(element);
             _chipHost.Add(element);
             if (kind == ChipKind.Scene)
             {
