@@ -7,7 +7,98 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-(nothing yet)
+### Added
+
+- **`uap_play_mode`: the agent can run the scene it just edited.** Starts,
+  stops, pauses, resumes and steps Play Mode, and reports the state --
+  "check that the jump actually works" no longer ends with the agent asking
+  a human to press Play. `start` / `stop` return BEFORE the Editor switches,
+  because entering or leaving Play Mode reloads the domain and would take
+  the call's own response down with it; the reply says to wait for
+  `uap_ping` and then confirm with `action:status`. Refused (with the
+  reason, and how to wait) while scripts are compiling; a `start` while
+  already playing is a no-op that still answers. Warns up front when Run In
+  Background is off, which is the condition that otherwise surfaces later as
+  an unexplained tool timeout.
+  `docs/design-notes/2026-09-21-play-mode-and-console-log-tools.md`.
+- **`uap_console_logs`: the agent can read what Unity said.** Errors,
+  exceptions, warnings and `Debug.Log` lines captured since the last domain
+  reload, filtered by type / substring / count, with identical lines
+  collapsed into an occurrence count and `since_id` paging for polling a
+  running game. Read-only, so it is auto-approved like the other inspect
+  tools. Capture is bounded (200 entries, truncated) and runs only while an
+  agent session with Unity operations enabled is live -- never from
+  `[InitializeOnLoadMethod]`, for the reasons measured in
+  `docs/design-notes/2026-09-21-uloop-always-loaded-cost.md`.
+- **`uap_console_clear`: one call empties all three views of the Console** --
+  the Unity Console window, the buffer `uap_console_logs` reads and the
+  panel's error chip. Clearing only one of them is worse than not clearing
+  at all: an agent would read the old lines back and conclude its fix had
+  not worked. When the editor does not expose the internal API for the
+  window itself, the reply says so instead of reporting a clear that did
+  not happen. The description points at `uap_console_logs`' `since_id`
+  first, since "only what is new" needs no destruction.
+  `docs/design-notes/2026-09-21-console-clear-and-game-view-size.md`.
+- **`uap_game_view_size`: get or set the Game View resolution**, so
+  `uap_editor_screenshot` can capture at a known size ("show me 1080p",
+  "does this break at a phone aspect") instead of whatever the window
+  happens to be. A size that is not in the Game View dropdown is added
+  there under an "Agent Panel" label and reused next time. Every step of
+  the editor-internals reflection reports which step failed, and the size
+  is READ BACK after writing, so a future editor that moves those
+  internals produces an error rather than a resize that never happened.
+  `get` answers `open:false` when no Game View is open rather than failing.
+- Both tools join the "editor" module and the steering text now names the
+  loop (run it, read the log, stop it) so the agent stops reaching for
+  `uloop execute-dynamic-code` or asking the user to drive the Editor.
+  Together they close the two gaps that made a project install uLoop for
+  nothing else; the uLoop integration itself is unchanged, and
+  `UloopCapabilityMatrix` deliberately does NOT hand these capabilities to
+  uLoop when it is installed.
+
+### Changed
+
+- **The uLoop card now says what installing leaves running, before the
+  button is pressed.** Measured against uLoop 3.6.3: its editor server
+  starts with every Editor launch, a 16 ms tick pump keeps the Editor
+  ticking even unfocused and idle (so it no longer parks in the
+  background), and about 21 agent skills add roughly 1.5-2k tokens to
+  every session whether or not uloop is called. None of it can be switched
+  off from this panel, which is exactly why the card says so: the panel's
+  own install button is what puts a project into that state. Once uLoop is
+  installed the same line switches to where that package's own controls
+  are (its Server window stops the server for one Editor session, its
+  Settings window disables individual tools and drops their skills, the
+  Package Manager is the only complete off).
+  `docs/design-notes/2026-09-21-uloop-always-loaded-cost.md`.
+- **A switch for whether the agent may run `uloop` commands** (uLoop
+  integration card, on by default). Off, the agent is told in its
+  instructions that `uloop` is refused, the next connection carries deny
+  patterns for every shell tool, and any `uloop` command that still
+  arrives is refused with a note in the transcript naming the `uap_*` tool
+  to use instead. Three layers rather than one because a `--disallowedTools`
+  pattern has been measured to be accepted and then ignored by the CLI.
+  The label says what it actually does: it does NOT stop uLoop itself --
+  that package's editor server, tick pump and skills keep running, which
+  is the line directly above it in the same card. Takes effect on the next
+  connection, like the allowed / disallowed tool lists.
+  `docs/design-notes/2026-09-21-uloop-always-loaded-cost.md`.
+- **"Remove uLoop", the counterpart to the install button.** Removing the
+  package is the only thing that actually stops uLoop's editor server, its
+  16 ms tick pump and its per-session skill cost, and it can now be done
+  from the panel instead of by hand. Same discipline as the install: the
+  confirmation card shows the manifest.json diff first, a `.uap-backup`
+  copy is written before anything else, and a failed write is restored (a
+  failed restore is reported as its own distinct state, naming the backup).
+  Unity removes the dependency; this panel then tidies away only the
+  OpenUPM entry it added itself -- never a broader scope it did not write,
+  never a scope another package still resolves through, and never a
+  registry that is not OpenUPM. That tidy-up is a second step that runs
+  only once the removal is observed to have landed, and a failure in it is
+  reported as a leftover entry rather than as a failed removal. The uloop
+  allow / deny patterns and the instruction snippet in your own settings
+  are left alone, and the card says so.
+  `docs/design-notes/2026-09-22-uloop-remove-from-panel.md`.
 
 ## [0.58.2] - 2026-09-20
 

@@ -39,6 +39,12 @@ namespace Colloid.AgentPanel.Tests
             // 2026-09-07 markers module: list only reads the marker store.
             "uap_marker_list",
             "uap_stroke_list",
+            // 2026-09-21: reads the Console buffer this package fills from
+            // Application.logMessageReceivedThreaded and touches nothing
+            // else -- the same class of "reports what is already there" as
+            // uap_object_inspect (design note docs/design-notes/
+            // 2026-09-21-play-mode-and-console-log-tools.md).
+            "uap_console_logs",
         };
 
         /// <summary>
@@ -90,6 +96,21 @@ namespace Colloid.AgentPanel.Tests
             "uap_web_fetch",
             // Same reasoning: the query leaves the machine.
             "uap_web_search",
+            // 2026-09-21: destroys the Console history the user can see,
+            // and the buffer uap_console_logs reads. Nothing in the project
+            // changes, but an auto-approved call could quietly remove the
+            // evidence someone was about to read.
+            "uap_console_clear",
+            // 2026-09-21: changes the Game View's resolution and can add a
+            // size entry to the user's Game View dropdown. Its "get" action
+            // reads only, but ReadOnly is per tool, not per argument.
+            "uap_game_view_size",
+            // 2026-09-21: changes the Editor's run state -- entering Play
+            // Mode reloads the domain, runs the user's game and discards
+            // unsaved Play Mode edits on exit. Its "status" action reads
+            // only, but ReadOnly is per tool, not per argument, so the tool
+            // stays out of the auto-approved set.
+            "uap_play_mode",
         };
 
         private static ToolRegistry CreateFullRegistry()

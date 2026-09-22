@@ -180,6 +180,24 @@ namespace Colloid.AgentPanel.Ops
             // read the selection, never set it. Design note
             // docs/design-notes/2026-09-14-selection-set-tool.md.
             RegisterUnlessCovered(registry, new UapEditorSelectTool(), uloopDetected);
+            // 2026-09-21 -- the two capabilities that made a project install
+            // uLoop for nothing else (design note docs/design-notes/
+            // 2026-09-21-play-mode-and-console-log-tools.md): running the
+            // scene, and reading what Unity said about it. Registered
+            // through RegisterUnlessCovered like every other tool, but note
+            // that UloopCapabilityMatrix must NOT claim these for uLoop --
+            // the typed versions carry the permission card, the job ledger
+            // and the panel's own console plumbing, which `uloop
+            // control-play-mode` / `uloop get-logs` over Bash cannot
+            // (2026-09-21 note section 9.4 item 4).
+            RegisterUnlessCovered(registry, new UapPlayModeTool(), uloopDetected);
+            RegisterUnlessCovered(registry, new UapConsoleLogsTool(), uloopDetected);
+            // 2026-09-21, same note's "cheap four": clearing the Console
+            // before a run, and setting the Game View resolution a
+            // screenshot is taken at (design note docs/design-notes/
+            // 2026-09-21-console-clear-and-game-view-size.md).
+            RegisterUnlessCovered(registry, new UapConsoleClearTool(), uloopDetected);
+            RegisterUnlessCovered(registry, new UapGameViewSizeTool(), uloopDetected);
             // 2026-09-07 -- "markers" module (design note section 1.3.3):
             // Scene-view 3D markers the agent points with; default ON.
             RegisterUnlessCovered(registry, new UapMarkerAddTool(), uloopDetected);
