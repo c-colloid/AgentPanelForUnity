@@ -16,6 +16,19 @@
     無ければ patch を上げて `-beta.1`。直前がベータなら同じ `X.Y.Z` で `N + 1`。系列の
     途中で最初の `### Added` が入り、それまで patch 上げだったなら minor へ昇格して
     `-beta.1` から数え直す。降格(minor → patch)はしない(SemVer の順序が崩れる)。
+  - **`N + 1` は「直前のベータが `main` に乗っている」場合だけ**。まだ `main` に
+    流していないブランチで作業を続けるときは、**同じ番号を切り直す**(番号を増やすと、
+    実体が 1 つしか無いのにベータが 2 つあったように見える)。乗ったかどうかは
+    `vX.Y.Z-beta.N` タグの有無で判断できる(タグは `main` への push でしか作られない)。
+    切り直しは package.json を戻して普通にコミットすればよい:
+    `ci/version-introducing-commit.sh` は「その版を持つ連続コミットのうち最も古いもの」
+    を選ぶので、タグは切り直したコミット(= 全部入りの木)に付く。
+  - **番号を据え置いている間、ベータのコミットは「package.json を最後に触った
+    コミット」であり続ける必要がある**。あとから同じブランチでパッケージを
+    さわったら、その作業はベータのコミットに畳み込む(amend か前倒しの rebase)。
+    タグは版を変えたコミットにしか付かず、`mirror-core.yml` は**タグをチェック
+    アウトして**プレリリースを作るので、ベータのコミットより後ろに積んだ作業は
+    main には入るがベータ利用者には届かない。
   - ベータのコミットは `Beta vX.Y.Z-beta.N: <概要>`、安定版は `Release vX.Y.Z: <概要>`。
   - CHANGELOG はベータでは節を切らず `[Unreleased]` に積んだまま。安定版で切り出す。
   - 下の表にはベータの行を作らない。タスクの日本語の要約は「次の安定版に含める作業」の
@@ -277,7 +290,22 @@ Core(`vX.Y.Z`)の一覧。Pro のタグは `pro-vX.Y.Z` で、この表には積
 
 ### 次の安定版に含める作業
 
-(なし)
+- v0.59.0-beta.1: Play Mode 操作(`uap_play_mode`)、Console ログの読み取りと
+  クリア(`uap_console_logs` / `uap_console_clear`)、Game View サイズ
+  (`uap_game_view_size`)のツールを追加。uLoop 常駐コストの調査(
+  `docs/design-notes/2026-09-21-uloop-always-loaded-cost.md`)で洗い出した
+  「安い 4 本」がこれで揃い、一般的な用途で uLoop を入れる理由がほぼ無くなる
+  (`docs/design-notes/2026-09-21-play-mode-and-console-log-tools.md` /
+  `docs/design-notes/2026-09-21-console-clear-and-game-view-size.md`)。
+  あわせて uLoop 連携カードに「導入すると何が常駐するか」と「弱めるには
+  uLoop 側のどのウィンドウか」を表示(同ノート §5 の案 0)、および
+  「エージェントに uloop コマンドを使わせる」トグル(既定オン。オフで
+  ステアリング文・起動引数の拒否パターン・`can_use_tool` 拒否の 3 層が効く。
+  uLoop 自体は止まらないと明記。同ノート §5 の案 A)を追加。さらに導入ボタンの
+  対になる「uLoop を削除」(同 §5 の案 B。差分提示とバックアップは導入と同じ作法。
+  依存の削除は Unity、scopedRegistries の後始末はパネルという 2 段構成で、
+  自分が書いた完全一致のスコープしか消さない。
+  `docs/design-notes/2026-09-22-uloop-remove-from-panel.md`)を追加。
 
 | タグ | 内容 |
 |---|---|
