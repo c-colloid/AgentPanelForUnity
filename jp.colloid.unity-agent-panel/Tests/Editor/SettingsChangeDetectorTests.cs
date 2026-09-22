@@ -187,6 +187,43 @@ namespace Colloid.AgentPanel.Tests
             Assert.IsFalse(SettingsChangeDetector.RequiresReconnect(a, b));
         }
 
+        // -- uloopAgentUseEnabled (2026-09-21 option A): the switch feeds
+        // BOTH the once-per-spawn steering text and the spawn's
+        // --disallowedTools argument, neither of which has a live update
+        // path -- so flipping it has to mark the settings reconnect-pending
+        // or the session keeps running under the old answer. ---------------
+
+        [Test]
+        public void DifferentUloopAgentUse_RequiresReconnect()
+        {
+            PanelSettings a = Make();
+            a.uloopAgentUseEnabled = true;
+            PanelSettings b = Make();
+            b.uloopAgentUseEnabled = false;
+            Assert.IsTrue(SettingsChangeDetector.RequiresReconnect(a, b));
+        }
+
+        [Test]
+        public void IdenticalUloopAgentUse_DoesNotRequireReconnect()
+        {
+            PanelSettings a = Make();
+            a.uloopAgentUseEnabled = false;
+            PanelSettings b = Make();
+            b.uloopAgentUseEnabled = false;
+            Assert.IsFalse(SettingsChangeDetector.RequiresReconnect(a, b));
+        }
+
+        /// <summary>
+        /// The default is ON: installing this panel must not silently take
+        /// uloop away from a project that relies on it (same design note,
+        /// section 5 -- the switch exists to be opt-in, not a migration).
+        /// </summary>
+        [Test]
+        public void UloopAgentUse_DefaultsToOn()
+        {
+            Assert.IsTrue(new PanelSettings().uloopAgentUseEnabled);
+        }
+
         // -- uapOpsModules (2026-08-02 review fix, Stream C1 regression):
         // a module list change reaches the live tool catalog via
         // mcp_reconnect (UapOpsServer.SetEnabledModules), never a full CLI

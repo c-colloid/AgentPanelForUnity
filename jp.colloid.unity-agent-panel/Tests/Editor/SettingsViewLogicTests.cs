@@ -1525,5 +1525,60 @@ namespace Colloid.AgentPanel.Tests
         {
             Assert.AreEqual(expected, SettingsView.ResolveModuleToggleEnabled(master, hasTools));
         }
+
+        // -- uLoop standing cost (docs/design-notes/2026-09-21-uloop-always-
+        // loaded-cost.md section 5, option 0) --------------------------------
+
+        [Test]
+        public void UloopCostHint_SwitchesFromWhatItCostsToHowToTurnItDown()
+        {
+            Assert.AreEqual(L10n.S.SettingsUloopStandingCostHint, SettingsView.UloopCostHint(false));
+            Assert.AreEqual(L10n.S.SettingsUloopTurnDownHint, SettingsView.UloopCostHint(true));
+            Assert.AreNotEqual(SettingsView.UloopCostHint(false), SettingsView.UloopCostHint(true),
+                "the two states must not say the same thing -- before installing the useful fact is the"
+                + " cost, afterwards it is where that package's own controls are");
+        }
+
+        [Test]
+        public void UloopCostTooltip_CarriesTheDetailForBothStates()
+        {
+            Assert.AreEqual(L10n.S.SettingsUloopStandingCostTooltip, SettingsView.UloopCostTooltip(false));
+            Assert.AreEqual(L10n.S.SettingsUloopTurnDownTooltip, SettingsView.UloopCostTooltip(true));
+        }
+
+        /// <summary>
+        /// The installed-state wording exists to give a way out, so it must
+        /// keep naming the menu that has the controls this panel does not.
+        /// </summary>
+        [Test]
+        public void UloopCostWording_WhenInstalled_NamesULoopsOwnMenu()
+        {
+            StringAssert.Contains("Unity CLI Loop", SettingsView.UloopCostHint(true));
+            StringAssert.Contains("Unity CLI Loop", SettingsView.UloopCostTooltip(true));
+            StringAssert.Contains("Package Manager", SettingsView.UloopCostTooltip(true),
+                "removing the package is the only complete off, so the tooltip must say so");
+        }
+
+        /// <summary>
+        /// The removal card's route sentence is where the user agrees to
+        /// what happens to THEIR manifest.json, so the three cleanup
+        /// outcomes must read as three different promises -- "remove the
+        /// package", "remove the package and a registry entry" and "remove
+        /// the package and one scope" are not interchangeable
+        /// (docs/design-notes/2026-09-22-uloop-remove-from-panel.md).
+        /// </summary>
+        [Test]
+        public void UloopRemoveRoute_SaysADifferentThingForEachCleanupOutcome()
+        {
+            string dropRegistry = SettingsView.DescribeUloopRemoveRoute(UloopRegistryCleanup.DropRegistry);
+            string dropScope = SettingsView.DescribeUloopRemoveRoute(UloopRegistryCleanup.DropScope);
+            string keep = SettingsView.DescribeUloopRemoveRoute(UloopRegistryCleanup.None);
+
+            Assert.AreEqual(L10n.S.SettingsUloopRemoveRouteDropRegistry, dropRegistry);
+            Assert.AreEqual(L10n.S.SettingsUloopRemoveRouteDropScope, dropScope);
+            Assert.AreEqual(L10n.S.SettingsUloopRemoveRouteKeepRegistry, keep);
+            Assert.AreEqual(3, new HashSet<string> { dropRegistry, dropScope, keep }.Count,
+                "three outcomes, three sentences -- a shared one would promise the wrong edit");
+        }
     }
 }

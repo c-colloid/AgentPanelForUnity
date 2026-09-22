@@ -3924,7 +3924,13 @@ namespace Colloid.AgentPanel.Integration
                 // Agent Panel Pro; with Core alone they are not registered
                 // and the agent should not be told to look for them
                 // (2026-09-12 core-only wording note, P2).
-                UapOpsServer.Registry.Find("uap_lightmap_bake") != null);
+                UapOpsServer.Registry.Find("uap_lightmap_bake") != null,
+                // Option A (2026-09-21 uLoop cost note section 5): when the
+                // user has turned uloop off for the agent, the text says the
+                // commands are refused instead of offering them as the
+                // fallback -- an agent that learns that from a denial has
+                // already burned a turn.
+                settings.uloopAgentUseEnabled);
             // Stream C (docs/design-notes/2026-09-10-unity-official-plugin-
             // integration.md section 3): when Unity's official plugin is
             // installed in the CLI's user config, steer toward its /unity:*
@@ -3976,7 +3982,16 @@ namespace Colloid.AgentPanel.Integration
                     Model = ResolveSpawnModel(resumeSessionId, settings.model),
                     PermissionMode = settings.permissionMode,
                     AllowedTools = isAcp ? null : settings.allowedTools,
-                    DisallowedTools = isAcp ? null : settings.disallowedTools,
+                    // Option A: with uloop turned off for the agent, the
+                    // spawn carries deny patterns for every shell tool on
+                    // top of the user's own list (never edited -- the
+                    // overlay is spawn-time only). ACP passes no tool lists
+                    // at all, so there the can_use_tool refusal is the layer
+                    // that holds.
+                    DisallowedTools = isAcp
+                        ? null
+                        : UloopAgentUsePolicy.ComposeDisallowedTools(
+                            settings.disallowedTools, settings.uloopAgentUseEnabled),
                     DangerouslySkipPermissions = !isAcp && settings.dangerouslySkipPermissions,
                     AppendSystemPrompt = appendSystemPrompt,
                     // Claude's `--thinking-display summarized` flag; the
@@ -4532,7 +4547,8 @@ namespace Colloid.AgentPanel.Integration
             new[] { "core", "scene objects/components/properties/assets/search" },
             new[] { "prefab", "prefab overrides (including revert)" },
             new[] { "anim", "animation clips/animator/material" },
-            new[] { "editor", "screenshots, menu execution and asynchronous lightmap bakes (Unity or Bakery)" },
+            new[] { "editor", "screenshots, menu execution, running the scene (uap_play_mode), the Unity"
+                + " Console (uap_console_logs) and asynchronous lightmap bakes (Unity or Bakery)" },
             new[] { "markers", "Scene-view 3D markers (uap_marker_add/list/clear) to point at places and objects, and the user's sketch strokes (uap_stroke_list)" },
             new[] { "web", "fetching a URL as an image, saved file, extracted PDF text or page text (uap_web_fetch; your own web fetch returns text only) and, when the user configured a key, web search (uap_web_search)" }
         };
@@ -4570,7 +4586,8 @@ namespace Colloid.AgentPanel.Integration
         /// fell back to dynamic code instead of retrying correctly.
         /// </summary>
         internal static string ComposeUapOpsSteeringSection(bool uapOpsEnabled,
-            IEnumerable<string> enabledModules, bool lightmapToolsAvailable = true)
+            IEnumerable<string> enabledModules, bool lightmapToolsAvailable = true,
+            bool uloopAgentUseEnabled = true)
         {
             if (!uapOpsEnabled)
             {
@@ -4628,10 +4645,25 @@ namespace Colloid.AgentPanel.Integration
                       + " destructive: a call without confirm:true is refused and only reports what would"
                       + " change; pass dry_run:true to preview, then confirm:true to apply.\n"
                     : string.Empty)
-                + "uloop or raw dynamic code is for what those tools cannot express"
-                + " -- it works, but is the slower, confirmation-heavy path.\n"
+                // 2026-09-21 (design note 2026-09-21-play-mode-and-console-
+                // log-tools.md): the panel can now run the scene and read
+                // the Console itself. Without naming the loop, an agent that
+                // wants to verify a change still either asks the user to
+                // press Play or reaches for uloop -- the exact reach the
+                // 2026-08-02 measurement caught for edits.
+                + (enabledSet.Contains("editor")
+                    ? "To check a change at runtime, drive the game yourself instead of asking the user to"
+                      + " press Play: uap_play_mode action:start runs the scene, uap_console_logs reads what"
+                      + " it logged (pass the previous reply's lastId as since_id to poll for new lines only),"
+                      + " and uap_play_mode action:stop ends the run -- never leave the project in Play Mode"
+                      + " when you finish. start/stop return BEFORE the Editor has switched, because the"
+                      + " transition reloads the domain: wait for uap_ping to answer, then confirm with"
+                      + " uap_play_mode action:status.\n"
+                    : string.Empty)
+                + UloopAgentUsePolicy.SteeringLine(uloopAgentUseEnabled)
                 + (lightmapToolsAvailable
-                    ? "Never run Lightmapping.Bake() (synchronous) through uloop or dynamic code: it"
+                    ? "Never run Lightmapping.Bake() (synchronous) through "
+                + (uloopAgentUseEnabled ? "uloop or dynamic code" : "dynamic code") + ": it"
                 + " blocks the Unity main thread for the whole bake, the Editor shows \"Hold on\","
                 + " and every tool call stalls until it ends. Use uap_lightmap_bake (start, then poll"
                 + " status) when that tool is available; its start runs a memory preflight and, by"
@@ -4657,10 +4689,12 @@ namespace Colloid.AgentPanel.Integration
                       + " A \"Scene marker P<n>\" block in the user's message is a pin the user dropped"
                       + " in the Scene view to mean \"here\"; it is also listed by uap_marker_list as user-pin.\n"
                     : string.Empty)
-                + "uap_ping is the authoritative liveness check for the Unity Editor:"
-                + " a uloop focus-window reply of \"No running Unity process found\" is a"
-                + " detection failure whenever uap_ping still answers, never a reason to"
-                + " relaunch the Editor.";
+                + "uap_ping is the authoritative liveness check for the Unity Editor"
+                + (uloopAgentUseEnabled
+                    ? ": a uloop focus-window reply of \"No running Unity process found\" is a"
+                      + " detection failure whenever uap_ping still answers, never a reason to"
+                      + " relaunch the Editor."
+                    : ": while it answers, the Editor is alive, whatever any other probe says.");
         }
 
         /// <summary>
@@ -5411,6 +5445,18 @@ namespace Colloid.AgentPanel.Integration
             {
                 return;
             }
+            // Second denial, and deliberately AFTER the gate rather than
+            // before it: the comment above pins the gate as first refusal on
+            // every request, and a uloop command that is also a gated script
+            // write should be refused with the gate's staging message, not
+            // this one. Still before any auto-approve, for the same reason
+            // the gate is: a denial must never lose to a permissive level
+            // (docs/design-notes/2026-09-21-uloop-always-loaded-cost.md
+            // section 5, option A).
+            if (TryAutoDenyUloopCommand(request))
+            {
+                return;
+            }
             if (TryAutoApproveUapOpsTool(request))
             {
                 return;
@@ -5519,6 +5565,80 @@ namespace Colloid.AgentPanel.Integration
         }
 
         /// <summary>
+        /// Writes a system note for something that happened MID-TURN (an
+        /// auto-denial), next to the tool call it answers rather than after
+        /// the whole assistant turn.
+        ///
+        /// Extracted from the script gate's denial when option A added a
+        /// second auto-denial (2026-09-21): the streaming assistant is one
+        /// ChatMessage that keeps growing, so appending a separate system
+        /// MESSAGE renders the note after every later tool call of the same
+        /// turn -- which is what this branch exists to avoid, and what a
+        /// second hand-rolled copy would eventually get wrong.
+        /// </summary>
+        private static void AppendMidTurnSystemNote(string text)
+        {
+            ChatMessageBlock noteBlock = ChatMessageBlock.MakeSystemNote(text);
+            if (_streamingAssistant != null)
+            {
+                _streamingAssistant.Add(noteBlock);
+            }
+            else
+            {
+                var note = new ChatMessage
+                {
+                    role = ChatMessage.RoleSystem,
+                    timestamp = DateTime.UtcNow.ToString("o")
+                };
+                note.Add(noteBlock);
+                Session.AddMessage(note);
+            }
+            SaveSessionCache();
+            RaiseChanged();
+        }
+
+        /// <summary>
+        /// Refuses a shell command that invokes `uloop` while the user has
+        /// turned uloop off for the agent (docs/design-notes/2026-09-21-
+        /// uloop-always-loaded-cost.md section 5, option A). The spawn's
+        /// deny patterns are the first line; this is the one layer this
+        /// package controls end to end, which matters because a
+        /// `--disallowedTools` pattern has been measured to be accepted and
+        /// then ignored by the CLI (design section 8.7 case A1).
+        ///
+        /// The decision itself is pure (<see cref="UloopAgentUsePolicy"/>);
+        /// what lives here is reading the setting and answering the request.
+        /// </summary>
+        private static bool TryAutoDenyUloopCommand(ControlRequestMessage request)
+        {
+            if (_client == null || PanelStateStore.instance.Settings.uloopAgentUseEnabled)
+            {
+                return false;
+            }
+            CanUseToolRequest tool = request.CanUseTool;
+            if (tool == null || !ScriptGate.IsShellToolName(tool.ToolName))
+            {
+                return false;
+            }
+            // Both shells carry the command in "command"; "script" is the
+            // fallback the script gate already reads.
+            string command = tool.Input != null ? tool.Input["command"].AsString(null) : null;
+            if (string.IsNullOrEmpty(command) && tool.Input != null)
+            {
+                command = tool.Input["script"].AsString(null);
+            }
+            if (!UloopAgentUsePolicy.IsUloopInvocation(command))
+            {
+                return false;
+            }
+            _client.RespondToPermission(request.RequestId,
+                PermissionDecision.DenyTool(UloopAgentUsePolicy.DenyMessage));
+            AppendMidTurnSystemNote(L10n.F(L10n.S.HubUloopAgentUseDeniedFmt,
+                UloopAgentUsePolicy.DescribeCommandForNote(command)));
+            return true;
+        }
+
+        /// <summary>
         /// The script validation gate's can_use_tool pre-filter (design
         /// section 7.4/8.2 B1, extended per section 8.3's "mechanism, not
         /// instruction" principle to cover the CLI's Bash tool too -- a
@@ -5583,31 +5703,7 @@ namespace Colloid.AgentPanel.Integration
                 return false;
             }
             _client.RespondToPermission(request.RequestId, PermissionDecision.DenyTool(denyMessage));
-            ChatMessageBlock noteBlock = ChatMessageBlock.MakeSystemNote(
-                L10n.F(L10n.S.HubScriptGateAutoDeniedFmt, offendingPath ?? string.Empty));
-            if (_streamingAssistant != null)
-            {
-                // The denial happens mid-turn, right after the tool_use
-                // block it answers. Appending a separate system message
-                // would render it AFTER the whole assistant turn (the
-                // streaming assistant is one ChatMessage that keeps
-                // growing), which made the block look like it fired after
-                // the agent's later tool calls; placing it as a block of
-                // that message keeps it next to the denied call.
-                _streamingAssistant.Add(noteBlock);
-            }
-            else
-            {
-                var note = new ChatMessage
-                {
-                    role = ChatMessage.RoleSystem,
-                    timestamp = DateTime.UtcNow.ToString("o")
-                };
-                note.Add(noteBlock);
-                Session.AddMessage(note);
-            }
-            SaveSessionCache();
-            RaiseChanged();
+            AppendMidTurnSystemNote(L10n.F(L10n.S.HubScriptGateAutoDeniedFmt, offendingPath ?? string.Empty));
             return true;
         }
 
@@ -6689,6 +6785,7 @@ namespace Colloid.AgentPanel.Integration
                 showThinking = source.showThinking,
                 uapOpsEnabled = source.uapOpsEnabled,
                 uapScriptGateEnabled = source.uapScriptGateEnabled,
+                uloopAgentUseEnabled = source.uloopAgentUseEnabled,
                 allowedTools = source.allowedTools != null
                     ? new List<string>(source.allowedTools) : new List<string>(),
                 disallowedTools = source.disallowedTools != null

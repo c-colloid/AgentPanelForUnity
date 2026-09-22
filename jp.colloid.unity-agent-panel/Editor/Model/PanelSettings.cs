@@ -779,6 +779,24 @@ namespace Colloid.AgentPanel.Model
         /// </summary>
         public bool uapScriptGateEnabled = true;
 
+        /// <summary>
+        /// Whether the AGENT may run `uloop` commands (docs/design-notes/
+        /// 2026-09-21-uloop-always-loaded-cost.md section 5, option A).
+        /// Default true: uLoop stays the sanctioned escape hatch it has
+        /// been since the 2026-08-02 steering note.
+        ///
+        /// What turning it OFF does and does NOT do matters, and the UI
+        /// says both: it stops the agent from REACHING for uloop (the
+        /// steering text says so, the spawn adds deny patterns, and the
+        /// permission layer refuses a uloop command that gets past those).
+        /// It does NOT stop anything uLoop itself runs -- that package's
+        /// editor server, its 16 ms tick pump and its skills are not this
+        /// panel's to switch off (section 4 of the same note). Spawn-time
+        /// like allowedTools/disallowedTools, so SettingsChangeDetector
+        /// treats a change as reconnect-pending.
+        /// </summary>
+        public bool uloopAgentUseEnabled = true;
+
         // -- Extension Profiles (Phase 5b stream C, docs/design-notes/
         // 2026-08-01-phase5-unity-ops-design.md section 3b / 8.2 B3) --------
 

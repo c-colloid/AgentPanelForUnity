@@ -33,6 +33,8 @@ namespace Colloid.AgentPanel.Model
         private const string KeyLastCompileErrorDigest = Prefix + "LastCompileErrorDigest";
         private const string KeyUloopInstallInFlight = Prefix + "UloopInstallInFlight";
         private const string KeyUloopInstallStartedAtUtcTicks = Prefix + "UloopInstallStartedAtUtcTicks";
+        private const string KeyUloopRemoveInFlight = Prefix + "UloopRemoveInFlight";
+        private const string KeyUloopRemoveStartedAtUtcTicks = Prefix + "UloopRemoveStartedAtUtcTicks";
         private const string KeyUnityPluginInstallInFlight = Prefix + "UnityPluginInstallInFlight";
         private const string KeyUnityPluginInstallStartedAtUtcTicks = Prefix + "UnityPluginInstallStartedAtUtcTicks";
         private const string KeySceneMarkers = Prefix + "SceneMarkers";
@@ -378,6 +380,41 @@ namespace Colloid.AgentPanel.Model
         {
             get { return SessionState.GetBool(KeyUloopInstallInFlight, false); }
             set { SessionState.SetBool(KeyUloopInstallInFlight, value); }
+        }
+
+        /// <summary>
+        /// The removal's own in-flight pair, deliberately NOT sharing the
+        /// install pair above (docs/design-notes/2026-09-22-uloop-remove-
+        /// from-panel.md). Only one of the two can be in flight at a time --
+        /// the section shows Install or Remove, never both -- but after the
+        /// domain reload destroys the request object, a SHARED flag would
+        /// leave the panel unable to say which operation it is still
+        /// waiting on, and it would render "Installing..." over a removal.
+        /// The flag is also what tells the panel to run the registry
+        /// cleanup (phase two) exactly once, on the evaluation that first
+        /// observes the dependency gone.
+        /// </summary>
+        public static bool UloopRemoveInFlight
+        {
+            get { return SessionState.GetBool(KeyUloopRemoveInFlight, false); }
+            set { SessionState.SetBool(KeyUloopRemoveInFlight, value); }
+        }
+
+        /// <summary>UTC DateTime.Ticks captured when <see cref="UloopRemoveInFlight"/> was set; 0 means never. Same string storage and staleness role as the install pair.</summary>
+        public static long UloopRemoveStartedAtUtcTicks
+        {
+            get
+            {
+                string raw = SessionState.GetString(KeyUloopRemoveStartedAtUtcTicks, "0");
+                long value;
+                return long.TryParse(raw, NumberStyles.Integer,
+                    CultureInfo.InvariantCulture, out value) ? value : 0L;
+            }
+            set
+            {
+                SessionState.SetString(KeyUloopRemoveStartedAtUtcTicks,
+                    value.ToString(CultureInfo.InvariantCulture));
+            }
         }
 
         /// <summary>
