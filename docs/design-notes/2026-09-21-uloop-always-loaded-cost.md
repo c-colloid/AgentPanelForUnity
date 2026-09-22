@@ -260,6 +260,28 @@ OFF のときは次の 3 つが同時に効く:
 - テスト: `UloopAgentUsePolicyTests`（EditMode）と smoke ゲートの
   `UloopAgentUseSmoke`（ライセンス不要側）で同じ規則を二重に留めている。
 
+**実機で見つかった不具合（v0.59.0-beta.2 で修正）。** オフにすると
+「次回再接続後に適用されます」の保留表示が、再接続しても消え続けた。
+
+原因は 1 行の書き漏らし。`uloopAgentUseEnabled` を
+`SettingsChangeDetector.RequiresReconnect` の比較には足したが、
+**spawn 時のスナップショットを作る `AgentHub.CloneNextSpawnOnlyFields`
+に足し忘れていた**。あれはフィールドを 1 つずつ手書きでコピーする関数なので、
+漏れたフィールドはスナップショット側で既定値（オン）に固定される。
+以後 `RequiresReconnect` は「オン vs オフ」を永久に見続け、
+どれだけ再接続しても保留が消えない。表示だけの問題ではなく、
+以後の設定変更のたびに不要な再接続が 1 回走る状態でもあった。
+
+**再発防止。** 個別のフィールド名を書くテストでは、コードと同じ書き漏らしを
+テスト側でも繰り返すだけで意味が無い（実際、既存のテストは全部そうだった）。
+そこで `CloneNextSpawnOnlyFieldsTests` は名前を一切書かず、
+`PanelSettings` の全フィールドをリフレクションで 1 つずつ変更 → クローン →
+`RequiresReconnect` が差分なしと言うことを検査する。
+**「比較対象なのにクローンが落とすフィールド」だけが、自分の名前を出して落ちる。**
+比較対象でないフィールドをクローンが落とすのは仕様（`model` /
+`agentModelOverrides` は意図的にその側）なので、そこは何も言わない。
+実測で、修正前はこのスイープが `uloopAgentUseEnabled` ただ 1 つを名指しで落とす。
+
 **実機（Unity 2022.3.22f1、GameCI コンテナ）の結果**（`c07323f`）:
 
 | 構成 | total | passed | failed | skipped |

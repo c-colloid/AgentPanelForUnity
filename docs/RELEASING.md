@@ -290,6 +290,16 @@ Core(`vX.Y.Z`)の一覧。Pro のタグは `pro-vX.Y.Z` で、この表には積
 
 ### 次の安定版に含める作業
 
+- v0.59.0-beta.2: 「エージェントに uloop コマンドを使わせる」をオフにすると
+  「次回再接続後に適用されます」の保留表示が再接続しても消え続けなかった件の修正
+  (実機報告)。`SettingsChangeDetector.RequiresReconnect` には足したが
+  `AgentHub.CloneNextSpawnOnlyFields`(spawn 時のスナップショット)に足し忘れており、
+  スナップショット側がフィールドの既定値(オン)のまま固定されて差分が永久に消えなかった。
+  表示だけでなく、以後の設定変更のたびに不要な再接続が走る状態だった。
+  再発防止として、PanelSettings の全フィールドをリフレクションで 1 つずつ変更し
+  「比較対象なのにスナップショットが落とすフィールド」を名指しで落とすテストを追加
+  (`CloneNextSpawnOnlyFieldsTests`)。
+
 - v0.59.0-beta.1: Play Mode 操作(`uap_play_mode`)、Console ログの読み取りと
   クリア(`uap_console_logs` / `uap_console_clear`)、Game View サイズ
   (`uap_game_view_size`)のツールを追加。uLoop 常駐コストの調査(
