@@ -2384,6 +2384,149 @@ namespace Colloid.AgentPanel.UI
         // Constructors
         // ==================================================================
 
+
+        // ==================================================================
+        // 2026-09-21 -- uLoop standing cost (docs/design-notes/2026-09-21-
+        // uloop-always-loaded-cost.md section 5, option 0). The panel's own
+        // install button is what puts a project into that state, so the
+        // facts belong next to the button rather than only in a note.
+        // Appended here (end of the field list) per this file's
+        // merge-safety convention.
+        // ==================================================================
+
+        /// <summary>Inline line above the "Install uLoop" button: what installing leaves running.</summary>
+        public readonly string SettingsUloopStandingCostHint =
+            "Installing leaves an editor server and a 60Hz tick pump running, plus about 2k tokens of skills per session.";
+
+        /// <summary>The same in full, on hover: measured numbers and the fact that none of it is switchable from here.</summary>
+        public readonly string SettingsUloopStandingCostTooltip =
+            "Measured on 2026-09-21 against uLoop 3.6.3. Installing it leaves three things running for as long as the"
+            + " project has the package: its editor server, started again on every Editor launch; a 16 ms SignalTick"
+            + " pump that keeps the Editor ticking even while it is unfocused and idle, so it no longer parks in the"
+            + " background; and about 21 agent skills whose descriptions (roughly 5.7 KB, 1.5-2k tokens) ride in every"
+            + " agent session whether or not uloop is ever called. None of the three can be switched off from this"
+            + " panel -- they belong to that package. This panel's own uap_* tools already cover Play Mode, the"
+            + " Console, screenshots, script commits and tests. See docs/design-notes/2026-09-21-uloop-always-loaded-cost.md.";
+
+        /// <summary>Inline line shown once uLoop is installed: where its own controls are.</summary>
+        public readonly string SettingsUloopTurnDownHint =
+            "This panel cannot stop uLoop's server or tick pump; use Window > Unity CLI Loop to turn them down.";
+
+        /// <summary>The same in full, on hover: exactly which uLoop control does what, and what each one leaves behind.</summary>
+        public readonly string SettingsUloopTurnDownTooltip =
+            "Window > Unity CLI Loop > Server stops its IPC server for THIS Editor session only: the 16 ms tick pump"
+            + " keeps running regardless, and the server starts again on the next Editor launch (that package keeps the"
+            + " stop flag in SessionState). Window > Unity CLI Loop > Settings disables individual uLoop tools, which"
+            + " also drops each disabled tool's skill file and the tokens it costs every agent session. Removing the"
+            + " package in the Package Manager is the only complete off. Details and measurements:"
+            + " docs/design-notes/2026-09-21-uloop-always-loaded-cost.md.";
+
+
+        // ==================================================================
+        // 2026-09-21 -- option A of the same note: the agent-facing uloop
+        // switch. Appended here per this file's merge-safety convention.
+        // ==================================================================
+
+        /// <summary>Toggle label. Names what it switches -- the AGENT's use of uloop, not uLoop itself.</summary>
+        public readonly string SettingsUloopAgentUseLabel = "Let the agent run uloop commands";
+
+        /// <summary>Inline line under the toggle: what turning it off does, and what it deliberately does not.</summary>
+        public readonly string SettingsUloopAgentUseHint =
+            "Off refuses uloop from the agent. It does not stop uLoop itself -- see the line above.";
+
+        /// <summary>The same in full, on hover: the three layers, and what stays running either way.</summary>
+        public readonly string SettingsUloopAgentUseTooltip =
+            "On (the default) keeps uloop as the sanctioned fallback for what this panel's uap_* tools"
+            + " cannot express. Off tells the agent in its instructions that uloop commands are refused,"
+            + " adds deny patterns for every shell tool to the next spawn, and refuses any uloop command"
+            + " that still arrives -- three layers, because a --disallowedTools pattern has been measured"
+            + " to be accepted and then ignored by the CLI. It changes nothing about uLoop itself: that"
+            + " package's editor server, its 16 ms tick pump and its skills keep running, and its skills"
+            + " keep costing tokens in every session. Takes effect on the next connection, like the"
+            + " allowed / disallowed tool lists.";
+
+        /// <summary>{0} = the refused command (one line, truncated); transcript note for an auto-denied uloop call.</summary>
+        public readonly string HubUloopAgentUseDeniedFmt =
+            "Refused a uloop command -- uloop is off for the agent in Settings: {0}";
+
+
+        // ==================================================================
+        // 2026-09-22 -- option B of the uLoop cost note: removing uLoop from
+        // the panel (docs/design-notes/2026-09-22-uloop-remove-from-panel.md).
+        // Appended here per this file's merge-safety convention.
+        // ==================================================================
+
+        /// <summary>Removal button label. The mirror of the install button, shown only while uLoop is installed.</summary>
+        public readonly string SettingsUloopRemoveButton = "Remove uLoop";
+
+        /// <summary>Hover text on the removal button: what removal actually buys, and who changes what.</summary>
+        public readonly string SettingsUloopRemoveTooltip =
+            "Removing the package is the only thing that actually stops uLoop's editor server, its"
+                + " 16 ms tick pump and its per-session skill cost. Unity removes the dependency;"
+                + " this panel then tidies the OpenUPM entry it added to Packages/manifest.json,"
+                + " showing you the change first.";
+
+        /// <summary>Shared confirmation card title while it is showing a removal.</summary>
+        public readonly string SettingsUloopRemoveConfirmTitle = "Remove uLoop from this project?";
+
+        /// <summary>Shared confirmation card's Apply label while it is showing a removal.</summary>
+        public readonly string SettingsUloopRemoveApply = "Remove";
+
+        /// <summary>Route sentence: the whole scopedRegistries entry goes.</summary>
+        public readonly string SettingsUloopRemoveRouteDropRegistry =
+            "Unity removes the package; this panel then removes the OpenUPM registry entry, which lists"
+                + " no other packages.";
+
+        /// <summary>Route sentence: one scope goes, the entry stays.</summary>
+        public readonly string SettingsUloopRemoveRouteDropScope =
+            "Unity removes the package; this panel then removes only uLoop from the OpenUPM registry's"
+                + " scopes, keeping the entry for your other packages.";
+
+        /// <summary>Route sentence: nothing to tidy, or the scope is still in use.</summary>
+        public readonly string SettingsUloopRemoveRouteKeepRegistry = "Unity removes the package. Packages/manifest.json's scoped registries are left as they are.";
+
+        /// <summary>{0} = whole seconds elapsed. Same honest-counter reasoning as the install's.</summary>
+        public readonly string SettingsUloopRemovingFmt = "Removing... {0}s";
+
+        /// <summary>Synchronous failure: phase one writes nothing, so this is always literally true.</summary>
+        public readonly string SettingsUloopRemoveFailed = "Could not start the removal. Nothing was changed.";
+
+        /// <summary>{0} = the RemoveRequest error. The async failure, finally visible in the panel.</summary>
+        public readonly string SettingsUloopRemoveAsyncFailedFmt = "Unity could not remove the package: {0}";
+
+        /// <summary>No live request and a stale flag: point at the window that knows, never keep counting.</summary>
+        public readonly string SettingsUloopRemoveStalled = "The removal is taking longer than expected. Check Unity's Package Manager window.";
+
+        /// <summary>Removal landed and there was nothing left to tidy.</summary>
+        public readonly string SettingsUloopRemoved = "uLoop removed.";
+
+        /// <summary>Removal landed and phase two wrote the manifest.</summary>
+        public readonly string SettingsUloopRemovedAndTidied = "uLoop removed, and its OpenUPM entry was tidied out of Packages/manifest.json.";
+
+        /// <summary>Phase two failed but the removal did not -- never report the removal as failed here.</summary>
+        public readonly string SettingsUloopRemoveCleanupFailed =
+            "uLoop was removed. Its OpenUPM entry is still in Packages/manifest.json; it serves nothing"
+                + " and can be deleted by hand.";
+
+        /// <summary>{0} = backup path, {1} = detail. The one case where the file on disk is no longer known-good.</summary>
+        public readonly string SettingsUloopRemoveCleanupManifestUnknownFmt =
+            "uLoop was removed, but tidying Packages/manifest.json failed AND the restore failed. Recover"
+                + " the file from '{0}' before continuing. ({1})";
+
+        /// <summary>Blocking caveat: nothing to remove.</summary>
+        public readonly string SettingsUloopCaveatNotInstalled = "uLoop is not a dependency of this project.";
+
+        /// <summary>Always raised on a removal: this panel does not silently rewrite settings the user owns.</summary>
+        public readonly string SettingsUloopCaveatPanelSettingsKept =
+            "The uloop allow / deny patterns and the instruction snippet this panel added stay in your"
+                + " settings; they do nothing once the package is gone.";
+
+        /// <summary>Non-blocking: says why the cleanup was downgraded. Detail lists the dependency ids.</summary>
+        public readonly string SettingsUloopCaveatRegistryScopeKept = "The OpenUPM scope stays: another package still resolves through it.";
+
+        /// <summary>Non-blocking: a mirror or VPM feed the project pointed there deliberately is not ours to edit.</summary>
+        public readonly string SettingsUloopCaveatForeignRegistryKept = "Another scoped registry lists uLoop; it is left untouched.";
+
         /// <summary>English catalog (the default/fallback) -- every field above already carries its English value via its own field initializer.</summary>
         public UiStrings()
         {
@@ -3201,7 +3344,34 @@ namespace Colloid.AgentPanel.UI
             string settingsModulesFoldout = null,
             string settingsModulesPillFmt = null,
             string settingsOverviewSignedInFmt = null,
-            string settingsOverviewReconnectLabel = null)
+            string settingsOverviewReconnectLabel = null,
+            string settingsUloopStandingCostHint = null,
+            string settingsUloopStandingCostTooltip = null,
+            string settingsUloopTurnDownHint = null,
+            string settingsUloopTurnDownTooltip = null,
+            string settingsUloopAgentUseLabel = null,
+            string settingsUloopAgentUseHint = null,
+            string settingsUloopAgentUseTooltip = null,
+            string hubUloopAgentUseDeniedFmt = null,
+            string settingsUloopRemoveButton = null,
+            string settingsUloopRemoveTooltip = null,
+            string settingsUloopRemoveConfirmTitle = null,
+            string settingsUloopRemoveApply = null,
+            string settingsUloopRemoveRouteDropRegistry = null,
+            string settingsUloopRemoveRouteDropScope = null,
+            string settingsUloopRemoveRouteKeepRegistry = null,
+            string settingsUloopRemovingFmt = null,
+            string settingsUloopRemoveFailed = null,
+            string settingsUloopRemoveAsyncFailedFmt = null,
+            string settingsUloopRemoveStalled = null,
+            string settingsUloopRemoved = null,
+            string settingsUloopRemovedAndTidied = null,
+            string settingsUloopRemoveCleanupFailed = null,
+            string settingsUloopRemoveCleanupManifestUnknownFmt = null,
+            string settingsUloopCaveatNotInstalled = null,
+            string settingsUloopCaveatPanelSettingsKept = null,
+            string settingsUloopCaveatRegistryScopeKept = null,
+            string settingsUloopCaveatForeignRegistryKept = null)
         {
             FirstRunCliNotFoundTitle = firstRunCliNotFoundTitle;
             FirstRunCliNotFoundBody = firstRunCliNotFoundBody;
@@ -4442,6 +4612,114 @@ namespace Colloid.AgentPanel.UI
             if (settingsOverviewReconnectLabel != null)
             {
                 SettingsOverviewReconnectLabel = settingsOverviewReconnectLabel;
+            }
+            if (settingsUloopStandingCostHint != null)
+            {
+                SettingsUloopStandingCostHint = settingsUloopStandingCostHint;
+            }
+            if (settingsUloopStandingCostTooltip != null)
+            {
+                SettingsUloopStandingCostTooltip = settingsUloopStandingCostTooltip;
+            }
+            if (settingsUloopTurnDownHint != null)
+            {
+                SettingsUloopTurnDownHint = settingsUloopTurnDownHint;
+            }
+            if (settingsUloopTurnDownTooltip != null)
+            {
+                SettingsUloopTurnDownTooltip = settingsUloopTurnDownTooltip;
+            }
+            if (settingsUloopAgentUseLabel != null)
+            {
+                SettingsUloopAgentUseLabel = settingsUloopAgentUseLabel;
+            }
+            if (settingsUloopAgentUseHint != null)
+            {
+                SettingsUloopAgentUseHint = settingsUloopAgentUseHint;
+            }
+            if (settingsUloopAgentUseTooltip != null)
+            {
+                SettingsUloopAgentUseTooltip = settingsUloopAgentUseTooltip;
+            }
+            if (hubUloopAgentUseDeniedFmt != null)
+            {
+                HubUloopAgentUseDeniedFmt = hubUloopAgentUseDeniedFmt;
+            }
+            if (settingsUloopRemoveButton != null)
+            {
+                SettingsUloopRemoveButton = settingsUloopRemoveButton;
+            }
+            if (settingsUloopRemoveTooltip != null)
+            {
+                SettingsUloopRemoveTooltip = settingsUloopRemoveTooltip;
+            }
+            if (settingsUloopRemoveConfirmTitle != null)
+            {
+                SettingsUloopRemoveConfirmTitle = settingsUloopRemoveConfirmTitle;
+            }
+            if (settingsUloopRemoveApply != null)
+            {
+                SettingsUloopRemoveApply = settingsUloopRemoveApply;
+            }
+            if (settingsUloopRemoveRouteDropRegistry != null)
+            {
+                SettingsUloopRemoveRouteDropRegistry = settingsUloopRemoveRouteDropRegistry;
+            }
+            if (settingsUloopRemoveRouteDropScope != null)
+            {
+                SettingsUloopRemoveRouteDropScope = settingsUloopRemoveRouteDropScope;
+            }
+            if (settingsUloopRemoveRouteKeepRegistry != null)
+            {
+                SettingsUloopRemoveRouteKeepRegistry = settingsUloopRemoveRouteKeepRegistry;
+            }
+            if (settingsUloopRemovingFmt != null)
+            {
+                SettingsUloopRemovingFmt = settingsUloopRemovingFmt;
+            }
+            if (settingsUloopRemoveFailed != null)
+            {
+                SettingsUloopRemoveFailed = settingsUloopRemoveFailed;
+            }
+            if (settingsUloopRemoveAsyncFailedFmt != null)
+            {
+                SettingsUloopRemoveAsyncFailedFmt = settingsUloopRemoveAsyncFailedFmt;
+            }
+            if (settingsUloopRemoveStalled != null)
+            {
+                SettingsUloopRemoveStalled = settingsUloopRemoveStalled;
+            }
+            if (settingsUloopRemoved != null)
+            {
+                SettingsUloopRemoved = settingsUloopRemoved;
+            }
+            if (settingsUloopRemovedAndTidied != null)
+            {
+                SettingsUloopRemovedAndTidied = settingsUloopRemovedAndTidied;
+            }
+            if (settingsUloopRemoveCleanupFailed != null)
+            {
+                SettingsUloopRemoveCleanupFailed = settingsUloopRemoveCleanupFailed;
+            }
+            if (settingsUloopRemoveCleanupManifestUnknownFmt != null)
+            {
+                SettingsUloopRemoveCleanupManifestUnknownFmt = settingsUloopRemoveCleanupManifestUnknownFmt;
+            }
+            if (settingsUloopCaveatNotInstalled != null)
+            {
+                SettingsUloopCaveatNotInstalled = settingsUloopCaveatNotInstalled;
+            }
+            if (settingsUloopCaveatPanelSettingsKept != null)
+            {
+                SettingsUloopCaveatPanelSettingsKept = settingsUloopCaveatPanelSettingsKept;
+            }
+            if (settingsUloopCaveatRegistryScopeKept != null)
+            {
+                SettingsUloopCaveatRegistryScopeKept = settingsUloopCaveatRegistryScopeKept;
+            }
+            if (settingsUloopCaveatForeignRegistryKept != null)
+            {
+                SettingsUloopCaveatForeignRegistryKept = settingsUloopCaveatForeignRegistryKept;
             }
         }
     }

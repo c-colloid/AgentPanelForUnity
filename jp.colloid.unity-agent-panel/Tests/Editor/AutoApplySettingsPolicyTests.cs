@@ -179,5 +179,53 @@ namespace Colloid.AgentPanel.Tests
                 reconnectNeeded: true, isConnected: true, turnRunning: false,
                 pendingPermission: false, secondsSinceLastEdit: 100.0));
         }
+
+        // -- ShouldArm (2026-09-22): keep a change made DURING a spawn -------------
+        //
+        // Reported from a real editor: flipping a reconnect-relevant setting
+        // twice quickly -- the second flip landing before the first one's
+        // reconnect finished -- left the pending pill stuck forever. Both
+        // callers collapsed "not connected" into one case and discarded the
+        // second edit, and nothing re-evaluates on Ready. See ShouldArm's own
+        // doc comment for the full mechanism.
+
+        [Test]
+        public void ShouldArm_NothingPending_NeverArms()
+        {
+            // No change to apply: arming would leave a tick polling for a
+            // reconnect nobody needs, whatever the client is doing.
+            Assert.IsFalse(AutoApplySettingsPolicy.ShouldArm(false, isConnected: true, spawnInFlight: false));
+            Assert.IsFalse(AutoApplySettingsPolicy.ShouldArm(false, isConnected: true, spawnInFlight: true));
+            Assert.IsFalse(AutoApplySettingsPolicy.ShouldArm(false, isConnected: false, spawnInFlight: false));
+            Assert.IsFalse(AutoApplySettingsPolicy.ShouldArm(false, isConnected: false, spawnInFlight: true));
+        }
+
+        [Test]
+        public void ShouldArm_Connected_Arms()
+        {
+            Assert.IsTrue(AutoApplySettingsPolicy.ShouldArm(true, isConnected: true, spawnInFlight: false));
+        }
+
+        /// <summary>
+        /// The regression. A second edit made while the first edit's own
+        /// reconnect is still spawning must survive -- discarding it is what
+        /// left the panel promising a reconnect that nothing would perform.
+        /// </summary>
+        [Test]
+        public void ShouldArm_NotConnectedButSpawnInFlight_StillArms()
+        {
+            Assert.IsTrue(AutoApplySettingsPolicy.ShouldArm(true, isConnected: false, spawnInFlight: true));
+        }
+
+        /// <summary>
+        /// The original rule, unchanged: a client that never spawned (or
+        /// errored out) gets nothing armed, because the next real spawn
+        /// reads the current settings anyway.
+        /// </summary>
+        [Test]
+        public void ShouldArm_PermanentlyUnavailable_DoesNotArm()
+        {
+            Assert.IsFalse(AutoApplySettingsPolicy.ShouldArm(true, isConnected: false, spawnInFlight: false));
+        }
     }
 }

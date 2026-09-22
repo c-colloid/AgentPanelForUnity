@@ -22,6 +22,19 @@ namespace Colloid.AgentPanel.Ops
         };
 
         /// <summary>
+        /// The same ids, for callers that need to ACT on the one a project
+        /// actually has rather than ask a yes/no question -- the uninstall
+        /// path has to name the id it removes, and removing the one that is
+        /// not there would silently do nothing. Single-sourced here so a
+        /// third id can never be taught to the detector and forgotten by
+        /// the remover. A copy, so a caller cannot edit the live array.
+        /// </summary>
+        public static string[] KnownPackageIdList()
+        {
+            return (string[])KnownPackageIds.Clone();
+        }
+
+        /// <summary>
         /// Pure: true when <paramref name="manifestJsonText"/> declares any
         /// known uLoop package id as a dependency KEY -- that is, the quoted
         /// id followed by a colon, which is the one place in manifest.json

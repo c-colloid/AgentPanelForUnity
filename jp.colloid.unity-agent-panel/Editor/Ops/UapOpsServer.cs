@@ -140,6 +140,13 @@ namespace Colloid.AgentPanel.Ops
             server.Start();
             _server = server;
             HookPump();
+            // uap_console_logs reads what this captures. Hooked HERE rather
+            // than from [InitializeOnLoadMethod] so the panel adds no
+            // always-on editor work of its own: capture runs only while an
+            // agent session with UapOps enabled is live (design note
+            // docs/design-notes/2026-09-21-play-mode-and-console-log-tools.md
+            // section 3).
+            UapConsoleLogBuffer.Install();
         }
 
         /// <summary>
@@ -158,6 +165,7 @@ namespace Colloid.AgentPanel.Ops
                 _dispatcher.CancelAll("UapOps server is stopping.");
             }
             UapWebFetchTool.MainThreadExecutor = null;
+            UapConsoleLogBuffer.Uninstall();
             UnhookPump();
             if (_server != null)
             {

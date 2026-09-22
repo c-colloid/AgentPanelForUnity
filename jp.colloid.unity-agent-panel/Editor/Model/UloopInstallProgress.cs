@@ -180,6 +180,35 @@ namespace Colloid.AgentPanel.Model
             return Result(UloopInstallProgressState.Idle, false);
         }
 
+        /// <summary>
+        /// The same machine, for a REMOVAL (docs/design-notes/2026-09-22-
+        /// uloop-remove-from-panel.md section 5). Every precedence rule
+        /// above holds unchanged -- which of the live request, the
+        /// SessionState flag and the detector to believe when they disagree
+        /// is a question about evidence, not about direction -- so the only
+        /// difference is how the detector is read: an install succeeds when
+        /// the dependency APPEARS, a removal when it is GONE.
+        ///
+        /// <para>The returned states keep their install-flavored names
+        /// (Installing means "in flight", Succeeded means "the removal
+        /// landed"). Renaming them would churn the table tests that pin the
+        /// precedence for both callers; the user never sees these names --
+        /// the UI maps the removal branch to its own strings, so nobody is
+        /// ever shown "Installing..." while a package is being removed.</para>
+        /// </summary>
+        public static UloopInstallProgressResult EvaluateRemoval(
+            bool hasLiveRequest,
+            bool requestCompleted,
+            bool requestFailed,
+            bool detectorSaysInstalled,
+            bool inFlightFlagSet,
+            double elapsedSeconds,
+            double staleThresholdSeconds)
+        {
+            return Evaluate(hasLiveRequest, requestCompleted, requestFailed, !detectorSaysInstalled,
+                inFlightFlagSet, elapsedSeconds, staleThresholdSeconds);
+        }
+
         private static UloopInstallProgressResult Result(UloopInstallProgressState state, bool shouldClearFlag)
         {
             return new UloopInstallProgressResult { State = state, ShouldClearFlag = shouldClearFlag };
