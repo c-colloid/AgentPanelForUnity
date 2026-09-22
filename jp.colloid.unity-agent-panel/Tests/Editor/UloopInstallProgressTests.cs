@@ -263,5 +263,62 @@ namespace Colloid.AgentPanel.Tests
             Assert.AreEqual(UloopInstallProgressState.Succeeded, r.State);
             Assert.IsTrue(r.ShouldClearFlag);
         }
+
+        // -- EvaluateRemoval (2026-09-22, docs/design-notes/2026-09-22-uloop-
+        // remove-from-panel.md section 5): the same precedence rules with the
+        // detector read the other way round. These pin that inversion -- and
+        // only that -- so the removal cannot quietly grow a second, divergent
+        // copy of the precedence table. -----------------------------------
+
+        [Test]
+        public void Removal_DetectorStillSeesThePackage_IsNotYetSucceeded()
+        {
+            UloopInstallProgressResult r = UloopInstallProgress.EvaluateRemoval(
+                true, false, false, true, true, 5.0, UloopInstallProgress.StaleThresholdSeconds);
+            Assert.AreEqual(UloopInstallProgressState.Installing, r.State,
+                "for a removal, the dependency still being there means the work is still in flight");
+        }
+
+        [Test]
+        public void Removal_DetectorNoLongerSeesThePackage_IsSucceeded_AndClearsTheFlag()
+        {
+            // This exact edge -- Succeeded with ShouldClearFlag -- is what
+            // SettingsView uses to fire the registry cleanup exactly once.
+            UloopInstallProgressResult r = UloopInstallProgress.EvaluateRemoval(
+                false, false, false, false, true, 5.0, UloopInstallProgress.StaleThresholdSeconds);
+            Assert.AreEqual(UloopInstallProgressState.Succeeded, r.State);
+            Assert.IsTrue(r.ShouldClearFlag);
+        }
+
+        [Test]
+        public void Removal_IsTheExactInverseOfInstall_OnTheDetectorInputOnly()
+        {
+            foreach (bool live in new[] { true, false })
+            {
+                foreach (bool failed in new[] { true, false })
+                {
+                    foreach (bool installed in new[] { true, false })
+                    {
+                        UloopInstallProgressResult removal = UloopInstallProgress.EvaluateRemoval(
+                            live, failed, failed, installed, true, 5.0, UloopInstallProgress.StaleThresholdSeconds);
+                        UloopInstallProgressResult install = UloopInstallProgress.Evaluate(
+                            live, failed, failed, !installed, true, 5.0, UloopInstallProgress.StaleThresholdSeconds);
+                        Assert.AreEqual(install.State, removal.State,
+                            "live=" + live + " failed=" + failed + " installed=" + installed);
+                        Assert.AreEqual(install.ShouldClearFlag, removal.ShouldClearFlag);
+                    }
+                }
+            }
+        }
+
+        [Test]
+        public void Removal_NoRequestAndStaleFlag_IsStalled()
+        {
+            UloopInstallProgressResult r = UloopInstallProgress.EvaluateRemoval(
+                false, false, false, true, true,
+                UloopInstallProgress.StaleThresholdSeconds + 1.0, UloopInstallProgress.StaleThresholdSeconds);
+            Assert.AreEqual(UloopInstallProgressState.Stalled, r.State);
+            Assert.IsTrue(r.ShouldClearFlag);
+        }
     }
 }

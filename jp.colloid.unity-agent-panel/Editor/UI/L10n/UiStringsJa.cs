@@ -1005,7 +1005,80 @@ namespace Colloid.AgentPanel.UI
                 settingsModulesFoldout: "モジュール",
                 settingsModulesPillFmt: "{0} / {1} オン",
                 settingsOverviewSignedInFmt: "{0} ({1})",
-                settingsOverviewReconnectLabel: "再接続");
+                settingsOverviewReconnectLabel: "再接続",
+                settingsUloopStandingCostHint:
+                    "導入すると常駐サーバと 60Hz のティックが残り、スキル約 2k トークンが毎セッション載ります。",
+                settingsUloopStandingCostTooltip:
+                    "2026-09-21 に uLoop 3.6.3 で計測した内容です。導入すると、パッケージが入っている間ずっと 3 つが動き続けます: "
+                    + "エディタ側のサーバ(エディタを起動するたびに自動で立ち上がります)、16ms ごとの SignalTick ポンプ"
+                    + "(非フォーカスでアイドルでもエディタをティックさせ続けるため、裏に回しても休まなくなります)、"
+                    + "そしてエージェント用スキル約 21 件の説明文(約 5.7KB・1.5〜2k トークン)が、uloop を一度も呼ばない"
+                    + "セッションにも毎回載ります。この 3 つはどれもこのパネルからは止められません(uLoop 側の持ち物です)。"
+                    + "Play モード・コンソール・スクリーンショット・スクリプトのコミット・テスト実行は、"
+                    + "このパネル自身の uap_* ツールで賄えます。詳細: docs/design-notes/2026-09-21-uloop-always-loaded-cost.md",
+                settingsUloopTurnDownHint:
+                    "uLoop のサーバとティックはこのパネルからは止められません。Window > Unity CLI Loop で調整します。",
+                settingsUloopTurnDownTooltip:
+                    "Window > Unity CLI Loop > Server は IPC サーバを「今のエディタセッションだけ」止めます"
+                    + "(16ms のティックポンプは止まらず、次にエディタを起動すればサーバも再び立ちます。"
+                    + "停止フラグは SessionState 保持のためです)。Window > Unity CLI Loop > Settings では uLoop のツールを"
+                    + "個別に無効化でき、無効にしたツールのスキルファイルも配置対象から外れるので、毎セッションの"
+                    + "トークン分も減ります。完全に止める唯一の方法は Package Manager でパッケージを削除することです。"
+                    + "計測と詳細: docs/design-notes/2026-09-21-uloop-always-loaded-cost.md",
+                settingsUloopAgentUseLabel: "エージェントに uloop コマンドを使わせる",
+                settingsUloopAgentUseHint:
+                    "オフでエージェントの uloop 実行を拒否します。uLoop 自体は止まりません(上の行を参照)。",
+                settingsUloopAgentUseTooltip:
+                    "オン(既定)では、このパネルの uap_* ツールで表現できない操作の逃げ道として uloop を残します。"
+                    + "オフにすると、(1) エージェントへの指示文に「uloop は拒否される」と明記し、"
+                    + "(2) 次回接続時の起動引数に各シェル用の拒否パターンを足し、"
+                    + "(3) それでも届いた uloop コマンドを許可レイヤーで拒否します。"
+                    + "3 重にしているのは、--disallowedTools のパターンが CLI に受理されたのに"
+                    + "黙って無視された実測例があるためです。uLoop 自体には何の影響もありません: "
+                    + "エディタ側サーバ・16ms のティックポンプ・スキルはそのまま動き、"
+                    + "スキルのトークン消費も毎セッション続きます。反映は次の接続から"
+                    + "(許可/禁止ツールリストと同じ)。",
+                hubUloopAgentUseDeniedFmt:
+                    "uloop コマンドを拒否しました(設定でエージェントの uloop 実行はオフ): {0}",
+                settingsUloopRemoveButton: "uLoop を削除",
+                settingsUloopRemoveTooltip:
+                    "uLoop の常駐(エディタ側サーバ・16ms のティックポンプ・毎セッションのスキル)を"
+                    + "本当に止められるのは、パッケージを外すことだけです。依存の削除は Unity が行い、"
+                    + "このパネルが導入時に書いた Packages/manifest.json の OpenUPM 設定を"
+                    + "そのあと片付けます(変更内容は先に表示します)。",
+                settingsUloopRemoveConfirmTitle: "このプロジェクトから uLoop を削除しますか?",
+                settingsUloopRemoveApply: "削除する",
+                settingsUloopRemoveRouteDropRegistry:
+                    "Unity がパッケージを削除し、続けてこのパネルが OpenUPM のレジストリ設定ごと"
+                    + "削除します(他のパッケージは登録されていません)。",
+                settingsUloopRemoveRouteDropScope:
+                    "Unity がパッケージを削除し、続けてこのパネルが OpenUPM のレジストリ設定から"
+                    + "uLoop の行だけを削除します(他のパッケージのための設定は残します)。",
+                settingsUloopRemoveRouteKeepRegistry:
+                    "Unity がパッケージを削除します。Packages/manifest.json の"
+                    + "スコープ付きレジストリはそのまま残します。",
+                settingsUloopRemovingFmt: "削除中... {0}s",
+                settingsUloopRemoveFailed: "削除を開始できませんでした。何も変更していません。",
+                settingsUloopRemoveAsyncFailedFmt: "Unity がパッケージを削除できませんでした: {0}",
+                settingsUloopRemoveStalled:
+                    "削除に時間がかかっています。Unity の Package Manager ウィンドウを確認してください。",
+                settingsUloopRemoved: "uLoop を削除しました。",
+                settingsUloopRemovedAndTidied:
+                    "uLoop を削除し、Packages/manifest.json の OpenUPM 設定も片付けました。",
+                settingsUloopRemoveCleanupFailed:
+                    "uLoop は削除しました。Packages/manifest.json の OpenUPM 設定は残っていますが、"
+                    + "もう何も配らないので手で削除して構いません。",
+                settingsUloopRemoveCleanupManifestUnknownFmt:
+                    "uLoop は削除しましたが、Packages/manifest.json の片付けに失敗し、復元にも失敗しました。"
+                    + "先に '{0}' からファイルを復旧してください。({1})",
+                settingsUloopCaveatNotInstalled: "uLoop はこのプロジェクトの依存に入っていません。",
+                settingsUloopCaveatPanelSettingsKept:
+                    "このパネルが追加した uloop の許可/拒否パターンと指示スニペットは設定に残ります"
+                    + "(パッケージが無くなれば何もしません)。",
+                settingsUloopCaveatRegistryScopeKept:
+                    "OpenUPM のスコープは残します: 他のパッケージがまだこの経路で解決されています。",
+                settingsUloopCaveatForeignRegistryKept:
+                    "別のスコープ付きレジストリが uLoop を登録しています。そちらには触れません。");
         }
     }
 }

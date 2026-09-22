@@ -26,7 +26,9 @@ namespace Colloid.AgentPanel.Integration
         public const double PollIntervalSeconds = 0.5;
 
         private static MethodInfo _getCountsByType;
+        private static MethodInfo _clear;
         private static bool _resolved;
+        private static bool _clearResolved;
         private static bool _installed;
         private static int _lastErrorCount = -1;
         private static double _nextPoll;
@@ -82,6 +84,64 @@ namespace Colloid.AgentPanel.Integration
             catch (Exception)
             {
                 _getCountsByType = null;
+            }
+        }
+
+        /// <summary>
+        /// Clears the Console window's entries (uap_console_clear, design
+        /// note docs/design-notes/2026-09-21-console-clear-and-game-view-
+        /// size.md). False when the internal API is not reachable on this
+        /// editor -- the caller says so rather than reporting a clear that
+        /// did not happen.
+        ///
+        /// The LogEntries reflection lives here, beside the count read, so
+        /// this package has exactly ONE place that depends on that internal
+        /// type. Clearing also resets this sync's baseline: the drop is ours,
+        /// and re-reporting it as "the user pressed Clear" on the next poll
+        /// would only make the panel do the same work twice.
+        /// </summary>
+        public static bool TryClearConsole()
+        {
+            ResolveClear();
+            if (_clear == null)
+            {
+                return false;
+            }
+            try
+            {
+                _clear.Invoke(null, null);
+            }
+            catch (Exception)
+            {
+                _clear = null;
+                return false;
+            }
+            _lastErrorCount = 0;
+            return true;
+        }
+
+        private static void ResolveClear()
+        {
+            if (_clearResolved)
+            {
+                return;
+            }
+            _clearResolved = true;
+            try
+            {
+                Type type = Type.GetType("UnityEditor.LogEntries,UnityEditor");
+                if (type == null)
+                {
+                    return;
+                }
+                MethodInfo method = type.GetMethod("Clear",
+                    BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic,
+                    null, Type.EmptyTypes, null);
+                _clear = method;
+            }
+            catch (Exception)
+            {
+                _clear = null;
             }
         }
 

@@ -445,7 +445,7 @@ namespace Colloid.AgentPanel.Ops
             // is warned first, exactly mirroring the caveat/warning split
             // UloopInstallPlan.CanProceed()'s doc comment describes ("a blocker disables
             // the button, a warning only annotates the confirmation card").
-            string vpmManifestPath = Path.Combine(projectRoot, "Packages", "vpm-manifest.json");
+            string vpmManifestPath = VpmManifestPath(projectRoot);
             if (SafeFileExists(vpmManifestPath))
             {
                 plan.Caveats.Add(NewCaveat(CaveatCodeVccProject, blocking: false, detail: vpmManifestPath));
@@ -726,7 +726,7 @@ namespace Colloid.AgentPanel.Ops
 
         // -- manifest.json IO helpers ---------------------------------------------
 
-        private static bool TryReadManifestText(string manifestPath, out string manifestText)
+        internal static bool TryReadManifestText(string manifestPath, out string manifestText)
         {
             try
             {
@@ -745,7 +745,19 @@ namespace Colloid.AgentPanel.Ops
             }
         }
 
-        private static bool SafeFileExists(string path)
+        /// <summary>
+        /// Where a VCC/VPM-managed project declares itself. One method so
+        /// the uninstall path (UloopUninstaller) raises the same caveat
+        /// against the same file rather than re-deriving the convention --
+        /// a second copy of this path is exactly how the two halves would
+        /// drift into warning about different things.
+        /// </summary>
+        internal static string VpmManifestPath(string projectRoot)
+        {
+            return Path.Combine(projectRoot, "Packages", "vpm-manifest.json");
+        }
+
+        internal static bool SafeFileExists(string path)
         {
             try
             {
@@ -803,7 +815,7 @@ namespace Colloid.AgentPanel.Ops
             }
         }
 
-        private static UloopInstallCaveat NewCaveat(string code, bool blocking, string detail)
+        internal static UloopInstallCaveat NewCaveat(string code, bool blocking, string detail)
         {
             return new UloopInstallCaveat { Code = code, Blocking = blocking, Detail = detail ?? string.Empty };
         }

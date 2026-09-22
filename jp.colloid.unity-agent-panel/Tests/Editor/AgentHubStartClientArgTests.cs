@@ -324,6 +324,26 @@ namespace Colloid.AgentPanel.Tests
             StringAssert.Contains("uap_property_set", without);
         }
 
+        /// <summary>
+        /// 2026-09-21: the "run it and read what it said" loop is steered
+        /// only when the module that owns both tools is enabled -- the same
+        /// rule the rest of this section follows, so the text can never
+        /// promise a tool the agent will then find missing.
+        /// </summary>
+        [Test]
+        public void SteeringSection_PlayModeLoop_OnlyWhenTheEditorModuleIsOn()
+        {
+            string withEditor = AgentHub.ComposeUapOpsSteeringSection(true, new[] { "core", "editor" }, false);
+            string coreOnly = AgentHub.ComposeUapOpsSteeringSection(true, new[] { "core" }, false);
+
+            StringAssert.Contains("uap_play_mode", withEditor);
+            StringAssert.Contains("uap_console_logs", withEditor);
+            StringAssert.Contains("uap_ping", withEditor,
+                "the reply arrives before the Editor has switched, so the wait must be named");
+            StringAssert.DoesNotContain("uap_play_mode", coreOnly);
+            StringAssert.DoesNotContain("uap_console_logs", coreOnly);
+        }
+
         [Test]
         public void SteeringSection_AnimModuleOff_NeverMentionsAnimationFamily()
         {
@@ -367,6 +387,48 @@ namespace Colloid.AgentPanel.Tests
             StringAssert.DoesNotContain("never use uloop", section);
             StringAssert.DoesNotContain("forbidden", section);
             StringAssert.DoesNotContain("do not use uloop", section);
+        }
+
+        // -- 2026-09-21 option A: the agent-facing uloop switch
+        // (docs/design-notes/2026-09-21-uloop-always-loaded-cost.md section
+        // 5). The steering text is the layer the agent reads BEFORE it
+        // tries, so the two states have to read differently; the deny
+        // patterns and the can_use_tool refusal are pinned in
+        // UloopAgentUsePolicyTests. ---------------------------------------
+
+        [Test]
+        public void SteeringSection_UloopOff_SaysTheCommandsAreRefused()
+        {
+            string section = AgentHub.ComposeUapOpsSteeringSection(true, new[] { "core" }, true, false);
+
+            StringAssert.Contains("Do NOT call uloop", section);
+            StringAssert.Contains("refused", section);
+            // The fallback offer must be GONE, not merely contradicted a
+            // line later: an agent that reads "it works, but is slower"
+            // anywhere in the same paragraph will still try it once.
+            StringAssert.DoesNotContain("the slower, confirmation-heavy path", section);
+        }
+
+        [Test]
+        public void SteeringSection_UloopOff_LightmapWarningDropsTheUloopMention()
+        {
+            // The Lightmapping.Bake() warning names uloop as one of the two
+            // ways to run it. With uloop off that half is noise at best and
+            // a hint at worst, so only "dynamic code" survives.
+            string off = AgentHub.ComposeUapOpsSteeringSection(true, new[] { "core" }, true, false);
+            string on = AgentHub.ComposeUapOpsSteeringSection(true, new[] { "core" }, true, true);
+
+            StringAssert.Contains("through uloop or dynamic code", on);
+            StringAssert.Contains("through dynamic code", off);
+            StringAssert.DoesNotContain("through uloop or dynamic code", off);
+        }
+
+        [Test]
+        public void SteeringSection_UloopDefaultsToOn_SoTheThreeArgOverloadIsUnchanged()
+        {
+            Assert.AreEqual(
+                AgentHub.ComposeUapOpsSteeringSection(true, new[] { "core" }, true),
+                AgentHub.ComposeUapOpsSteeringSection(true, new[] { "core" }, true, true));
         }
 
         [Test]

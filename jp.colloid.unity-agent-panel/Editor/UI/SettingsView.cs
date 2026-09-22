@@ -253,6 +253,7 @@ namespace Colloid.AgentPanel.UI
 
         private Button _uloopInstallButton;
         private VisualElement _uloopInstallConfirmCard;
+        private Label _uloopConfirmTitleLabel;
         private Label _uloopInstallRouteLabel;
         private VisualElement _uloopCaveatsHost;
         private Foldout _uloopDiffFoldout;
@@ -335,6 +336,60 @@ namespace Colloid.AgentPanel.UI
 
         private Label _uloopPresetAppliedLabel;
         private Label _uloopSnippetAppliedLabel;
+
+        /// <summary>
+        /// The standing-cost line at the top of the uLoop card and its
+        /// hover scope (docs/design-notes/2026-09-21-uloop-always-loaded-
+        /// cost.md section 5, option 0). One label, two wordings: what
+        /// installing WILL leave running, and -- once it is installed --
+        /// where that package's own controls are, since none of it can be
+        /// switched off from here.
+        /// </summary>
+        private VisualElement _uloopCostScope;
+        private Label _uloopCostHint;
+
+        /// <summary>
+        /// The "let the agent run uloop commands" switch (same design note,
+        /// section 5, option A). Deliberately NOT greyed out when uLoop is
+        /// absent from the project: the thing it denies is the `uloop` CLI
+        /// binary, which an agent can reach whenever it is on PATH --
+        /// whether or not this project carries the Unity package.
+        /// </summary>
+        private Toggle _uloopAgentUseToggle;
+
+        /// <summary>
+        /// The removal half (docs/design-notes/2026-09-22-uloop-remove-from-
+        /// panel.md). The button is the mirror of "Install uLoop" and is
+        /// shown only while uLoop IS installed; the confirmation card,
+        /// caveat host, diff foldout and apply/cancel row are SHARED with
+        /// the install flow (only one of the two can ever be open, and a
+        /// second near-identical card would be one more place for the
+        /// diff-before-you-write discipline to drift).
+        /// <see cref="_uloopConfirmIsRemoval"/> is which flow the shared
+        /// card is currently showing.
+        /// </summary>
+        private Button _uloopRemoveButton;
+        private bool _uloopConfirmIsRemoval;
+        private UloopUninstallPlan _pendingUloopUninstallPlan;
+
+        /// <summary>
+        /// Live RemoveRequest from a dispatched removal, polled exactly like
+        /// <see cref="_uloopLiveAddRequest"/> and dying with the same domain
+        /// reload -- which is what the SessionState remove pair exists to
+        /// survive.
+        /// </summary>
+        private RemoveRequest _uloopLiveRemoveRequest;
+
+        /// <summary>
+        /// Outcome of phase two (the scopedRegistries cleanup), which runs
+        /// once, on the evaluation that first observes the dependency gone.
+        /// A section-level label rather than a line in the confirmation card
+        /// because by then the card is closed: the removal itself has
+        /// already succeeded, and this reports whether the tidy-up that
+        /// follows it did (design note section 0.3 -- a failed cleanup must
+        /// never read as a failed removal).
+        /// </summary>
+        private Label _uloopRemoveResultLabel;
 
         // -- Unity official plugin (design note 2026-09-10 section 2) -----------
         private Label _unityPluginStatusLabel;
@@ -726,10 +781,8 @@ namespace Colloid.AgentPanel.UI
         {
             PanelSettings settings = PanelStateStore.instance.Settings;
             settings.cliManualPath = evt.newValue ?? string.Empty;
-            PanelStateStore.instance.SaveNow();
+            CommitSettingsChange();
             RefreshCliStatus();
-            RefreshReconnectHint();
-            AgentHub.RequestAutoApplyReconnect();
         }
 
         private static string FormatBackendOption(AgentBackend backend)
@@ -743,41 +796,33 @@ namespace Colloid.AgentPanel.UI
         {
             PanelSettings settings = PanelStateStore.instance.Settings;
             settings.agentBackend = evt.newValue;
-            PanelStateStore.instance.SaveNow();
+            CommitSettingsChange();
             RefreshBackendGroups();
             RefreshCliStatus();
-            RefreshReconnectHint();
             RefreshAccountSection();
-            AgentHub.RequestAutoApplyReconnect();
         }
 
         private void OnAcpCommandChanged(ChangeEvent<string> evt)
         {
             PanelSettings settings = PanelStateStore.instance.Settings;
             settings.acpCommand = evt.newValue ?? string.Empty;
-            PanelStateStore.instance.SaveNow();
+            CommitSettingsChange();
             RefreshBackendGroups();
             RefreshCliStatus();
-            RefreshReconnectHint();
-            AgentHub.RequestAutoApplyReconnect();
         }
 
         private void OnAcpArgumentsChanged(ChangeEvent<string> evt)
         {
             PanelSettings settings = PanelStateStore.instance.Settings;
             settings.acpArguments = evt.newValue ?? string.Empty;
-            PanelStateStore.instance.SaveNow();
-            RefreshReconnectHint();
-            AgentHub.RequestAutoApplyReconnect();
+            CommitSettingsChange();
         }
 
         private void OnAcpAuthMethodChanged(ChangeEvent<string> evt)
         {
             PanelSettings settings = PanelStateStore.instance.Settings;
             settings.acpAuthMethod = evt.newValue ?? string.Empty;
-            PanelStateStore.instance.SaveNow();
-            RefreshReconnectHint();
-            AgentHub.RequestAutoApplyReconnect();
+            CommitSettingsChange();
         }
 
         /// <summary>Shows the field group of the selected backend and refreshes its default-command hint.</summary>
@@ -1028,6 +1073,48 @@ namespace Colloid.AgentPanel.UI
         }
 
         /// <summary>
+        /// The ONE way this view commits a settings change. Every handler
+        /// ends here: write the field, then call this.
+        ///
+        /// <para><b>Why a chokepoint (2026-09-22).</b> Handlers used to
+        /// decide for themselves whether a change was reconnect-relevant
+        /// and call RefreshReconnectHint / RequestAutoApplyReconnect
+        /// accordingly. That decision is REDUNDANT -- AgentHub asks
+        /// SettingsChangeDetector anyway, and a call about a field the
+        /// detector does not compare is a no-op. So every handler was
+        /// re-deriving, by hand, an answer the detector already owns, and
+        /// the thirteen near-identical module toggles proved how that ends:
+        /// "web", added last, simply left the call out, so the panel showed
+        /// a pending change nothing would ever apply. Here the judgement is
+        /// made in exactly one place, and a handler cannot get it wrong by
+        /// forgetting something.</para>
+        ///
+        /// <para>The sidecar text is read once and shared, so routing every
+        /// change through here costs no extra file read -- see
+        /// AgentHub.RequestAutoApplyReconnect(string).</para>
+        /// </summary>
+        private void CommitSettingsChange()
+        {
+            PanelStateStore.instance.SaveNow();
+            string customInstructions = CurrentCustomInstructionsText();
+            RefreshReconnectHint(customInstructions);
+            AgentHub.RequestAutoApplyReconnect(customInstructions);
+        }
+
+        /// <summary>
+        /// The custom-instructions text as it is RIGHT NOW: the live
+        /// TextField when this view has one (it is written to disk on every
+        /// keystroke, so re-reading the file would be redundant), else the
+        /// file.
+        /// </summary>
+        private string CurrentCustomInstructionsText()
+        {
+            return _customInstructionsField != null
+                ? _customInstructionsField.value
+                : LoadCustomInstructions();
+        }
+
+        /// <summary>
         /// Shows/hides the "some changes need Reconnect now" hint by
         /// comparing the last-spawned snapshot against the current
         /// settings (SettingsChangeDetector) -- covers the manual CLI
@@ -1042,15 +1129,22 @@ namespace Colloid.AgentPanel.UI
             {
                 return;
             }
-            // The Custom instructions field is not backed by PanelSettings
-            // (see CustomInstructionsFile's doc comment), so it is compared
-            // through the 4-arg overload; the live TextField value (when
-            // built) is always the "current" side -- it is saved to disk
-            // on every keystroke, but reading the disk copy again here
-            // would be redundant.
-            string currentCustomInstructions = _customInstructionsField != null
-                ? _customInstructionsField.value
-                : LoadCustomInstructions();
+            RefreshReconnectHint(CurrentCustomInstructionsText());
+        }
+
+        /// <summary>
+        /// The Custom instructions field is not backed by PanelSettings
+        /// (see CustomInstructionsFile's doc comment), so it is compared
+        /// through the 4-arg overload. This overload takes that text from
+        /// the caller so <see cref="CommitSettingsChange"/> can compute it
+        /// once and hand the same value to the hint and to AgentHub.
+        /// </summary>
+        private void RefreshReconnectHint(string currentCustomInstructions)
+        {
+            if (_reconnectHintLabel == null || _reconnectHintRow == null)
+            {
+                return;
+            }
             bool pending = SettingsChangeDetector.RequiresReconnect(
                 AgentHub.LastSpawnedSettingsSnapshot, PanelStateStore.instance.Settings,
                 AgentHub.LastSpawnedCustomInstructions, currentCustomInstructions);
@@ -1247,7 +1341,7 @@ namespace Colloid.AgentPanel.UI
         {
             string cliValue = PermissionModeMapping.ToCliValue(evt.newValue);
             PanelStateStore.instance.Settings.permissionMode = cliValue;
-            PanelStateStore.instance.SaveNow();
+            CommitSettingsChange();
             AgentClient client = AgentHub.Client;
             if (client != null
                 && client.State != AgentClientState.NotStarted
@@ -1260,7 +1354,7 @@ namespace Colloid.AgentPanel.UI
         private void OnCtrlEnterChanged(ChangeEvent<bool> evt)
         {
             PanelStateStore.instance.Settings.ctrlEnterToSend = evt.newValue;
-            PanelStateStore.instance.SaveNow();
+            CommitSettingsChange();
         }
 
         /// <summary>"N allowed, M blocked" on the tool-lists row; hidden while both lists are empty.</summary>
@@ -1287,28 +1381,22 @@ namespace Colloid.AgentPanel.UI
         private void OnAllowedToolsChanged(ChangeEvent<string> evt)
         {
             PanelStateStore.instance.Settings.allowedTools = SplitLines(evt.newValue);
-            PanelStateStore.instance.SaveNow();
+            CommitSettingsChange();
             RefreshToolListsPill();
-            RefreshReconnectHint();
-            AgentHub.RequestAutoApplyReconnect();
         }
 
         private void OnDisallowedToolsChanged(ChangeEvent<string> evt)
         {
             PanelStateStore.instance.Settings.disallowedTools = SplitLines(evt.newValue);
-            PanelStateStore.instance.SaveNow();
+            CommitSettingsChange();
             RefreshToolListsPill();
-            RefreshReconnectHint();
-            AgentHub.RequestAutoApplyReconnect();
         }
 
         private void OnDangerousToggleChanged(ChangeEvent<bool> evt)
         {
             PanelStateStore.instance.Settings.dangerouslySkipPermissions = evt.newValue;
-            PanelStateStore.instance.SaveNow();
+            CommitSettingsChange();
             RefreshDangerCardTone();
-            RefreshReconnectHint();
-            AgentHub.RequestAutoApplyReconnect();
         }
 
         // -- (b2) Model (v0.8.0, docs/design-notes/2026-08-01-model-settings.md) --------
@@ -1347,8 +1435,10 @@ namespace Colloid.AgentPanel.UI
         // 2026-08-02-subagent-model-precedence.md section 3.2): the PRIMARY
         // subagent-cost control, directly under Default model. Reconnect-
         // relevant (it is composed into the same append-system-prompt
-        // payload as custom instructions), so it DOES call
-        // RequestAutoApplyReconnect, same as BuildSubagentModelField below. --
+        // payload as custom instructions), so SettingsChangeDetector
+        // compares it and the usual CommitSettingsChange at the end of its
+        // handler does raise the pending pill and schedule the auto-apply
+        // reconnect -- same as BuildSubagentModelField below. -----------
 
         private void BuildSubagentCostPolicyField(VisualElement section)
         {
@@ -1403,9 +1493,7 @@ namespace Colloid.AgentPanel.UI
         private void OnSubagentCostPolicyChanged(ChangeEvent<SubagentCostPolicy> evt)
         {
             PanelStateStore.instance.Settings.subagentCostPolicy = evt.newValue;
-            PanelStateStore.instance.SaveNow();
-            RefreshReconnectHint();
-            AgentHub.RequestAutoApplyReconnect();
+            CommitSettingsChange();
         }
 
         // -- (b2a) Subagent model (v0.9.0, docs/design-notes/2026-08-01-
@@ -1415,8 +1503,8 @@ namespace Colloid.AgentPanel.UI
         // 3.2): blanket CLAUDE_CODE_SUBAGENT_MODEL env var -- a hard cost
         // clamp that overrides BOTH the per-type table below AND the
         // agent's own per-call model choice (R07 section 12, P5), normally
-        // left empty. Reconnect-relevant, so it DOES call
-        // RequestAutoApplyReconnect. -----------------------------------
+        // left empty. Reconnect-relevant, so its CommitSettingsChange does
+        // raise the pending pill. --------------------------------------
 
         private void BuildSubagentModelField(VisualElement section)
         {
@@ -1464,10 +1552,8 @@ namespace Colloid.AgentPanel.UI
         private void OnSubagentModelChanged(ChangeEvent<string> evt)
         {
             PanelStateStore.instance.Settings.subagentModel = evt.newValue ?? string.Empty;
-            PanelStateStore.instance.SaveNow();
-            RefreshReconnectHint();
+            CommitSettingsChange();
             RefreshSubagentPrecedenceWarning();
-            AgentHub.RequestAutoApplyReconnect();
         }
 
         /// <summary>
@@ -1751,9 +1837,10 @@ namespace Colloid.AgentPanel.UI
         /// One editable row. `overrides` is the SAME list instance shared
         /// by every row built in this pass (mirrors AddQuickActionRow);
         /// `entry` is edited (and removed) by reference, never by index.
-        /// Deliberately does NOT call RefreshReconnectHint/AgentHub.
-        /// RequestAutoApplyReconnect from any of these handlers (unlike
-        /// every other next-spawn-only field in this file): docs/research/
+        /// These handlers commit through CommitSettingsChange like every
+        /// other one, and that deliberately raises NO pending pill here,
+        /// because SettingsChangeDetector does not compare
+        /// agentModelOverrides at all: docs/research/
         /// 07-model-configuration.md section 10.8 ("capture15") found the
         /// CLI snapshots `.claude/agents/*.md` at SESSION CREATION, so
         /// reconnecting the EXISTING session (same session id, `--resume`)
@@ -1789,7 +1876,7 @@ namespace Colloid.AgentPanel.UI
                 nameField.RegisterValueChangedCallback(delegate(ChangeEvent<string> evt)
                 {
                     entry.agentName = (evt.newValue ?? string.Empty).Trim();
-                    PanelStateStore.instance.SaveNow();
+                    CommitSettingsChange();
                     RefreshAgentOverridesDuplicateWarning();
                     RefreshSubagentPrecedenceWarning();
                 });
@@ -1807,7 +1894,7 @@ namespace Colloid.AgentPanel.UI
                 namePopup.RegisterValueChangedCallback(delegate(ChangeEvent<string> evt)
                 {
                     entry.agentName = evt.newValue ?? string.Empty;
-                    PanelStateStore.instance.SaveNow();
+                    CommitSettingsChange();
                     RefreshAgentOverridesDuplicateWarning();
                     RefreshSubagentPrecedenceWarning();
                 });
@@ -1824,7 +1911,7 @@ namespace Colloid.AgentPanel.UI
             modelField.RegisterValueChangedCallback(delegate(ChangeEvent<string> evt)
             {
                 entry.modelAlias = evt.newValue ?? string.Empty;
-                PanelStateStore.instance.SaveNow();
+                CommitSettingsChange();
                 RefreshSubagentPrecedenceWarning();
             });
             row.Add(modelField);
@@ -1832,7 +1919,7 @@ namespace Colloid.AgentPanel.UI
             var remove = new Button(delegate
             {
                 overrides.Remove(entry);
-                PanelStateStore.instance.SaveNow();
+                CommitSettingsChange();
                 RebuildAgentOverrideRows();
             });
             remove.text = L10n.S.SettingsAgentOverrideRemoveButton;
@@ -1851,7 +1938,7 @@ namespace Colloid.AgentPanel.UI
             // either now.
             List<AgentModelOverride> overrides = LoadAgentModelOverrides();
             overrides.Add(new AgentModelOverride());
-            PanelStateStore.instance.SaveNow();
+            CommitSettingsChange();
             RebuildAgentOverrideRows();
         }
 
@@ -2145,8 +2232,7 @@ namespace Colloid.AgentPanel.UI
         {
             CustomInstructionsFile.CreateDefault(AgentHub.ProjectRoot).Save(evt.newValue ?? string.Empty);
             RefreshCustomInstructionsPill(evt.newValue);
-            RefreshReconnectHint();
-            AgentHub.RequestAutoApplyReconnect();
+            CommitSettingsChange();
         }
 
         // -- (c2) Display ---------------------------------------------------------------
@@ -2197,7 +2283,7 @@ namespace Colloid.AgentPanel.UI
         private void OnShowThinkingChanged(ChangeEvent<bool> evt)
         {
             PanelStateStore.instance.Settings.showThinking = evt.newValue;
-            PanelStateStore.instance.SaveNow();
+            CommitSettingsChange();
             // Forces every cached MessageListController row to rebuild on
             // the next Refresh (see the field's doc comment) so the change
             // is visible on the CURRENT transcript, not just new messages.
@@ -2208,20 +2294,18 @@ namespace Colloid.AgentPanel.UI
             // section 7), hence the same reconnect-hint/auto-apply calls
             // every other next-spawn-only field's handler makes.
             MessageBlockFactory.SettingsGeneration++;
-            RefreshReconnectHint();
-            AgentHub.RequestAutoApplyReconnect();
         }
 
         private void OnSubagentDefaultExpandedChanged(ChangeEvent<bool> evt)
         {
             PanelStateStore.instance.Settings.subagentDefaultExpanded = evt.newValue;
-            PanelStateStore.instance.SaveNow();
+            CommitSettingsChange();
         }
 
         private void OnShowCostUsdChanged(ChangeEvent<bool> evt)
         {
             PanelStateStore.instance.Settings.showCostUsd = evt.newValue;
-            PanelStateStore.instance.SaveNow();
+            CommitSettingsChange();
         }
 
         // -- (c3) Quick actions -----------------------------------------------------------
@@ -2361,13 +2445,13 @@ namespace Colloid.AgentPanel.UI
         private void OnPermissionBeepChanged(ChangeEvent<bool> evt)
         {
             PanelStateStore.instance.Settings.permissionBeep = evt.newValue;
-            PanelStateStore.instance.SaveNow();
+            CommitSettingsChange();
         }
 
         private void OnTurnCompleteBeepChanged(ChangeEvent<bool> evt)
         {
             PanelStateStore.instance.Settings.turnCompleteBeep = evt.newValue;
-            PanelStateStore.instance.SaveNow();
+            CommitSettingsChange();
         }
 
         // -- (c5) Console errors (docs/design-notes/2026-08-13-error-chip-
@@ -2420,7 +2504,7 @@ namespace Colloid.AgentPanel.UI
         private void OnIgnoredErrorPatternsChanged(ChangeEvent<string> evt)
         {
             PanelStateStore.instance.Settings.ignoredConsoleErrorPatterns = evt.newValue ?? string.Empty;
-            PanelStateStore.instance.SaveNow();
+            CommitSettingsChange();
             // The chip lives in another view and refreshes only off
             // ConsoleErrorProvider.Changed -- without this poke a pattern
             // edit would not move the chip until the next real error event.
@@ -2478,7 +2562,7 @@ namespace Colloid.AgentPanel.UI
             var remove = new Button(delegate
             {
                 ignored.Remove(message);
-                PanelStateStore.instance.SaveNow();
+                CommitSettingsChange();
                 ConsoleErrorProvider.NotifyIgnoreStoreChanged();
                 RebuildIgnoredErrorRows();
             });
@@ -2499,7 +2583,7 @@ namespace Colloid.AgentPanel.UI
                 return;
             }
             ignored.Clear();
-            PanelStateStore.instance.SaveNow();
+            CommitSettingsChange();
             ConsoleErrorProvider.NotifyIgnoreStoreChanged();
             RebuildIgnoredErrorRows();
         }
@@ -2776,13 +2860,16 @@ namespace Colloid.AgentPanel.UI
             // column-hosted `section`, same shape as every other toggle in
             // this card -- no flex-shrink/min-width risk (LAYOUT RULE only
             // applies to a BaseField placed in a flex ROW alongside
-            // siblings; this one has none). Deliberately does NOT call
-            // RefreshReconnectHint/AgentHub.RequestAutoApplyReconnect --
-            // PanelSettings.uapOpsAutoContinueAfterCompile's own doc
-            // comment is explicit that this field is read live at the
-            // moment a reload completes, never baked into a spawn
-            // argument, and is deliberately absent from
-            // SettingsChangeDetector.RequiresReconnect. Warning-styled for
+            // siblings; this one has none). Its handler commits through
+            // CommitSettingsChange like every other one, and that raises
+            // no pending pill here: PanelSettings.
+            // uapOpsAutoContinueAfterCompile's own doc comment is explicit
+            // that this field is read live at the moment a reload
+            // completes, never baked into a spawn argument, and is
+            // deliberately absent from
+            // SettingsChangeDetector.RequiresReconnect -- so the detector,
+            // not the handler, is what decides there is nothing to apply.
+            // Warning-styled for
             // the same "must stay readable without hovering" reason as
             // the script-validation gate above.
             _uapOpsAutoContinueToggle = new Toggle(L10n.S.SettingsAutoContinueLabel);
@@ -3044,254 +3131,120 @@ namespace Colloid.AgentPanel.UI
         private void OnUapOpsEnabledChanged(ChangeEvent<bool> evt)
         {
             PanelStateStore.instance.Settings.uapOpsEnabled = evt.newValue;
-            PanelStateStore.instance.SaveNow();
-            AgentHub.RequestAutoApplyReconnect();
+            CommitSettingsChange();
             RefreshUapOpsStatus();
         }
 
-        // Each handler below calls BOTH AgentHub.ApplyUapOpsModulesChanged
-        // (instant live tool-catalog update via mcp_reconnect) AND
-        // RefreshReconnectHint/AgentHub.RequestAutoApplyReconnect (2026-08-02
-        // review fix, Stream C1 regression: uapOpsModules now also drives
-        // the --append-system-prompt steering text, which has no live
-        // update path -- see PanelSettings.uapOpsModules' doc comment).
-        // Dropping either call reintroduces a real bug: dropping
+        // A module toggle has TWO halves. ToggleUapOpsModule below does
+        // both, once, for all thirteen: AgentHub.ApplyUapOpsModulesChanged
+        // (instant live tool-catalog update via mcp_reconnect) and
+        // CommitSettingsChange (2026-08-02 review fix, Stream C1
+        // regression: uapOpsModules now also drives the
+        // --append-system-prompt steering text, which has no live update
+        // path -- see PanelSettings.uapOpsModules' doc comment).
+        // Dropping either half reintroduces a real bug: dropping
         // ApplyUapOpsModulesChanged would delay the ACTUAL tool catalog
-        // change until the next reconnect; dropping the reconnect calls
-        // would leave the steering text silently stale for the rest of the
-        // session even though the tool catalog already moved on.
+        // change until the next reconnect; dropping the commit would
+        // leave the steering text silently stale for the rest of the
+        // session even though the tool catalog already moved on. Thirteen
+        // hand-written copies is exactly how the second half went missing
+        // from "web" in v0.57.0, hence the one shared body.
 
-        private void OnUapOpsCoreModuleToggleChanged(ChangeEvent<bool> evt)
+        /// <summary>
+        /// The one body behind all thirteen module toggles. They used to be
+        /// thirteen hand-written copies of this, and the copy added last --
+        /// "web", in v0.57.0 -- simply left the auto-apply call out of its
+        /// tail, so the panel showed a pending change that nothing would
+        /// ever apply. One body cannot drift from itself; a fourteenth
+        /// module is a one-line handler.
+        /// </summary>
+        private void ToggleUapOpsModule(string moduleId, bool enabled)
         {
             List<string> modules = PanelStateStore.instance.Settings.uapOpsModules;
-            if (evt.newValue)
+            if (enabled)
             {
-                if (!modules.Contains("core"))
+                if (!modules.Contains(moduleId))
                 {
-                    modules.Add("core");
+                    modules.Add(moduleId);
                 }
             }
             else
             {
-                modules.Remove("core");
+                modules.Remove(moduleId);
             }
-            PanelStateStore.instance.SaveNow();
+            // Live half first (the tool catalog reflects the in-memory
+            // list), then the commit that saves, refreshes the pill and
+            // schedules the reconnect the steering text needs.
             AgentHub.ApplyUapOpsModulesChanged();
-            RefreshReconnectHint();
-            AgentHub.RequestAutoApplyReconnect();
+            CommitSettingsChange();
+        }
+
+        private void OnUapOpsCoreModuleToggleChanged(ChangeEvent<bool> evt)
+        {
+            ToggleUapOpsModule("core", evt.newValue);
         }
 
         private void OnUapOpsPrefabModuleToggleChanged(ChangeEvent<bool> evt)
         {
-            List<string> modules = PanelStateStore.instance.Settings.uapOpsModules;
-            if (evt.newValue)
-            {
-                if (!modules.Contains("prefab"))
-                {
-                    modules.Add("prefab");
-                }
-            }
-            else
-            {
-                modules.Remove("prefab");
-            }
-            PanelStateStore.instance.SaveNow();
-            AgentHub.ApplyUapOpsModulesChanged();
-            RefreshReconnectHint();
-            AgentHub.RequestAutoApplyReconnect();
+            ToggleUapOpsModule("prefab", evt.newValue);
         }
 
         private void OnUapOpsEditorModuleToggleChanged(ChangeEvent<bool> evt)
         {
-            List<string> modules = PanelStateStore.instance.Settings.uapOpsModules;
-            if (evt.newValue)
-            {
-                if (!modules.Contains("editor"))
-                {
-                    modules.Add("editor");
-                }
-            }
-            else
-            {
-                modules.Remove("editor");
-            }
-            PanelStateStore.instance.SaveNow();
-            AgentHub.ApplyUapOpsModulesChanged();
-            RefreshReconnectHint();
-            AgentHub.RequestAutoApplyReconnect();
+            ToggleUapOpsModule("editor", evt.newValue);
         }
 
         private void OnUapOpsAnimModuleToggleChanged(ChangeEvent<bool> evt)
         {
-            List<string> modules = PanelStateStore.instance.Settings.uapOpsModules;
-            if (evt.newValue)
-            {
-                if (!modules.Contains("anim"))
-                {
-                    modules.Add("anim");
-                }
-            }
-            else
-            {
-                modules.Remove("anim");
-            }
-            PanelStateStore.instance.SaveNow();
-            AgentHub.ApplyUapOpsModulesChanged();
-            RefreshReconnectHint();
-            AgentHub.RequestAutoApplyReconnect();
+            ToggleUapOpsModule("anim", evt.newValue);
         }
 
         private void OnUapOpsUiModuleToggleChanged(ChangeEvent<bool> evt)
         {
-            List<string> modules = PanelStateStore.instance.Settings.uapOpsModules;
-            if (evt.newValue)
-            {
-                if (!modules.Contains("ui"))
-                {
-                    modules.Add("ui");
-                }
-            }
-            else
-            {
-                modules.Remove("ui");
-            }
-            PanelStateStore.instance.SaveNow();
-            AgentHub.ApplyUapOpsModulesChanged();
-            RefreshReconnectHint();
-            AgentHub.RequestAutoApplyReconnect();
+            ToggleUapOpsModule("ui", evt.newValue);
         }
 
         private void OnUapOpsBatchModuleToggleChanged(ChangeEvent<bool> evt)
         {
-            List<string> modules = PanelStateStore.instance.Settings.uapOpsModules;
-            if (evt.newValue)
-            {
-                if (!modules.Contains("batch"))
-                {
-                    modules.Add("batch");
-                }
-            }
-            else
-            {
-                modules.Remove("batch");
-            }
-            PanelStateStore.instance.SaveNow();
-            AgentHub.ApplyUapOpsModulesChanged();
-            RefreshReconnectHint();
-            AgentHub.RequestAutoApplyReconnect();
+            ToggleUapOpsModule("batch", evt.newValue);
         }
 
         private void OnUapOpsTestsModuleToggleChanged(ChangeEvent<bool> evt)
         {
-            List<string> modules = PanelStateStore.instance.Settings.uapOpsModules;
-            if (evt.newValue)
-            {
-                if (!modules.Contains("tests"))
-                {
-                    modules.Add("tests");
-                }
-            }
-            else
-            {
-                modules.Remove("tests");
-            }
-            PanelStateStore.instance.SaveNow();
-            AgentHub.ApplyUapOpsModulesChanged();
-            RefreshReconnectHint();
-            AgentHub.RequestAutoApplyReconnect();
+            ToggleUapOpsModule("tests", evt.newValue);
         }
 
         private void OnUapOpsFxModuleToggleChanged(ChangeEvent<bool> evt)
         {
-            List<string> modules = PanelStateStore.instance.Settings.uapOpsModules;
-            if (evt.newValue)
-            {
-                if (!modules.Contains("fx"))
-                {
-                    modules.Add("fx");
-                }
-            }
-            else
-            {
-                modules.Remove("fx");
-            }
-            PanelStateStore.instance.SaveNow();
-            AgentHub.ApplyUapOpsModulesChanged();
-            RefreshReconnectHint();
-            AgentHub.RequestAutoApplyReconnect();
+            ToggleUapOpsModule("fx", evt.newValue);
         }
 
         private void OnUapOpsMeshModuleToggleChanged(ChangeEvent<bool> evt)
         {
-            List<string> modules = PanelStateStore.instance.Settings.uapOpsModules;
-            if (evt.newValue)
-            {
-                if (!modules.Contains("mesh"))
-                {
-                    modules.Add("mesh");
-                }
-            }
-            else
-            {
-                modules.Remove("mesh");
-            }
-            PanelStateStore.instance.SaveNow();
-            AgentHub.ApplyUapOpsModulesChanged();
-            RefreshReconnectHint();
-            AgentHub.RequestAutoApplyReconnect();
+            ToggleUapOpsModule("mesh", evt.newValue);
         }
 
         private void OnUapOpsAvatarModuleToggleChanged(ChangeEvent<bool> evt)
         {
-            List<string> modules = PanelStateStore.instance.Settings.uapOpsModules;
-            if (evt.newValue)
-            {
-                if (!modules.Contains("avatar"))
-                {
-                    modules.Add("avatar");
-                }
-            }
-            else
-            {
-                modules.Remove("avatar");
-            }
-            PanelStateStore.instance.SaveNow();
-            AgentHub.ApplyUapOpsModulesChanged();
-            RefreshReconnectHint();
-            AgentHub.RequestAutoApplyReconnect();
+            ToggleUapOpsModule("avatar", evt.newValue);
         }
 
         private void OnUapOpsAuthoringModuleToggleChanged(ChangeEvent<bool> evt)
         {
-            List<string> modules = PanelStateStore.instance.Settings.uapOpsModules;
-            if (evt.newValue)
-            {
-                if (!modules.Contains("authoring"))
-                {
-                    modules.Add("authoring");
-                }
-            }
-            else
-            {
-                modules.Remove("authoring");
-            }
-            PanelStateStore.instance.SaveNow();
-            AgentHub.ApplyUapOpsModulesChanged();
-            RefreshReconnectHint();
-            AgentHub.RequestAutoApplyReconnect();
+            ToggleUapOpsModule("authoring", evt.newValue);
         }
 
         private void OnWebFetchAllowedHostsChanged(ChangeEvent<string> evt)
         {
             PanelStateStore.instance.Settings.webFetchAllowedHosts = SplitLines(evt.newValue);
-            PanelStateStore.instance.SaveNow();
+            CommitSettingsChange();
             PublishWebFetchHostRules();
         }
 
         private void OnWebFetchBlockedHostsChanged(ChangeEvent<string> evt)
         {
             PanelStateStore.instance.Settings.webFetchBlockedHosts = SplitLines(evt.newValue);
-            PanelStateStore.instance.SaveNow();
+            CommitSettingsChange();
             PublishWebFetchHostRules();
         }
 
@@ -3303,14 +3256,14 @@ namespace Colloid.AgentPanel.UI
         private void OnWebSearchProviderChanged(ChangeEvent<string> evt)
         {
             PanelStateStore.instance.Settings.webSearchProvider = evt.newValue;
-            PanelStateStore.instance.SaveNow();
+            CommitSettingsChange();
             PublishWebSearchConfig();
         }
 
         private void OnWebSearchApiKeyChanged(ChangeEvent<string> evt)
         {
             PanelStateStore.instance.Settings.webSearchApiKey = (evt.newValue ?? string.Empty).Trim();
-            PanelStateStore.instance.SaveNow();
+            CommitSettingsChange();
             PublishWebSearchConfig();
         }
 
@@ -3330,75 +3283,49 @@ namespace Colloid.AgentPanel.UI
 
         private void OnUapOpsWebModuleToggleChanged(ChangeEvent<bool> evt)
         {
-            List<string> modules = PanelStateStore.instance.Settings.uapOpsModules;
-            if (evt.newValue)
-            {
-                if (!modules.Contains("web"))
-                {
-                    modules.Add("web");
-                }
-            }
-            else
-            {
-                modules.Remove("web");
-            }
-            PanelStateStore.instance.SaveNow();
-            AgentHub.ApplyUapOpsModulesChanged();
-            RefreshReconnectHint();
+            ToggleUapOpsModule("web", evt.newValue);
         }
 
         private void OnUapOpsMarkersModuleToggleChanged(ChangeEvent<bool> evt)
         {
-            List<string> modules = PanelStateStore.instance.Settings.uapOpsModules;
-            if (evt.newValue)
+            if (!evt.newValue)
             {
-                if (!modules.Contains("markers"))
-                {
-                    modules.Add("markers");
-                }
-            }
-            else
-            {
-                modules.Remove("markers");
                 // Switching the module off also takes the agent's markers
-                // off the screen; the user's own pins stay.
+                // off the screen; the user's own pins stay. Done before the
+                // shared toggle so the catalog and the scene go together.
                 Colloid.AgentPanel.Ops.Markers.SceneMarkerStore.Clear(false);
             }
-            PanelStateStore.instance.SaveNow();
-            AgentHub.ApplyUapOpsModulesChanged();
-            RefreshReconnectHint();
-            AgentHub.RequestAutoApplyReconnect();
+            ToggleUapOpsModule("markers", evt.newValue);
         }
 
         private void OnUapOpsGateEnabledChanged(ChangeEvent<bool> evt)
         {
             PanelStateStore.instance.Settings.uapScriptGateEnabled = evt.newValue;
-            PanelStateStore.instance.SaveNow();
+            CommitSettingsChange();
             RefreshWarningTones();
             // Design section 8.7: unlike before that revision, this toggle
             // now ALSO controls a next-spawn-only argument (`--settings
             // <path>`, the PreToolUse hook) -- see PanelSettings.
             // uapScriptGateEnabled's doc comment. The can_use_tool half of
-            // the gate stays live either way, but the hook half needs the
-            // same auto-apply-reconnect nudge uapOpsEnabled already gets
-            // above, or a toggle flip would silently do nothing until a
-            // manual reconnect.
-            AgentHub.RequestAutoApplyReconnect();
+            // the gate stays live either way; the hook half rides on the
+            // CommitSettingsChange above, because uapScriptGateEnabled IS
+            // compared by SettingsChangeDetector. Without that the flip
+            // would silently do nothing until a manual reconnect.
         }
 
         private void OnUapOpsAutoContinueToggleChanged(ChangeEvent<bool> evt)
         {
             PanelStateStore.instance.Settings.uapOpsAutoContinueAfterCompile = evt.newValue;
-            PanelStateStore.instance.SaveNow();
+            CommitSettingsChange();
             RefreshWarningTones();
-            // No RefreshReconnectHint/RequestAutoApplyReconnect call here --
+            // The commit above raises no pending pill for this field --
             // see the field's build-site comment in BuildUapOpsSection.
         }
 
         private void OnAutoContinueInterruptedToggleChanged(ChangeEvent<bool> evt)
         {
             PanelStateStore.instance.Settings.autoContinueInterruptedTurn = evt.newValue;
-            PanelStateStore.instance.SaveNow();
+            CommitSettingsChange();
             RefreshWarningTones();
         }
 
@@ -3434,7 +3361,7 @@ namespace Colloid.AgentPanel.UI
                 return;
             }
             PanelStateStore.instance.Settings.autoApproveLevel = evt.newValue;
-            PanelStateStore.instance.SaveNow();
+            CommitSettingsChange();
             RefreshWarningTones();
             AgentHub.ApplyAutoApproveLevelChanged();
         }
@@ -3543,8 +3470,7 @@ namespace Colloid.AgentPanel.UI
         private void OnExtensionProfilesEnabledChanged(ChangeEvent<bool> evt)
         {
             PanelStateStore.instance.Settings.extensionProfilesEnabled = evt.newValue;
-            PanelStateStore.instance.SaveNow();
-            AgentHub.RequestAutoApplyReconnect();
+            CommitSettingsChange();
         }
 
         /// <summary>
@@ -3765,8 +3691,7 @@ namespace Colloid.AgentPanel.UI
             {
                 hashes.Add(token);
             }
-            PanelStateStore.instance.SaveNow();
-            AgentHub.RequestAutoApplyReconnect();
+            CommitSettingsChange();
             RefreshExtensionProfilesSection();
         }
 
@@ -3782,8 +3707,7 @@ namespace Colloid.AgentPanel.UI
             // Also drop a legacy raw-hash entry for this profile (pre-OPS-11
             // stores) so revoking cleans the old form out too.
             hashes.Remove(status.ContentHashHex);
-            PanelStateStore.instance.SaveNow();
-            AgentHub.RequestAutoApplyReconnect();
+            CommitSettingsChange();
             RefreshExtensionProfilesSection();
         }
 
@@ -3876,7 +3800,7 @@ namespace Colloid.AgentPanel.UI
             PanelSettings settings = PanelStateStore.instance.Settings;
             string value = (evt.newValue ?? string.Empty).Trim();
             settings.proRegistryUrl = value == ProRegistryAccess.DefaultRegistryUrl ? string.Empty : value;
-            PanelStateStore.instance.SaveNow();
+            CommitSettingsChange();
         }
 
         private void OnProApplyClicked()
@@ -3953,6 +3877,27 @@ namespace Colloid.AgentPanel.UI
             VisualElement section = AddCollapsibleSection(parent, L10n.S.SettingsUloopSectionTitle,
                 "d_Package Manager", IconLoader.GlyphOpenWindow, "uloop");
 
+            // The cost line comes FIRST, above the install button: this
+            // panel's own button is what puts a project into the
+            // always-loaded state, so the facts belong where that decision
+            // is made rather than only in a design note. RefreshUloopSection
+            // swaps the wording once uLoop is present.
+            _uloopCostScope = AddHintScope(section);
+            _uloopCostHint = AddHint(_uloopCostScope, UloopCostHint(false), UloopCostTooltip(false));
+
+            // Directly under the cost line, because it is the one lever
+            // this panel actually owns: the line above says what stays
+            // loaded no matter what, this switch says whether the AGENT may
+            // reach for it. Next-spawn-only, like the allowed/disallowed
+            // tool lists, so it marks the settings reconnect-pending.
+            _uloopAgentUseToggle = new Toggle(L10n.S.SettingsUloopAgentUseLabel);
+            _uloopAgentUseToggle.AddToClassList("uap-settings-field");
+            _uloopAgentUseToggle.AddToClassList("uap-switch");
+            _uloopAgentUseToggle.SetValueWithoutNotify(PanelStateStore.instance.Settings.uloopAgentUseEnabled);
+            _uloopAgentUseToggle.RegisterValueChangedCallback(OnUloopAgentUseChanged);
+            VisualElement agentUseScope = AddHintScope(section);
+            agentUseScope.Add(_uloopAgentUseToggle);
+            AddHint(agentUseScope, L10n.S.SettingsUloopAgentUseHint, L10n.S.SettingsUloopAgentUseTooltip);
 
             // Live install progress line, right under the status it will
             // eventually flip (see the field's own doc comment for why it
@@ -3976,6 +3921,26 @@ namespace Colloid.AgentPanel.UI
             _uloopInstallButton.AddToClassList("uap-settings-btn");
             _uloopInstallButton.AddToClassList("uap-settings-btn--primary");
             installRow.Add(_uloopInstallButton);
+
+            // The counterpart to the install button, in the same row and
+            // visible only while uLoop IS installed (RefreshUloopSection
+            // swaps them). Not a --primary button: removing a package the
+            // project may depend on is not the action to make the eye land
+            // on first, and the cost line above already says removal is the
+            // only complete off.
+            _uloopRemoveButton = new Button(OnUloopRemoveButtonClicked)
+                { text = L10n.S.SettingsUloopRemoveButton };
+            _uloopRemoveButton.AddToClassList("uap-settings-btn");
+            _uloopRemoveButton.tooltip = L10n.S.SettingsUloopRemoveTooltip;
+            _uloopRemoveButton.style.display = DisplayStyle.None;
+            installRow.Add(_uloopRemoveButton);
+
+            _uloopRemoveResultLabel = new Label(string.Empty);
+            _uloopRemoveResultLabel.AddToClassList("uap-settings-hint");
+            _uloopRemoveResultLabel.enableRichText = false;
+            _uloopRemoveResultLabel.AddToClassList("uap-wrap");
+            _uloopRemoveResultLabel.style.display = DisplayStyle.None;
+            section.Add(_uloopRemoveResultLabel);
 
             BuildUloopInstallConfirmCard(section);
 
@@ -4040,11 +4005,11 @@ namespace Colloid.AgentPanel.UI
             _uloopInstallConfirmCard.AddToClassList("uap-settings-login-subcard");
             _uloopInstallConfirmCard.style.display = DisplayStyle.None;
 
-            var titleLabel = new Label(L10n.S.SettingsUloopInstallConfirmTitle);
-            titleLabel.AddToClassList("uap-settings-hint");
-            titleLabel.enableRichText = false;
-            titleLabel.AddToClassList("uap-wrap");
-            _uloopInstallConfirmCard.Add(titleLabel);
+            _uloopConfirmTitleLabel = new Label(L10n.S.SettingsUloopInstallConfirmTitle);
+            _uloopConfirmTitleLabel.AddToClassList("uap-settings-hint");
+            _uloopConfirmTitleLabel.enableRichText = false;
+            _uloopConfirmTitleLabel.AddToClassList("uap-wrap");
+            _uloopInstallConfirmCard.Add(_uloopConfirmTitleLabel);
 
             _uloopInstallRouteLabel = new Label(string.Empty);
             _uloopInstallRouteLabel.AddToClassList("uap-settings-hint");
@@ -4082,7 +4047,7 @@ namespace Colloid.AgentPanel.UI
             _uloopInstallConfirmCard.Add(_uloopDiffFoldout);
 
             VisualElement actionRow = AddRow(_uloopInstallConfirmCard);
-            _uloopInstallApplyButton = new Button(OnUloopInstallApplyClicked)
+            _uloopInstallApplyButton = new Button(OnUloopConfirmApplyClicked)
                 { text = L10n.S.SettingsUloopInstallApply };
             _uloopInstallApplyButton.AddToClassList("uap-settings-btn");
             _uloopInstallApplyButton.AddToClassList("uap-settings-btn--primary");
@@ -4112,9 +4077,167 @@ namespace Colloid.AgentPanel.UI
         /// </summary>
         private void OnUloopInstallButtonClicked()
         {
+            _uloopConfirmIsRemoval = false;
+            _pendingUloopUninstallPlan = null;
             _pendingUloopPlan = UloopInstaller.Plan(AgentHub.ProjectRoot);
             PopulateUloopInstallConfirmCard(_pendingUloopPlan);
             _uloopInstallConfirmCard.style.display = DisplayStyle.Flex;
+        }
+
+        /// <summary>
+        /// The removal's mirror of <see cref="OnUloopInstallButtonClicked"/>:
+        /// computes a fresh plan (UloopUninstaller.Plan is pure -- it reads
+        /// manifest.json and writes nothing) and opens the SHARED
+        /// confirmation card in removal mode. Pressing the button again
+        /// recomputes, so the card always reflects the current disk state.
+        /// </summary>
+        private void OnUloopRemoveButtonClicked()
+        {
+            _uloopConfirmIsRemoval = true;
+            _pendingUloopPlan = null;
+            _pendingUloopUninstallPlan = UloopUninstaller.Plan(AgentHub.ProjectRoot);
+            PopulateUloopRemoveConfirmCard(_pendingUloopUninstallPlan);
+            _uloopInstallConfirmCard.style.display = DisplayStyle.Flex;
+        }
+
+        /// <summary>
+        /// The shared card's Apply button. One handler rather than swapping
+        /// the callback per open: a Button's clicked delegate is registered
+        /// once at build time, and rebinding it on every open is exactly the
+        /// kind of state that ends up one open behind.
+        /// </summary>
+        private void OnUloopConfirmApplyClicked()
+        {
+            if (_uloopConfirmIsRemoval)
+            {
+                OnUloopRemoveApplyClicked();
+            }
+            else
+            {
+                OnUloopInstallApplyClicked();
+            }
+        }
+
+        /// <summary>
+        /// Populates the shared confirmation card for a REMOVAL. Same
+        /// caveat rendering and same diff foldout as the install; what
+        /// differs is the title, the route sentence and the Apply label --
+        /// and the honesty the diff needs: what it shows is a PROJECTION of
+        /// where the file ends up after BOTH phases (Unity removes the
+        /// dependency, then this panel tidies the registry), never a text
+        /// that gets written verbatim. See UloopUninstaller's class doc
+        /// comment for why removal cannot be one write.
+        /// </summary>
+        private void PopulateUloopRemoveConfirmCard(UloopUninstallPlan plan)
+        {
+            _uloopCaveatsHost.Clear();
+            _uloopInstallResultLabel.style.display = DisplayStyle.None;
+            _uloopInstallApplyButton.SetEnabled(plan != null && plan.CanProceed());
+            _uloopInstallApplyButton.text = L10n.S.SettingsUloopRemoveApply;
+            _uloopConfirmTitleLabel.text = L10n.S.SettingsUloopRemoveConfirmTitle;
+            _uloopDiffFoldout.value = false;
+
+            if (plan == null || !plan.CanProceed())
+            {
+                // Blocked (not installed, unreadable manifest): the blocker
+                // text alone, no route sentence and no empty diff above it.
+                _uloopInstallRouteLabel.style.display = DisplayStyle.None;
+                _uloopInstallRouteLabel.tooltip = string.Empty;
+                _uloopDiffFoldout.style.display = DisplayStyle.None;
+                _uloopDiffField.SetValueWithoutNotify(string.Empty);
+            }
+            else
+            {
+                _uloopInstallRouteLabel.style.display = DisplayStyle.Flex;
+                _uloopDiffFoldout.style.display = DisplayStyle.Flex;
+                _uloopInstallRouteLabel.text = DescribeUloopRemoveRoute(plan.RegistryCleanup);
+                _uloopInstallRouteLabel.tooltip = L10n.F(
+                    L10n.S.SettingsUloopInstallPathsTooltipFmt, plan.ManifestPath, plan.BackupPath);
+            }
+
+            if (plan != null)
+            {
+                for (int i = 0; i < plan.Caveats.Count; i++)
+                {
+                    UloopInstallCaveat caveat = plan.Caveats[i];
+                    var caveatLabel = new Label(DescribeUloopCaveat(caveat));
+                    caveatLabel.AddToClassList("uap-settings-hint");
+                    caveatLabel.enableRichText = false;
+                    caveatLabel.AddToClassList("uap-wrap");
+                    if (caveat != null && caveat.Blocking)
+                    {
+                        caveatLabel.AddToClassList("uap-settings-hint--pending");
+                    }
+                    _uloopCaveatsHost.Add(caveatLabel);
+                }
+            }
+            TextEscapes.Disable(_uloopCaveatsHost);
+
+            _uloopDiffField.SetValueWithoutNotify(plan == null
+                ? string.Empty
+                : IconLoader.StripVariationSelectors(
+                    BuildManifestDiffText(plan.ManifestBefore, plan.ManifestAfterProjected)));
+        }
+
+        /// <summary>
+        /// Pure: the one-sentence route for a removal, which has to name
+        /// what happens to scopedRegistries -- "remove the package" and
+        /// "remove the package and a registry entry from your manifest" are
+        /// different promises, and the card is where the user agrees to one
+        /// of them (EditMode tested via SettingsViewLogicTests).
+        /// </summary>
+        public static string DescribeUloopRemoveRoute(UloopRegistryCleanup cleanup)
+        {
+            switch (cleanup)
+            {
+                case UloopRegistryCleanup.DropRegistry:
+                    return L10n.S.SettingsUloopRemoveRouteDropRegistry;
+                case UloopRegistryCleanup.DropScope:
+                    return L10n.S.SettingsUloopRemoveRouteDropScope;
+                default:
+                    return L10n.S.SettingsUloopRemoveRouteKeepRegistry;
+            }
+        }
+
+        /// <summary>
+        /// Dispatches the removal (phase one: Client.Remove, which writes
+        /// nothing here -- Unity edits manifest.json itself) and hands over
+        /// to the progress line, exactly as the install's Apply does. The
+        /// SessionState remove pair is armed BEFORE the refresh so the very
+        /// first evaluation already renders "Removing... 0s" from a real
+        /// signal, and so the domain reload the removal triggers cannot
+        /// silently revert the section.
+        ///
+        /// <para>There is no manifest-state-unknown branch here, unlike the
+        /// install's: phase one writes nothing at all, so a synchronous
+        /// failure leaves the project exactly as it was and Apply stays
+        /// enabled for a retry.</para>
+        /// </summary>
+        private void OnUloopRemoveApplyClicked()
+        {
+            if (_pendingUloopUninstallPlan == null || !_pendingUloopUninstallPlan.CanProceed())
+            {
+                return;
+            }
+            UloopUninstallApplyResult result =
+                UloopUninstaller.Apply(_pendingUloopUninstallPlan, UnityEngine.Debug.LogError);
+            if (result.Success)
+            {
+                _uloopLiveRemoveRequest = result.ClientRemoveRequest;
+                SessionStateBridge.UloopRemoveInFlight = true;
+                SessionStateBridge.UloopRemoveStartedAtUtcTicks = System.DateTime.UtcNow.Ticks;
+                if (_uloopRemoveResultLabel != null)
+                {
+                    _uloopRemoveResultLabel.style.display = DisplayStyle.None;
+                }
+                HideUloopInstallConfirmCard();
+            }
+            else
+            {
+                _uloopInstallResultLabel.text = L10n.S.SettingsUloopRemoveFailed;
+                _uloopInstallResultLabel.style.display = DisplayStyle.Flex;
+            }
+            RefreshUloopSection();
         }
 
         private void PopulateUloopInstallConfirmCard(UloopInstallPlan plan)
@@ -4122,6 +4245,12 @@ namespace Colloid.AgentPanel.UI
             _uloopCaveatsHost.Clear();
             _uloopInstallResultLabel.style.display = DisplayStyle.None;
             _uloopInstallApplyButton.SetEnabled(plan != null && plan.CanProceed());
+            // The shared card's Apply label belongs to whichever flow is
+            // open; set it on every populate rather than only when it
+            // changes, so an install opened after a removal can never
+            // inherit the removal's wording.
+            _uloopInstallApplyButton.text = L10n.S.SettingsUloopInstallApply;
+            _uloopConfirmTitleLabel.text = L10n.S.SettingsUloopInstallConfirmTitle;
             // Every new plan starts with its diff collapsed -- an expanded
             // diff must always be the result of a deliberate click on THIS
             // plan, never inherited from whatever the user opened last time.
@@ -4272,6 +4401,7 @@ namespace Colloid.AgentPanel.UI
             }
             _uloopInstallConfirmCard.style.display = DisplayStyle.None;
             _pendingUloopPlan = null;
+            _pendingUloopUninstallPlan = null;
         }
 
         /// <summary>
@@ -4300,8 +4430,25 @@ namespace Colloid.AgentPanel.UI
             SetSectionStatus(UloopCardId,
                 installed ? L10n.S.SettingsUloopStatusInstalled : L10n.S.SettingsUloopStatusMissing,
                 installed ? PillTone.Ok : PillTone.Neutral);
+            if (_uloopCostHint != null)
+            {
+                _uloopCostHint.text = UloopCostHint(installed);
+            }
+            if (_uloopCostScope != null)
+            {
+                _uloopCostScope.tooltip = UloopCostTooltip(installed);
+            }
             _uloopInstallButton.style.display = installed ? DisplayStyle.None : DisplayStyle.Flex;
-            if (installed)
+            if (_uloopRemoveButton != null)
+            {
+                _uloopRemoveButton.style.display = installed ? DisplayStyle.Flex : DisplayStyle.None;
+            }
+            // Force-close a stale card whose whole premise has gone away:
+            // an INSTALL card once uLoop is installed, a REMOVAL card once
+            // it is not. Scoped by flow on purpose -- the removal card is
+            // open precisely while installed is true, so the unconditional
+            // close this used to do would shut it the instant it opened.
+            if (installed == !_uloopConfirmIsRemoval)
             {
                 HideUloopInstallConfirmCard();
             }
@@ -4319,6 +4466,16 @@ namespace Colloid.AgentPanel.UI
         /// </summary>
         private void UpdateUloopInstallProgress(bool installed)
         {
+            // A removal in flight owns the progress line. The two cannot
+            // overlap (the section offers Install or Remove, never both),
+            // and the removal branch has to win when it is live because the
+            // install machine, fed the same inputs, would read a project
+            // mid-removal as a healthy "Installed" and say nothing at all.
+            if (_uloopLiveRemoveRequest != null || SessionStateBridge.UloopRemoveInFlight)
+            {
+                UpdateUloopRemoveProgress(installed);
+                return;
+            }
             AddRequest request = _uloopLiveAddRequest;
             bool hasLive = request != null;
             bool completed = hasLive && request.IsCompleted;
@@ -4423,6 +4580,152 @@ namespace Colloid.AgentPanel.UI
         }
 
         /// <summary>
+        /// The removal's own progress pass. Reuses the SAME precedence
+        /// machine as the install (UloopInstallProgress.EvaluateRemoval just
+        /// inverts how the detector is read -- a removal succeeds when the
+        /// dependency is GONE), renders its own strings so the word
+        /// "Installing" never appears over a removal, and owns the one
+        /// place phase two can fire.
+        ///
+        /// <para><b>Phase two runs exactly once, here.</b> The cleanup of
+        /// the now-dead scopedRegistries entry is triggered on the single
+        /// evaluation that both observes the dependency gone AND still has
+        /// the in-flight flag set (progress.ShouldClearFlag on a Succeeded
+        /// state is precisely that edge). Running it from anywhere else
+        /// would either re-run it on every later refresh of a project that
+        /// simply has no uLoop, or run it before the removal had actually
+        /// landed -- which UloopUninstaller.CleanUpRegistry refuses anyway,
+        /// but a refusal the panel provokes on purpose is not a design.</para>
+        /// </summary>
+        private void UpdateUloopRemoveProgress(bool installed)
+        {
+            RemoveRequest request = _uloopLiveRemoveRequest;
+            bool hasLive = request != null;
+            bool completed = hasLive && request.IsCompleted;
+            bool failed = completed && request.Status == StatusCode.Failure;
+            bool flagSet = SessionStateBridge.UloopRemoveInFlight;
+            long startedTicks = SessionStateBridge.UloopRemoveStartedAtUtcTicks;
+            double elapsedSeconds = 0.0;
+            if (startedTicks > 0)
+            {
+                elapsedSeconds = (System.DateTime.UtcNow.Ticks - startedTicks)
+                    / (double)System.TimeSpan.TicksPerSecond;
+                if (elapsedSeconds < 0.0)
+                {
+                    elapsedSeconds = 0.0;
+                }
+            }
+
+            UloopInstallProgressResult progress = UloopInstallProgress.EvaluateRemoval(
+                hasLive, completed, failed, installed, flagSet,
+                elapsedSeconds, UloopInstallProgress.StaleThresholdSeconds);
+
+            bool removalJustLanded = progress.State == UloopInstallProgressState.Succeeded
+                && progress.ShouldClearFlag;
+            if (progress.ShouldClearFlag)
+            {
+                SessionStateBridge.UloopRemoveInFlight = false;
+                SessionStateBridge.UloopRemoveStartedAtUtcTicks = 0;
+                _uloopLiveRemoveRequest = null;
+            }
+            if (removalJustLanded)
+            {
+                RunUloopRegistryCleanup();
+            }
+
+            string text;
+            switch (progress.State)
+            {
+                case UloopInstallProgressState.Installing:
+                    text = L10n.F(L10n.S.SettingsUloopRemovingFmt,
+                        ((long)elapsedSeconds).ToString(System.Globalization.CultureInfo.InvariantCulture));
+                    break;
+                case UloopInstallProgressState.FailedAsync:
+                    string message = request != null && request.Error != null
+                        ? request.Error.message
+                        : null;
+                    if (string.IsNullOrEmpty(message))
+                    {
+                        message = request != null
+                            ? request.Status.ToString()
+                            : StatusCode.Failure.ToString();
+                    }
+                    text = L10n.F(L10n.S.SettingsUloopRemoveAsyncFailedFmt, message);
+                    break;
+                case UloopInstallProgressState.Stalled:
+                    text = L10n.S.SettingsUloopRemoveStalled;
+                    break;
+                default:
+                    text = string.Empty;
+                    break;
+            }
+
+            if (text.Length == 0)
+            {
+                _uloopInstallProgressLabel.style.display = DisplayStyle.None;
+            }
+            else
+            {
+                _uloopInstallProgressLabel.style.display = DisplayStyle.Flex;
+                if (!string.Equals(_uloopInstallProgressLabel.text, text, System.StringComparison.Ordinal))
+                {
+                    _uloopInstallProgressLabel.text = text;
+                }
+            }
+
+            // A second Remove mid-flight would race the one already
+            // dispatched, so the button sleeps while it runs.
+            _uloopRemoveButton.SetEnabled(progress.State != UloopInstallProgressState.Installing);
+
+            if (progress.State == UloopInstallProgressState.Installing)
+            {
+                StartUloopProgressTick();
+            }
+            else
+            {
+                StopUloopProgressTick();
+            }
+        }
+
+        /// <summary>
+        /// Phase two: tidy the dead OpenUPM scope / entry out of
+        /// manifest.json, and say plainly what happened. A failure here is
+        /// reported as a failed CLEANUP, never as a failed removal -- the
+        /// package is already gone by this point, and the design note's
+        /// section 0.3 makes that distinction the whole point of splitting
+        /// the phases. On the worst code (the write failed AND the restore
+        /// failed) the message names the backup, which is the user's only
+        /// way back, exactly as the install's equivalent does.
+        /// </summary>
+        private void RunUloopRegistryCleanup()
+        {
+            if (_uloopRemoveResultLabel == null)
+            {
+                return;
+            }
+            UloopRegistryCleanupResult result =
+                UloopUninstaller.CleanUpRegistry(AgentHub.ProjectRoot, UnityEngine.Debug.LogError);
+            string text;
+            if (result.Success)
+            {
+                text = result.Wrote
+                    ? L10n.S.SettingsUloopRemovedAndTidied
+                    : L10n.S.SettingsUloopRemoved;
+            }
+            else if (result.FailureCode == UloopUninstaller.CleanupFailureManifestWriteFailedRestoreFailed)
+            {
+                text = L10n.F(L10n.S.SettingsUloopRemoveCleanupManifestUnknownFmt,
+                    result.BackupPath, result.FailureDetail);
+            }
+            else
+            {
+                text = L10n.S.SettingsUloopRemoveCleanupFailed;
+            }
+            _uloopRemoveResultLabel.text = text;
+            _uloopRemoveResultLabel.style.display = DisplayStyle.Flex;
+        }
+
+        /// <summary>
         /// Hooks <see cref="OnUloopProgressTick"/> onto EditorApplication.
         /// update -- once (idempotent via _uloopProgressTickHooked), same
         /// hook-once/unhook-on-exit discipline as AgentHub's auto-continue
@@ -4474,6 +4777,22 @@ namespace Colloid.AgentPanel.UI
         }
 
         /// <summary>
+        /// Next-spawn-only, exactly like the allowed / disallowed tool
+        /// lists this switch overlays: the steering text and the
+        /// --disallowedTools arguments are both composed when the CLI is
+        /// started, so the switch marks the settings reconnect-pending
+        /// rather than claiming a live effect. The permission-layer refusal
+        /// (AgentHub.TryAutoDenyUloopCommand) reads the setting live, so an
+        /// unconnected session is never MORE permissive than a reconnected
+        /// one in the window before the reconnect lands.
+        /// </summary>
+        private void OnUloopAgentUseChanged(ChangeEvent<bool> evt)
+        {
+            PanelStateStore.instance.Settings.uloopAgentUseEnabled = evt.newValue;
+            CommitSettingsChange();
+        }
+
+        /// <summary>
         /// Applies the allowedTools/disallowedTools halves of the uLoop
         /// preset (see BuildUloopDisallowedPatterns' doc comment for why the
         /// exclusions live in disallowedTools rather than narrowing the
@@ -4505,7 +4824,7 @@ namespace Colloid.AgentPanel.UI
                 BuildUloopAllowedPatterns());
             settings.disallowedTools = MergeToolListAdditions(settings.disallowedTools,
                 BuildUloopDisallowedPatterns());
-            PanelStateStore.instance.SaveNow();
+            CommitSettingsChange();
             if (_allowedToolsField != null)
             {
                 _allowedToolsField.SetValueWithoutNotify(JoinLines(settings.allowedTools));
@@ -4514,8 +4833,6 @@ namespace Colloid.AgentPanel.UI
             {
                 _disallowedToolsField.SetValueWithoutNotify(JoinLines(settings.disallowedTools));
             }
-            RefreshReconnectHint();
-            AgentHub.RequestAutoApplyReconnect();
             if (_uloopPresetAppliedLabel != null)
             {
                 _uloopPresetAppliedLabel.style.display = DisplayStyle.Flex;
@@ -4539,8 +4856,7 @@ namespace Colloid.AgentPanel.UI
                 {
                     _customInstructionsField.SetValueWithoutNotify(updated);
                 }
-                RefreshReconnectHint();
-                AgentHub.RequestAutoApplyReconnect();
+                CommitSettingsChange();
             }
             if (_uloopSnippetAppliedLabel != null)
             {
@@ -4549,6 +4865,25 @@ namespace Colloid.AgentPanel.UI
         }
 
         // -- uLoop pure helpers (EditMode tested via SettingsViewLogicTests) -------
+
+        /// <summary>
+        /// Pure: the one-line standing-cost wording for the uLoop card.
+        /// Before installing it says what WILL stay loaded; afterwards it
+        /// says where that package's own controls are, because by then the
+        /// only useful information is how to turn it down -- this panel
+        /// cannot (docs/design-notes/2026-09-21-uloop-always-loaded-cost.md
+        /// section 4).
+        /// </summary>
+        public static string UloopCostHint(bool installed)
+        {
+            return installed ? L10n.S.SettingsUloopTurnDownHint : L10n.S.SettingsUloopStandingCostHint;
+        }
+
+        /// <summary>Pure: the hover text that carries the measured detail behind <see cref="UloopCostHint"/>.</summary>
+        public static string UloopCostTooltip(bool installed)
+        {
+            return installed ? L10n.S.SettingsUloopTurnDownTooltip : L10n.S.SettingsUloopStandingCostTooltip;
+        }
 
         /// <summary>
         /// Maps a UloopInstallPlan caveat's stable Code to localized display
@@ -4584,6 +4919,19 @@ namespace Colloid.AgentPanel.UI
                     break;
                 case UloopInstaller.CaveatCodeScopedRegistryConflict:
                     text = L10n.S.SettingsUloopCaveatRegistryConflict;
+                    break;
+                // 2026-09-22: the removal path's own codes (UloopUninstaller).
+                case UloopUninstaller.CaveatCodeNotInstalled:
+                    text = L10n.S.SettingsUloopCaveatNotInstalled;
+                    break;
+                case UloopUninstaller.CaveatCodePanelSettingsKept:
+                    text = L10n.S.SettingsUloopCaveatPanelSettingsKept;
+                    break;
+                case UloopUninstaller.CaveatCodeRegistryScopeKept:
+                    text = L10n.S.SettingsUloopCaveatRegistryScopeKept;
+                    break;
+                case UloopUninstaller.CaveatCodeForeignRegistryKept:
+                    text = L10n.S.SettingsUloopCaveatForeignRegistryKept;
                     break;
                 default:
                     text = caveat.Code ?? string.Empty;
@@ -5081,7 +5429,7 @@ namespace Colloid.AgentPanel.UI
         private void OnLanguageChanged(ChangeEvent<PanelLanguage> evt)
         {
             PanelStateStore.instance.Settings.language = evt.newValue;
-            PanelStateStore.instance.SaveNow();
+            CommitSettingsChange();
             // Fires L10n.LanguageChanged when the resolved language
             // actually changes, which AgentPanelWindow has subscribed to
             // (once, statically) to rebuild every open panel window/
@@ -5096,7 +5444,7 @@ namespace Colloid.AgentPanel.UI
         {
             int clamped = PanelSettings.ClampFontSize(evt.newValue);
             PanelStateStore.instance.Settings.fontSizePx = clamped;
-            PanelStateStore.instance.SaveNow();
+            CommitSettingsChange();
             _fontSizeValueLabel.text = FormatFontSize(clamped);
             AgentPanelWindow.ReapplyContentRootStyling();
         }
@@ -5109,7 +5457,7 @@ namespace Colloid.AgentPanel.UI
             // stick, so OnEnable's one-time system-language default may
             // never overwrite it again.
             settings.cjkUiFontDecided = true;
-            PanelStateStore.instance.SaveNow();
+            CommitSettingsChange();
             AgentPanelWindow.ReapplyContentRootStyling();
             RefreshCjkDiagnostic();
         }
@@ -5494,9 +5842,7 @@ namespace Colloid.AgentPanel.UI
         private void OnClaudeAuthChanged(ChangeEvent<ClaudeAuthMode> evt)
         {
             PanelStateStore.instance.Settings.claudeAuth = evt.newValue;
-            PanelStateStore.instance.SaveNow();
-            RefreshReconnectHint();
-            AgentHub.RequestAutoApplyReconnect();
+            CommitSettingsChange();
         }
 
         /// <summary>
@@ -7212,8 +7558,7 @@ namespace Colloid.AgentPanel.UI
         private void OnUnityPluginSteeringChanged(ChangeEvent<bool> evt)
         {
             PanelStateStore.instance.Settings.unityPluginSteeringEnabled = evt.newValue;
-            PanelStateStore.instance.SaveNow();
-            AgentHub.RequestAutoApplyReconnect();
+            CommitSettingsChange();
         }
 
         private void StartUnityPluginProgressTick()
@@ -7875,8 +8220,9 @@ namespace Colloid.AgentPanel.UI
         /// hint/auto-apply request (docs/research/07-model-configuration.md
         /// section 10.8, "capture15": reconnecting an existing session can
         /// never apply an agentModelOverrides change regardless of row
-        /// completeness, so AddAgentOverrideRow's field handlers stopped
-        /// calling AgentHub.RequestAutoApplyReconnect entirely) -- kept as
+        /// completeness, so the field was dropped from
+        /// SettingsChangeDetector, which is what keeps AddAgentOverrideRow's
+        /// handlers from raising a pill they cannot resolve) -- kept as
         /// the pure "does this row actually do anything" definition for
         /// SettingsViewLogicTests and any future UI that wants it (e.g. a
         /// per-row "inactive" indicator).

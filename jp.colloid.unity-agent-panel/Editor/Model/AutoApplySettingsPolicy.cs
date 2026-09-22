@@ -62,6 +62,38 @@ namespace Colloid.AgentPanel.Model
         /// can probe the boundary without depending on the constant staying
         /// 1.5.
         /// </param>
+        /// <summary>
+        /// Whether a pending settings change should be ARMED (kept, so the
+        /// debounce tick can apply it) or discarded outright.
+        ///
+        /// <para><b>The bug this exists for (2026-09-22, reported from a
+        /// real editor): flip a reconnect-relevant setting twice in quick
+        /// succession -- the second flip landing before the first one's
+        /// reconnect finishes -- and the pending pill sticks forever.</b>
+        /// Both callers used to collapse this into "connected? act :
+        /// discard". But a client that is <c>Starting</c> is not a client
+        /// that will never spawn: very often it is mid-flight on this
+        /// feature's OWN reconnect for the previous edit. The second edit
+        /// was therefore thrown away, and nothing re-evaluates when the
+        /// client reaches Ready (the debounce tick had been unhooked, and
+        /// only a completed turn calls back in). The spawn snapshot kept
+        /// edit #1's value, the live settings held edit #2's, and the
+        /// detector compared the two forever -- the panel promising a
+        /// reconnect that nothing would ever perform. Only a MANUAL
+        /// reconnect, which re-snapshots, could clear it.</para>
+        ///
+        /// <para>So unavailability is split in two. TRANSIENT
+        /// (<paramref name="spawnInFlight"/>) keeps the change armed until
+        /// the client settles. PERMANENT (never spawned, errored) still
+        /// discards it -- the original "not connected -&gt; do nothing"
+        /// rule, still right, because the next real spawn reads the
+        /// current settings anyway.</para>
+        /// </summary>
+        public static bool ShouldArm(bool reconnectNeeded, bool isConnected, bool spawnInFlight)
+        {
+            return reconnectNeeded && (isConnected || spawnInFlight);
+        }
+
         public static AutoApplyDecision Evaluate(
             bool reconnectNeeded,
             bool isConnected,

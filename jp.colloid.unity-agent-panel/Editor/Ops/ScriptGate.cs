@@ -54,8 +54,22 @@ namespace Colloid.AgentPanel.Ops
         /// powershell.md). "Shell" is the generic name ToolCardDescriber
         /// already accepts.
         /// </summary>
+        private static readonly string[] ShellToolNameOrder = { "Bash", "PowerShell", "Shell" };
+
         private static readonly HashSet<string> ShellToolNames =
-            new HashSet<string>(StringComparer.Ordinal) { "Bash", "PowerShell", "Shell" };
+            new HashSet<string>(ShellToolNameOrder, StringComparer.Ordinal);
+
+        /// <summary>
+        /// The same names in a stable order, for callers that BUILD
+        /// something per shell tool rather than test one name --
+        /// UloopAgentUsePolicy's deny patterns need one entry per shell.
+        /// Single-sourced here so a fourth shell tool cannot be added to
+        /// the gate and forgotten by them.
+        /// </summary>
+        public static IEnumerable<string> ShellToolNameList
+        {
+            get { return ShellToolNameOrder; }
+        }
 
         /// <summary>
         /// PowerShell cmdlets (and their built-in aliases) whose first
@@ -526,9 +540,11 @@ namespace Colloid.AgentPanel.Ops
         /// ';', '|', '&amp;', newline) and each segment into
         /// whitespace-separated tokens with single/double quotes stripped.
         /// No expansion, no escapes -- just enough structure for
-        /// ExtractCommandWriteTargets' per-command argument scan.
+        /// ExtractCommandWriteTargets' per-command argument scan, and for
+        /// UloopAgentUsePolicy's "does any segment invoke uloop" scan, which
+        /// reuses this rather than growing a second shell parser.
         /// </summary>
-        private static IEnumerable<string[]> CommandSegments(string command)
+        internal static IEnumerable<string[]> CommandSegments(string command)
         {
             var tokens = new List<string>();
             var current = new StringBuilder();
