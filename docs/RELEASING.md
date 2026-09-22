@@ -290,57 +290,7 @@ Core(`vX.Y.Z`)の一覧。Pro のタグは `pro-vX.Y.Z` で、この表には積
 
 ### 次の安定版に含める作業
 
-- v0.59.0-beta.3: 設定を短い間隔で 2 回切り替えると「次回再接続後に適用されます」の
-  保留表示が固まる件の修正(実機報告。beta.2 とは別原因)。1 回目の自動再接続が
-  spawn 中(`Starting`)に 2 回目の変更が来ると、`RequestAutoApplyReconnect` /
-  `TryAdvanceAutoApply` が「未接続」として要求を破棄していた。`Ready` になっても
-  再評価する経路が無いため、スナップショットは 1 回目の値のまま固定され、
-  誰も実行しない再接続を永久に予告し続ける状態になっていた。
-  「一時的に使えない(spawn 中 → armed のまま保持)」と「恒久的に使えない
-  (未起動 / エラー → 破棄)」を分離(`AutoApplySettingsPolicy.ShouldArm`)。
-  あわせて毎フレームのティックで `ComputeAutoApplyReconnectNeeded`(カスタム指示の
-  ディスク読み)を走らせないよう、安価な判定を先に置いた。
-  さらに全スイッチを監査し、UapOps の「Web」モジュールのトグルだけが
-  `RequestAutoApplyReconnect()` を呼んでいない(v0.57.0 で 13 個目として足した際の
-  コピペ漏れ。ピルは出るが誰も適用しない)のを発見して修正。監査結果と再発防止の
-  ソーススキャン(`SettingsHandlerAuditTests`)は
-  `docs/design-notes/2026-08-01-settings-auto-apply.md` §6 に記載。
-  加えて、「13 個のコピーのうち 1 個が末尾の 1 行を落とす」余地そのものを潰すため、
-  SettingsView の設定変更ハンドラ(~100 個)を 1 つの出口
-  `CommitSettingsChange()` に集約し、13 個のモジュールトグルを共通の
-  `ToggleUapOpsModule(moduleId, enabled)` に畳んだ。再接続が要るかどうかの判断は
-  `SettingsChangeDetector` が元々持っているので、各ハンドラが手で再導出していた分が
-  そのまま冗長だった。`AgentHub.RequestAutoApplyReconnect(string)` の
-  オーバーロードを足し、集約で全変更が通るようになったこの経路が毎回
-  カスタム指示をディスクから読まないようにしている。ユーザーから見た挙動は不変。
-  監査テストは「チョークポイントの排他性」を検査する形に作り直した(同 §7)。
-
-- v0.59.0-beta.2: 「エージェントに uloop コマンドを使わせる」をオフにすると
-  「次回再接続後に適用されます」の保留表示が再接続しても消え続けなかった件の修正
-  (実機報告)。`SettingsChangeDetector.RequiresReconnect` には足したが
-  `AgentHub.CloneNextSpawnOnlyFields`(spawn 時のスナップショット)に足し忘れており、
-  スナップショット側がフィールドの既定値(オン)のまま固定されて差分が永久に消えなかった。
-  表示だけでなく、以後の設定変更のたびに不要な再接続が走る状態だった。
-  再発防止として、PanelSettings の全フィールドをリフレクションで 1 つずつ変更し
-  「比較対象なのにスナップショットが落とすフィールド」を名指しで落とすテストを追加
-  (`CloneNextSpawnOnlyFieldsTests`)。
-
-- v0.59.0-beta.1: Play Mode 操作(`uap_play_mode`)、Console ログの読み取りと
-  クリア(`uap_console_logs` / `uap_console_clear`)、Game View サイズ
-  (`uap_game_view_size`)のツールを追加。uLoop 常駐コストの調査(
-  `docs/design-notes/2026-09-21-uloop-always-loaded-cost.md`)で洗い出した
-  「安い 4 本」がこれで揃い、一般的な用途で uLoop を入れる理由がほぼ無くなる
-  (`docs/design-notes/2026-09-21-play-mode-and-console-log-tools.md` /
-  `docs/design-notes/2026-09-21-console-clear-and-game-view-size.md`)。
-  あわせて uLoop 連携カードに「導入すると何が常駐するか」と「弱めるには
-  uLoop 側のどのウィンドウか」を表示(同ノート §5 の案 0)、および
-  「エージェントに uloop コマンドを使わせる」トグル(既定オン。オフで
-  ステアリング文・起動引数の拒否パターン・`can_use_tool` 拒否の 3 層が効く。
-  uLoop 自体は止まらないと明記。同ノート §5 の案 A)を追加。さらに導入ボタンの
-  対になる「uLoop を削除」(同 §5 の案 B。差分提示とバックアップは導入と同じ作法。
-  依存の削除は Unity、scopedRegistries の後始末はパネルという 2 段構成で、
-  自分が書いた完全一致のスコープしか消さない。
-  `docs/design-notes/2026-09-22-uloop-remove-from-panel.md`)を追加。
+(なし)
 
 | タグ | 内容 |
 |---|---|
@@ -443,3 +393,4 @@ Core(`vX.Y.Z`)の一覧。Pro のタグは `pro-vX.Y.Z` で、この表には積
 | v0.58.0 | 設定画面のリデザイン フェーズ 1〜4 を 1 版に統合(main が v0.57.0 のまま未マージのため、ブランチ内の 3 回の切り出しを再カット)。**フェーズ 1**: 16 枚 1 列のスクロールを 5 タブ(概要 / エージェント / パネル / Unity 連携 / 接続)に分け、最後に見たタブをエディタセッション内で記憶。新設の概要タブはコントロールを持たず、セットアップ 3 行(エージェント検出 / サインイン / Unity 操作)と「いま効いている設定」4 行(+ 権限確認スキップ中の赤行)を「変更」リンク付きで並べ、About カードの中身をフッターに吸収。`AgentPanelWindow.ShowSettings(tab, cardId)` を追加し FirstRun の「ログイン」・概要の各行・UapOps の自動承認クロス参照(文 → リンク)がこれを使う。「危険な設定」は会話カードからエージェントタブ末尾の独立カードへ(ON のときだけ警告色)。300px ではタブを短縮ラベルに。テスト 1 ファイル(8 本)追加・4 ファイル更新。main が先に v0.57.0 を出したためマージして v0.58.0 として切り出し(2026-09-17) **フェーズ 3**: タイトル行右端の検索欄に入力するとタブ列が隠れ、全タブの行のうちラベル・ヒント・ツールチップ・ボタン文言・現在値に部分一致(大小無視)するものだけを「タブ > カード」の見出し付きで表示。折りたたみカード / Foldout 内の一致は開く。クリア(または Esc)で見ていたタブに戻り、行の inline display は検索前の値に正確に復元(`SettingsSearchFilter`)。概要タブは検索対象外。純粋部品 `SettingsSearch` / `SettingsSearchFilter` を新規ファイルに分離。この版から作業環境に Unity 2022.3.62f3 を用意して EditMode テストを実機実行(4352 本、v0.58.0 分も含めて合格)。テスト 1 ファイル(8 本)追加(2026-09-17) **フェーズ 2**: 全カードの見出し右端に 1 語の状態ピル(`SetSectionStatus`: Unity 操作 = ポート N / オフ / 停止中、エージェント = サインイン済み / 未 / 見つかりません、外観 = 検出フォント、モデル = 実際に動くモデル、カスタム指示 = 未設定 / N 行、クイックアクション・コンソールエラー = 件数、拡張プロファイル = 検出数、uLoop・公式プラグイン = 導入状態、危険な設定 = すべてオフ / スキップ中)。本文末尾の状態行 3 本(UapOps・uLoop・外観)を廃止。常時表示ヒント 22 行をツールチップ / ? マークへ移動(モジュール 12 行、UapOps と拡張プロファイルの冒頭説明、通知の注記、Web 取得 / 検索の注記 3 行、ステージングフォルダ、禁止ツールの「1 行に 1 つ」、サブエージェントカードの注記、エージェント選択の「次回再接続で反映」)。テスト 1 ファイル(6 本)追加。EditMode 4358 本合格(2026-09-17) **フェーズ 4**(§11): 会話カードのツール許可・禁止リストと UapOps のモジュール 13 個を件数ピル付きの開閉行(`AddDisclosureFoldout`、`SessionState` 記憶、検索の一致で開く)に畳み、概要のサインイン行を「メール (プラン)」に短縮。**実機確認**(§10): Xvfb 上の Unity で 9 フレームを撮り、タブ文字が見えない(USS `inherit`)・狭幅で補足が消えない(inline display)・狭幅の横スクロール(ピル行)の 3 件を修正、ユーザーガイド 15 章の図を差し替え。テスト 1 ファイル(6 本)追加 **仕上げ**(§12): ヒント 5 行を追加で tooltip へ(常時表示は約 24 行)、概要の「いま効いている設定」先頭に再接続待ちの行(バナーと同じ「今すぐ再接続」) **仕上げ 2**(§13): カードと概要行の骨組みを UXML(`SettingsCard.uxml` / `SettingsOverviewRow.uxml`、`InstantiateTemplate` で `TemplateContainer` を外して使う)に切り出し、インラインの `whiteSpace` 21 か所を `uap-wrap` クラスに、直値 4 つをトークンに、死んだ USS 2 ルールを削除、見出しとピルの文法を各 1 系統に統合。設計とのずれ 8 件を修正(リンク色 + 「変更」のシェブロン、検索欄の虫眼鏡とプレースホルダ、モジュールの二重インデント、オフ状態のアイコン、状態行の斜体、ピルの大きさ、`--ok` の輪郭型、中央寄せの解消)。テスト 1 ファイル(4 本)追加 |
 | v0.58.1 | v0.58.0 のタグと公開ミラー(Release zip 含む)がリデザイン後半の 5 コミット(フェーズ 4、ヒント削減 2 巡目、UXML 切り出しと USS 修正、ガイドの図)を含まないツリーで出ていたため、完全なツリーを再公開。再カット後に同じ版のまま積んだので、タグが「版を導入したコミット」に付いた。コード変更なし(2026-09-18) |
 | v0.58.2 | Scene ビューのツールバーを「Agent Tools」1 本に統合し、実機撮影で見つけた不具合とエスケープシーケンスの表示崩れを修正。**(1) テキストのエスケープシーケンス**(`docs/design-notes/2026-09-18-text-escape-sequences.md`): 設定 > 概要のエージェント行に出る実行ファイルのパス(`...\Roaming\npm\node_modules\...`)が `\n` の位置で改行され `n` が消える、`\t` がタブに化けて文字が消える件の修正。Unity 2022.3 の C# 生成 `TextElement` は `parseEscapeSequences` が既定 true で `\n` / `\t` を制御文字に書き換えるため、`TextEscapes.Disable` で window root と後から生える部分木(メッセージ、Markdown、コードブロック、ツール / サブエージェント / 許可カード、履歴、チップ、設定の動的行)のすべての `TextElement` を false にした。テスト 1 ファイル(4 本)追加。**(2) Agent Tools ツールバー**(`docs/design-notes/2026-09-18-agent-tools-overlay.md`): ピン(Agent Pin)と平面 / 表面スケッチ(Agent Sketch)が別オーバーレイで 2 本のストリップに分かれていたのを、`SceneAgentToolsOverlay`(id `uap-agent-tools`)の 3 トグルにまとめ、ピンとスケッチのアームを排他にした(同じ左クリックを取り合うため)。テスト 1 本追加。**(3) 実機撮影と操作ガイド §13**: GameCI の 2022.3.62f3 + Xvfb で Agent Tools ツールバーを実機撮影し(`ci/shop-images/agent-tools-capture.sh` / `drive-x11.py` / `UapShotAgentTools.cs`、xdotool の実ポインタでクリック・ドラッグ)、操作ガイド §13 をピン・平面 / 表面スケッチ・チップの 7 枚の画像付きに書き直した(`docs/images/guide/13-agent-tools-*.png`)。撮影で見つけた 2 件を修正: 平面モードの深度読み出しが Tools オーバーレイに隠れる(上端中央へ)、平面トグルのアイコンが矢印カーソル(`d_Grid.Default`)だった(ピン `d_ToolHandlePivot` / 平面 `d_Mesh Icon` / 表面 `d_TerrainInspector.TerrainToolRaise`)。2022.3.22f1 の GameCI イメージは llvmpipe で UI Toolkit を描かないことを記録(設計ノート §4)。実機で採った「エージェントが受け取るもの」(チップの payload / 送信本文 / `uap_marker_list` / `uap_stroke_list`)を `docs/examples/agent-tools-request.md` と §13.6 の使用例に追加(2026-09-20) |
+| v0.59.0 | Play Mode 操作(`uap_play_mode`)、Console ログの読み取りとクリア(`uap_console_logs` / `uap_console_clear`)、Game View サイズ(`uap_game_view_size`)の4 ツールを追加。uLoop 常駐コストの調査(`docs/design-notes/2026-09-21-uloop-always-loaded-cost.md`)で洗い出した「安い 4 本」がこれで揃い、一般的な用途で uLoop を入れる理由がほぼ無くなる(`docs/design-notes/2026-09-21-play-mode-and-console-log-tools.md` / `docs/design-notes/2026-09-21-console-clear-and-game-view-size.md`)。あわせて uLoop 連携カードに「導入すると何が常駐するか」と「弱めるには uLoop 側のどのウィンドウか」を表示(同ノート §5 の案 0)、「エージェントに uloop コマンドを使わせる」トグル(既定オン。オフでステアリング文・起動引数の拒否パターン・`can_use_tool` 拒否の3 層が効く。uLoop 自体は止まらないと明記。同 §5 の案 A)、導入ボタンの対になる「uLoop を削除」(同 §5 の案 B。差分提示とバックアップは導入と同じ作法。依存の削除はUnity、scopedRegistries の後始末はパネルという 2 段構成で、自分が書いた完全一致のスコープしか消さない。`docs/design-notes/2026-09-22-uloop-remove-from-panel.md`)を追加。**設定の自動適用まわりの修正 3 件**(実機報告 2 件を起点に全スイッチを監査。`docs/design-notes/2026-08-01-settings-auto-apply.md` §6-§7): (1) 新トグルを`SettingsChangeDetector.RequiresReconnect` には足したが `AgentHub.CloneNextSpawnOnlyFields`(spawn スナップショット)に足し忘れ、「次回再接続後に適用されます」の保留表示が再接続しても消えなかった件。PanelSettings の全フィールドをリフレクションで走査して「比較対象なのにスナップショットが落とすフィールド」を名指しするテストを追加(`CloneNextSpawnOnlyFieldsTests`)。(2) 1 回目の自動再接続が spawn 中(`Starting`)に2 回目の変更が来ると「未接続」として要求を破棄し、`Ready` での再評価経路も無いため同じ保留表示が固まる件。「一時的に使えない(保持)」と「恒久的に使えない(破棄)」を分離(`AutoApplySettingsPolicy.ShouldArm`)。(3) UapOps の「Web」モジュールのトグルだけが`RequestAutoApplyReconnect()` を呼んでいなかった件(v0.57.0 で 13 個目として足した際のコピペ漏れ。ピルは出るが誰も適用しない)。同じ落とし方が再びできないよう、SettingsView の設定変更ハンドラ(~100 個)を 1 つの出口 `CommitSettingsChange()` に集約し、13 個のモジュールトグルを共通の `ToggleUapOpsModule(moduleId, enabled)` に畳んだ(再接続要否の判断は元々 `SettingsChangeDetector` が持っており、各ハンドラの再導出は冗長だった)。監査テストは「チョークポイントの排他性」を検査する形に作り直し(`SettingsHandlerAuditTests`)。ユーザーから見た挙動は不変(2026-09-22) |
