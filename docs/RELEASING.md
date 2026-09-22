@@ -290,6 +290,31 @@ Core(`vX.Y.Z`)の一覧。Pro のタグは `pro-vX.Y.Z` で、この表には積
 
 ### 次の安定版に含める作業
 
+- v0.59.0-beta.3: 設定を短い間隔で 2 回切り替えると「次回再接続後に適用されます」の
+  保留表示が固まる件の修正(実機報告。beta.2 とは別原因)。1 回目の自動再接続が
+  spawn 中(`Starting`)に 2 回目の変更が来ると、`RequestAutoApplyReconnect` /
+  `TryAdvanceAutoApply` が「未接続」として要求を破棄していた。`Ready` になっても
+  再評価する経路が無いため、スナップショットは 1 回目の値のまま固定され、
+  誰も実行しない再接続を永久に予告し続ける状態になっていた。
+  「一時的に使えない(spawn 中 → armed のまま保持)」と「恒久的に使えない
+  (未起動 / エラー → 破棄)」を分離(`AutoApplySettingsPolicy.ShouldArm`)。
+  あわせて毎フレームのティックで `ComputeAutoApplyReconnectNeeded`(カスタム指示の
+  ディスク読み)を走らせないよう、安価な判定を先に置いた。
+  さらに全スイッチを監査し、UapOps の「Web」モジュールのトグルだけが
+  `RequestAutoApplyReconnect()` を呼んでいない(v0.57.0 で 13 個目として足した際の
+  コピペ漏れ。ピルは出るが誰も適用しない)のを発見して修正。監査結果と再発防止の
+  ソーススキャン(`SettingsHandlerAuditTests`)は
+  `docs/design-notes/2026-08-01-settings-auto-apply.md` §6 に記載。
+  加えて、「13 個のコピーのうち 1 個が末尾の 1 行を落とす」余地そのものを潰すため、
+  SettingsView の設定変更ハンドラ(~100 個)を 1 つの出口
+  `CommitSettingsChange()` に集約し、13 個のモジュールトグルを共通の
+  `ToggleUapOpsModule(moduleId, enabled)` に畳んだ。再接続が要るかどうかの判断は
+  `SettingsChangeDetector` が元々持っているので、各ハンドラが手で再導出していた分が
+  そのまま冗長だった。`AgentHub.RequestAutoApplyReconnect(string)` の
+  オーバーロードを足し、集約で全変更が通るようになったこの経路が毎回
+  カスタム指示をディスクから読まないようにしている。ユーザーから見た挙動は不変。
+  監査テストは「チョークポイントの排他性」を検査する形に作り直した(同 §7)。
+
 - v0.59.0-beta.2: 「エージェントに uloop コマンドを使わせる」をオフにすると
   「次回再接続後に適用されます」の保留表示が再接続しても消え続けなかった件の修正
   (実機報告)。`SettingsChangeDetector.RequiresReconnect` には足したが
