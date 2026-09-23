@@ -1,6 +1,6 @@
 # Agent Panel Pro 収録機能一覧
 
-**対象版: pro-v0.13.0**(2026-09-17 時点)。
+**対象版: pro-v0.13.1**(2026-09-23 時点)。
 公開 URL: <https://github.com/c-colloid/AgentPanelForUnity/blob/main/docs/PRO-FEATURES.md>
 同梱プロファイルは別文書 [PRO-PROFILES.md](PRO-PROFILES.md) にあります。
 
@@ -16,7 +16,7 @@ Pro の機能が増えたときはここだけを更新し、販売ページに�
 そのままコピーして貼れるプレーンテキストです(Markdown 記法は使っていません)。
 
 ```text
-■ Agent Panel Pro 収録機能(pro-v0.13.0 時点)
+■ Agent Panel Pro 収録機能(pro-v0.13.1 時点)
 Agent Panel for Unity(無料・Core)に追加する Unity 操作ツール 37 本(テスト実行を含む)と、主要アセット向けの同梱プロファイル 17 件。
 すべて Core のチャット画面からエージェント(Claude Code)が呼び出すツールで、スクリプトのコンパイルなしに動きます。
 

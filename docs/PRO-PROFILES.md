@@ -1,6 +1,6 @@
 # Agent Panel Pro 同梱プロファイル一覧
 
-**対象版: pro-v0.13.0**(2026-09-17 時点)。
+**対象版: pro-v0.13.1**(2026-09-23 時点)。
 公開 URL: <https://github.com/c-colloid/AgentPanelForUnity/blob/main/docs/PRO-PROFILES.md>
 Pro のツール一覧は別文書 [PRO-FEATURES.md](PRO-FEATURES.md) にあります。
 
@@ -30,7 +30,7 @@ Agent Panel for Unity(Core)は、プロジェクトに入っているサード�
 そのままコピーして貼れるプレーンテキストです(Markdown 記法は使っていません)。
 
 ```text
-■ 同梱プロファイル(pro-v0.13.0 時点、17 件)
+■ 同梱プロファイル(pro-v0.13.1 時点、17 件)
 対応 SDK がプロジェクトに入っていると自動で検出され、その SDK の要点(コンポーネントの正式名、ビルド時にしか反映されない仕組み、やってはいけない操作、確認の手順)がエージェントへの指示に追加されます。承認操作は不要です。
 
 【VRChat】
