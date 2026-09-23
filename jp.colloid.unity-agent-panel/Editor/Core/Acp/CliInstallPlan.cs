@@ -135,6 +135,29 @@ namespace Colloid.AgentPanel.Core.Acp
         }
 
         /// <summary>
+        /// `&lt;cliPath&gt; update`: Claude Code's own updater, which knows
+        /// how the CLI was installed (native or npm) and replaces it in place
+        /// (design note docs/design-notes/2026-09-23-cli-update-and-pro-version.md).
+        /// Run through the resolved binary directly, not a shell, so it
+        /// updates exactly the CLI the panel launches. Null for an empty path.
+        /// </summary>
+        public static CliInstallPlan BuildClaudeUpdate(string cliPath)
+        {
+            if (string.IsNullOrEmpty(cliPath))
+            {
+                return null;
+            }
+            return new CliInstallPlan
+            {
+                Backend = AgentBackend.ClaudeCode,
+                FileName = cliPath,
+                Arguments = "update",
+                DisplayCommand = "claude update",
+                RequiresNpm = false
+            };
+        }
+
+        /// <summary>
         /// Classifies a finished run. <paramref name="output"/> is the
         /// combined stdout+stderr; null means the process could not be
         /// started or timed out (<paramref name="timedOut"/> says which).

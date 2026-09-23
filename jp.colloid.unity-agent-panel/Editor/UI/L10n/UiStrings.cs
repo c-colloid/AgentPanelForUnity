@@ -1161,6 +1161,51 @@ namespace Colloid.AgentPanel.UI
         public readonly string SettingsOpenChangelogButton = "Open CHANGELOG";
         public readonly string SettingsOpenGitHubButton = "Open on GitHub";
 
+        /// <summary>{0} = installed Agent Panel Pro package version; the pill is hidden when Pro is absent.</summary>
+        public readonly string SettingsProVersionFmt = "Pro version: {0}";
+
+        /// <summary>Asks the npm registry for the latest Claude Code (design note 2026-09-23-cli-update-and-pro-version.md).</summary>
+        public readonly string SettingsCliUpdateCheckButton = "Check for CLI update";
+
+        /// <summary>Runs `claude update` after a confirmation dialog.</summary>
+        public readonly string SettingsCliUpdateButton = "Update CLI";
+
+        /// <summary>Status while the registry request is in flight.</summary>
+        public readonly string SettingsCliUpdateChecking = "Checking the npm registry for the latest Claude Code...";
+
+        /// <summary>The registry could not be read.</summary>
+        public readonly string SettingsCliUpdateCheckFailed = "Could not read the latest version from the npm registry (offline or blocked?).";
+
+        /// <summary>{0} = latest version on the registry.</summary>
+        public readonly string SettingsCliUpToDateFmt = "Claude Code is up to date (latest: {0}).";
+
+        /// <summary>{0} = latest version, {1} = installed version.</summary>
+        public readonly string SettingsCliUpdateAvailableFmt = "Claude Code {0} is available (installed: {1}).";
+
+        /// <summary>{0} = latest version; the installed one has not been probed yet.</summary>
+        public readonly string SettingsCliUpdateInstalledUnknownFmt = "Latest Claude Code: {0} (the installed version is not known yet).";
+
+        /// <summary>{0} = elapsed seconds.</summary>
+        public readonly string SettingsCliUpdatingFmt = "Updating Claude Code... ({0}s)";
+
+        /// <summary>{0} = the updater's last output line.</summary>
+        public readonly string SettingsCliUpdateDoneFmt = "Update finished: {0} Reconnect to start using the new version.";
+
+        /// <summary>{0} = exit code, {1} = the updater's last output line.</summary>
+        public readonly string SettingsCliUpdateFailedFmt = "Update failed (exit {0}): {1}";
+
+        /// <summary>The updater outlived its timeout and was stopped.</summary>
+        public readonly string SettingsCliUpdateTimedOut = "The update took too long and was stopped.";
+
+        /// <summary>Confirmation dialog title.</summary>
+        public readonly string SettingsCliUpdateConfirmTitle = "Update Claude Code";
+
+        /// <summary>{0} = resolved CLI path.</summary>
+        public readonly string SettingsCliUpdateConfirmBodyFmt = "This runs Claude Code's own updater:\n\n{0} update\n\nThe current conversation keeps using the old version until you reconnect.";
+
+        /// <summary>Confirmation dialog OK button.</summary>
+        public readonly string SettingsCliUpdateConfirmButton = "Update";
+
         // -- Appearance: language dropdown (this stage's addition) --------
 
         public readonly string SettingsLanguageLabel = "Language";
@@ -3371,7 +3416,22 @@ namespace Colloid.AgentPanel.UI
             string settingsUloopCaveatNotInstalled = null,
             string settingsUloopCaveatPanelSettingsKept = null,
             string settingsUloopCaveatRegistryScopeKept = null,
-            string settingsUloopCaveatForeignRegistryKept = null)
+            string settingsUloopCaveatForeignRegistryKept = null,
+            string settingsProVersionFmt = null,
+            string settingsCliUpdateCheckButton = null,
+            string settingsCliUpdateButton = null,
+            string settingsCliUpdateChecking = null,
+            string settingsCliUpdateCheckFailed = null,
+            string settingsCliUpToDateFmt = null,
+            string settingsCliUpdateAvailableFmt = null,
+            string settingsCliUpdateInstalledUnknownFmt = null,
+            string settingsCliUpdatingFmt = null,
+            string settingsCliUpdateDoneFmt = null,
+            string settingsCliUpdateFailedFmt = null,
+            string settingsCliUpdateTimedOut = null,
+            string settingsCliUpdateConfirmTitle = null,
+            string settingsCliUpdateConfirmBodyFmt = null,
+            string settingsCliUpdateConfirmButton = null)
         {
             FirstRunCliNotFoundTitle = firstRunCliNotFoundTitle;
             FirstRunCliNotFoundBody = firstRunCliNotFoundBody;
@@ -4720,6 +4780,66 @@ namespace Colloid.AgentPanel.UI
             if (settingsUloopCaveatForeignRegistryKept != null)
             {
                 SettingsUloopCaveatForeignRegistryKept = settingsUloopCaveatForeignRegistryKept;
+            }
+            if (settingsProVersionFmt != null)
+            {
+                SettingsProVersionFmt = settingsProVersionFmt;
+            }
+            if (settingsCliUpdateCheckButton != null)
+            {
+                SettingsCliUpdateCheckButton = settingsCliUpdateCheckButton;
+            }
+            if (settingsCliUpdateButton != null)
+            {
+                SettingsCliUpdateButton = settingsCliUpdateButton;
+            }
+            if (settingsCliUpdateChecking != null)
+            {
+                SettingsCliUpdateChecking = settingsCliUpdateChecking;
+            }
+            if (settingsCliUpdateCheckFailed != null)
+            {
+                SettingsCliUpdateCheckFailed = settingsCliUpdateCheckFailed;
+            }
+            if (settingsCliUpToDateFmt != null)
+            {
+                SettingsCliUpToDateFmt = settingsCliUpToDateFmt;
+            }
+            if (settingsCliUpdateAvailableFmt != null)
+            {
+                SettingsCliUpdateAvailableFmt = settingsCliUpdateAvailableFmt;
+            }
+            if (settingsCliUpdateInstalledUnknownFmt != null)
+            {
+                SettingsCliUpdateInstalledUnknownFmt = settingsCliUpdateInstalledUnknownFmt;
+            }
+            if (settingsCliUpdatingFmt != null)
+            {
+                SettingsCliUpdatingFmt = settingsCliUpdatingFmt;
+            }
+            if (settingsCliUpdateDoneFmt != null)
+            {
+                SettingsCliUpdateDoneFmt = settingsCliUpdateDoneFmt;
+            }
+            if (settingsCliUpdateFailedFmt != null)
+            {
+                SettingsCliUpdateFailedFmt = settingsCliUpdateFailedFmt;
+            }
+            if (settingsCliUpdateTimedOut != null)
+            {
+                SettingsCliUpdateTimedOut = settingsCliUpdateTimedOut;
+            }
+            if (settingsCliUpdateConfirmTitle != null)
+            {
+                SettingsCliUpdateConfirmTitle = settingsCliUpdateConfirmTitle;
+            }
+            if (settingsCliUpdateConfirmBodyFmt != null)
+            {
+                SettingsCliUpdateConfirmBodyFmt = settingsCliUpdateConfirmBodyFmt;
+            }
+            if (settingsCliUpdateConfirmButton != null)
+            {
+                SettingsCliUpdateConfirmButton = settingsCliUpdateConfirmButton;
             }
         }
     }

@@ -410,6 +410,14 @@ namespace Colloid.AgentPanel.UI
         private TextField _stderrField;
 
         private Label _cliVersionLabel;
+        private Button _cliUpdateCheckButton;
+        private Button _cliUpdateButton;
+        private Label _cliUpdateStatusLabel;
+        private bool _cliUpdateLastSeenRunning;
+        private VisualElement _cliUpdateRow;
+        private IVisualElementScheduledItem _cliUpdateTick;
+        /// <summary>The installed CLI version the last label refresh settled on (for the update comparison).</summary>
+        private string _cliInstalledVersionForUpdate;
 
         // -- Account (docs/design-notes/2026-08-02-auth-in-panel.md) --------------
 
@@ -706,11 +714,15 @@ namespace Colloid.AgentPanel.UI
             _hubDirty = false;
             RefreshDiagnostics();
             RefreshCliStatusIfPathChanged();
-            if (_cliInstallLastSeenRunning != AgentHub.CliInstallRunning)
+            if (_cliInstallLastSeenRunning != AgentHub.CliInstallRunning
+                || _cliUpdateLastSeenRunning != AgentHub.CliUpdateRunning)
             {
-                // An install just started or finished: the resolve result
-                // can change without the path setting changing.
+                // An install or `claude update` just started or finished:
+                // the resolve result (and, after an update, the binary's
+                // version -- CliVersionProbe.Forget) can change without the
+                // path setting changing.
                 _cliInstallLastSeenRunning = AgentHub.CliInstallRunning;
+                _cliUpdateLastSeenRunning = AgentHub.CliUpdateRunning;
                 RefreshCliStatus();
             }
             else
@@ -7142,6 +7154,32 @@ namespace Colloid.AgentPanel.UI
             _cliVersionLabel.enableRichText = false;
             versionRow.Add(_cliVersionLabel);
 
+            // Pro's own version (design note 2026-09-23-cli-update-and-pro-
+            // version.md): the Package pill above is Core's, so a Pro
+            // purchaser could not tell which Pro build is installed.
+            string proVersion = FindProPackageVersion();
+            if (!string.IsNullOrEmpty(proVersion))
+            {
+                var proLabel = new Label(L10n.F(L10n.S.SettingsProVersionFmt, proVersion));
+                proLabel.AddToClassList("uap-pill");
+                proLabel.AddToClassList("uap-pill--neutral");
+                proLabel.AddToClassList("uap-settings-version-pill");
+                proLabel.enableRichText = false;
+                versionRow.Add(proLabel);
+            }
+
+            _cliUpdateRow = AddRow(section);
+            _cliUpdateCheckButton = new Button(OnCliUpdateCheckClicked) { text = L10n.S.SettingsCliUpdateCheckButton };
+            _cliUpdateCheckButton.AddToClassList("uap-settings-link-btn");
+            _cliUpdateRow.Add(_cliUpdateCheckButton);
+            _cliUpdateButton = new Button(OnCliUpdateClicked) { text = L10n.S.SettingsCliUpdateButton };
+            _cliUpdateButton.AddToClassList("uap-settings-link-btn");
+            _cliUpdateRow.Add(_cliUpdateButton);
+            _cliUpdateStatusLabel = new Label(string.Empty);
+            _cliUpdateStatusLabel.AddToClassList("uap-settings-hint");
+            _cliUpdateStatusLabel.enableRichText = false;
+            section.Add(_cliUpdateStatusLabel);
+
             VisualElement row = AddRow(section);
             var changelog = new Button(OnOpenChangelogClicked) { text = L10n.S.SettingsOpenChangelogButton };
             changelog.AddToClassList("uap-settings-link-btn");
@@ -7212,6 +7250,144 @@ namespace Colloid.AgentPanel.UI
                 ? L10n.F(L10n.S.SettingsCliVersionFmt, L10n.S.SettingsCliVersionNotConnected)
                 : L10n.F(fromBinaryProbeOnly ? L10n.S.SettingsCliVersionUnconfirmedFmt : L10n.S.SettingsCliVersionFmt,
                     cliVersion);
+            // The binary probe is what the NEXT spawn runs, so it wins for
+            // "is an update needed" -- right after `claude update` the live
+            // connection still reports the old version until a reconnect.
+            _cliInstalledVersionForUpdate = !string.IsNullOrEmpty(binaryProbeVersion) ? binaryProbeVersion : cliVersion;
+            RefreshCliUpdateState();
+        }
+
+        /// <summary>The installed Agent Panel Pro version, or null when Pro is not in the project.</summary>
+        private static string FindProPackageVersion()
+        {
+            try
+            {
+                UnityEditor.PackageManager.PackageInfo pro = UnityEditor.PackageManager.PackageInfo.FindForAssetPath(
+                    "Packages/" + ProRegistryAccess.ProPackageId + "/package.json");
+                return pro != null && pro.name == ProRegistryAccess.ProPackageId ? pro.version : null;
+            }
+            catch (System.Exception)
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Update row state (design note 2026-09-23-cli-update-and-pro-
+        /// version.md). Claude Code only: the ACP agents have no updater
+        /// the panel can call.
+        /// </summary>
+        private void RefreshCliUpdateState()
+        {
+            if (_cliUpdateRow == null)
+            {
+                return;
+            }
+            bool claude = AgentHub.IsClaudeBackend;
+            bool updating = AgentHub.CliUpdateRunning;
+            bool checking = AgentHub.CliUpdateCheckRunning;
+            _cliUpdateRow.style.display = claude ? DisplayStyle.Flex : DisplayStyle.None;
+            _cliUpdateCheckButton.SetEnabled(!checking && !updating);
+            CliUpdateCheckOutcome outcome = CliUpdateCheck.Classify(_cliInstalledVersionForUpdate,
+                AgentHub.LatestCliVersion);
+            bool canUpdate = !string.IsNullOrEmpty(_cliResolvedPath) && !AgentHub.CliInstallRunning;
+            _cliUpdateButton.style.display = claude && canUpdate && !checking && (updating
+                || (AgentHub.CliUpdateChecked && (outcome == CliUpdateCheckOutcome.UpdateAvailable
+                    || outcome == CliUpdateCheckOutcome.InstalledUnknown)))
+                ? DisplayStyle.Flex : DisplayStyle.None;
+            _cliUpdateButton.SetEnabled(!updating);
+            string text = claude
+                ? DescribeCliUpdateState(checking, AgentHub.CliUpdateChecked, AgentHub.LatestCliVersion,
+                    _cliInstalledVersionForUpdate, updating, AgentHub.LastCliUpdateResult,
+                    AgentHub.CliUpdateStartedUtcTicks, System.DateTime.UtcNow.Ticks)
+                : null;
+            _cliUpdateStatusLabel.text = text ?? string.Empty;
+            _cliUpdateStatusLabel.style.display = text == null ? DisplayStyle.None : DisplayStyle.Flex;
+            if (updating)
+            {
+                if (_cliUpdateTick == null && _root != null)
+                {
+                    _cliUpdateTick = _root.schedule.Execute(RefreshCliUpdateState).Every(500);
+                }
+                else if (_cliUpdateTick != null)
+                {
+                    _cliUpdateTick.Resume();
+                }
+            }
+            else if (_cliUpdateTick != null)
+            {
+                _cliUpdateTick.Pause();
+            }
+        }
+
+        /// <summary>
+        /// Pure: the status line under the update row (null = hidden). A
+        /// running or finished update outranks the check result it came from.
+        /// </summary>
+        internal static string DescribeCliUpdateState(bool checking, bool checkedOnce, string latest,
+            string installed, bool updating, CliInstallResult lastUpdate, long startedUtcTicks, long nowUtcTicks)
+        {
+            if (updating)
+            {
+                long elapsed = startedUtcTicks > 0
+                    ? (nowUtcTicks - startedUtcTicks) / System.TimeSpan.TicksPerSecond : 0;
+                return L10n.F(L10n.S.SettingsCliUpdatingFmt, elapsed < 0 ? 0 : elapsed);
+            }
+            if (lastUpdate != null)
+            {
+                if (lastUpdate.Success)
+                {
+                    return L10n.F(L10n.S.SettingsCliUpdateDoneFmt, lastUpdate.LastLine ?? string.Empty);
+                }
+                return lastUpdate.Failure == CliInstallFailureKind.TimedOut
+                    ? L10n.S.SettingsCliUpdateTimedOut
+                    : L10n.F(L10n.S.SettingsCliUpdateFailedFmt, lastUpdate.ExitCode, lastUpdate.LastLine ?? string.Empty);
+            }
+            if (checking)
+            {
+                return L10n.S.SettingsCliUpdateChecking;
+            }
+            if (!checkedOnce)
+            {
+                return null;
+            }
+            switch (CliUpdateCheck.Classify(installed, latest))
+            {
+                case CliUpdateCheckOutcome.UpToDate:
+                    return L10n.F(L10n.S.SettingsCliUpToDateFmt, latest);
+                case CliUpdateCheckOutcome.UpdateAvailable:
+                    return L10n.F(L10n.S.SettingsCliUpdateAvailableFmt, latest, CliUpdateCheck.ExtractSemver(installed));
+                case CliUpdateCheckOutcome.InstalledUnknown:
+                    return L10n.F(L10n.S.SettingsCliUpdateInstalledUnknownFmt, latest);
+                default:
+                    return L10n.S.SettingsCliUpdateCheckFailed;
+            }
+        }
+
+        private void OnCliUpdateCheckClicked()
+        {
+            AgentHub.BeginCliUpdateCheck();
+            RefreshCliUpdateState();
+        }
+
+        private void OnCliUpdateClicked()
+        {
+            string path = _cliResolvedPath;
+            if (string.IsNullOrEmpty(path))
+            {
+                return;
+            }
+            bool confirmed = EditorUtility.DisplayDialog(
+                L10n.S.SettingsCliUpdateConfirmTitle,
+                L10n.F(L10n.S.SettingsCliUpdateConfirmBodyFmt, path),
+                L10n.S.SettingsCliUpdateConfirmButton,
+                L10n.S.InstallCancelButton);
+            if (!confirmed)
+            {
+                return;
+            }
+            AgentHub.BeginCliUpdate(path);
+            RefreshCliUpdateState();
         }
 
         /// <summary>

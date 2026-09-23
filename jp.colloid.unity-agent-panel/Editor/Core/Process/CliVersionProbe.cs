@@ -113,6 +113,23 @@ namespace Colloid.AgentPanel.Core.Process
         }
 
         /// <summary>
+        /// Lets the next <see cref="BeginProbe"/> for <paramref name="cliPath"/>
+        /// spawn again -- after `claude update` replaced the binary behind
+        /// that path, the version recorded for it this domain load is stale.
+        /// </summary>
+        public static void Forget(string cliPath)
+        {
+            if (string.IsNullOrEmpty(cliPath))
+            {
+                return;
+            }
+            lock (StateLock)
+            {
+                AttemptedPaths.Remove(cliPath);
+            }
+        }
+
+        /// <summary>
         /// Reads stdout via the SAME async-event pattern
         /// <c>ClaudeCliProcess</c> uses for the live CLI transport
         /// (`BeginOutputReadLine`/`OutputDataReceived`) rather than a

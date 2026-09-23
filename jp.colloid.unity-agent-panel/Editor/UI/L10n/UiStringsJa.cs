@@ -1078,7 +1078,22 @@ namespace Colloid.AgentPanel.UI
                 settingsUloopCaveatRegistryScopeKept:
                     "OpenUPM のスコープは残します: 他のパッケージがまだこの経路で解決されています。",
                 settingsUloopCaveatForeignRegistryKept:
-                    "別のスコープ付きレジストリが uLoop を登録しています。そちらには触れません。");
+                    "別のスコープ付きレジストリが uLoop を登録しています。そちらには触れません。",
+                settingsProVersionFmt: "Pro バージョン: {0}",
+                settingsCliUpdateCheckButton: "CLI の更新を確認",
+                settingsCliUpdateButton: "CLI を更新",
+                settingsCliUpdateChecking: "npm レジストリで最新の Claude Code を確認しています...",
+                settingsCliUpdateCheckFailed: "npm レジストリから最新バージョンを取得できませんでした(オフラインか、通信が遮断されています)。",
+                settingsCliUpToDateFmt: "Claude Code は最新です(最新: {0})。",
+                settingsCliUpdateAvailableFmt: "Claude Code {0} が利用できます(インストール済み: {1})。",
+                settingsCliUpdateInstalledUnknownFmt: "最新の Claude Code: {0}(インストール済みのバージョンはまだ不明です)。",
+                settingsCliUpdatingFmt: "Claude Code を更新しています...({0} 秒)",
+                settingsCliUpdateDoneFmt: "更新が完了しました: {0} 新しいバージョンを使うには再接続してください。",
+                settingsCliUpdateFailedFmt: "更新に失敗しました(終了コード {0}): {1}",
+                settingsCliUpdateTimedOut: "更新に時間がかかりすぎたため中止しました。",
+                settingsCliUpdateConfirmTitle: "Claude Code の更新",
+                settingsCliUpdateConfirmBodyFmt: "Claude Code 自身の更新コマンドを実行します:\n\n{0} update\n\n現在の会話は再接続するまで古いバージョンのまま動作します。",
+                settingsCliUpdateConfirmButton: "更新する");
         }
     }
 }
