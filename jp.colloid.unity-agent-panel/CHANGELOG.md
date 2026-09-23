@@ -7,7 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-(nothing yet)
+### Added
+
+- **Check for and install Claude Code CLI updates from the settings.** The
+  Overview footer gains a "Check for CLI update" button that reads the
+  latest Claude Code version from the npm registry and compares it with the
+  installed CLI; when a newer one exists, "Update CLI" runs the CLI's own
+  `claude update` (after a confirmation that shows the command). The running
+  conversation is not cut: the status line asks for a reconnect to switch to
+  the new version. Nothing is sent over the network unless the button is
+  pressed. `docs/design-notes/2026-09-23-cli-update-and-pro-version.md`.
+- **The Agent Panel Pro version is shown next to the package version.** The
+  "Package version" pill only ever showed this package; when Pro is
+  installed, a "Pro version" pill now sits beside it.
+
+### Fixed
+
+- **After "Update CLI" the panel switches to the new CLI on its own.** It
+  reconnects the same conversation right away when idle, or once the
+  running reply ends, and a "Reconnect now" button sits next to the notice
+  for anyone who does not want to wait. The CLI version pill now shows the
+  new version instead of the old connection's, and the "reconnect" notice
+  goes away once the new CLI is running.
+  `docs/design-notes/2026-09-23-cli-update-and-pro-version.md`.
 
 ## [0.59.0] - 2026-09-22
 
