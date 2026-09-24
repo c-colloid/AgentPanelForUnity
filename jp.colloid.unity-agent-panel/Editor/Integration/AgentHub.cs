@@ -173,6 +173,121 @@ namespace Colloid.AgentPanel.Integration
             RaiseChanged();
         }
 
+        // -- CLI update check / update (design note 2026-09-23-cli-update-and-pro-version.md) --
+
+        /// <summary>True while the npm registry is being asked for the latest Claude Code version.</summary>
+        public static bool CliUpdateCheckRunning { get; private set; }
+
+        /// <summary>True once a check finished this domain load (success or failure).</summary>
+        public static bool CliUpdateChecked { get; private set; }
+
+        /// <summary>The latest Claude Code version the last check saw; empty when the check failed or never ran.</summary>
+        public static string LatestCliVersion { get; private set; }
+
+        /// <summary>True while `claude update` runs.</summary>
+        public static bool CliUpdateRunning { get; private set; }
+
+        /// <summary>UTC ticks when the in-flight update started (0 when none).</summary>
+        public static long CliUpdateStartedUtcTicks { get; private set; }
+
+        /// <summary>Outcome of the last `claude update` this domain; null before any run or while one is in flight.</summary>
+        public static CliInstallResult LastCliUpdateResult { get; private set; }
+
+        /// <summary>
+        /// True from a successful `claude update` until the next spawn: the
+        /// live process is still the old binary. Feeds the settings
+        /// auto-apply path (ComputeAutoApplyReconnectNeeded),
+        /// so the panel reconnects on its own -- right away when idle, after
+        /// the running turn otherwise (2026-09-23 follow-up: the manual
+        /// reconnect was hard to find and the notice never went away).
+        /// </summary>
+        public static bool CliUpdateReconnectPending { get; private set; }
+
+        /// <summary>
+        /// The CLI version the last `system/init` reported when an update
+        /// replaced the binary. <see cref="LastKnownCliVersion"/> hides it
+        /// until a fresh init arrives: a resumed connection only re-emits
+        /// init after its first message, so the old number used to outrank
+        /// the binary probe (which already reads the new one) indefinitely.
+        /// </summary>
+        private static string _staleCliVersion;
+
+        /// <summary>
+        /// Starts a check against the npm registry. Returns false while one
+        /// is already in flight. Only ever called from a button press.
+        /// </summary>
+        public static bool BeginCliUpdateCheck()
+        {
+            if (CliUpdateCheckRunning)
+            {
+                return false;
+            }
+            CliUpdateCheckRunning = true;
+            RaiseChanged();
+            CliUpdateCheck.FetchLatest(delegate(string latest)
+            {
+                CliUpdateCheckRunning = false;
+                CliUpdateChecked = true;
+                LatestCliVersion = latest ?? string.Empty;
+                Log(string.IsNullOrEmpty(LatestCliVersion)
+                    ? "CLI update check failed: the npm registry could not be read."
+                    : "CLI update check: latest Claude Code is " + LatestCliVersion + ".");
+                RaiseChanged();
+            });
+            return true;
+        }
+
+        /// <summary>
+        /// Runs `&lt;cliPath&gt; update`. Returns false while an update or
+        /// an install is already running, or for an empty path. The live
+        /// connection keeps using the binary it was started with; the panel
+        /// asks the user to reconnect instead of cutting a turn short.
+        /// </summary>
+        public static bool BeginCliUpdate(string cliPath)
+        {
+            if (CliUpdateRunning || CliInstallRunning)
+            {
+                return false;
+            }
+            CliInstallPlan plan = CliInstallPlan.BuildClaudeUpdate(cliPath);
+            if (plan == null)
+            {
+                return false;
+            }
+            CliUpdateRunning = true;
+            CliUpdateStartedUtcTicks = DateTime.UtcNow.Ticks;
+            LastCliUpdateResult = null;
+            Log("Updating Claude Code: " + cliPath + " update");
+            RaiseChanged();
+            CliInstaller.Run(plan, CreateKiller(), delegate(CliInstallResult result)
+            {
+                CliUpdateRunning = false;
+                CliUpdateStartedUtcTicks = 0;
+                LastCliUpdateResult = result;
+                if (result != null && result.Success)
+                {
+                    Log("Claude Code update finished: " + result.LastLine);
+                    // The binary behind this path changed: let the next
+                    // settings refresh probe its version again.
+                    CliVersionProbe.Forget(cliPath);
+                    _staleCliVersion = LastKnownCliVersion;
+                    SessionStateBridge.LastCliVersion = string.Empty;
+                    if (IsAutoApplyEligibleClientState() || IsSpawnInFlight())
+                    {
+                        CliUpdateReconnectPending = true;
+                        RequestAutoApplyReconnect();
+                    }
+                }
+                else if (result != null)
+                {
+                    Log("Claude Code update failed (" + result.Failure + ", exit " + result.ExitCode + "): "
+                        + result.LastLine);
+                }
+                RaiseChanged();
+            }, Log);
+            return true;
+        }
+
         // -- ACP sign-in (design note 2026-09-10-in-panel-install-and-sign-in.md section 2) --
 
         /// <summary>
@@ -696,10 +811,11 @@ namespace Colloid.AgentPanel.Integration
                 if (_lastKnownInitMessage != null
                     && !string.IsNullOrEmpty(_lastKnownInitMessage.ClaudeCodeVersion))
                 {
-                    return _lastKnownInitMessage.ClaudeCodeVersion;
+                    return _lastKnownInitMessage.ClaudeCodeVersion == _staleCliVersion
+                        ? null : _lastKnownInitMessage.ClaudeCodeVersion;
                 }
                 string persisted = SessionStateBridge.LastCliVersion;
-                return string.IsNullOrEmpty(persisted) ? null : persisted;
+                return string.IsNullOrEmpty(persisted) || persisted == _staleCliVersion ? null : persisted;
             }
         }
 
@@ -3635,6 +3751,10 @@ namespace Colloid.AgentPanel.Integration
         /// </summary>
         private static bool ComputeAutoApplyReconnectNeeded(string currentCustomInstructions)
         {
+            if (CliUpdateReconnectPending)
+            {
+                return true;
+            }
             string text = currentCustomInstructions
                 ?? CustomInstructionsFile.CreateDefault(GetProjectRoot(), Log).Load();
             return SettingsChangeDetector.RequiresReconnect(
@@ -4089,6 +4209,9 @@ namespace Colloid.AgentPanel.Integration
             }
 
             _client = client;
+            // This spawn runs whatever binary the path holds now, so an
+            // update's pending reconnect is satisfied.
+            CliUpdateReconnectPending = false;
             _lastSpawnedSettingsSnapshot = CloneNextSpawnOnlyFields(settings);
             _lastSpawnedCustomInstructions = customInstructions;
             _reaper.Record(transport.ProcessId, transport.ProcessStartTimeUtcTicks, _reaperProcessName);
@@ -6278,6 +6401,7 @@ namespace Colloid.AgentPanel.Integration
             if (message != null && !string.IsNullOrEmpty(message.ClaudeCodeVersion))
             {
                 SessionStateBridge.LastCliVersion = message.ClaudeCodeVersion;
+                _staleCliVersion = null;
             }
             RefreshModelCatalogCache();
             RefreshAgentTypeCatalogCache(message);
