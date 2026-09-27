@@ -2780,6 +2780,27 @@
     flex-shrink: 0;
 }
 
+/* run_in_background tag (SubagentCard): sits between the type and the
+   description, same meta size as the badge, muted so the type stays the
+   loudest word on the row. */
+.uap-subcard-bgtag {
+    font-size: var(--uap-font-size-meta);
+    color: var(--uap-accent-agent);
+    margin-right: var(--uap-space-s);
+    padding-left: var(--uap-space-xs);
+    padding-right: var(--uap-space-xs);
+    border-width: 1px;
+    border-left-color: var(--uap-accent-agent);
+    border-right-color: var(--uap-accent-agent);
+    border-top-color: var(--uap-accent-agent);
+    border-bottom-color: var(--uap-accent-agent);
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+    flex-shrink: 0;
+}
+
 /* See .uap-toolcard-name for the measurement -- identical shape: an
    unshrinkable leading label ahead of the single flex-grow column. */
 .uap-subcard-type {

@@ -468,6 +468,22 @@ namespace Colloid.AgentPanel.UI
         public readonly string HubCompactedAuto =
             "The CLI auto-compacted the context because the window was nearly full."
             + " The conversation above is now a summary for the model.";
+
+        // -- /mcp note (docs/design-notes/2026-09-27-mcp-slash-command.md) --
+        public readonly string HubMcpNoSession =
+            "No agent connection yet: MCP servers are reported once the CLI has started. Send a message first, then /mcp.";
+        public readonly string HubMcpNoServers = "This session has no MCP servers.";
+        /// <summary>{0} = server count, {1} = connected, {2} = failed, {3} = other (pending / needs auth).</summary>
+        public readonly string HubMcpSummaryFmt = "{0} MCP server(s): {1} connected, {2} failed, {3} other";
+        /// <summary>{0} = server name, {1} = status label, {2} = number of tools it contributed.</summary>
+        public readonly string HubMcpServerLineFmt = "- {0}: {1} ({2} tools)";
+        /// <summary>{0} = server name, {1} = status label. Used when the server contributed no tools.</summary>
+        public readonly string HubMcpServerLineNoToolsFmt = "- {0}: {1}";
+        public readonly string HubMcpStatusConnected = "connected";
+        public readonly string HubMcpStatusFailed = "failed";
+        public readonly string HubMcpStatusPending = "pending";
+        public readonly string HubMcpStatusNeedsAuth = "needs authentication";
+        public readonly string HubMcpStatusUnknown = "unknown";
         /// <summary>
         /// Retracts HubAutoContinueResuming. That note is written the moment
         /// the send is attempted, so every path that then drops the message
@@ -864,6 +880,8 @@ namespace Colloid.AgentPanel.UI
             "Summarize the conversation so far to free up context (optional: instructions for the summary)";
         /// <summary>Description for /clear -- always the panel's own, since the panel handles it (New chat).</summary>
         public readonly string SlashClearDescription = "Start a new chat (same as the New chat button)";
+        /// <summary>Description for /mcp -- always the panel's own, since the panel answers it (docs/design-notes/2026-09-27-mcp-slash-command.md).</summary>
+        public readonly string SlashMcpDescription = "Show the MCP servers of this session and their status";
 
         // ==================================================================
         // SubagentCard.cs
@@ -871,6 +889,9 @@ namespace Colloid.AgentPanel.UI
 
         public readonly string SubagentDefaultType = "Subagent";
         public readonly string SubagentDefaultDescription = "Subagent";
+        /// <summary>Header tag on a run_in_background subagent card: the
+        /// spawn returned at once and the work continues past the turn.</summary>
+        public readonly string SubagentBackgroundBadge = "background";
 
         /// <summary>{0} = number of omitted earlier steps.</summary>
         public readonly string SubagentDropNoteFmt = "{0} earlier steps omitted";
@@ -2758,6 +2779,16 @@ namespace Colloid.AgentPanel.UI
             string hubCompactedManual,
             string hubCompactedAutoFmt,
             string hubCompactedAuto,
+            string hubMcpNoSession,
+            string hubMcpNoServers,
+            string hubMcpSummaryFmt,
+            string hubMcpServerLineFmt,
+            string hubMcpServerLineNoToolsFmt,
+            string hubMcpStatusConnected,
+            string hubMcpStatusFailed,
+            string hubMcpStatusPending,
+            string hubMcpStatusNeedsAuth,
+            string hubMcpStatusUnknown,
             string hubAutoContinueSendAbandonedFmt,
             string hubAutoContinueInterruptedResuming,
             string hubReloadDroppedPermissionFmt,
@@ -2921,8 +2952,10 @@ namespace Colloid.AgentPanel.UI
             string composerSlashNoMatch,
             string slashCompactDescription,
             string slashClearDescription,
+            string slashMcpDescription,
             string subagentDefaultType,
             string subagentDefaultDescription,
+            string subagentBackgroundBadge,
             string subagentDropNoteFmt,
             string subagentProgressToolFmt,
             string subagentProgressTokensFmt,
@@ -3606,6 +3639,16 @@ namespace Colloid.AgentPanel.UI
             HubCompactedManual = hubCompactedManual;
             HubCompactedAutoFmt = hubCompactedAutoFmt;
             HubCompactedAuto = hubCompactedAuto;
+            HubMcpNoSession = hubMcpNoSession;
+            HubMcpNoServers = hubMcpNoServers;
+            HubMcpSummaryFmt = hubMcpSummaryFmt;
+            HubMcpServerLineFmt = hubMcpServerLineFmt;
+            HubMcpServerLineNoToolsFmt = hubMcpServerLineNoToolsFmt;
+            HubMcpStatusConnected = hubMcpStatusConnected;
+            HubMcpStatusFailed = hubMcpStatusFailed;
+            HubMcpStatusPending = hubMcpStatusPending;
+            HubMcpStatusNeedsAuth = hubMcpStatusNeedsAuth;
+            HubMcpStatusUnknown = hubMcpStatusUnknown;
             HubAutoContinueSendAbandonedFmt = hubAutoContinueSendAbandonedFmt;
             HubAutoContinueInterruptedResuming = hubAutoContinueInterruptedResuming;
             HubReloadDroppedPermissionFmt = hubReloadDroppedPermissionFmt;
@@ -3769,8 +3812,10 @@ namespace Colloid.AgentPanel.UI
             ComposerSlashNoMatch = composerSlashNoMatch;
             SlashCompactDescription = slashCompactDescription;
             SlashClearDescription = slashClearDescription;
+            SlashMcpDescription = slashMcpDescription;
             SubagentDefaultType = subagentDefaultType;
             SubagentDefaultDescription = subagentDefaultDescription;
+            SubagentBackgroundBadge = subagentBackgroundBadge;
             SubagentDropNoteFmt = subagentDropNoteFmt;
             SubagentProgressToolFmt = subagentProgressToolFmt;
             SubagentProgressTokensFmt = subagentProgressTokensFmt;

@@ -238,6 +238,17 @@ namespace Colloid.AgentPanel.UI
                 hubCompactedAuto:
                     "コンテキストウィンドウの残りが少なくなったため、CLI が自動的に圧縮しました。"
                     + "ここより上の会話は、モデルにとっては要約になっています。",
+                hubMcpNoSession:
+                    "まだエージェントに接続していません。MCP サーバーは CLI の起動後に報告されるので、先に何か送信してから /mcp を実行してください。",
+                hubMcpNoServers: "このセッションに MCP サーバーはありません。",
+                hubMcpSummaryFmt: "MCP サーバー {0} 件: 接続済み {1}、失敗 {2}、その他 {3}",
+                hubMcpServerLineFmt: "- {0}: {1}(ツール {2} 個)",
+                hubMcpServerLineNoToolsFmt: "- {0}: {1}",
+                hubMcpStatusConnected: "接続済み",
+                hubMcpStatusFailed: "接続失敗",
+                hubMcpStatusPending: "接続中",
+                hubMcpStatusNeedsAuth: "認証が必要",
+                hubMcpStatusUnknown: "不明",
                 hubAutoContinueSendAbandonedFmt:
                     "自動継続: 待機していた継続メッセージを送信できず({0})、破棄しました。"
                     + "何も送信されていません。続きは手動で指示してください。",
@@ -442,8 +453,10 @@ namespace Colloid.AgentPanel.UI
                 composerSlashNoMatch: "一致するコマンドがありません",
                 slashCompactDescription: "ここまでの会話を要約してコンテキストを空けます(任意: 要約の指示)",
                 slashClearDescription: "新しいチャットを開始します(「新規チャット」ボタンと同じ)",
+                slashMcpDescription: "このセッションの MCP サーバーと接続状態を表示します",
                 subagentDefaultType: "サブエージェント",
                 subagentDefaultDescription: "サブエージェント",
+                subagentBackgroundBadge: "バックグラウンド",
                 subagentDropNoteFmt: "{0}件の過去のステップは省略されています",
                 subagentProgressToolFmt: "{0} ({1})",
                 subagentProgressTokensFmt: "{0} -- {1}トークン",

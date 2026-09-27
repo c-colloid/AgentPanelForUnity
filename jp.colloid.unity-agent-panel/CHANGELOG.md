@@ -7,7 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-(nothing yet)
+### Fixed
+
+- **Background subagents (`run_in_background: true`) are now tracked by
+  their subagent card.** The Agent tool's launch acknowledgement used to
+  close the card as "completed" at once, so everything the subagent did
+  afterwards leaked onto the top-level transcript as plain cards and its
+  progress / summary never arrived. The card now stays running across the
+  parent's turn boundary, collects the nested calls, and closes on the
+  subagent's own completion notification; a "background" tag marks it
+  (design note `docs/design-notes/2026-09-27-background-subagent-card.md`).
+- **`/mcp` no longer ends in a "CLI error: synthetic response" block.**
+  Typing `/mcp` in the composer is now answered by the panel itself: a note
+  in the transcript lists this session's MCP servers with their status and
+  the number of tools each contributed. It used to be sent to the CLI, whose
+  non-interactive answer was a one-line summary that the transcript then
+  rendered as a CLI error. `docs/design-notes/2026-09-27-mcp-slash-command.md`.
 
 ## [0.60.0] - 2026-09-23
 
