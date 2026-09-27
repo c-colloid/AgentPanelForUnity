@@ -871,6 +871,9 @@ namespace Colloid.AgentPanel.UI
 
         public readonly string SubagentDefaultType = "Subagent";
         public readonly string SubagentDefaultDescription = "Subagent";
+        /// <summary>Header tag on a run_in_background subagent card: the
+        /// spawn returned at once and the work continues past the turn.</summary>
+        public readonly string SubagentBackgroundBadge = "background";
 
         /// <summary>{0} = number of omitted earlier steps.</summary>
         public readonly string SubagentDropNoteFmt = "{0} earlier steps omitted";
@@ -2923,6 +2926,7 @@ namespace Colloid.AgentPanel.UI
             string slashClearDescription,
             string subagentDefaultType,
             string subagentDefaultDescription,
+            string subagentBackgroundBadge,
             string subagentDropNoteFmt,
             string subagentProgressToolFmt,
             string subagentProgressTokensFmt,
@@ -3771,6 +3775,7 @@ namespace Colloid.AgentPanel.UI
             SlashClearDescription = slashClearDescription;
             SubagentDefaultType = subagentDefaultType;
             SubagentDefaultDescription = subagentDefaultDescription;
+            SubagentBackgroundBadge = subagentBackgroundBadge;
             SubagentDropNoteFmt = subagentDropNoteFmt;
             SubagentProgressToolFmt = subagentProgressToolFmt;
             SubagentProgressTokensFmt = subagentProgressTokensFmt;

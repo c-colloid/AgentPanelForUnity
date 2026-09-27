@@ -7,7 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-(nothing yet)
+### Fixed
+
+- **Background subagents (`run_in_background: true`) are now tracked by
+  their subagent card.** The Agent tool's launch acknowledgement used to
+  close the card as "completed" at once, so everything the subagent did
+  afterwards leaked onto the top-level transcript as plain cards and its
+  progress / summary never arrived. The card now stays running across the
+  parent's turn boundary, collects the nested calls, and closes on the
+  subagent's own completion notification; a "background" tag marks it
+  (design note `docs/design-notes/2026-09-27-background-subagent-card.md`).
 
 ## [0.60.0] - 2026-09-23
 

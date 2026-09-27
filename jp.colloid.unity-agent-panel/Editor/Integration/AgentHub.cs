@@ -5295,7 +5295,12 @@ namespace Colloid.AgentPanel.Integration
                 {
                     toolUseId = block.Id,
                     subagentType = block.Input["subagent_type"].AsString(string.Empty),
-                    description = block.Input["description"].AsString(string.Empty)
+                    description = block.Input["description"].AsString(string.Empty),
+                    // run_in_background:true = the CLI answers the Agent
+                    // tool_use at once and the subagent keeps working after
+                    // it (and after this turn) -- see OnToolResultReceived
+                    // and DemoteOpenRecordsAndClear for what that changes.
+                    background = block.Input["run_in_background"].AsBool(false)
                 };
                 record.subagent = subagent;
                 _openSubagents[block.Id] = subagent;
@@ -5461,6 +5466,23 @@ namespace Colloid.AgentPanel.Integration
             record.Complete(block.IsError, summary, DateTime.UtcNow.Ticks);
             record.resultImagePaths = ResolveResultImages(block.ResultContent);
             TryTrackScriptsCommitAttribution(record.toolName, block);
+            if (record.subagent != null && record.subagent.background && !block.IsError
+                && !IsTerminalSubagentStatus(record.subagent.status))
+            {
+                // Background spawn (run_in_background:true): this tool_result
+                // only acknowledges the LAUNCH ("Async agent launched...");
+                // the subagent is still working and its parent-tagged
+                // messages / task_* events keep arriving afterwards, often
+                // after this turn's result. Closing the record here (as the
+                // foreground path below does) is exactly what used to drop
+                // every one of those onto the top-level transcript as plain
+                // cards and leave the card frozen at "completed" with no
+                // summary (design note 2026-09-27-background-subagent-card.md
+                // section 1). Keep it open: CloseSubagentIfTerminal closes
+                // it on the terminal task_updated/task_notification instead.
+                RaiseChanged();
+                return;
+            }
             if (record.subagent != null)
             {
                 // The top-level tool_result is the final authority on this
@@ -5563,6 +5585,11 @@ namespace Colloid.AgentPanel.Integration
                 return;
             }
             subagent.status = message.PatchStatus;
+            // Deliberately NOT a closure point, even for a background
+            // record: the measured order is task_updated{completed} THEN
+            // task_notification{summary} (R02c section 2), so closing here
+            // would make the very next event unresolvable and drop the
+            // summary. HandleTaskNotification is the one that closes.
             RaiseChanged();
         }
 
@@ -5590,7 +5617,46 @@ namespace Colloid.AgentPanel.Integration
             {
                 subagent.durationMs = message.DurationMs;
             }
+            CloseSubagentIfTerminal(subagent);
             RaiseChanged();
+        }
+
+        /// <summary>
+        /// True for any task status that is not an in-flight one. The CLI
+        /// reports "completed" / "failed" on the measured fixtures; unknown
+        /// future terminal spellings ("killed", ...) must still close a
+        /// background record, so this is an allowlist of the in-flight
+        /// spellings rather than of the terminal ones.
+        /// </summary>
+        internal static bool IsTerminalSubagentStatus(string status)
+        {
+            if (string.IsNullOrEmpty(status))
+            {
+                return false;
+            }
+            return status != "running" && status != "pending" && status != "in_progress";
+        }
+
+        /// <summary>
+        /// Closure path for a BACKGROUND subagent: its top-level tool_result
+        /// already came and went at launch (OnToolResultReceived kept the
+        /// record open), so the terminal task_notification -- the LAST
+        /// task_* event the CLI emits for a task, after task_updated -- is
+        /// the one that closes it. Foreground records are left to
+        /// OnToolResultReceived, which stays the final authority for them
+        /// exactly as before.
+        /// </summary>
+        private static void CloseSubagentIfTerminal(SubagentRecord subagent)
+        {
+            if (!subagent.background || !IsTerminalSubagentStatus(subagent.status))
+            {
+                return;
+            }
+            _openSubagents.Remove(subagent.toolUseId);
+            if (!string.IsNullOrEmpty(subagent.taskId))
+            {
+                _taskIdToToolUseId.Remove(subagent.taskId);
+            }
         }
 
         /// <summary>
@@ -6025,7 +6091,11 @@ namespace Colloid.AgentPanel.Integration
 
         private static void OnTurnCompleted(ResultMessage result)
         {
-            FinalizeStreamingMessage();
+            // keepBackgroundSubagents: a result closes the PARENT's turn,
+            // not the background subagents it launched -- those keep
+            // reporting (task_progress / task_notification and their
+            // parent-tagged nested calls) after this line, process alive.
+            FinalizeStreamingMessage(keepBackgroundSubagents: true);
             _pendingPermission = null;
             // A manual /compact's own result is what ends its compaction
             // when the CLI sends no boundary (older CLI, or a compaction
@@ -6859,7 +6929,13 @@ namespace Colloid.AgentPanel.Integration
             target.Add(added);
         }
 
-        private static void FinalizeStreamingMessage()
+        /// <param name="keepBackgroundSubagents">True from OnTurnCompleted
+        /// only: a turn ending normally does not end the background
+        /// subagents it launched (the CLI process, and they, keep running),
+        /// so their records must survive the boundary. Every abort/teardown
+        /// path passes false -- there the process is gone or being replaced
+        /// and nothing will ever report their completion.</param>
+        private static void FinalizeStreamingMessage(bool keepBackgroundSubagents = false)
         {
             if (_streamingAssistant != null)
             {
@@ -6869,7 +6945,7 @@ namespace Colloid.AgentPanel.Integration
                 }
                 _streamingAssistant = null;
             }
-            DemoteOpenRecordsAndClear();
+            DemoteOpenRecordsAndClear(keepBackgroundSubagents);
         }
 
         /// <summary>
@@ -6892,18 +6968,70 @@ namespace Colloid.AgentPanel.Integration
         /// (normal completion): that path already knows the exact outcome
         /// (completed/failed) and prunes its own single taskId entry there.
         /// </summary>
-        private static void DemoteOpenRecordsAndClear()
+        private static void DemoteOpenRecordsAndClear(bool keepBackgroundSubagents)
         {
+            // Background subagents that outlive a normally-completed turn
+            // stay open, together with the nested tool calls still running
+            // inside them (their tool_result arrives later, parent-tagged,
+            // and needs the _openToolCalls entry to correlate).
+            var keptSubagents = new List<SubagentRecord>();
+            var keptToolCallIds = new HashSet<string>();
+            if (keepBackgroundSubagents)
+            {
+                foreach (KeyValuePair<string, SubagentRecord> pair in _openSubagents)
+                {
+                    if (!pair.Value.background)
+                    {
+                        continue;
+                    }
+                    keptSubagents.Add(pair.Value);
+                    for (int i = 0; i < pair.Value.blocks.Count; i++)
+                    {
+                        ToolCallRecord nested = pair.Value.blocks[i].toolCall;
+                        if (nested != null && nested.status == ToolCallStatus.Running
+                            && !string.IsNullOrEmpty(nested.toolUseId))
+                        {
+                            keptToolCallIds.Add(nested.toolUseId);
+                        }
+                    }
+                }
+            }
             foreach (KeyValuePair<string, ToolCallRecord> pair in _openToolCalls)
             {
+                if (keptToolCallIds.Contains(pair.Key))
+                {
+                    continue;
+                }
                 if (pair.Value.status == ToolCallStatus.Running)
                 {
                     pair.Value.status = ToolCallStatus.Pending;
                 }
             }
-            _openToolCalls.Clear();
+            if (keptToolCallIds.Count == 0)
+            {
+                _openToolCalls.Clear();
+            }
+            else
+            {
+                var dropIds = new List<string>();
+                foreach (string id in _openToolCalls.Keys)
+                {
+                    if (!keptToolCallIds.Contains(id))
+                    {
+                        dropIds.Add(id);
+                    }
+                }
+                for (int i = 0; i < dropIds.Count; i++)
+                {
+                    _openToolCalls.Remove(dropIds[i]);
+                }
+            }
             foreach (KeyValuePair<string, SubagentRecord> pair in _openSubagents)
             {
+                if (keptSubagents.Contains(pair.Value))
+                {
+                    continue;
+                }
                 if (pair.Value.status == "running")
                 {
                     pair.Value.status = "stopped";
@@ -6914,6 +7042,10 @@ namespace Colloid.AgentPanel.Integration
                 }
             }
             _openSubagents.Clear();
+            for (int i = 0; i < keptSubagents.Count; i++)
+            {
+                _openSubagents[keptSubagents[i].toolUseId] = keptSubagents[i];
+            }
         }
 
         // -- Small helpers ------------------------------------------------------------

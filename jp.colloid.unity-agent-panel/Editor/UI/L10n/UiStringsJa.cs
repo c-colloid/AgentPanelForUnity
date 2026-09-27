@@ -444,6 +444,7 @@ namespace Colloid.AgentPanel.UI
                 slashClearDescription: "新しいチャットを開始します(「新規チャット」ボタンと同じ)",
                 subagentDefaultType: "サブエージェント",
                 subagentDefaultDescription: "サブエージェント",
+                subagentBackgroundBadge: "バックグラウンド",
                 subagentDropNoteFmt: "{0}件の過去のステップは省略されています",
                 subagentProgressToolFmt: "{0} ({1})",
                 subagentProgressTokensFmt: "{0} -- {1}トークン",

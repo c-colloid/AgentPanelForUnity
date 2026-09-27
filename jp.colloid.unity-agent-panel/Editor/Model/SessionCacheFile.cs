@@ -339,6 +339,7 @@ namespace Colloid.AgentPanel.Model
                 .Set("toolUseId", subagent.toolUseId ?? string.Empty)
                 .Set("subagentType", subagent.subagentType ?? string.Empty)
                 .Set("description", subagent.description ?? string.Empty)
+                .Set("background", subagent.background)
                 .Set("status", subagent.status ?? string.Empty)
                 .Set("progressLine", subagent.progressLine ?? string.Empty)
                 .Set("lastToolName", subagent.lastToolName ?? string.Empty)
@@ -479,6 +480,8 @@ namespace Colloid.AgentPanel.Model
                 toolUseId = node["toolUseId"].AsString(string.Empty),
                 subagentType = node["subagentType"].AsString(string.Empty),
                 description = node["description"].AsString(string.Empty),
+                // Absent in caches written before the field existed: false.
+                background = node["background"].AsBool(false),
                 status = node["status"].AsString("running"),
                 progressLine = node["progressLine"].AsString(string.Empty),
                 lastToolName = node["lastToolName"].AsString(string.Empty),

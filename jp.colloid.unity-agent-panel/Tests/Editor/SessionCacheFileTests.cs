@@ -232,6 +232,7 @@ namespace Colloid.AgentPanel.Tests
                 toolUseId = "toolu_agent",
                 subagentType = "general-purpose",
                 description = "Run echo fixture command",
+                background = true,
                 status = "completed",
                 progressLine = "Running Echo fixture string",
                 lastToolName = "Bash",
@@ -341,6 +342,7 @@ namespace Colloid.AgentPanel.Tests
             Assert.AreEqual(expected.toolUseId, actual.toolUseId);
             Assert.AreEqual(expected.subagentType, actual.subagentType);
             Assert.AreEqual(expected.description, actual.description);
+            Assert.AreEqual(expected.background, actual.background, "run_in_background flag must survive the round trip");
             Assert.AreEqual(expected.status, actual.status);
             Assert.AreEqual(expected.progressLine, actual.progressLine);
             Assert.AreEqual(expected.lastToolName, actual.lastToolName);
