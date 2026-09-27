@@ -232,6 +232,7 @@ namespace Colloid.AgentPanel.Tests
                 toolUseId = "toolu_agent",
                 subagentType = "general-purpose",
                 description = "Run echo fixture command",
+                background = true,
                 status = "completed",
                 progressLine = "Running Echo fixture string",
                 lastToolName = "Bash",
@@ -341,6 +342,7 @@ namespace Colloid.AgentPanel.Tests
             Assert.AreEqual(expected.toolUseId, actual.toolUseId);
             Assert.AreEqual(expected.subagentType, actual.subagentType);
             Assert.AreEqual(expected.description, actual.description);
+            Assert.AreEqual(expected.background, actual.background, "run_in_background flag must survive the round trip");
             Assert.AreEqual(expected.status, actual.status);
             Assert.AreEqual(expected.progressLine, actual.progressLine);
             Assert.AreEqual(expected.lastToolName, actual.lastToolName);
@@ -443,6 +445,38 @@ namespace Colloid.AgentPanel.Tests
             Assert.AreEqual(143, loaded.messages[0].blocks[0].thinkingTokens);
             Assert.AreEqual(0, loaded.messages[0].blocks[1].thinkingTokens,
                 "non-thinking blocks default to 0");
+            Assert.IsEmpty(_logs);
+        }
+
+        [Test]
+        public void RoundTrip_McpStatusBlock_PreservesServersAndTools()
+        {
+            var session = new ChatSession { sessionId = "sess-mcp" };
+            var note = new ChatMessage { role = ChatMessage.RoleSystem };
+            note.Add(ChatMessageBlock.MakeMcpStatus("fallback", new List<McpServerEntry>
+            {
+                new McpServerEntry { name = "uap-ops", status = "connected",
+                    tools = new List<string> { "mcp__uap-ops__uap_ping" } },
+                new McpServerEntry { name = "github", status = "failed" }
+            }));
+            note.Add(ChatMessageBlock.MakeText("plain"));
+            session.AddMessage(note);
+
+            _cache.Save(session);
+            ChatSession loaded = _cache.Load();
+
+            Assert.IsNotNull(loaded);
+            ChatMessageBlock block = loaded.messages[0].blocks[0];
+            Assert.AreEqual(ChatBlockKind.McpStatus, block.kind);
+            Assert.AreEqual("fallback", block.text);
+            Assert.AreEqual(2, block.mcpServers.Count);
+            Assert.AreEqual("uap-ops", block.mcpServers[0].name);
+            Assert.AreEqual("connected", block.mcpServers[0].status);
+            CollectionAssert.AreEqual(new[] { "mcp__uap-ops__uap_ping" }, block.mcpServers[0].tools);
+            Assert.AreEqual("github", block.mcpServers[1].name);
+            Assert.IsEmpty(block.mcpServers[1].tools);
+            Assert.IsNull(loaded.messages[0].blocks[1].mcpServers,
+                "the key is written only for McpStatus blocks, so other kinds read back null");
             Assert.IsEmpty(_logs);
         }
 

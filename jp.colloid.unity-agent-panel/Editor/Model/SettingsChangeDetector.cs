@@ -169,6 +169,7 @@ namespace Colloid.AgentPanel.Model
                 || spawnedWith.extensionProfilesEnabled != current.extensionProfilesEnabled
                 || spawnedWith.unityPluginSteeringEnabled != current.unityPluginSteeringEnabled
                 || spawnedWith.uloopAgentUseEnabled != current.uloopAgentUseEnabled
+                || !McpServerConfig.ListsEqual(spawnedWith.mcpServers, current.mcpServers)
                 || !StringListsEqual(spawnedWith.allowedTools, current.allowedTools)
                 || !StringListsEqual(spawnedWith.disallowedTools, current.disallowedTools)
                 || !StringListsEqual(spawnedWith.approvedProfileHashes, current.approvedProfileHashes)

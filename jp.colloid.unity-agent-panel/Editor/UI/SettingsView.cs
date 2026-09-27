@@ -85,6 +85,7 @@ namespace Colloid.AgentPanel.UI
         internal const string UapOpsCardId = "uapops";
         internal const string ProfilesCardId = "profiles";
         internal const string UloopCardId = "uloop";
+        internal const string McpServersCardId = "mcp-servers";
         internal const string UnityPluginCardId = "unity-plugin";
         internal const string AgentCardId = "agent";
         internal const string DiagnosticsCardId = "diagnostics";
@@ -177,6 +178,8 @@ namespace Colloid.AgentPanel.UI
         private Label _subagentPrecedenceWarningLabel;
         private Foldout _agentOverridesFoldout;
         private VisualElement _agentOverridesHost;
+        private VisualElement _mcpServersHost;
+        private Label _mcpServersResultLabel;
         private Label _agentOverridesDuplicateWarningLabel;
 
         /// <summary>
@@ -573,6 +576,7 @@ namespace Colloid.AgentPanel.UI
 
             VisualElement unityTab = _tabBodies[(int)SettingsTab.Unity];
             BuildUapOpsSection(unityTab);
+            BuildMcpServersSection(unityTab);
             BuildExtensionProfilesSection(unityTab);
             BuildUloopSection(unityTab);
             BuildUnityPluginSection(unityTab);
@@ -2599,6 +2603,237 @@ namespace Colloid.AgentPanel.UI
             CommitSettingsChange();
             ConsoleErrorProvider.NotifyIgnoreStoreChanged();
             RebuildIgnoredErrorRows();
+        }
+
+        // -- (b2a) MCP servers (docs/design-notes/2026-09-27-mcp-servers-in-
+        // panel.md section 3): the user's own servers, passed to the CLI in
+        // the same --mcp-config file as UapOps. Next-spawn-only, so every
+        // edit goes through CommitSettingsChange and auto-applies via the
+        // ordinary reconnect path. ------------------------------------------
+
+        private void BuildMcpServersSection(VisualElement parent)
+        {
+            VisualElement section = AddCollapsibleSection(parent, L10n.S.SettingsSectionMcpServers,
+                "d_Settings", IconLoader.GlyphGear, McpServersCardId);
+            AddHint(section, L10n.S.SettingsMcpServersHint, L10n.S.SettingsMcpServersTooltip);
+
+            _mcpServersHost = new VisualElement();
+            _mcpServersHost.AddToClassList("uap-settings-qa-list");
+            section.Add(_mcpServersHost);
+
+            _mcpServersResultLabel = AddHint(section, string.Empty);
+            _mcpServersResultLabel.style.display = DisplayStyle.None;
+
+            VisualElement addRow = AddRow(section);
+            addRow.AddToClassList("uap-settings-mcp-actions");
+            var add = new Button(OnAddMcpServerClicked) { text = L10n.S.SettingsAddMcpServerButton };
+            add.AddToClassList("uap-settings-btn");
+            addRow.Add(add);
+            var import = new Button(OnImportMcpServersClicked) { text = L10n.S.SettingsImportMcpServersButton };
+            import.AddToClassList("uap-settings-btn");
+            import.tooltip = L10n.S.SettingsImportMcpServersTooltip;
+            addRow.Add(import);
+            var terminal = new Button(OnOpenMcpTerminalClicked) { text = L10n.S.SettingsOpenMcpTerminalButton };
+            terminal.AddToClassList("uap-settings-btn");
+            terminal.tooltip = L10n.S.SettingsOpenMcpTerminalTooltip;
+            addRow.Add(terminal);
+
+            RebuildMcpServerRows();
+        }
+
+        private static List<McpServerConfig> LoadMcpServers()
+        {
+            PanelSettings settings = PanelStateStore.instance.Settings;
+            if (settings.mcpServers == null)
+            {
+                settings.mcpServers = new List<McpServerConfig>();
+            }
+            return settings.mcpServers;
+        }
+
+        private void RebuildMcpServerRows()
+        {
+            if (_mcpServersHost == null)
+            {
+                return;
+            }
+            _mcpServersHost.Clear();
+            List<McpServerConfig> servers = LoadMcpServers();
+            for (int i = 0; i < servers.Count; i++)
+            {
+                if (servers[i] != null)
+                {
+                    AddMcpServerRow(servers, servers[i]);
+                }
+            }
+        }
+
+        /// <summary>
+        /// One server: a header line (enabled switch, name, transport,
+        /// Remove) and the transport's own fields under it. Lists (args,
+        /// env, headers) are one-per-line text areas: JsonUtility-friendly
+        /// and what a user pastes from a README anyway. A change of
+        /// transport rebuilds the rows so the right fields show.
+        /// </summary>
+        private void AddMcpServerRow(List<McpServerConfig> servers, McpServerConfig entry)
+        {
+            var row = new VisualElement();
+            row.AddToClassList("uap-settings-mcp-row");
+
+            var line = new VisualElement();
+            line.AddToClassList("uap-settings-mcp-line");
+
+            var enabled = new Toggle();
+            enabled.AddToClassList("uap-switch");
+            enabled.tooltip = L10n.S.SettingsMcpServerEnabledTooltip;
+            enabled.SetValueWithoutNotify(entry.enabled);
+            enabled.RegisterValueChangedCallback(delegate(ChangeEvent<bool> evt)
+            {
+                entry.enabled = evt.newValue;
+                CommitSettingsChange();
+            });
+            line.Add(enabled);
+
+            var nameField = new TextField();
+            nameField.AddToClassList("uap-settings-mcp-name");
+            nameField.tooltip = L10n.S.SettingsMcpServerNameTooltip;
+            nameField.SetValueWithoutNotify(entry.name ?? string.Empty);
+            nameField.RegisterValueChangedCallback(delegate(ChangeEvent<string> evt)
+            {
+                entry.name = (evt.newValue ?? string.Empty).Trim();
+                CommitSettingsChange();
+                RefreshMcpServerCompleteness(row, entry);
+            });
+            line.Add(nameField);
+
+            var transports = new List<string>(McpServerConfig.Transports);
+            string current = transports.Contains(entry.transport ?? string.Empty)
+                ? entry.transport : McpServerConfig.TransportStdio;
+            var transport = new PopupField<string>(transports, current);
+            transport.AddToClassList("uap-settings-mcp-transport");
+            transport.tooltip = L10n.S.SettingsMcpServerTransportTooltip;
+            transport.RegisterValueChangedCallback(delegate(ChangeEvent<string> evt)
+            {
+                entry.transport = evt.newValue ?? McpServerConfig.TransportStdio;
+                CommitSettingsChange();
+                RebuildMcpServerRows();
+            });
+            line.Add(transport);
+
+            var remove = new Button(delegate
+            {
+                servers.Remove(entry);
+                CommitSettingsChange();
+                RebuildMcpServerRows();
+            });
+            remove.text = L10n.S.SettingsMcpServerRemoveButton;
+            remove.AddToClassList("uap-settings-btn");
+            remove.AddToClassList("uap-settings-model-remove");
+            line.Add(remove);
+            row.Add(line);
+
+            if (entry.IsRemote)
+            {
+                row.Add(CreateMcpTextField(L10n.S.SettingsMcpServerUrlLabel, L10n.S.SettingsMcpServerUrlTooltip,
+                    entry.url, false, delegate(string value)
+                    {
+                        entry.url = value.Trim();
+                        RefreshMcpServerCompleteness(row, entry);
+                    }));
+                row.Add(CreateMcpTextField(L10n.S.SettingsMcpServerHeadersLabel, L10n.S.SettingsMcpServerHeadersTooltip,
+                    JoinLines(entry.headers), true, delegate(string value) { entry.headers = SplitLines(value); }));
+            }
+            else
+            {
+                row.Add(CreateMcpTextField(L10n.S.SettingsMcpServerCommandLabel, L10n.S.SettingsMcpServerCommandTooltip,
+                    entry.command, false, delegate(string value)
+                    {
+                        entry.command = value.Trim();
+                        RefreshMcpServerCompleteness(row, entry);
+                    }));
+                row.Add(CreateMcpTextField(L10n.S.SettingsMcpServerArgsLabel, L10n.S.SettingsMcpServerArgsTooltip,
+                    JoinLines(entry.args), true, delegate(string value) { entry.args = SplitLines(value); }));
+                row.Add(CreateMcpTextField(L10n.S.SettingsMcpServerEnvLabel, L10n.S.SettingsMcpServerEnvTooltip,
+                    JoinLines(entry.env), true, delegate(string value) { entry.env = SplitLines(value); }));
+            }
+
+            var incomplete = new Label(L10n.S.SettingsMcpServerIncompleteHint);
+            incomplete.AddToClassList("uap-settings-hint");
+            incomplete.AddToClassList("uap-settings-hint--pending");
+            incomplete.AddToClassList("uap-settings-mcp-incomplete");
+            incomplete.enableRichText = false;
+            row.Add(incomplete);
+            RefreshMcpServerCompleteness(row, entry);
+
+            TextEscapes.Disable(row);
+            _mcpServersHost.Add(row);
+        }
+
+        private TextField CreateMcpTextField(string label, string tooltip, string value, bool multiline,
+            System.Action<string> write)
+        {
+            var field = new TextField(label);
+            field.AddToClassList("uap-settings-field");
+            field.AddToClassList("uap-settings-field--child");
+            if (multiline)
+            {
+                field.multiline = true;
+                field.AddToClassList("uap-settings-mcp-multiline");
+            }
+            field.tooltip = tooltip;
+            field.SetValueWithoutNotify(value ?? string.Empty);
+            field.RegisterValueChangedCallback(delegate(ChangeEvent<string> evt)
+            {
+                write(evt.newValue ?? string.Empty);
+                CommitSettingsChange();
+            });
+            return field;
+        }
+
+        private static void RefreshMcpServerCompleteness(VisualElement row, McpServerConfig entry)
+        {
+            Label hint = row.Q<Label>(className: "uap-settings-mcp-incomplete");
+            if (hint != null)
+            {
+                hint.style.display = entry.IsComplete ? DisplayStyle.None : DisplayStyle.Flex;
+            }
+        }
+
+        private void OnAddMcpServerClicked()
+        {
+            LoadMcpServers().Add(new McpServerConfig());
+            CommitSettingsChange();
+            RebuildMcpServerRows();
+        }
+
+        private void OnImportMcpServersClicked()
+        {
+            List<McpServerConfig> found = McpServerImport.ReadFromDisk(AgentHub.ProjectRoot);
+            int added = McpServerImport.MergeNew(LoadMcpServers(), found);
+            if (added > 0)
+            {
+                CommitSettingsChange();
+                RebuildMcpServerRows();
+            }
+            ShowMcpServersResult(added > 0
+                ? L10n.F(L10n.S.SettingsImportMcpServersResultFmt, added)
+                : L10n.S.SettingsImportMcpServersNoneFound);
+        }
+
+        private void OnOpenMcpTerminalClicked()
+        {
+            string error = AgentHub.OpenTerminalForMcp();
+            ShowMcpServersResult(error ?? L10n.S.HubMcpTerminalOpenedNote);
+        }
+
+        private void ShowMcpServersResult(string text)
+        {
+            if (_mcpServersResultLabel == null)
+            {
+                return;
+            }
+            _mcpServersResultLabel.text = text;
+            _mcpServersResultLabel.style.display = DisplayStyle.Flex;
         }
 
         // -- (b2) UapOps (Phase 5a, docs/design-notes/2026-08-01-phase5-
@@ -6536,6 +6771,7 @@ namespace Colloid.AgentPanel.UI
                 case ConsoleErrorsCardId:
                     return SettingsTab.Panel;
                 case UapOpsCardId:
+                case McpServersCardId:
                 case ProfilesCardId:
                 case UloopCardId:
                 case UnityPluginCardId:

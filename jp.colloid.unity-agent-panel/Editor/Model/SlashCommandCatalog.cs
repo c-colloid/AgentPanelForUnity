@@ -27,6 +27,13 @@ namespace Colloid.AgentPanel.Model
     {
         public const string ClearCommand = "clear";
         public const string CompactCommand = "compact";
+        /// <summary>
+        /// Handled by the panel (design note 2026-09-27-mcp-slash-command.md):
+        /// the CLI's own /mcp is an interactive screen that stream-json
+        /// mode can only answer with a one-line synthetic summary, so the
+        /// panel lists the servers from system/init itself.
+        /// </summary>
+        public const string McpCommand = "mcp";
 
         /// <summary>Upper bound on rows the suggestion popup shows.</summary>
         public const int MaxSuggestions = 8;
@@ -118,18 +125,18 @@ namespace Colloid.AgentPanel.Model
 
         /// <summary>
         /// The catalog the composer actually offers: the cached CLI list
-        /// plus the two commands the panel guarantees regardless of what
-        /// the CLI reported ("/compact" and "/clear" are supported by every
-        /// SDK-mode CLI this panel targets, and "/clear" is handled locally
-        /// anyway). "/clear" ALWAYS carries the panel's own description --
-        /// it is the panel's New chat, not the CLI's -- while "/compact"
-        /// keeps the CLI's description when one was reported. The
-        /// guaranteed two are inserted at the front, in that order, so a
-        /// bare "/" shows them first. Never returns null and never mutates
-        /// its input.
+        /// plus the three commands the panel guarantees regardless of what
+        /// the CLI reported ("/compact" is supported by every SDK-mode CLI
+        /// this panel targets; "/clear" and "/mcp" are handled locally
+        /// anyway). "/clear" and "/mcp" ALWAYS carry the panel's own
+        /// description -- they are the panel's New chat and MCP status
+        /// note, not the CLI's -- while "/compact" keeps the CLI's
+        /// description when one was reported. The guaranteed three are
+        /// inserted at the front, in that order, so a bare "/" shows them
+        /// first. Never returns null and never mutates its input.
         /// </summary>
         public static List<SlashCommandEntry> WithBuiltins(IList<SlashCommandEntry> catalog,
-            string compactDescription, string clearDescription)
+            string compactDescription, string clearDescription, string mcpDescription)
         {
             var result = new List<SlashCommandEntry>();
             SlashCommandEntry compact = Find(catalog, CompactCommand);
@@ -145,6 +152,11 @@ namespace Colloid.AgentPanel.Model
                 name = ClearCommand,
                 description = clearDescription ?? string.Empty
             });
+            result.Add(new SlashCommandEntry
+            {
+                name = McpCommand,
+                description = mcpDescription ?? string.Empty
+            });
             if (catalog != null)
             {
                 for (int i = 0; i < catalog.Count; i++)
@@ -154,7 +166,8 @@ namespace Colloid.AgentPanel.Model
                     {
                         continue;
                     }
-                    if (IsName(entry.name, CompactCommand) || IsName(entry.name, ClearCommand))
+                    if (IsName(entry.name, CompactCommand) || IsName(entry.name, ClearCommand)
+                        || IsName(entry.name, McpCommand))
                     {
                         continue;
                     }
@@ -322,6 +335,11 @@ namespace Colloid.AgentPanel.Model
         public static bool IsCompact(string name)
         {
             return IsName(name, CompactCommand);
+        }
+
+        public static bool IsMcp(string name)
+        {
+            return IsName(name, McpCommand);
         }
 
         // -- Internals -----------------------------------------------------------------

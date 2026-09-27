@@ -7,7 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-(nothing yet)
+### Fixed
+
+- **Background subagents (`run_in_background: true`) are now tracked by
+  their subagent card.** The Agent tool's launch acknowledgement used to
+  close the card as "completed" at once, so everything the subagent did
+  afterwards leaked onto the top-level transcript as plain cards and its
+  progress / summary never arrived. The card now stays running across the
+  parent's turn boundary, collects the nested calls, and closes on the
+  subagent's own completion notification; a "background" tag marks it
+  (design note `docs/design-notes/2026-09-27-background-subagent-card.md`).
+- **`/mcp` no longer ends in a "CLI error: synthetic response" block.**
+  Typing `/mcp` in the composer is now answered by the panel itself: the
+  command is echoed as your message, and a card lists this session's MCP
+  servers, one row each with its status, its tools (expandable) and a
+  Reconnect button that asks the CLI to reconnect that server; the row and
+  a note report the outcome. It used to be sent to the CLI, whose
+  non-interactive answer was a one-line summary that the transcript then
+  rendered as a CLI error. `docs/design-notes/2026-09-27-mcp-slash-command.md`.
+- **The rest of what the CLI's `/mcp` screen offers is in the panel too.**
+  A new "MCP servers" card under Settings > Unity lists your own servers
+  the agent gets on top of the Unity operations server: stdio (command,
+  arguments, environment) or http / sse (URL, headers), each with an on/off
+  switch. "Import from Claude Code" copies servers from `~/.claude.json`
+  and the project's `.mcp.json`. The panel keeps starting Claude Code with
+  its own strict server list, so this is the way to give a panel session
+  extra servers; changes apply on the next connection like other
+  connection settings. `docs/design-notes/2026-09-27-mcp-servers-in-panel.md`.
+- **`/mcp` card: add servers, see tool descriptions, authenticate.** The
+  card's header has "Add server..." (opens that Settings card), the Unity
+  operations server's tools show their descriptions, and a server that
+  needs authentication gets an "Open terminal" button that runs Claude
+  Code in a terminal on the panel's own server list, where `/mcp` can do
+  the OAuth login the panel cannot; press Reconnect afterwards.
 
 ## [0.60.0] - 2026-09-23
 

@@ -468,6 +468,76 @@ namespace Colloid.AgentPanel.UI
         public readonly string HubCompactedAuto =
             "The CLI auto-compacted the context because the window was nearly full."
             + " The conversation above is now a summary for the model.";
+
+        // -- /mcp note (docs/design-notes/2026-09-27-mcp-slash-command.md) --
+        public readonly string HubMcpNoSession =
+            "No agent connection yet: MCP servers are reported once the CLI has started. Send a message first, then /mcp.";
+        public readonly string HubMcpNoServers = "This session has no MCP servers.";
+        /// <summary>{0} = server count, {1} = connected, {2} = failed, {3} = other (pending / needs auth).</summary>
+        public readonly string HubMcpSummaryFmt = "{0} MCP server(s): {1} connected, {2} failed, {3} other";
+        /// <summary>{0} = server name, {1} = status label, {2} = number of tools it contributed.</summary>
+        public readonly string HubMcpServerLineFmt = "- {0}: {1} ({2} tools)";
+        /// <summary>{0} = server name, {1} = status label. Used when the server contributed no tools.</summary>
+        public readonly string HubMcpServerLineNoToolsFmt = "- {0}: {1}";
+        public readonly string HubMcpStatusConnected = "connected";
+        public readonly string HubMcpStatusFailed = "failed";
+        public readonly string HubMcpStatusPending = "pending";
+        public readonly string HubMcpStatusNeedsAuth = "needs authentication";
+        public readonly string HubMcpStatusUnknown = "unknown";
+        /// <summary>{0} = server name. Note added when the card's Reconnect button is pressed.</summary>
+        public readonly string HubMcpReconnectRequestedFmt = "Reconnecting MCP server {0}...";
+        /// <summary>{0} = server name.</summary>
+        public readonly string HubMcpReconnectedFmt = "MCP server {0} reconnected.";
+        /// <summary>{0} = server name, {1} = the CLI's error text.</summary>
+        public readonly string HubMcpReconnectFailedFmt = "MCP server {0} could not be reconnected: {1}";
+        // -- /mcp card (McpStatusCard) --
+        public readonly string McpCardReconnect = "Reconnect";
+        public readonly string McpCardReconnectTooltip = "Ask the CLI to reconnect this MCP server";
+        public readonly string McpCardReconnectOfflineTooltip = "No agent connection: reconnect once the CLI is running";
+        /// <summary>{0} = number of tools the server contributed; appended after the status label.</summary>
+        public readonly string McpCardToolCountFmt = "({0} tools)";
+        public readonly string McpCardToolsFoldout = "Tools";
+        public readonly string McpCardNeedsAuthHint = "Authentication has to be done in a terminal (/mcp there).";
+        public readonly string McpCardAddServer = "Add server...";
+        public readonly string McpCardAddServerTooltip = "Open Settings > MCP servers; a new server joins the next connection";
+        public readonly string McpCardAuthTerminal = "Open terminal";
+        public readonly string McpCardAuthTerminalTooltip = "Open a terminal running Claude Code on this panel's MCP servers; run /mcp there to authenticate, then Reconnect here";
+        public readonly string HubMcpTerminalOpenedNote = "A terminal with Claude Code was opened. Run /mcp there to authenticate, then press Reconnect here.";
+        public readonly string HubMcpTerminalNoCli = "The Claude Code CLI was not found, so no terminal could be opened.";
+        /// <summary>{0} = OS error text.</summary>
+        public readonly string HubMcpTerminalFailedFmt = "Could not open a terminal: {0}";
+        // -- Settings > MCP servers (docs/design-notes/2026-09-27-mcp-servers-in-panel.md) --
+        public readonly string SettingsSectionMcpServers = "MCP servers";
+        public readonly string SettingsMcpServersHint =
+            "Your own MCP servers for the agent. Changes apply on the next connection.";
+        public readonly string SettingsMcpServersTooltip =
+            "The panel starts Claude Code with only the servers listed here plus the Unity operations server;"
+            + " Claude Code's own MCP configuration files are not read. Use Import to copy servers from them.";
+        public readonly string SettingsAddMcpServerButton = "+ Add server";
+        public readonly string SettingsImportMcpServersButton = "Import from Claude Code";
+        public readonly string SettingsImportMcpServersTooltip =
+            "Copies the servers in ~/.claude.json (user and this project) and the project's .mcp.json that are not listed yet";
+        /// <summary>{0} = number of servers added.</summary>
+        public readonly string SettingsImportMcpServersResultFmt = "{0} server(s) imported.";
+        public readonly string SettingsImportMcpServersNoneFound = "No new servers found in Claude Code's configuration.";
+        public readonly string SettingsOpenMcpTerminalButton = "Open terminal for /mcp";
+        public readonly string SettingsOpenMcpTerminalTooltip =
+            "Opens a terminal running Claude Code on these servers, for /mcp operations the panel cannot do (OAuth login)";
+        public readonly string SettingsMcpServerEnabledTooltip = "Off keeps the entry but leaves it out of the connection";
+        public readonly string SettingsMcpServerNameTooltip = "Server name, as the agent will see it (tools become mcp__<name>__<tool>)";
+        public readonly string SettingsMcpServerTransportTooltip = "stdio runs a local command; http and sse connect to a URL";
+        public readonly string SettingsMcpServerCommandLabel = "Command";
+        public readonly string SettingsMcpServerCommandTooltip = "The executable (e.g. npx, node, python, or a full path)";
+        public readonly string SettingsMcpServerArgsLabel = "Arguments";
+        public readonly string SettingsMcpServerArgsTooltip = "One argument per line";
+        public readonly string SettingsMcpServerEnvLabel = "Environment";
+        public readonly string SettingsMcpServerEnvTooltip = "One KEY=VALUE per line";
+        public readonly string SettingsMcpServerUrlLabel = "URL";
+        public readonly string SettingsMcpServerUrlTooltip = "The server endpoint (https://... or http://localhost:...)";
+        public readonly string SettingsMcpServerHeadersLabel = "Headers";
+        public readonly string SettingsMcpServerHeadersTooltip = "One \"Name: value\" per line (e.g. Authorization: Bearer ...)";
+        public readonly string SettingsMcpServerRemoveButton = "Remove";
+        public readonly string SettingsMcpServerIncompleteHint = "Needs a name and a command (stdio) or a URL (http / sse) before it is used.";
         /// <summary>
         /// Retracts HubAutoContinueResuming. That note is written the moment
         /// the send is attempted, so every path that then drops the message
@@ -864,6 +934,8 @@ namespace Colloid.AgentPanel.UI
             "Summarize the conversation so far to free up context (optional: instructions for the summary)";
         /// <summary>Description for /clear -- always the panel's own, since the panel handles it (New chat).</summary>
         public readonly string SlashClearDescription = "Start a new chat (same as the New chat button)";
+        /// <summary>Description for /mcp -- always the panel's own, since the panel answers it (docs/design-notes/2026-09-27-mcp-slash-command.md).</summary>
+        public readonly string SlashMcpDescription = "Show the MCP servers of this session and their status";
 
         // ==================================================================
         // SubagentCard.cs
@@ -871,6 +943,9 @@ namespace Colloid.AgentPanel.UI
 
         public readonly string SubagentDefaultType = "Subagent";
         public readonly string SubagentDefaultDescription = "Subagent";
+        /// <summary>Header tag on a run_in_background subagent card: the
+        /// spawn returned at once and the work continues past the turn.</summary>
+        public readonly string SubagentBackgroundBadge = "background";
 
         /// <summary>{0} = number of omitted earlier steps.</summary>
         public readonly string SubagentDropNoteFmt = "{0} earlier steps omitted";
@@ -2758,6 +2833,57 @@ namespace Colloid.AgentPanel.UI
             string hubCompactedManual,
             string hubCompactedAutoFmt,
             string hubCompactedAuto,
+            string hubMcpNoSession,
+            string hubMcpNoServers,
+            string hubMcpSummaryFmt,
+            string hubMcpServerLineFmt,
+            string hubMcpServerLineNoToolsFmt,
+            string hubMcpStatusConnected,
+            string hubMcpStatusFailed,
+            string hubMcpStatusPending,
+            string hubMcpStatusNeedsAuth,
+            string hubMcpStatusUnknown,
+            string hubMcpReconnectRequestedFmt,
+            string hubMcpReconnectedFmt,
+            string hubMcpReconnectFailedFmt,
+            string mcpCardReconnect,
+            string mcpCardReconnectTooltip,
+            string mcpCardReconnectOfflineTooltip,
+            string mcpCardToolCountFmt,
+            string mcpCardToolsFoldout,
+            string mcpCardNeedsAuthHint,
+            string mcpCardAddServer,
+            string mcpCardAddServerTooltip,
+            string mcpCardAuthTerminal,
+            string mcpCardAuthTerminalTooltip,
+            string hubMcpTerminalOpenedNote,
+            string hubMcpTerminalNoCli,
+            string hubMcpTerminalFailedFmt,
+            string settingsSectionMcpServers,
+            string settingsMcpServersHint,
+            string settingsMcpServersTooltip,
+            string settingsAddMcpServerButton,
+            string settingsImportMcpServersButton,
+            string settingsImportMcpServersTooltip,
+            string settingsImportMcpServersResultFmt,
+            string settingsImportMcpServersNoneFound,
+            string settingsOpenMcpTerminalButton,
+            string settingsOpenMcpTerminalTooltip,
+            string settingsMcpServerEnabledTooltip,
+            string settingsMcpServerNameTooltip,
+            string settingsMcpServerTransportTooltip,
+            string settingsMcpServerCommandLabel,
+            string settingsMcpServerCommandTooltip,
+            string settingsMcpServerArgsLabel,
+            string settingsMcpServerArgsTooltip,
+            string settingsMcpServerEnvLabel,
+            string settingsMcpServerEnvTooltip,
+            string settingsMcpServerUrlLabel,
+            string settingsMcpServerUrlTooltip,
+            string settingsMcpServerHeadersLabel,
+            string settingsMcpServerHeadersTooltip,
+            string settingsMcpServerRemoveButton,
+            string settingsMcpServerIncompleteHint,
             string hubAutoContinueSendAbandonedFmt,
             string hubAutoContinueInterruptedResuming,
             string hubReloadDroppedPermissionFmt,
@@ -2921,8 +3047,10 @@ namespace Colloid.AgentPanel.UI
             string composerSlashNoMatch,
             string slashCompactDescription,
             string slashClearDescription,
+            string slashMcpDescription,
             string subagentDefaultType,
             string subagentDefaultDescription,
+            string subagentBackgroundBadge,
             string subagentDropNoteFmt,
             string subagentProgressToolFmt,
             string subagentProgressTokensFmt,
@@ -3606,6 +3734,57 @@ namespace Colloid.AgentPanel.UI
             HubCompactedManual = hubCompactedManual;
             HubCompactedAutoFmt = hubCompactedAutoFmt;
             HubCompactedAuto = hubCompactedAuto;
+            HubMcpNoSession = hubMcpNoSession;
+            HubMcpNoServers = hubMcpNoServers;
+            HubMcpSummaryFmt = hubMcpSummaryFmt;
+            HubMcpServerLineFmt = hubMcpServerLineFmt;
+            HubMcpServerLineNoToolsFmt = hubMcpServerLineNoToolsFmt;
+            HubMcpStatusConnected = hubMcpStatusConnected;
+            HubMcpStatusFailed = hubMcpStatusFailed;
+            HubMcpStatusPending = hubMcpStatusPending;
+            HubMcpStatusNeedsAuth = hubMcpStatusNeedsAuth;
+            HubMcpStatusUnknown = hubMcpStatusUnknown;
+            HubMcpReconnectRequestedFmt = hubMcpReconnectRequestedFmt;
+            HubMcpReconnectedFmt = hubMcpReconnectedFmt;
+            HubMcpReconnectFailedFmt = hubMcpReconnectFailedFmt;
+            McpCardReconnect = mcpCardReconnect;
+            McpCardReconnectTooltip = mcpCardReconnectTooltip;
+            McpCardReconnectOfflineTooltip = mcpCardReconnectOfflineTooltip;
+            McpCardToolCountFmt = mcpCardToolCountFmt;
+            McpCardToolsFoldout = mcpCardToolsFoldout;
+            McpCardNeedsAuthHint = mcpCardNeedsAuthHint;
+            McpCardAddServer = mcpCardAddServer;
+            McpCardAddServerTooltip = mcpCardAddServerTooltip;
+            McpCardAuthTerminal = mcpCardAuthTerminal;
+            McpCardAuthTerminalTooltip = mcpCardAuthTerminalTooltip;
+            HubMcpTerminalOpenedNote = hubMcpTerminalOpenedNote;
+            HubMcpTerminalNoCli = hubMcpTerminalNoCli;
+            HubMcpTerminalFailedFmt = hubMcpTerminalFailedFmt;
+            SettingsSectionMcpServers = settingsSectionMcpServers;
+            SettingsMcpServersHint = settingsMcpServersHint;
+            SettingsMcpServersTooltip = settingsMcpServersTooltip;
+            SettingsAddMcpServerButton = settingsAddMcpServerButton;
+            SettingsImportMcpServersButton = settingsImportMcpServersButton;
+            SettingsImportMcpServersTooltip = settingsImportMcpServersTooltip;
+            SettingsImportMcpServersResultFmt = settingsImportMcpServersResultFmt;
+            SettingsImportMcpServersNoneFound = settingsImportMcpServersNoneFound;
+            SettingsOpenMcpTerminalButton = settingsOpenMcpTerminalButton;
+            SettingsOpenMcpTerminalTooltip = settingsOpenMcpTerminalTooltip;
+            SettingsMcpServerEnabledTooltip = settingsMcpServerEnabledTooltip;
+            SettingsMcpServerNameTooltip = settingsMcpServerNameTooltip;
+            SettingsMcpServerTransportTooltip = settingsMcpServerTransportTooltip;
+            SettingsMcpServerCommandLabel = settingsMcpServerCommandLabel;
+            SettingsMcpServerCommandTooltip = settingsMcpServerCommandTooltip;
+            SettingsMcpServerArgsLabel = settingsMcpServerArgsLabel;
+            SettingsMcpServerArgsTooltip = settingsMcpServerArgsTooltip;
+            SettingsMcpServerEnvLabel = settingsMcpServerEnvLabel;
+            SettingsMcpServerEnvTooltip = settingsMcpServerEnvTooltip;
+            SettingsMcpServerUrlLabel = settingsMcpServerUrlLabel;
+            SettingsMcpServerUrlTooltip = settingsMcpServerUrlTooltip;
+            SettingsMcpServerHeadersLabel = settingsMcpServerHeadersLabel;
+            SettingsMcpServerHeadersTooltip = settingsMcpServerHeadersTooltip;
+            SettingsMcpServerRemoveButton = settingsMcpServerRemoveButton;
+            SettingsMcpServerIncompleteHint = settingsMcpServerIncompleteHint;
             HubAutoContinueSendAbandonedFmt = hubAutoContinueSendAbandonedFmt;
             HubAutoContinueInterruptedResuming = hubAutoContinueInterruptedResuming;
             HubReloadDroppedPermissionFmt = hubReloadDroppedPermissionFmt;
@@ -3769,8 +3948,10 @@ namespace Colloid.AgentPanel.UI
             ComposerSlashNoMatch = composerSlashNoMatch;
             SlashCompactDescription = slashCompactDescription;
             SlashClearDescription = slashClearDescription;
+            SlashMcpDescription = slashMcpDescription;
             SubagentDefaultType = subagentDefaultType;
             SubagentDefaultDescription = subagentDefaultDescription;
+            SubagentBackgroundBadge = subagentBackgroundBadge;
             SubagentDropNoteFmt = subagentDropNoteFmt;
             SubagentProgressToolFmt = subagentProgressToolFmt;
             SubagentProgressTokensFmt = subagentProgressTokensFmt;
