@@ -99,16 +99,18 @@ namespace Colloid.AgentPanel.Tests
         // -- WithBuiltins -----------------------------------------------------------------------
 
         [Test]
-        public void WithBuiltins_EmptyCatalog_OffersCompactAndClearWithPanelDescriptions()
+        public void WithBuiltins_EmptyCatalog_OffersCompactClearAndMcpWithPanelDescriptions()
         {
             List<SlashCommandEntry> offered = SlashCommandCatalog.WithBuiltins(
-                new List<SlashCommandEntry>(), "compact desc", "clear desc");
+                new List<SlashCommandEntry>(), "compact desc", "clear desc", "mcp desc");
 
-            Assert.AreEqual(2, offered.Count);
+            Assert.AreEqual(3, offered.Count);
             Assert.AreEqual("compact", offered[0].name);
             Assert.AreEqual("compact desc", offered[0].description);
             Assert.AreEqual("clear", offered[1].name);
             Assert.AreEqual("clear desc", offered[1].description);
+            Assert.AreEqual("mcp", offered[2].name);
+            Assert.AreEqual("mcp desc", offered[2].description);
         }
 
         [Test]
@@ -118,19 +120,33 @@ namespace Colloid.AgentPanel.Tests
             {
                 Entry("review", "Review code"),
                 Entry("compact", "CLI compact desc", "[instructions]"),
-                Entry("clear", "CLI clear desc")
+                Entry("clear", "CLI clear desc"),
+                Entry("mcp", "CLI mcp desc")
             };
-            List<SlashCommandEntry> offered = SlashCommandCatalog.WithBuiltins(catalog, "panel compact", "panel clear");
+            List<SlashCommandEntry> offered = SlashCommandCatalog.WithBuiltins(
+                catalog, "panel compact", "panel clear", "panel mcp");
 
-            Assert.AreEqual(3, offered.Count);
+            Assert.AreEqual(4, offered.Count);
             Assert.AreEqual("compact", offered[0].name);
             Assert.AreEqual("CLI compact desc", offered[0].description);
             Assert.AreEqual("[instructions]", offered[0].argumentHint);
             Assert.AreEqual("clear", offered[1].name);
             Assert.AreEqual("panel clear", offered[1].description,
                 "/clear is the panel's New chat, so its description is the panel's");
-            Assert.AreEqual("review", offered[2].name);
-            Assert.AreEqual(3, catalog.Count, "the input list must not be mutated");
+            Assert.AreEqual("mcp", offered[2].name);
+            Assert.AreEqual("panel mcp", offered[2].description,
+                "/mcp is answered by the panel, so its description is the panel's");
+            Assert.AreEqual("review", offered[3].name);
+            Assert.AreEqual(4, catalog.Count, "the input list must not be mutated");
+        }
+
+        [Test]
+        public void IsMcp_MatchesCaseInsensitively()
+        {
+            Assert.IsTrue(SlashCommandCatalog.IsMcp("mcp"));
+            Assert.IsTrue(SlashCommandCatalog.IsMcp("MCP"));
+            Assert.IsFalse(SlashCommandCatalog.IsMcp("mcps"));
+            Assert.IsFalse(SlashCommandCatalog.IsMcp(null));
         }
 
         // -- TryParse (the sent-text grammar) --------------------------------------------------

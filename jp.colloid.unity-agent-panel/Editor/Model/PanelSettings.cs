@@ -557,6 +557,18 @@ namespace Colloid.AgentPanel.Model
         public List<string> uapOpsModules = new List<string> { "core", "prefab", "editor", "markers", "web" };
 
         /// <summary>
+        /// Extra MCP servers the user added in Settings (design note
+        /// docs/design-notes/2026-09-27-mcp-servers-in-panel.md). Passed to
+        /// the CLI in the same `--mcp-config` file as the UapOps server;
+        /// because the spawn is `--strict-mcp-config`, this list is the
+        /// only source of non-UapOps servers in a panel session. Next-
+        /// spawn-only: SettingsChangeDetector.RequiresReconnect compares
+        /// it and AgentHub.CloneNextSpawnOnlyFields clones it, so an edit
+        /// auto-applies through the ordinary reconnect path.
+        /// </summary>
+        public List<McpServerConfig> mcpServers = new List<McpServerConfig>();
+
+        /// <summary>
         /// Phase 5c L3(3): after a turn's staged scripts compile and the
         /// domain reloads, automatically send a continuation turn so the
         /// agent can react to the compile result instead of the work simply

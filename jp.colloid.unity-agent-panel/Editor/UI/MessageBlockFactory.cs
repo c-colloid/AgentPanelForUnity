@@ -162,6 +162,8 @@ namespace Colloid.AgentPanel.UI
                     return CreateContextAttachmentBlock(block, stateKey);
                 case ChatBlockKind.Image:
                     return CreateImageBlock(block);
+                case ChatBlockKind.McpStatus:
+                    return new McpStatusCard(block, stateKey);
                 default:
                     return null;
             }

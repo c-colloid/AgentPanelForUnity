@@ -2780,6 +2780,27 @@
     flex-shrink: 0;
 }
 
+/* run_in_background tag (SubagentCard): sits between the type and the
+   description, same meta size as the badge, muted so the type stays the
+   loudest word on the row. */
+.uap-subcard-bgtag {
+    font-size: var(--uap-font-size-meta);
+    color: var(--uap-accent-agent);
+    margin-right: var(--uap-space-s);
+    padding-left: var(--uap-space-xs);
+    padding-right: var(--uap-space-xs);
+    border-width: 1px;
+    border-left-color: var(--uap-accent-agent);
+    border-right-color: var(--uap-accent-agent);
+    border-top-color: var(--uap-accent-agent);
+    border-bottom-color: var(--uap-accent-agent);
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+    flex-shrink: 0;
+}
+
 /* See .uap-toolcard-name for the measurement -- identical shape: an
    unshrinkable leading label ahead of the single flex-grow column. */
 .uap-subcard-type {
@@ -5498,4 +5519,129 @@
 
 .uap-narrow .uap-settings-search {
     width: var(--uap-settings-search-w-narrow);
+}
+
+/* -- /mcp status card (docs/design-notes/2026-09-27-mcp-slash-command.md
+   section 6). Shares .uap-toolcard's box; only the rows are its own. -- */
+.uap-mcpcard {
+    padding-top: var(--uap-space-s);
+    padding-bottom: var(--uap-space-s);
+    padding-left: var(--uap-space-s);
+    padding-right: var(--uap-space-s);
+}
+
+.uap-mcpcard-summary {
+    font-size: var(--uap-font-size-meta);
+    color: var(--uap-text-secondary);
+    white-space: normal;
+    margin-bottom: var(--uap-space-xs);
+}
+
+.uap-mcpcard-row {
+    margin-top: var(--uap-space-xs);
+}
+
+.uap-mcpcard-line {
+    flex-direction: row;
+    align-items: center;
+}
+
+.uap-mcpcard-name {
+    font-size: var(--uap-font-size-meta);
+    -unity-font-style: bold;
+    margin-right: var(--uap-space-s);
+    flex-shrink: 1;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.uap-mcpcard-status {
+    font-size: var(--uap-font-size-meta);
+    color: var(--uap-text-secondary);
+    flex-grow: 1;
+    flex-shrink: 1;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.uap-mcpcard-reconnect {
+    flex-shrink: 0;
+    margin-left: var(--uap-space-s);
+}
+
+.uap-mcpcard-hint {
+    font-size: var(--uap-font-size-meta);
+    color: var(--uap-status-warn);
+    white-space: normal;
+    margin-left: 20px;
+}
+
+.uap-mcpcard-tools {
+    margin-left: 20px;
+    margin-top: var(--uap-space-xs);
+}
+
+.uap-mcpcard-tool {
+    font-size: var(--uap-font-size-meta);
+    color: var(--uap-text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.uap-mcpcard-add,
+.uap-mcpcard-terminal {
+    flex-shrink: 0;
+    margin-left: var(--uap-space-s);
+}
+
+.uap-mcpcard-summary {
+    flex-grow: 1;
+    flex-shrink: 1;
+}
+
+.uap-mcpcard-tool-desc {
+    font-size: var(--uap-font-size-small);
+    color: var(--uap-text-secondary);
+    white-space: normal;
+    margin-left: 12px;
+    margin-bottom: var(--uap-space-xs);
+}
+
+/* -- Settings > MCP servers (docs/design-notes/2026-09-27-mcp-servers-in-
+   panel.md section 3) -- */
+.uap-settings-mcp-row {
+    margin-top: var(--uap-space-s);
+    padding-bottom: var(--uap-space-s);
+    border-bottom-width: 1px;
+    border-bottom-color: var(--uap-border-subtle);
+}
+
+.uap-settings-mcp-line {
+    flex-direction: row;
+    align-items: center;
+}
+
+.uap-settings-mcp-name {
+    flex-grow: 1;
+    flex-shrink: 1;
+    margin-left: var(--uap-space-s);
+    margin-right: var(--uap-space-s);
+}
+
+.uap-settings-mcp-transport {
+    width: 80px;
+    flex-shrink: 0;
+    margin-right: var(--uap-space-s);
+}
+
+.uap-settings-mcp-multiline {
+    min-height: 44px;
+}
+
+.uap-settings-mcp-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
 }

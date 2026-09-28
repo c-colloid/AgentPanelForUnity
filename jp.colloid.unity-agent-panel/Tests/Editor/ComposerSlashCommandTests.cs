@@ -77,6 +77,7 @@ namespace Colloid.AgentPanel.Tests
             List<string> names = Names(composer.SlashMatchesForTests);
             Assert.AreEqual("compact", names[0]);
             Assert.AreEqual("clear", names[1], "/clear is always offered, even when the CLI list lacks it");
+            Assert.AreEqual("mcp", names[2], "/mcp is always offered: the panel answers it itself");
             Assert.Contains("review", names);
             Assert.AreEqual(0, composer.SlashSelectedForTests);
             Assert.AreEqual(L10n.S.ComposerSlashHint, composer.HintTextForTests);

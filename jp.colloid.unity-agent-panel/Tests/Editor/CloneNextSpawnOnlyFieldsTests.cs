@@ -119,6 +119,14 @@ namespace Colloid.AgentPanel.Tests
                 field.SetValue(settings, list);
                 return true;
             }
+            if (type == typeof(List<McpServerConfig>))
+            {
+                var list = (List<McpServerConfig>)field.GetValue(settings) ?? new List<McpServerConfig>();
+                list = McpServerConfig.CloneList(list);
+                list.Add(new McpServerConfig { name = "clone-guard-probe", command = "x" });
+                field.SetValue(settings, list);
+                return true;
+            }
             if (type.IsEnum)
             {
                 Array values = Enum.GetValues(type);

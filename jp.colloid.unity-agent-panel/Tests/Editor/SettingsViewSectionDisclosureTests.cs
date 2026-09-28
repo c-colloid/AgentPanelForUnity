@@ -21,7 +21,7 @@ namespace Colloid.AgentPanel.Tests
     public class SettingsViewSectionDisclosureTests
     {
         private static readonly string[] SectionIds =
-            { "uapops", "profiles", "pro", "uloop", "unity-plugin", "diagnostics", "danger" };
+            { "uapops", "mcp-servers", "profiles", "pro", "uloop", "unity-plugin", "diagnostics", "danger" };
 
         [SetUp]
         public void SetUp()

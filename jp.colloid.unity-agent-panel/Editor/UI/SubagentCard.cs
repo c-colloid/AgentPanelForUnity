@@ -134,6 +134,19 @@ namespace Colloid.AgentPanel.UI
             type.tooltip = IconLoader.SanitizeForDisplay(rawTypeText);
             header.Add(type);
 
+            if (_subagent.background)
+            {
+                // run_in_background spawn: the Agent tool_use itself
+                // returned at launch, so this card is the only place the
+                // user can see that work is still going on after the
+                // parent's turn ended (design note 2026-09-27-background-
+                // subagent-card.md section 3).
+                var backgroundTag = new Label(L10n.S.SubagentBackgroundBadge);
+                backgroundTag.enableRichText = false;
+                backgroundTag.AddToClassList("uap-subcard-bgtag");
+                header.Add(backgroundTag);
+            }
+
             string descriptionText = !string.IsNullOrEmpty(_subagent.description)
                 ? _subagent.description
                 : (string.IsNullOrEmpty(_subagent.status) ? L10n.S.SubagentDefaultDescription : _subagent.status);
@@ -142,7 +155,7 @@ namespace Colloid.AgentPanel.UI
             description.AddToClassList("uap-subcard-desc");
             header.Add(description);
 
-            header.Add(CreateTimeLabel(record));
+            header.Add(CreateTimeLabel(record, _subagent));
 
             // A card is expandable when it has something to show NOW, or
             // could load something on demand: TryLazyLoadNestedBlocks pulls
@@ -748,16 +761,22 @@ namespace Colloid.AgentPanel.UI
         }
 
         /// <summary>Duration for a finished subagent; live elapsed while running
-        /// (the outer ToolCallRecord's own timing spans the whole spawn).
+        /// (the outer ToolCallRecord's own timing spans the whole spawn --
+        /// except for a background spawn, whose ToolCallRecord completes at
+        /// launch while the subagent runs on: there the SubagentRecord's
+        /// own "running" status keeps the ticker alive, and its reported
+        /// duration wins once it finishes).
         /// The live ticker is paused on detach so a discarded card (row
         /// rebuilt by MessageListController, or pruned) never keeps ticking
         /// outside the visual tree.</summary>
-        private static Label CreateTimeLabel(ToolCallRecord record)
+        private static Label CreateTimeLabel(ToolCallRecord record, SubagentRecord subagent)
         {
             var time = new Label(string.Empty);
             time.enableRichText = false;
             time.AddToClassList("uap-toolcard-time");
-            if (record.status == ToolCallStatus.Running && record.startedAtUtcTicks > 0)
+            bool live = record.status == ToolCallStatus.Running
+                || (subagent.background && subagent.status == "running");
+            if (live && record.startedAtUtcTicks > 0)
             {
                 long startTicks = record.startedAtUtcTicks;
                 time.text = ToolActivityCard.FormatSeconds(ToolActivityCard.ElapsedMs(startTicks));
@@ -769,6 +788,10 @@ namespace Colloid.AgentPanel.UI
                 {
                     ticker.Pause();
                 });
+            }
+            else if (subagent.background && subagent.durationMs > 0)
+            {
+                time.text = ToolActivityCard.FormatSeconds(subagent.durationMs);
             }
             else if (record.durationMs > 0)
             {
