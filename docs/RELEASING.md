@@ -294,6 +294,7 @@ Core(`vX.Y.Z`)の一覧。Pro のタグは `pro-vX.Y.Z` で、この表には積
 - `/mcp` をパネル側で処理(system/init のサーバー状態とツール数を system note で表示。CLI の合成応答が「CLI エラー」と出ていた件の解消)(2026-09-27)
 - `/mcp` の答えをカードに(コマンドのエコー、サーバーごとの状態・ツール一覧の Foldout・「再接続」ボタン。`mcp_reconnect` の結果で行と note を更新)(2026-09-27)
 - 設定に「MCP サーバー」カード(自分のサーバーを `--mcp-config` に同梱、Claude Code の設定から取り込み)。`/mcp` カードに「サーバーを追加」、UapOps ツールの説明文、認証用に「ターミナルを開く」(`TerminalLauncher`)。いずれも `/mcp` の修正の一部として Fixed 扱い(2026-09-27)
+- `uap_property_set` が JSON 文字列で届いた構造体値(Color / Vector / Rect / LayerMask)を解析して受け付ける。`value` にスキーマ型が無いためモデルが `{r,g,b,a}` を文字列で送り、`RequireObject` に 5 回連続で拒否されていた件。Color / Vector には位置指定の数値配列も追加(2026-09-28)
 
 | タグ | 内容 |
 |---|---|

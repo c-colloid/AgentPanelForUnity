@@ -121,4 +121,22 @@ Xvfb 上の GUI エディタで撮影ドライバ `ci/HostProject/Assets/Editor/
   返答まで進めるには誰かがカードに答えるか `-Approve` を上げる必要があり、後者の起動は
   この作業セッションでは許可されなかったので、返答の採取は手元での実行待ち。
 - この回のターンは `UAP_SHOT_MODEL` ではなく既定モデルで走った(`Run` より前にパネルが
-  接続済みのため)。`-Live 1` のとき `AgentHub.StartFresh()` を呼ぶよう直した(未実走)。
+  接続済みのため)。`-Live 1` のとき `AgentHub.StartFresh()` を呼ぶよう直した。
+
+### 返答の採取(2026-09-28、同じ Windows 実機、`-Live 1 -Approve 3 -InputMode event`)
+
+自動承認を「Unity 操作をすべて」にして再走行し、Sonnet の 1 ターン全体が採れた。記録は
+`docs/examples/agent-tools-request.md` §5、フレームは `docs/images/guide/13-agent-tools-result*.png`
+(2x の撮影を guide の他の図に合わせて縮小)。返答文は CLI 側のトランスクリプト
+(`~/.claude/projects/<HostProject>/<session>.jsonl`)から取った。パネルの SessionCache は要約のみ。
+
+- 依頼の 3 要素はチップの座標どおりに実行された(Light @ P1、S1 弧長 3 等分に Sphere × 4、
+  S2 の 13 頂点平均にマーカー「ここ」)。`uap_editor_screenshot` → `Read` で自分の結果を
+  目視確認し、`uap_transform_set` の読み取りで座標を再確認してから表を返した。
+- `uap_scene_save` が Untitled で path を求め、エージェントは AskUserQuestion で保存の可否を
+  聞いた。レベル 3 でもこれだけはカードになる(ドライバは待たず、パネルの既定回答で進んだ)。
+- 見つかった不具合: `uap_property_set` の `value` に Color を JSON 文字列で渡すと
+  `RequireObject` が拒否する。スキーマの `value` に `type` が無いので、モデルは構造体を
+  文字列化して送る。5 回試して色温度に逃げた。別タスクとして切り出した(spawn_task)。
+- 閉じた線に「端点を含む 4 等分」をしたので Sphere_S1_1 と _4 がほぼ重なった。依頼文の
+  問題で、ツールの問題ではない。
