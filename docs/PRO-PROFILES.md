@@ -1,6 +1,6 @@
 # Agent Panel Pro 同梱プロファイル一覧
 
-**対象版: pro-v0.13.1**(2026-09-23 時点)。
+**対象版: pro-v0.14.0**(2026-09-28 時点)。
 公開 URL: <https://github.com/c-colloid/AgentPanelForUnity/blob/main/docs/PRO-PROFILES.md>
 Pro のツール一覧は別文書 [PRO-FEATURES.md](PRO-FEATURES.md) にあります。
 
@@ -15,7 +15,7 @@ Agent Panel for Unity(Core)は、プロジェクトに入っているサード�
 やってはいけない操作・確認の手順)をエージェントへの指示に自動で追加します。
 この「検出条件 + 指示文」のセットが **拡張プロファイル(Extension Profile)** です。
 
-- **同梱プロファイル**(この文書の 17 件)は Pro を入れるだけで有効になり、
+- **同梱プロファイル**(この文書の 18 件)は Pro を入れるだけで有効になり、
   承認操作は要りません。設定 > 拡張プロファイル に検出結果が並びます。
 - Core だけでも `<project>/.uap-profiles/*.json` に自分でプロファイルを置けます
   (内容ハッシュの承認が必要)。Pro の `uap_profile_scaffold` /
@@ -30,7 +30,7 @@ Agent Panel for Unity(Core)は、プロジェクトに入っているサード�
 そのままコピーして貼れるプレーンテキストです(Markdown 記法は使っていません)。
 
 ```text
-■ 同梱プロファイル(pro-v0.13.1 時点、17 件)
+■ 同梱プロファイル(pro-v0.14.0 時点、18 件)
 対応 SDK がプロジェクトに入っていると自動で検出され、その SDK の要点(コンポーネントの正式名、ビルド時にしか反映されない仕組み、やってはいけない操作、確認の手順)がエージェントへの指示に追加されます。承認操作は不要です。
 
 【VRChat】
@@ -54,6 +54,9 @@ Agent Panel for Unity(Core)は、プロジェクトに入っているサード�
 【ライティング / メッシュ】
 ・Bakery GPU Lightmapper: Bakery のライトコンポーネント、uap_bakery_bake での非同期ベイクと設定、オブジェクト単位の制御、Contribute GI の確認
 ・ProBuilder: ProBuilderMesh が正、メニューでは形状を作れない理由、既存メッシュへの操作と Editor スクリプトでの生成手順
+
+【モデリング(Pro 自身で常に有効)】
+・モデリング作法: 依頼を受けたらまずプロップ表(名前・役割・再利用・当たり判定・LOD・マテリアル境界)、次に三角形予算、形状の種類で経路を選ぶ(角のある工業品 = ケージ + ベベル / 細分割、有機物だけ距離場、建築の大物は ProBuilder / 押し出し、既製は glTF)、仕上げの順序、1 プロップ 1〜2(最大 4)マテリアルの予算、窓・格子・炎など形状で作らない面の判断、最後にプロップ表つきの報告
 
 【ゲーム制作】
 ・RPG Maker Unite: データは Storage の JSON とマップ prefab、CoreSystem サービスでの生成手順、イベントコマンド・自律移動・タイマーの実測済みの落とし穴、Unity 6 での移行点
@@ -102,6 +105,12 @@ SDK はコンパイル済みの型名で検出します(どちらか一方が当
 | **Bakery GPU Lightmapper**(`bakery`) | `BakeryPointLight` / `ftLightmapsStorage` など(型検出) | Bakery のライトは別コンポーネント(`BakeryDirectLight` など)であること。ベイクは `uap_bakery_bake` で行い、設定名(bounces / samples / texelsPerUnit / renderMode / renderDirMode ...)とプリセット。`start` は即時に返るので `status` で待つこと、Lighting 設定の自動修復。オブジェクト単位の制御コンポーネント。Contribute GI の確認 | 0.1.0 |
 | **ProBuilder**(`probuilder`) | `com.unity.probuilder` / `ProBuilderMesh` など | `ProBuilderMesh` が正であり、`MeshFilter` に直接書いても上書きされること。New Shape などのメニューは対話ツールなので形状を作れないこと。既存メッシュへの操作(Object / Geometry / Export)は選択してからメニュー実行すること。パラメータから作るなら `ShapeGenerator` などを使う Editor スクリプトを `uap_scripts_commit` すること(コンパイル無しなら Pro の `uap_mesh_create`)。ProBuilder メッシュはアセットではなくシーンデータであること | 0.10.0 |
 
+### モデリング
+
+| プロファイル(id) | 検出 | エージェントに教えること | 追加 |
+|---|---|---|---|
+| **Modeling workflow**(`modeling`) | `jp.colloid.agent-panel-pro` / `UapModel`(Pro 自身。入っていれば常に有効、設定でオフにできる) | 依頼を受けたらまずプロップ表(名前・役割・再利用・独立して動くか・当たり判定・LOD・マテリアル境界)を出し、1 プロップ = 1 GameObject(再利用はプレハブ)にすること。役割と対象から三角形予算を先に決め(小物 500〜2,000、家具 1,000〜5,000、建築部材 200〜1,500、主役級 5,000〜20,000。依頼文で上書き)、bake の `targetTriangles` や分割数をそこから逆算すること。形状の種類で経路を選ぶこと: 角のある工業品はケージ(`uap_mesh_create` / ProBuilder)+ メッシュ葉のベベル・クリース付き細分割、有機物・滑らかな接合だけ距離場ノード、建築の大物は ProBuilder か押し出し、既製は glTF 取り込み。仕上げの順序(検証 → UV / 法線 → マテリアル → 配置 → Z ファイト確認)。マテリアルは 1 プロップ 1〜2、最大 4(質感や描画方式が違うときだけサブメッシュ、色差はテクスチャ / 頂点カラー、シーン内で共有)。窓の内部・格子・炎などは板 1 枚 + シェーダー / パーティクルにして三角形を使わないこと。最後にプロップ表つきで三角形数とマテリアル数を報告し、予算超過は代替案を添えること | 0.14.0 |
+
 ### ゲーム制作
 
 | プロファイル(id) | 検出 | エージェントに教えること | 追加 |
@@ -114,6 +123,7 @@ SDK はコンパイル済みの型名で検出します(どちらか一方が当
 
 | 版 | 追加されたプロファイル |
 |---|---|
+| 0.14.0 | Modeling workflow(モデリング作法。Pro 自身で常に有効) |
 | 0.11.0 | VRChat SDK3 (Base) / VRChat SDK3 (Worlds) / VRChat Udon / UdonSharp |
 | 0.10.0 | ProBuilder |
 | 0.9.0 | VRCFury / lilycalInventory / lilToon |

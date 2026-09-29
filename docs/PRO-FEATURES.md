@@ -1,6 +1,6 @@
 # Agent Panel Pro 収録機能一覧
 
-**対象版: pro-v0.13.1**(2026-09-23 時点)。
+**対象版: pro-v0.14.0**(2026-09-28 時点)。
 公開 URL: <https://github.com/c-colloid/AgentPanelForUnity/blob/main/docs/PRO-FEATURES.md>
 同梱プロファイルは別文書 [PRO-PROFILES.md](PRO-PROFILES.md) にあります。
 
@@ -16,8 +16,8 @@ Pro の機能が増えたときはここだけを更新し、販売ページに�
 そのままコピーして貼れるプレーンテキストです(Markdown 記法は使っていません)。
 
 ```text
-■ Agent Panel Pro 収録機能(pro-v0.13.1 時点)
-Agent Panel for Unity(無料・Core)に追加する Unity 操作ツール 37 本(テスト実行を含む)と、主要アセット向けの同梱プロファイル 17 件。
+■ Agent Panel Pro 収録機能(pro-v0.14.0 時点)
+Agent Panel for Unity(無料・Core)に追加する Unity 操作ツール 49 本(テスト実行を含む)と、主要アセット向けの同梱プロファイル 18 件(モデリング作法を含む)。
 すべて Core のチャット画面からエージェント(Claude Code)が呼び出すツールで、スクリプトのコンパイルなしに動きます。
 
 ・プレハブ: プレハブ作成(Variant 判定つき)/オーバーライドの一覧・適用・差し戻し/Prefab Mode の開閉(中身をそのまま編集)
@@ -26,11 +26,11 @@ Agent Panel for Unity(無料・Core)に追加する Unity 操作ツール 37 本
 ・UI 操作: UI Toolkit 製エディタウィンドウの一覧・ツリーダンプ・クリック・値設定(SDK の独自ウィンドウを自動操作)
 ・プロファイル作成: このプロジェクト用の拡張プロファイル(.uap-profiles)の下書きと検証/Claude Code スキルの書き出し
 ・アバター: 三角形数・マテリアル・ボーン・PhysBone 等の計測とベイク前後の差分(VRChat SDK があれば PC/Quest ランクも)/NDMF の手動ベイク実行/VRChat エキスプレッションメニュー・パラメータの読み書き(SDK の制限を事前検証)
-・パーティクル: Particle System の 23 モジュールをスクリプト API の名前で読み書き(バースト含む)
-・メッシュ: 数値からメッシュ生成(プリミティブ・押し出し・回転体・SDF・生データ)/頂点の調査/変形編集(移動・膨張・スムーズ・細分化・ノイズ)/ブーリアン/不整合の検証と修復/シーンの Z ファイティング検出/Scene ビューに描いたスケッチ線を取り込んでの溝・盛り上げ・チューブ・穴あけ
+・パーティクル: Particle System の 23 モジュールをスクリプト API の名前で読み書き(バースト含む)/煙・炎・火花・雨・塵のプリセット
+・メッシュ: 数値からメッシュ生成(プリミティブ・押し出し・回転体・SDF・生データ)/頂点の調査/変形編集(移動・膨張・スムーズ・細分化・ノイズ)/ブーリアン/不整合の検証と修復/シーンの Z ファイティング検出/Scene ビューに描いたスケッチ線を取り込んでの溝・盛り上げ・チューブ・穴あけ/マテリアル・手続きテクスチャ(パレットアトラス・チェッカー・グラデーション・ノイズ・室内キューブマップ)・シェーダー雛形(頂点カラー Lit・窓の interior mapping・デカール・フリップブック・トリプラナー)の生成/曲率・稜線・マテリアル境界に沿う四角形主体リメッシュ/ケージの位相編集(押し出し・インセット・ループカット・ブリッジ・三角形→四角形)/Forge シーンの非破壊モデルへの移行
 ・一括実行: 複数ツール呼び出しを 1 回・許可カード 1 枚で実行
 ・テスト実行: EditMode テストの実行と失敗の報告(Test Framework 導入時)
-・同梱プロファイル 17 件: VRChat SDK3(共通/アバター/ワールド)、Udon、UdonSharp、NDMF、Modular Avatar、AAO: Avatar Optimizer、VRCFury、lilycalInventory、lilToon、UniVRM、MagicaCloth2、Final IK、Bakery、ProBuilder、RPG Maker Unite
+・同梱プロファイル 18 件: モデリング作法(Pro 自身で常に有効。プロップ分解・三角形予算・経路の選択・マテリアル予算)、VRChat SDK3(共通/アバター/ワールド)、Udon、UdonSharp、NDMF、Modular Avatar、AAO: Avatar Optimizer、VRCFury、lilycalInventory、lilToon、UniVRM、MagicaCloth2、Final IK、Bakery、ProBuilder、RPG Maker Unite
 
 動作要件: Unity 2022.3 LTS 以降(Unity 6 系を含む)、Agent Panel for Unity(Core)。
 一覧の詳細: https://github.com/c-colloid/AgentPanelForUnity/blob/main/docs/PRO-FEATURES.md
@@ -109,19 +109,31 @@ Core の `editor` モジュールのうち、ベイク系の 2 本が Pro です
 
 | ツール | できること | 追加 |
 |---|---|---|
-| `uap_particle_set` | Particle System のモジュールを**スクリプト API の名前**(main / emission / shape / colorOverLifetime ...)で読み書き。23 モジュールの有効/無効と全プロパティ。カーブ値は数値 / `{min,max}` / カーブのいずれでも渡せ、モードを同時に決める。OFF のモジュールと `[Obsolete]` プロパティへの書き込みは拒否。バーストもここから設定 | 0.9.0 |
+| `uap_particle_set` | Particle System のモジュールを**スクリプト API の名前**(main / emission / shape / colorOverLifetime ...)で読み書き。23 モジュールの有効/無効と全プロパティ。カーブ値は数値 / `{min,max}` / カーブのいずれでも渡せ、モードを同時に決める。OFF のモジュールと `[Obsolete]` プロパティへの書き込みは拒否。バーストもここから設定。`preset`(smoke / fire / sparks / rain / dust)で効果 1 式を 1 回で当てる | 0.9.0 |
 
 ### メッシュ(mesh)
 
 | ツール | できること | 追加 |
 |---|---|---|
-| `uap_mesh_create` | 数値からメッシュ生成: プリミティブ(box / plane / cylinder / cone / sphere / torus / stairs)、`extrude`(XZ 外形の押し出し)、`lathe`(XY プロファイルの回転体)、`sdf`(球・箱・カプセル・円柱・トーラス・楕円体を union / intersect / subtract で合成、`smooth` で継ぎ目を丸める)、`raw`(頂点・三角形・任意で uv / 法線 / サブメッシュ)。Scene ビューに描いたスケッチ線(Core のスケッチ機能)も入力にでき、`sdf` の `stroke`(線に沿ったチューブ)/ `stroke_prism`(閉じた線の外形を厚み分押し出し)と `extrude` の `stroke`(外形の押し出し。ブーリアンの相手に)。Mesh アセットに保存、または MeshFilter + MeshRenderer(任意で MeshCollider)を持つ GameObject としてシーンに配置。ProBuilder があれば ProBuilderize | 0.12.0 / 0.13.0 |
+| `uap_mesh_create` | 数値からメッシュ生成: プリミティブ(box / plane / cylinder / cone / sphere / torus / stairs)、`extrude`(XZ 外形の押し出し)、`lathe`(XY プロファイルの回転体)、`sdf`(球・箱・カプセル・円柱・トーラス・楕円体を union / intersect / subtract で合成、`smooth` で継ぎ目を丸める)、`raw`(頂点・三角形・任意で uv / 法線 / サブメッシュ)。Scene ビューに描いたスケッチ線(Core のスケッチ機能)も入力にでき、`sdf` の `stroke`(線に沿ったチューブ)/ `stroke_prism`(閉じた線の外形を厚み分押し出し)と `extrude` の `stroke`(外形の押し出し。ブーリアンの相手に)。`color` で頂点カラー(raw は頂点ごとの `colors` / `uv2` も)。Mesh アセットに保存、または MeshFilter + MeshRenderer(任意で MeshCollider、`materials` でサブメッシュごとのマテリアル)を持つ GameObject としてシーンに配置。ProBuilder があれば ProBuilderize | 0.12.0 / 0.13.0 |
 | `uap_mesh_inspect` | 既存メッシュの頂点数・bounds・保存場所(書き込めるか)・閉じているか、範囲内または点に最も近い頂点の一覧(法線つき) | 0.12.0 |
 | `uap_mesh_edit` | 既存メッシュをその場で編集: `displace`(範囲を移動。球 + 減衰 = プロポーショナル編集)、`inflate`、`smooth`(ラプラシアン)、`subdivide`、`noise`。範囲には Scene ビューに描いたスケッチ線も指定でき(`stroke` + 半径 + 減衰)、線に沿って溝を掘る・盛り上げる・寄せるが 1 回で済む。複数操作を順に適用、法線はシームと折り目を保って再計算、Ctrl+Z 可。組み込み・インポート済みメッシュは `detach:true` でコピーしてから | 0.12.0 / 0.13.0 |
 | `uap_mesh_boolean` | 閉じた 2 メッシュの union / intersect / subtract を新しいメッシュに(入力は不変)。CSG が残すスライバー・重複・同一平面の重なりを自動除去、`place.checkZFight` で配置直後の重なりを警告 | 0.12.0 |
 | `uap_mesh_validate` | メッシュ内部の不整合を重大度と代表位置つきで報告: 退化・重複三角形、非多様体エッジ、巻き方向の食い違い、開いた辺、未参照 / NaN 頂点、面と逆向きの法線、内向きの面、同一平面の重なり | 0.12.0 |
 | `uap_mesh_repair` | 検証結果を `fix` で選んで修復: 既定は退化・重複・未参照頂点の除去、巻き方向の統一、法線の再計算。溶接・同一平面の重なり除去・穴埋めはオプトイン。修復後の検証結果も返す。Ctrl+Z 可 | 0.12.0 |
 | `uap_scene_zfight_scan` | シーン(または範囲)の別オブジェクト同士で同一平面に重なる面を検出し、組ごとに重なり面積・位置・向き(同方向 = ちらつく / 背中合わせ = カリングで隠れる)と対処案を返す | 0.12.0 |
+| `uap_mesh_export` | 既存メッシュを glTF バイナリ(.glb)に書き出し(頂点・法線・UV0・サブメッシュ = プリミティブ + マテリアル)。既定は `Library/uap-mesh/` 配下、プロジェクト外には書かない。外部のメッシュカーネル・Blender・生成 AI との受け渡し用 | 0.14.0 |
+| `uap_mesh_import` | glTF(.glb / .gltf)を Mesh に取り込み: 全ノードの形状を変換込みで 1 メッシュに、サブメッシュはマテリアル単位(またはプリミティブ単位 / 結合)、法線と UV0 を保持。`uap_mesh_create` と同じく Mesh アセット保存 / シーン配置。取り込んだメッシュはそのまま編集・ブーリアン・非破壊モデルの葉に使える | 0.14.0 |
+| `uap_material_create` | マテリアルアセットを 1 回で作成: プリセット(`lit` / `unlit`、Pro 同梱シェーダーの `vertexColor` = 頂点カラー乗算・`interior` = 窓のパララクス室内・`decal` = 面に貼る半透明板・`flipbook` = コマ送りスプライト・`triplanar` = UV 不要の投影。Built-in / URP / HDRP を検出して実シェーダーに解決)か明示のシェーダー名、色・テクスチャ・法線マップ・発光・金属度・滑らかさ・透明化の近道、名前指定のプロパティ(型はシェーダーから)、キーワード、レンダーキュー。`reuse:true` で既存を返し複数プロップで共有 | 0.14.0 |
+| `uap_texture_create` | 手続きで PNG テクスチャを生成しインポート設定まで(sRGB・法線・ラップ・フィルタ・圧縮・ミップ・読み取り): 単色・グラデーション・チェッカー・ストライプ・タイル可能なノイズ(Perlin / Worley)・パレットアトラス(各色のセル中心 UV を返す = 1 マテリアルで色を選ぶ)・室内キューブマップ(interior 用の壁・床・天井・灯り) | 0.14.0 |
+| `uap_shader_create` | 同梱のシェーダー雛形を `.shader` アセットとして書き出し(パイプラインに合わせて Built-in / URP 版を選択。既存は変更せず返す)。雛形: `vertexColor`(頂点カラー乗算の PBR Lit)・`interior`(interior mapping = 窓 1 枚で視差のある室内)・`decal`・`flipbook`・`triplanar` | 0.14.0 |
+| `uap_mesh_remesh` | 既存メッシュを目標面数の四角形主体メッシュにリメッシュ: 辺が曲率・鋭い稜線(`sharpAngle`)・非破壊モデルのマテリアル境界に沿う(Instant Meshes 系の向き場 + 位置場 + 抽出)。出力は四角形トポロジーのサブメッシュ(余った三角形は別サブメッシュ)または全三角化で、頂点は元メッシュの表面上。`mirror` で片側をリメッシュして鏡映(厳密に対称)、`adaptivity` で曲率の高い所ほど細かく。面数・四角形率・閉じているか・不正則頂点・特異点・残った穴を報告。入力は変更しない | 0.14.0 |
+| `uap_cage_edit` | ケージ(四角形トポロジーの Mesh。三角形メッシュは同一平面の対を四角形に併合してから)をポリゴン編集の操作でその場で編集: 範囲と法線で選んだ面の押し出し(`extrude`)・インセット(`inset`)、四角形の帯を横切るループカット(`loopCut`)、2 面をつなぐブリッジ(`bridge`)、三角形→四角形(`trisToQuads`)。面・辺は座標で指定、結果は四角形トポロジーのまま(非破壊モデルのメッシュ葉のケージに使える)。Undo 可 | 0.14.0 |
+| `uap_forge_migrate` | Forge(モディファイアスタック方式の旧モデリング)のシーンを非破壊モデルに移行: 各 ForgeStack をケージメッシュのメッシュ葉に(ミラー・配列・ソリッド化・ベベル・細分割をノードとケージの修飾に対応付け)、ForgeMeshPart を素のメッシュ葉に、ForgeCombine のスロットをモデルのマテリアルに。シーンにしか無いケージはアセットに保存。対応付けできない修飾(ノイズ変位・スクリュー・スイープ・回転配列・頂点番号のクリース)は部品ごとに報告。Forge 側は変更しない | 0.14.0 |
+| `uap_model_inspect` | 非破壊モデル(`Model` コンポーネントの下に距離場の形状ノードを階層で置き、union / intersect / subtract と `smooth` で合成。ノードにはミラー・反復・殻・オフセットの修飾、スケッチ線のチューブ形状、任意の Unity Mesh を距離場にするメッシュ形状(ベベル・クリース付き Catmull-Clark 細分割のケージ修飾も)も)を JSON で読む: ノード id・形状・パラメータ・位置・署名・警告、前回から変わったノード(AI の編集も人のギズモ操作も)、編集ログ、最後のメッシュ化の結果と古さ、スクリプト(変数と式バインディングの現在値)。任意の点の符号付き距離も返す | 0.14.0 |
+| `uap_model_apply` | 同じスキーマのパッチでモデルを編集: ノードの作成・変更・削除・移動(メッシュ形状の `bevel` / `subdivide` / `creaseAngle`、表面の `material` スロットと `color` 頂点カラーも。評価結果はスロットごとのサブメッシュ + 頂点カラーになり、根の `materials` でスロットのマテリアルを指定)、根の合成と分解能、スクリプト(`var` で名前付きの数、`bind` でノードの値を式に追従 = 1 つの数で全体が変わるパラメトリックなモデル)。パッチ全体を検証してから 1 つの Undo で適用。`createModel` で新しいモデルから始められ、`evaluate:true` でそのままメッシュ化 | 0.14.0 |
+| `uap_model_bake` | モデルをゲーム用アセットに焼く: 高分解能で抽出 → 三角形予算までデシメーション(geometry3Sharp)→ UV 展開 → 距離場から法線マップ(任意で AO)をベイク → Mesh / テクスチャ / マテリアルを書き出し、「(baked)」オブジェクトを配置。マテリアル境界の縫い目はデシメーションの拘束として保たれ、スロットごとにマテリアルを書く。`output: "cage"` で距離場の四角形をそのまま四角形トポロジーの Mesh(ケージ)に書き、`remesh: true` でデシメーションの代わりに曲率・稜線・マテリアル境界に沿う四角形主体リメッシュ(四角形ケージも書き出す)。トポロジー指標を返す。木が変わっていなければスキップ | 0.14.0 |
+| `uap_model_evaluate` | モデルの距離場を疎なブリック格子にサンプルし、特徴保存の dual contouring(角と辺が丸まらない)で並列にメッシュ化して根の MeshFilter に載せる。ブリック・頂点・三角形数、薄すぎる形状の警告、所要時間を返し、長い評価は `status` / `cancel` で追える。エディタ側では編集のたびに自動でプレビュー → 静止後に本メッシュ化(ライブプレビュー) | 0.14.0 |
 
 ### 一括実行(batch)
 
@@ -137,7 +149,7 @@ Core の `editor` モジュールのうち、ベイク系の 2 本が Pro です
 
 ### 同梱プロファイル
 
-17 件。一覧と各プロファイルがエージェントに教える内容は
+18 件。一覧と各プロファイルがエージェントに教える内容は
 [PRO-PROFILES.md](PRO-PROFILES.md) を参照してください。
 
 ---
@@ -149,6 +161,7 @@ Core の `editor` モジュールのうち、ベイク系の 2 本が Pro です
 
 | 版 | 追加されたもの |
 |---|---|
+| 0.14.0 | 非破壊モデリングの土台: `Model` / `Model Node` コンポーネント(距離場の形状を階層で合成。ミラー・反復・殻・オフセット、スケッチ線のチューブ、Unity Mesh の距離場化とそのケージ修飾 = ベベル・クリース付き細分割)、編集に追従するライブプレビューと編集ログ、`uap_model_inspect` / `uap_model_apply` / `uap_model_evaluate`、ゲーム用出力(デシメーション・UV・場からの法線 / AO ベイク・アセット書き出し)の `uap_model_bake`。外部ツールとの受け渡しに glTF の `uap_mesh_export` / `uap_mesh_import`、モデルのスクリプト(変数と式バインディング)、頂点カラー・UV2・サブメッシュごとのマテリアルの配線(メッシュ生成 / 非破壊モデル / glTF)、マテリアル・手続きテクスチャ・シェーダー雛形(頂点カラー・interior mapping・デカール・フリップブック・トリプラナー)の生成(`uap_material_create` / `uap_texture_create` / `uap_shader_create`)、`uap_particle_set` のプリセット、マテリアル境界を所有ノードの切り替わりで正確に切る評価、四角形主体リメッシュ(`uap_mesh_remesh`、`uap_model_bake` の `remesh` / `output: "cage"`)、ケージ仕上げ(辺属性 = 位置指定のクリース / ベベル / シャープ、ベベルの角格子、`uap_cage_edit` の位相編集、`uap_mesh_boolean` の四角形出力)、変位ブラシ(`displace` + `falloff` のノード)、Forge シーンの移行(`uap_forge_migrate`)、評価 / bake / batch のポーリング化(待機中もエディタが止まらない) |
 | 0.13.0 | スケッチ線の取り込み: `uap_mesh_edit` の `stroke` 範囲、`uap_mesh_create` の `sdf` に `stroke` / `stroke_prism`、`extrude` に `stroke` |
 | 0.12.0 | メッシュモジュール一式(`uap_mesh_create` / `uap_mesh_inspect` / `uap_mesh_edit` / `uap_mesh_boolean` / `uap_mesh_validate` / `uap_mesh_repair` / `uap_scene_zfight_scan`) |
 | 0.11.0 | プロファイル: VRChat SDK3(共通)/ VRChat SDK3(ワールド)/ Udon / UdonSharp |
