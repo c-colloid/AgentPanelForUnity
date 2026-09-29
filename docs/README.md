@@ -7,7 +7,7 @@
 | パス | 内容 | 読者 |
 |---|---|---|
 | [AGENT-SHOWCASE.md](AGENT-SHOWCASE.md) / [English](AGENT-SHOWCASE.en.md) | 実機スクリーンショットで見る Claude Code・Codex・Grok Build の使用例と切り替え方法 | 利用者・導入検討者 |
-| [USER-GUIDE.md](USER-GUIDE.md) | 操作ガイド。画面構成・チャット・チップと添付・権限カードと自動承認レベル・履歴・Unity 操作ツール・設定画面リファレンス・ショートカット | 利用者 |
+| [USER-GUIDE.md](USER-GUIDE.md) / [guide/](guide/) | 操作ガイド。`USER-GUIDE.md` が目的別の目次で、本文はテーマごとに `guide/` のページに分かれている(エージェント別のサインイン手順は `guide/agents/`)。画面構成・チャット・チップと添付・権限カードと自動承認レベル・履歴・Unity 操作ツール・設定画面リファレンス・ショートカット | 利用者 |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | アーキテクチャ決定文書(ADD)。CLI の起動方式・プロトコル・権限処理・ドメインリロード戦略・永続化・UI スタックなど、主要な設計判断とその根拠。2026-07 に作成した初版に、Phase 4/5 の決定を追記したもの | 実装を読む人・設計を変えたい人 |
 | [RELEASING.md](RELEASING.md) | バージョン規約とリリース手順、既存タグの一覧 | メンテナ |
 | [PRO-FEATURES.md](PRO-FEATURES.md) | Agent Panel Pro(別売)の収録ツール一覧。販売ページ用の貼り付けテキストと、モジュール別の詳細・版ごとの追加分 | Pro の購入検討者・販売ページを更新するメンテナ |
@@ -20,7 +20,7 @@
 
 \* 印のフォルダ/ファイルは開発用モノレポにのみあり、公開リポジトリ
 ([c-colloid/AgentPanelForUnity](https://github.com/c-colloid/AgentPanelForUnity)、
-Core パッケージの配布元)には含まれていません。公開版では `USER-GUIDE.md` /
+Core パッケージの配布元)には含まれていません。公開版では `USER-GUIDE.md` / `guide/` /
 `ARCHITECTURE.md` / `RELEASING.md` / `PRO-FEATURES.md` / `PRO-PROFILES.md` /
 `design-notes/`(Core に関するもの)/ `images/` が読めます。設計ノートが `research/` や `verify/` を参照している箇所は、公開版では
 リンク先が無い歴史的参照として読んでください。

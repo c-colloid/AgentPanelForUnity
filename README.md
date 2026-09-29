@@ -18,7 +18,7 @@
 
 **設定でエージェントを選択 → 接続 → ヘッダーでモデルを選択。**
 
-[エージェントの導入・切り替え](docs/USER-GUIDE.md#11-claude-以外のエージェントを使う) · [モデルの選択方法](docs/USER-GUIDE.md#10-モデルの選択)
+[エージェントの導入・切り替え](docs/guide/agents/README.md) · [モデルの選択方法](docs/guide/sessions-and-models.md#モデルの選択)
 
 ### シーン編集の使用例
 
@@ -56,7 +56,7 @@
 | Claude Code CLI | 最新版を推奨。未導入ならパネルの案内から導入できます |
 | Claude アカウント | サブスクリプションでのログインを推奨(API キーでも可) |
 
-Codex / Grok Build など Claude 以外のエージェントの導入とサインインは [操作ガイド 1.1 節](docs/USER-GUIDE.md#11-claude-以外のエージェントを使う) を参照してください。
+エージェントごとのサインイン手順(画面つき)は [Claude Code](docs/guide/agents/claude-code.md) · [Codex](docs/guide/agents/codex.md) · [Grok Build](docs/guide/agents/grok-build.md) · [Gemini CLI](docs/guide/agents/gemini-cli.md) · [その他の ACP エージェント](docs/guide/agents/custom-acp.md) を参照してください。
 
 ## インストール
 
@@ -124,11 +124,11 @@ Git がインストールされている必要があります(無ければ [git-
 
 ## Core と Pro
 
-この README で導入するのは **Core**(`jp.colloid.unity-agent-panel`、MIT)で、単体ですべての基本機能が動きます。別売の **Agent Panel Pro**(`jp.colloid.agent-panel-pro`、[PolyForm Internal Use License 1.0.0](https://polyformproject.org/licenses/internal-use/1.0.0): 内部利用と改変は可、配布は不可)を追加すると、プレハブのオーバーライド操作、アニメーション / マテリアル編集、ライトマップベイク(Bakery 対応)、エディタ UI の自動操作、VRChat SDK3(共通 / アバター / ワールド)/ Udon / UdonSharp / NDMF / Modular Avatar / VRCFury / Avatar Optimizer / lilycalInventory / lilToon / UniVRM / MagicaCloth2 / Final IK / ProBuilder などの同梱プロファイルが使えるようになります。Pro の導入は購入時に受け取るレジストリ URL と製品キーを 設定 > **Agent Panel Pro の更新** に入力するだけで、以後は Package Manager または VCC / ALCOM から更新できます(詳細は [操作ガイド](docs/USER-GUIDE.md#15-設定画面リファレンス))。
+この README で導入するのは **Core**(`jp.colloid.unity-agent-panel`、MIT)で、単体ですべての基本機能が動きます。別売の **Agent Panel Pro**(`jp.colloid.agent-panel-pro`、[PolyForm Internal Use License 1.0.0](https://polyformproject.org/licenses/internal-use/1.0.0): 内部利用と改変は可、配布は不可)を追加すると、プレハブのオーバーライド操作、アニメーション / マテリアル編集、ライトマップベイク(Bakery 対応)、エディタ UI の自動操作、VRChat SDK3(共通 / アバター / ワールド)/ Udon / UdonSharp / NDMF / Modular Avatar / VRCFury / Avatar Optimizer / lilycalInventory / lilToon / UniVRM / MagicaCloth2 / Final IK / ProBuilder などの同梱プロファイルが使えるようになります。Pro の導入は購入時に受け取るレジストリ URL と製品キーを 設定 > **Agent Panel Pro の更新** に入力するだけで、以後は Package Manager または VCC / ALCOM から更新できます(詳細は [操作ガイド](docs/guide/settings.md))。
 
 ## ドキュメント
 
-- [操作ガイド](docs/USER-GUIDE.md) — 画面の構成、チップと添付、許可カード、履歴、Unity 操作ツール、設定リファレンス、困ったときは
+- [操作ガイド](docs/USER-GUIDE.md) — 目的別の目次。はじめに、エージェント別のサインイン手順、画面とチャット、チップと添付、許可カード、履歴、Unity 操作ツール、設定リファレンス、困ったときは
 - [CHANGELOG](jp.colloid.unity-agent-panel/CHANGELOG.md) — 変更履歴
 - [docs/](docs/README.md) — アーキテクチャと設計ノート
 - [CONTRIBUTING.md](CONTRIBUTING.md) — 開発・テスト・リリース手順

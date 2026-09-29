@@ -18,7 +18,7 @@ A chat panel that puts a coding agent inside the Unity Editor. Claude Code is th
 
 **Select an agent in Settings → connect → choose a model in the header.**
 
-[Agent setup and switching (Japanese)](docs/USER-GUIDE.md#11-claude-以外のエージェントを使う) · [Model selection (Japanese)](docs/USER-GUIDE.md#10-モデルの選択)
+[Agent setup and switching (Japanese)](docs/guide/agents/README.md) · [Model selection (Japanese)](docs/guide/sessions-and-models.md#モデルの選択)
 
 ### Scene-editing examples
 
@@ -56,7 +56,7 @@ See the [user guide](docs/USER-GUIDE.md) for details (Japanese).
 | Claude Code CLI | Latest release recommended; the panel can install it for you |
 | Claude account | Subscription login recommended (an API key also works) |
 
-Installing and signing in to Codex / Grok Build and other non-Claude agents is covered in the [user guide, section 1.1](docs/USER-GUIDE.md#11-claude-以外のエージェントを使う).
+Step-by-step sign-in guides with screenshots (Japanese): [Claude Code](docs/guide/agents/claude-code.md) · [Codex](docs/guide/agents/codex.md) · [Grok Build](docs/guide/agents/grok-build.md) · [Gemini CLI](docs/guide/agents/gemini-cli.md) · [other ACP agents](docs/guide/agents/custom-acp.md).
 
 ## Installation
 
@@ -124,11 +124,11 @@ Every finished piece of work ships as a beta, `X.Y.Z-beta.N`; a stable release b
 
 ## Core and Pro
 
-This README installs **Core** (`jp.colloid.unity-agent-panel`, MIT), which works on its own. The separately sold **Agent Panel Pro** (`jp.colloid.agent-panel-pro`, [PolyForm Internal Use License 1.0.0](https://polyformproject.org/licenses/internal-use/1.0.0): internal use and modification allowed, no distribution) adds prefab override tools, animation / material editing, lightmap baking (with Bakery support), editor UI automation and bundled profiles for VRChat SDK3 (Base, Avatars and Worlds) / Udon / UdonSharp / NDMF / Modular Avatar / VRCFury / Avatar Optimizer / lilycalInventory / lilToon / UniVRM / MagicaCloth2 / Final IK / ProBuilder and others. To install Pro, enter the registry URL and product key you receive at purchase under Settings > **Agent Panel Pro updates**; updates then come through Package Manager or VCC / ALCOM (see the [user guide](docs/USER-GUIDE.md#15-設定画面リファレンス)).
+This README installs **Core** (`jp.colloid.unity-agent-panel`, MIT), which works on its own. The separately sold **Agent Panel Pro** (`jp.colloid.agent-panel-pro`, [PolyForm Internal Use License 1.0.0](https://polyformproject.org/licenses/internal-use/1.0.0): internal use and modification allowed, no distribution) adds prefab override tools, animation / material editing, lightmap baking (with Bakery support), editor UI automation and bundled profiles for VRChat SDK3 (Base, Avatars and Worlds) / Udon / UdonSharp / NDMF / Modular Avatar / VRCFury / Avatar Optimizer / lilycalInventory / lilToon / UniVRM / MagicaCloth2 / Final IK / ProBuilder and others. To install Pro, enter the registry URL and product key you receive at purchase under Settings > **Agent Panel Pro updates**; updates then come through Package Manager or VCC / ALCOM (see the [user guide](docs/guide/settings.md)).
 
 ## Documentation
 
-- [User guide](docs/USER-GUIDE.md) (Japanese) — layout, chips and attachments, permission cards, history, Unity tools, settings reference, troubleshooting
+- [User guide](docs/USER-GUIDE.md) (Japanese) — a task-based index: getting started, per-agent sign-in, layout and chat, chips and attachments, permission cards, history, Unity tools, settings reference, troubleshooting
 - [CHANGELOG](jp.colloid.unity-agent-panel/CHANGELOG.md)
 - [docs/](docs/README.md) — architecture and design notes
 - [CONTRIBUTING.md](CONTRIBUTING.md) — development, tests and releases

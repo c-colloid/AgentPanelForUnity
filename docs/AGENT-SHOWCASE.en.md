@@ -43,8 +43,8 @@ Tell Grok Build what to research on X and which parts of the scene to edit. It c
 
 ![Header model picker showing models offered by the connected agent; captured UI is in Japanese](images/guide/10-model.png)
 
-[Setup and sign-in guide (Japanese)](USER-GUIDE.md#11-claude-以外のエージェントを使う) · [Model selection (Japanese)](USER-GUIDE.md#10-モデルの選択) · [Installation](../README.en.md)
+[Setup and sign-in guide (Japanese)](guide/agents/README.md) · [Model selection (Japanese)](guide/sessions-and-models.md#モデルの選択) · [Installation](../README.en.md)
 
 ## Other supported agents
 
-Gemini CLI and other ACP-capable CLIs, such as Qwen Code and Kimi CLI, can also connect. See the [user guide (Japanese)](USER-GUIDE.md#11-claude-以外のエージェントを使う) for Gemini CLI access requirements and manual configuration for other CLIs.
+Gemini CLI and other ACP-capable CLIs, such as Qwen Code and Kimi CLI, can also connect. See the [user guide (Japanese)](guide/agents/README.md) for Gemini CLI access requirements and manual configuration for other CLIs.

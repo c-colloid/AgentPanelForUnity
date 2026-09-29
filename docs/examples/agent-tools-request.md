@@ -1,6 +1,6 @@
 # 使用例: ピンとスケッチでエージェントに「ここ」を伝える
 
-`docs/USER-GUIDE.md` §13.6 の添付。Scene ビューの「Agent Tools」ツールバーでピン P1、
+`docs/guide/scene-tools.md` の「使用例: ピンとスケッチで「ここ」を伝える」 の添付。Scene ビューの「Agent Tools」ツールバーでピン P1、
 平面スケッチ S1、表面スケッチ S2 を置いた状態(`docs/images/guide/13-agent-tools-*.png`)で、
 下の依頼文を送ったときに **エージェントが実際に受け取るもの** をそのまま載せる。
 すべて 2026-09-19 に Unity 2022.3.62f3 の実機で採取した(採取手順は

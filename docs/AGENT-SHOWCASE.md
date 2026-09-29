@@ -43,8 +43,8 @@ Grok Build に X で調べたい内容と編集したい箇所を指定すると
 
 ![接続先が提供するモデルを選ぶヘッダーのモデルピッカー](images/guide/10-model.png)
 
-[導入・サインインの詳しい手順](USER-GUIDE.md#11-claude-以外のエージェントを使う) · [モデルの選択](USER-GUIDE.md#10-モデルの選択) · [インストール](../README.md#インストール)
+[導入・サインインの詳しい手順](guide/agents/README.md) · [モデルの選択](guide/sessions-and-models.md#モデルの選択) · [インストール](../README.md#インストール)
 
 ## その他の対応エージェント
 
-Gemini CLI や、Qwen Code・Kimi CLI などの ACP 対応 CLI も接続できます。Gemini CLI の利用条件と、その他の CLI の手動設定は [操作ガイド](USER-GUIDE.md#11-claude-以外のエージェントを使う)を確認してください。
+Gemini CLI や、Qwen Code・Kimi CLI などの ACP 対応 CLI も接続できます。Gemini CLI の利用条件と、その他の CLI の手動設定は [操作ガイド](guide/agents/README.md)を確認してください。
