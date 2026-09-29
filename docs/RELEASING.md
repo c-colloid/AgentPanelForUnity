@@ -295,6 +295,7 @@ Core(`vX.Y.Z`)の一覧。Pro のタグは `pro-vX.Y.Z` で、この表には積
 - `/mcp` の答えをカードに(コマンドのエコー、サーバーごとの状態・ツール一覧の Foldout・「再接続」ボタン。`mcp_reconnect` の結果で行と note を更新)(2026-09-27)
 - 設定に「MCP サーバー」カード(自分のサーバーを `--mcp-config` に同梱、Claude Code の設定から取り込み)。`/mcp` カードに「サーバーを追加」、UapOps ツールの説明文、認証用に「ターミナルを開く」(`TerminalLauncher`)。いずれも `/mcp` の修正の一部として Fixed 扱い(2026-09-27)
 - `uap_property_set` が JSON 文字列で届いた構造体値(Color / Vector / Rect / LayerMask)を解析して受け付ける。`value` にスキーマ型が無いためモデルが `{r,g,b,a}` を文字列で送り、`RequireObject` に 5 回連続で拒否されていた件。Color / Vector には位置指定の数値配列も追加(2026-09-28)
+- 長い思考ブロックを開くと「A VisualElement must not allocate more than 65535 vertices」で本文が描かれない件。確定済みの思考を `LongTextChunker` でチャンクごとの Label に分割し、`StreamingLabelPump` もストリーミング中の思考・本文を継続 Label に分けて 1 要素あたりの上限を超えないようにした(2026-09-29)
 
 | タグ | 内容 |
 |---|---|
