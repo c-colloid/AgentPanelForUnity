@@ -28,7 +28,32 @@ namespace Colloid.AgentPanel.Model
         /// as the caption. The transcript renders a thumbnail; the bytes
         /// themselves were sent as an image content block.
         /// </summary>
-        Image
+        Image,
+        /// <summary>
+        /// The panel's own answer to "/mcp" (design note 2026-09-27-mcp-
+        /// slash-command.md section 6): mcpServers holds one entry per
+        /// server the session's system/init reported, text holds the same
+        /// facts as plain text (the fallback a reader without the card
+        /// shows, and what a copied transcript carries). MessageBlockFactory
+        /// renders it as McpStatusCard: one row per server with its tools
+        /// and a Reconnect button.
+        /// </summary>
+        McpStatus
+    }
+
+    /// <summary>
+    /// One MCP server row of a McpStatus block (public fields, Unity-
+    /// serializable like everything else in this file). status is the
+    /// wire value ("connected" | "failed" | "pending" | "needs-auth" |
+    /// other); tools are the wire tool names ("mcp__server__tool") this
+    /// server contributed.
+    /// </summary>
+    [Serializable]
+    public class McpServerEntry
+    {
+        public string name = string.Empty;
+        public string status = string.Empty;
+        public List<string> tools = new List<string>();
     }
 
     /// <summary>
@@ -88,6 +113,12 @@ namespace Colloid.AgentPanel.Model
         /// plain .uap-note style unchanged.
         /// </summary>
         public bool warning;
+        /// <summary>
+        /// McpStatus only: the servers the card lists, in init order. Null
+        /// for every other kind (SessionCacheFile writes the key only when
+        /// non-null, so older caches read back as null too).
+        /// </summary>
+        public List<McpServerEntry> mcpServers;
 
         public static ChatMessageBlock MakeText(string text, bool streaming = false)
         {
@@ -170,6 +201,21 @@ namespace Colloid.AgentPanel.Model
         public static ChatMessageBlock MakeError(string text)
         {
             return new ChatMessageBlock { kind = ChatBlockKind.Error, text = text ?? string.Empty };
+        }
+
+        /// <summary>
+        /// <paramref name="fallbackText"/> is the plain-text form of the
+        /// same facts; <paramref name="servers"/> may be empty (no MCP
+        /// servers) or null (treated as empty).
+        /// </summary>
+        public static ChatMessageBlock MakeMcpStatus(string fallbackText, List<McpServerEntry> servers)
+        {
+            return new ChatMessageBlock
+            {
+                kind = ChatBlockKind.McpStatus,
+                text = fallbackText ?? string.Empty,
+                mcpServers = servers ?? new List<McpServerEntry>()
+            };
         }
     }
 

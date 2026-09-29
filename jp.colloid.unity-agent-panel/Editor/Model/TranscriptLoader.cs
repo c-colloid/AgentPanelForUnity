@@ -833,7 +833,8 @@ namespace Colloid.AgentPanel.Model
                                     {
                                         toolUseId = id,
                                         subagentType = input["subagent_type"].AsString(string.Empty),
-                                        description = input["description"].AsString(string.Empty)
+                                        description = input["description"].AsString(string.Empty),
+                                        background = input["run_in_background"].AsBool(false)
                                     };
                                 }
                                 state.OpenToolCalls[id] = record;

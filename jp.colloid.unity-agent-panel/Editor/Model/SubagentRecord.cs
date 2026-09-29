@@ -26,6 +26,17 @@ namespace Colloid.AgentPanel.Model
         /// <summary>e.g. "general-purpose".</summary>
         public string subagentType = string.Empty;
         public string description = string.Empty;
+        /// <summary>
+        /// True when the spawn's input carried run_in_background:true
+        /// (docs/design-notes/2026-09-27-background-subagent-card.md). A
+        /// background spawn's top-level tool_result arrives IMMEDIATELY
+        /// ("launched"), long before the subagent finishes, so it is not the
+        /// final authority on status the way a foreground result is: the
+        /// record stays open (and keeps receiving parent-tagged messages
+        /// and task_* events, across turn boundaries) until a terminal
+        /// task_updated/task_notification arrives.
+        /// </summary>
+        public bool background;
         /// <summary>"running" | "completed" | "failed" | "stopped".</summary>
         public string status = "running";
         /// <summary>task_progress.description: the current one-line activity.</summary>

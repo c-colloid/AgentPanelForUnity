@@ -139,6 +139,46 @@ namespace Colloid.AgentPanel.Tests
         // no readable text to expand.
         // ---------------------------------------------------------------
 
+        // -- Long text (65535-vertex ceiling, design note
+        // 2026-09-29-thinking-vertex-limit.md) ------------------------------
+
+        [Test]
+        public void LongThinkingText_IsChunkedIntoSeveralLabels_LosingNothing()
+        {
+            PanelStateStore.instance.Settings.showThinking = true;
+            var sb = new System.Text.StringBuilder();
+            for (int i = 0; i < 3000; i++)
+            {
+                sb.Append("0123456789abcdef\n"); // 51,000 chars
+            }
+            string text = sb.ToString();
+
+            VisualElement element = MessageBlockFactory.CreateBlockElement(
+                ChatMessageBlock.MakeThinking(text), null);
+
+            var foldout = element as Foldout;
+            Assert.IsNotNull(foldout);
+            var labels = foldout.Query<Label>(className: "uap-thinking-text").ToList();
+            Assert.Greater(labels.Count, 1, "a long thinking block must not be one Label");
+            var joined = new System.Text.StringBuilder();
+            for (int i = 0; i < labels.Count; i++)
+            {
+                Assert.LessOrEqual(labels[i].text.Length, LongTextChunker.DefaultMaxChars);
+                Assert.AreEqual(i > 0, labels[i].ClassListContains(StreamingLabelPump.ContinuationClass),
+                    "every label after the first is a continuation");
+                joined.Append(labels[i].text);
+            }
+            Assert.AreEqual(text, joined.ToString());
+        }
+
+        [Test]
+        public void ShortThinkingText_IsOneLabel()
+        {
+            PanelStateStore.instance.Settings.showThinking = true;
+            VisualElement element = MessageBlockFactory.CreateBlockElement(MakeThinkingBlock(), null);
+            Assert.AreEqual(1, element.Query<Label>(className: "uap-thinking-text").ToList().Count);
+        }
+
         [Test]
         public void RedactedThinking_RendersTheRedactedNote_NotFoldout()
         {
