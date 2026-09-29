@@ -7,7 +7,95 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-(nothing yet)
+### Fixed
+
+- **The ACP "Sign-in method" is now kept per agent.** It used to be one
+  value shared by Gemini CLI, Codex, Grok Build and custom ACP agents, so a
+  Gemini-only id such as `gemini-api-key` stayed in the field -- and was
+  sent to the agent as its authenticate method -- after switching to
+  another agent. The field now shows and saves the selected agent's own
+  value, the bridge uses the value of the agent it launches, and changing
+  another agent's value no longer asks for a reconnect. An existing shared
+  value moves once to the ACP agent currently selected (with Claude Code
+  selected, a Gemini CLI id goes to Gemini CLI and anything else is
+  dropped).
+- **The "<agent> installed; connecting..." line on the Agent card now
+  goes away.** After an in-panel install it stayed until the next domain
+  reload, even once the card showed Not signed in / Signing in / Connected
+  and even after switching to another agent. A success line now clears once
+  the connection that followed it has settled (connected, sign-in
+  requested or failed), and no install result is shown for an agent other
+  than the selected one; a failure line stays, as it is the only place the
+  reason appears.
+- **Sign-in notes name the agent that asked.** Switching from Codex to
+  Grok Build while Codex was still running made its sign-in request read
+  "Grok Build needs you to sign in (ChatGPT)": the note used the agent
+  selected in Settings instead of the one whose process raised it. The
+  sign-in started / failed notes and the "not signed in, not retrying"
+  note now use the agent that was launched
+  (`docs/design-notes/2026-09-29-per-agent-auth-method-and-ui-fixes.md`).
+- **Signing in to Claude Code from the panel works again with Claude Code
+  2.1.x: the "Authorization code" field no longer stays disabled.** The
+  panel read the `claude auth login` output with a StreamReader, and
+  Unity's Mono StreamReader keeps reading until its 512-character buffer is
+  full. The CLI's sign-in URL now pushes the output past that buffer, so
+  the final "Paste code here if prompted > " line (which the CLI prints
+  without a newline before waiting on stdin) never reached the panel, and
+  the code could not be submitted. The login output is now delivered as
+  soon as each read returns, with UTF-8 decoded across read boundaries; the
+  `codex login` / `grok login` output shown on the Agent card uses the same
+  reader
+  (`docs/design-notes/2026-09-29-user-guide-split-and-sign-in-pages.md`).
+- **Opening a long thinking block no longer throws "A VisualElement must
+  not allocate more than 65535 vertices" and shows nothing.** The thinking
+  Foldout put the whole text into one Label, which UI Toolkit cannot draw
+  past ~16,000 characters. Finalized thinking is now split across several
+  Labels, and the streaming typewriter grows continuation Labels the same
+  way (for thinking and answer text alike) instead of ever exceeding the
+  per-element ceiling
+  (`docs/design-notes/2026-09-29-thinking-vertex-limit.md`).
+- **Background subagents (`run_in_background: true`) are now tracked by
+  their subagent card.** The Agent tool's launch acknowledgement used to
+  close the card as "completed" at once, so everything the subagent did
+  afterwards leaked onto the top-level transcript as plain cards and its
+  progress / summary never arrived. The card now stays running across the
+  parent's turn boundary, collects the nested calls, and closes on the
+  subagent's own completion notification; a "background" tag marks it
+  (design note `docs/design-notes/2026-09-27-background-subagent-card.md`).
+- **`/mcp` no longer ends in a "CLI error: synthetic response" block.**
+  Typing `/mcp` in the composer is now answered by the panel itself: the
+  command is echoed as your message, and a card lists this session's MCP
+  servers, one row each with its status, its tools (expandable) and a
+  Reconnect button that asks the CLI to reconnect that server; the row and
+  a note report the outcome. It used to be sent to the CLI, whose
+  non-interactive answer was a one-line summary that the transcript then
+  rendered as a CLI error. `docs/design-notes/2026-09-27-mcp-slash-command.md`.
+- **The rest of what the CLI's `/mcp` screen offers is in the panel too.**
+  A new "MCP servers" card under Settings > Unity lists your own servers
+  the agent gets on top of the Unity operations server: stdio (command,
+  arguments, environment) or http / sse (URL, headers), each with an on/off
+  switch. "Import from Claude Code" copies servers from `~/.claude.json`
+  and the project's `.mcp.json`. The panel keeps starting Claude Code with
+  its own strict server list, so this is the way to give a panel session
+  extra servers; changes apply on the next connection like other
+  connection settings. `docs/design-notes/2026-09-27-mcp-servers-in-panel.md`.
+- **`/mcp` card: add servers, see tool descriptions, authenticate.** The
+  card's header has "Add server..." (opens that Settings card), the Unity
+  operations server's tools show their descriptions, and a server that
+  needs authentication gets an "Open terminal" button that runs Claude
+  Code in a terminal on the panel's own server list, where `/mcp` can do
+  the OAuth login the panel cannot; press Reconnect afterwards.
+- **`uap_property_set` accepts a Color / Vector / Rect / LayerMask value that
+  arrives as a JSON-encoded string.** The tool's `value` parameter has no
+  fixed JSON type, so the model sends `{"r":1,"g":0.75,"b":0.45,"a":1}` as
+  a string the same way it sends `"1.5"` for a float; numbers were already
+  parsed from strings but struct-shaped values were refused with "needs an
+  object ... but was given a string", and every retry got the same answer.
+  A string that starts with `{` or `[` is now parsed first; a plain word or
+  `"5,6,7"` is still refused, and a string that looks like JSON but does
+  not parse says why. Color and the vectors also take a positional number
+  array (`[r,g,b,a]`, `[x,y,z]`).
+  `docs/design-notes/2026-09-28-property-set-encoded-json-value.md`.
 
 ## [0.60.0] - 2026-09-23
 

@@ -431,5 +431,73 @@ namespace Colloid.AgentPanel.Tests
             Assert.AreEqual("tail", AuthLoginSession.LastNonEmptyLine("head\n  tail  "));
             Assert.AreEqual(200, AuthLoginSession.LastNonEmptyLine(new string('x', 500)).Length);
         }
+
+        // -- AuthLoginSession.PumpChunks (2026-09-29: the Mono StreamReader
+        // waited to fill its buffer, so the prompt tail that followed a
+        // >512-char sign-in URL never arrived) -----------------------------------
+
+        /// <summary>Hands out one scripted chunk per Read and records how many chunks the consumer had seen when each Read began.</summary>
+        private sealed class ChunkedStream : System.IO.Stream
+        {
+            private readonly byte[][] _chunks;
+            private readonly Func<int> _delivered;
+            private int _next;
+            public readonly System.Collections.Generic.List<int> DeliveredAtRead = new System.Collections.Generic.List<int>();
+
+            public ChunkedStream(Func<int> delivered, params byte[][] chunks)
+            {
+                _delivered = delivered;
+                _chunks = chunks;
+            }
+
+            public override int Read(byte[] buffer, int offset, int count)
+            {
+                DeliveredAtRead.Add(_delivered());
+                if (_next >= _chunks.Length)
+                {
+                    return 0;
+                }
+                byte[] chunk = _chunks[_next++];
+                Array.Copy(chunk, 0, buffer, offset, chunk.Length);
+                return chunk.Length;
+            }
+
+            public override bool CanRead { get { return true; } }
+            public override bool CanSeek { get { return false; } }
+            public override bool CanWrite { get { return false; } }
+            public override long Length { get { throw new NotSupportedException(); } }
+            public override long Position { get { throw new NotSupportedException(); } set { throw new NotSupportedException(); } }
+            public override void Flush() { }
+            public override long Seek(long offset, System.IO.SeekOrigin origin) { throw new NotSupportedException(); }
+            public override void SetLength(long value) { throw new NotSupportedException(); }
+            public override void Write(byte[] buffer, int offset, int count) { throw new NotSupportedException(); }
+        }
+
+        [Test]
+        public void PumpChunks_DeliversEachReadBeforeReadingAgain()
+        {
+            var received = new System.Collections.Generic.List<string>();
+            var utf8 = new System.Text.UTF8Encoding(false);
+            var stream = new ChunkedStream(() => received.Count,
+                utf8.GetBytes(new string('u', 500)),
+                utf8.GetBytes("\n" + AuthCli.WaitingForCodePromptTail));
+            AuthLoginSession.PumpChunks(stream, received.Add);
+            // A short second chunk must reach the consumer before the next
+            // Read, which in production blocks until the child exits.
+            CollectionAssert.AreEqual(new[] { 0, 1, 2 }, stream.DeliveredAtRead);
+            Assert.IsTrue(AuthCli.EndsWithCodePrompt(string.Concat(received)));
+        }
+
+        [Test]
+        public void PumpChunks_MultiByteCharacterSplitAcrossReads_DecodesWhole()
+        {
+            var received = new System.Collections.Generic.List<string>();
+            byte[] ellipsis = new System.Text.UTF8Encoding(false).GetBytes("in\u2026\n");
+            var stream = new ChunkedStream(() => received.Count,
+                new[] { ellipsis[0], ellipsis[1], ellipsis[2] },
+                new[] { ellipsis[3], ellipsis[4], ellipsis[5] });
+            AuthLoginSession.PumpChunks(stream, received.Add);
+            Assert.AreEqual("in\u2026\n", string.Concat(received));
+        }
     }
 }

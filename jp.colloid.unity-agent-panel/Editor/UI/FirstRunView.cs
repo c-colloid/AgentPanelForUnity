@@ -1,4 +1,5 @@
 using Colloid.AgentPanel.Core.Acp;
+using Colloid.AgentPanel.Core.Client;
 using Colloid.AgentPanel.Integration;
 using Colloid.AgentPanel.Model;
 using UnityEditor;
@@ -308,6 +309,10 @@ namespace Colloid.AgentPanel.UI
         {
             bool running = AgentHub.CliInstallRunning;
             CliInstallResult last = AgentHub.LastCliInstallResult;
+            if (!running && last != null && last.Backend != _cardBackend)
+            {
+                last = null;
+            }
             string name = AgentBackends.DisplayName(_cardBackend);
             _installButton.SetEnabled(!running);
             string text = DescribeInstallState(running, last, name,
@@ -331,6 +336,40 @@ namespace Colloid.AgentPanel.UI
         /// Pure: the status line under the Install button (null = hidden).
         /// Shared with SettingsView so both surfaces say the same thing.
         /// </summary>
+        /// <summary>
+        /// Whether a FINISHED install's outcome line still belongs on screen
+        /// (docs/design-notes/2026-09-29-per-agent-auth-method-and-ui-fixes.md
+        /// section 3). It is about one backend, so it goes as soon as another
+        /// one is selected; a success line ("installed; connecting...") goes
+        /// once the connection that followed it has settled, because by then
+        /// the card's own status line says what happened. A failure stays --
+        /// it is the only place the reason is shown.
+        /// </summary>
+        internal static bool ShouldShowInstallResult(CliInstallResult last, AgentBackend selected, bool connectionSettled)
+        {
+            if (last == null || last.Backend != selected)
+            {
+                return false;
+            }
+            return !(last.Success && connectionSettled);
+        }
+
+        /// <summary>
+        /// Pure: has the connection attempt after an install resolved one
+        /// way or the other? A sign-in request (ACP) or a known signed-out
+        /// Claude Code both count -- "sign-in required" is an answer. No
+        /// client yet, or one still starting, does not.
+        /// </summary>
+        internal static bool IsConnectionSettled(AgentClientState? state, bool signInPending, bool knownSignedOut)
+        {
+            if (signInPending || knownSignedOut)
+            {
+                return true;
+            }
+            return state.HasValue && state.Value != AgentClientState.NotStarted
+                && state.Value != AgentClientState.Starting;
+        }
+
         internal static string DescribeInstallState(bool running, CliInstallResult last, string backendName,
             long startedUtcTicks, long nowUtcTicks)
         {

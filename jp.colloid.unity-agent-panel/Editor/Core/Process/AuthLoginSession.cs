@@ -19,10 +19,10 @@ namespace Colloid.AgentPanel.Core.Process
     /// never deliver it while the child is blocked waiting: ReadLine()
     /// itself would still be blocked inside the .NET pipe-reader thread.
     /// This class instead reads process.StandardOutput.BaseStream directly
-    /// on a dedicated background thread with a plain StreamReader.Read(...)
-    /// loop, which returns as soon as ANY data is available (no newline
-    /// required), and re-scans the whole accumulated buffer after every
-    /// chunk for the URL / prompt tail.
+    /// on a dedicated background thread with plain Stream.Read calls
+    /// (<see cref="PumpChunks"/>), which return as soon as ANY data is
+    /// available (no newline required), and re-scans the whole accumulated
+    /// buffer after every chunk for the URL / prompt tail.
     ///
     /// The process exit code is NEVER trusted as a login success/failure
     /// signal (unverified fact, see the design note section 1) -- the owner
@@ -33,7 +33,7 @@ namespace Colloid.AgentPanel.Core.Process
     {
         /// <summary>Claude Code's login subcommand (the default when no arguments are given).</summary>
         public const string ClaudeLoginArguments = "auth login";
-        private const int ReadBufferChars = 512;
+        private const int ReadBufferBytes = 512;
         private const int LatestLineMaxChars = 200;
 
         /// <summary>Fired synchronously, on the caller's own thread, the moment the process is confirmed spawned.</summary>
@@ -234,19 +234,49 @@ namespace Colloid.AgentPanel.Core.Process
         {
             try
             {
-                using (var reader = new StreamReader(stdoutStream, new UTF8Encoding(false)))
+                using (stdoutStream)
                 {
-                    var buffer = new char[ReadBufferChars];
-                    int read;
-                    while ((read = reader.Read(buffer, 0, buffer.Length)) > 0)
-                    {
-                        OnOutputChunk(new string(buffer, 0, read));
-                    }
+                    PumpChunks(stdoutStream, OnOutputChunk);
                 }
             }
             catch (Exception ex)
             {
                 Log("auth login stdout read failed: " + ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Delivers every byte the stream yields to <paramref name="onChunk"/>
+        /// as soon as ONE Stream.Read returns it, decoding UTF-8 across read
+        /// boundaries (a multi-byte character split between two reads is
+        /// held back until its tail arrives). Deliberately NOT
+        /// StreamReader.Read(char[], ...): Unity's Mono StreamReader keeps
+        /// reading until the char buffer is full, so a chunk shorter than
+        /// the buffer that arrives after the first one sits undelivered
+        /// while the child waits on stdin. Claude Code 2.1.x's sign-in URL
+        /// grew past that first buffer, which left the "Paste code here if
+        /// prompted &gt; " tail stuck and the code field disabled forever
+        /// (docs/design-notes/2026-09-29-user-guide-split-and-sign-in-pages.md
+        /// section 4). Returns at end of stream.
+        /// </summary>
+        internal static void PumpChunks(Stream stream, Action<string> onChunk)
+        {
+            Decoder decoder = new UTF8Encoding(false).GetDecoder();
+            var bytes = new byte[ReadBufferBytes];
+            var chars = new char[new UTF8Encoding(false).GetMaxCharCount(ReadBufferBytes)];
+            int read;
+            while ((read = stream.Read(bytes, 0, bytes.Length)) > 0)
+            {
+                int count = decoder.GetChars(bytes, 0, read, chars, 0, false);
+                if (count > 0)
+                {
+                    onChunk(new string(chars, 0, count));
+                }
+            }
+            int tail = decoder.GetChars(bytes, 0, 0, chars, 0, true);
+            if (tail > 0)
+            {
+                onChunk(new string(chars, 0, tail));
             }
         }
 

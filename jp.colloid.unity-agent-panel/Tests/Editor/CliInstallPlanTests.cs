@@ -106,6 +106,46 @@ namespace Colloid.AgentPanel.Tests
             StringAssert.Contains("boom", text);
         }
 
+        // -- The finished-install line clears once it stops being news (2026-09-29) --
+
+        [Test]
+        public void InstallResult_SuccessLine_HiddenOnceConnectionSettles()
+        {
+            var ok = new CliInstallResult { Backend = AgentBackend.CodexAcp, Success = true };
+            Assert.IsTrue(FirstRunView.ShouldShowInstallResult(ok, AgentBackend.CodexAcp, false));
+            Assert.IsFalse(FirstRunView.ShouldShowInstallResult(ok, AgentBackend.CodexAcp, true));
+        }
+
+        [Test]
+        public void InstallResult_HiddenForAnotherBackend()
+        {
+            var ok = new CliInstallResult { Backend = AgentBackend.CodexAcp, Success = true };
+            Assert.IsFalse(FirstRunView.ShouldShowInstallResult(ok, AgentBackend.GrokBuild, false));
+            var failed = new CliInstallResult { Backend = AgentBackend.CodexAcp, Failure = CliInstallFailureKind.NodeMissing };
+            Assert.IsFalse(FirstRunView.ShouldShowInstallResult(failed, AgentBackend.GrokBuild, false));
+            Assert.IsFalse(FirstRunView.ShouldShowInstallResult(null, AgentBackend.GrokBuild, false));
+        }
+
+        [Test]
+        public void InstallResult_FailureLine_StaysAfterSettling()
+        {
+            var failed = new CliInstallResult { Backend = AgentBackend.GeminiCli, Failure = CliInstallFailureKind.TimedOut };
+            Assert.IsTrue(FirstRunView.ShouldShowInstallResult(failed, AgentBackend.GeminiCli, true));
+        }
+
+        [Test]
+        public void ConnectionSettled_Table()
+        {
+            Assert.IsFalse(FirstRunView.IsConnectionSettled(null, false, false));
+            Assert.IsFalse(FirstRunView.IsConnectionSettled(Colloid.AgentPanel.Core.Client.AgentClientState.NotStarted, false, false));
+            Assert.IsFalse(FirstRunView.IsConnectionSettled(Colloid.AgentPanel.Core.Client.AgentClientState.Starting, false, false));
+            Assert.IsTrue(FirstRunView.IsConnectionSettled(Colloid.AgentPanel.Core.Client.AgentClientState.Ready, false, false));
+            Assert.IsTrue(FirstRunView.IsConnectionSettled(Colloid.AgentPanel.Core.Client.AgentClientState.Errored, false, false));
+            // "Sign-in required" is an answer too.
+            Assert.IsTrue(FirstRunView.IsConnectionSettled(Colloid.AgentPanel.Core.Client.AgentClientState.Starting, true, false));
+            Assert.IsTrue(FirstRunView.IsConnectionSettled(null, false, true));
+        }
+
         [Test]
         public void SignInUrl_IsExtractedFromAStderrLine()
         {

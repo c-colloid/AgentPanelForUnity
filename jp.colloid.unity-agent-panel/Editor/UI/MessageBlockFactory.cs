@@ -162,6 +162,8 @@ namespace Colloid.AgentPanel.UI
                     return CreateContextAttachmentBlock(block, stateKey);
                 case ChatBlockKind.Image:
                     return CreateImageBlock(block);
+                case ChatBlockKind.McpStatus:
+                    return new McpStatusCard(block, stateKey);
                 default:
                     return null;
             }
@@ -394,13 +396,38 @@ namespace Colloid.AgentPanel.UI
                 }
             });
 
-            Label label = CreatePlainLabel(block.streaming ? string.Empty : block.text,
-                "uap-thinking-text");
-            if (block.streaming && pump != null)
+            if (block.streaming)
             {
-                pump.Track(block, label);
+                // One label the pump drives; it grows continuation labels
+                // beside this one as the text passes the per-element
+                // ceiling (StreamingLabelPump doc comment).
+                Label label = CreatePlainLabel(string.Empty, "uap-thinking-text");
+                if (pump != null)
+                {
+                    pump.Track(block, label);
+                }
+                else
+                {
+                    label.text = IconLoader.SanitizeForDisplay(block.text ?? string.Empty);
+                }
+                foldout.Add(label);
+                return foldout;
             }
-            foldout.Add(label);
+
+            // Finalized: one Label per LongTextChunker chunk. A long
+            // thinking block in one Label exceeded the 65535-vertex
+            // ceiling and threw from the repaint the moment the foldout
+            // was opened (design note 2026-09-29-thinking-vertex-limit.md).
+            List<string> chunks = LongTextChunker.Split(block.text);
+            for (int i = 0; i < chunks.Count; i++)
+            {
+                Label part = CreatePlainLabel(chunks[i], "uap-thinking-text");
+                if (i > 0)
+                {
+                    part.AddToClassList(StreamingLabelPump.ContinuationClass);
+                }
+                foldout.Add(part);
+            }
             return foldout;
         }
 
