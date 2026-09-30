@@ -7,7 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-(nothing yet)
+### Added
+
+- **Scene tools from the first modeling field test (design note
+  `docs/design-notes/2026-09-30-field-test-fixes.md`).** `uap_scene_duplicate`
+  copies an object `count` times with a per-copy `offset`, under an
+  optional `parentPath`, keeping a prefab instance's link.
+  `uap_property_set` and `uap_object_inspect` accept `componentType:
+  "GameObject"` for `m_IsActive`, `m_Layer` (number or name),
+  `m_TagString` and `m_StaticEditorFlags`, and a Material's
+  `m_SavedProperties` path is refused with a pointer to `uap_material_set`.
+  `uap_editor_screenshot` renders any `camera` (hierarchy path, `width` /
+  `height`, offscreen -- no open view needed) and moves the Scene view
+  first with `sceneView` (`pivot`, `rotation`, `size`, `orthographic`,
+  `lookAt`). Hierarchy paths address same-named siblings with `Name[i]`
+  and any object with `#<id>`; `uap_query_hierarchy` and every tool reply
+  print the index when a sibling shares the name.
 
 ## [0.60.1] - 2026-09-30
 

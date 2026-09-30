@@ -38,6 +38,80 @@ namespace Colloid.AgentPanel.Tests
         }
 
         [Test]
+        public void InputSchema_AcceptsCameraWidthHeightSceneAndSceneViewFields()
+        {
+            JsonNode props = new UapEditorScreenshotTool().InputSchema["properties"];
+            foreach (string key in new[] { "camera", "scene", "width", "height", "sceneView" })
+            {
+                Assert.IsTrue(props.HasKey(key), key);
+            }
+            Assert.IsTrue(props["sceneView"]["properties"].HasKey("pivot"));
+            Assert.IsTrue(props["sceneView"]["properties"].HasKey("lookAt"));
+        }
+
+        [Test]
+        public void Execute_Camera_ObjectWithoutCamera_ThrowsNamingTheProblem()
+        {
+            var go = new UnityEngine.GameObject("UapShotNoCamera");
+            try
+            {
+                var ex = Assert.Throws<InvalidOperationException>(delegate
+                {
+                    new UapEditorScreenshotTool().Execute(JsonNode.NewObject().Set("camera", "UapShotNoCamera"));
+                });
+                StringAssert.Contains("no Camera component", ex.Message);
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(go);
+            }
+        }
+
+        [Test]
+        public void Execute_Camera_UnknownPath_Throws()
+        {
+            Assert.Throws<InvalidOperationException>(delegate
+            {
+                new UapEditorScreenshotTool().Execute(JsonNode.NewObject().Set("camera", "UapShotNoSuchObject"));
+            });
+        }
+
+        [Test]
+        public void Execute_Camera_WithSceneView_Throws()
+        {
+            Assert.Throws<ArgumentException>(delegate
+            {
+                new UapEditorScreenshotTool().Execute(JsonNode.NewObject()
+                    .Set("camera", "X").Set("sceneView", JsonNode.NewObject()));
+            });
+        }
+
+        [Test]
+        public void Execute_SceneViewSettings_WithoutOpenSceneView_ThrowsStructuredError()
+        {
+            if (UnityEditor.SceneView.lastActiveSceneView != null)
+            {
+                Assert.Ignore("A Scene view is open; this test covers the headless error path.");
+            }
+            var ex = Assert.Throws<InvalidOperationException>(delegate
+            {
+                new UapEditorScreenshotTool().Execute(JsonNode.NewObject()
+                    .Set("sceneView", JsonNode.NewObject().Set("size", 5.0)));
+            });
+            StringAssert.Contains("Scene view", ex.Message);
+        }
+
+        [Test]
+        public void Execute_SceneViewSettings_WithGameView_Throws()
+        {
+            Assert.Throws<ArgumentException>(delegate
+            {
+                new UapEditorScreenshotTool().Execute(JsonNode.NewObject()
+                    .Set("view", "game").Set("sceneView", JsonNode.NewObject()));
+            });
+        }
+
+        [Test]
         public void Execute_UnknownView_Throws()
         {
             Assert.Throws<ArgumentException>(delegate
@@ -95,6 +169,16 @@ namespace Colloid.AgentPanel.Tests
             string scenePath = UapEditorScreenshotPaths.BuildOutputPath(timestamp, UapScreenshotView.Scene, "C:/Proj");
             string gamePath = UapEditorScreenshotPaths.BuildOutputPath(timestamp, UapScreenshotView.Game, "C:/Proj");
             Assert.AreNotEqual(scenePath, gamePath);
+        }
+
+        [Test]
+        public void BuildCameraOutputPath_DiffersFromViewCaptures()
+        {
+            var timestamp = new DateTime(2026, 8, 2, 10, 30, 45, 123, DateTimeKind.Utc);
+            string cameraPath = UapEditorScreenshotPaths.BuildCameraOutputPath(timestamp, "C:/Proj");
+            Assert.AreEqual("C:/Proj/Temp/UapOpsScreenshots/uap_camera_20260802_103045_123.png", cameraPath);
+            Assert.AreNotEqual(cameraPath,
+                UapEditorScreenshotPaths.BuildOutputPath(timestamp, UapScreenshotView.Game, "C:/Proj"));
         }
 
         [Test]
