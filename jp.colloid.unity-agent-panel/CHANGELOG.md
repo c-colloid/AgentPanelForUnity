@@ -7,7 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-(nothing yet)
+### Added
+
+- **Scene tools from the first modeling field test (design note
+  `docs/design-notes/2026-09-30-field-test-fixes.md`).** `uap_scene_duplicate`
+  copies an object `count` times with a per-copy `offset`, under an
+  optional `parentPath`, keeping a prefab instance's link.
+  `uap_property_set` and `uap_object_inspect` accept `componentType:
+  "GameObject"` for `m_IsActive`, `m_Layer` (number or name),
+  `m_TagString` and `m_StaticEditorFlags`, and a Material's
+  `m_SavedProperties` path is refused with a pointer to `uap_material_set`.
+  `uap_editor_screenshot` renders any `camera` (hierarchy path, `width` /
+  `height`, offscreen -- no open view needed) and moves the Scene view
+  first with `sceneView` (`pivot`, `rotation`, `size`, `orthographic`,
+  `lookAt`). Hierarchy paths address same-named siblings with `Name[i]`
+  and any object with `#<id>`; `uap_query_hierarchy` and every tool reply
+  print the index when a sibling shares the name.
+
+- **"Install bundled agent skills into this project" (design note
+  `docs/design-notes/2026-09-30-bundled-modeling-skill.md`).** A switch in
+  the Extension profiles card (`PanelSettings.bundledSkillsEnabled`,
+  default on) that lets an installed provider package copy the skills it
+  ships into `.claude/skills/` and `.agents/skills/` under the project.
+  Core holds only the switch; the install lives in the package that ships
+  the skills. Not reconnect-relevant: the agent reads the files itself.
+
+### Changed
+
+- **`uap_scene_create_object`'s `primitiveType` says what primitives are
+  for** (blockouts, colliders, placeholders) and that a prop is never a set
+  of them, so an agent with a modeling module installed builds a Model
+  instead (design note `docs/design-notes/2026-09-30-bundled-modeling-skill.md`).
 
 ## [0.60.1] - 2026-09-30
 

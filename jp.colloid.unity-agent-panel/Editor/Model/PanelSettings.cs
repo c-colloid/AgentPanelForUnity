@@ -935,6 +935,18 @@ namespace Colloid.AgentPanel.Model
         public bool unityPluginSteeringEnabled = true;
 
         /// <summary>
+        /// docs/design-notes/2026-09-30-bundled-modeling-skill.md: let an
+        /// installed provider package (Agent Panel Pro) copy the skills it
+        /// ships into this project's `.claude/skills/` and `.agents/skills/`
+        /// so every agent that reads Agent Skills from disk sees them. The
+        /// files are read by the agent at its own pace, so this is NOT
+        /// reconnect-relevant: nothing in the spawn changes. Default ON.
+        /// Core only holds the switch; the install itself lives in the
+        /// package that ships the skills.
+        /// </summary>
+        public bool bundledSkillsEnabled = true;
+
+        /// <summary>
         /// Origin of the Agent Panel Pro update registry the Settings card
         /// writes into manifest.json / .upmconfig.toml (design note
         /// docs/design-notes/2026-09-12-pro-update-delivery.md section 3.3).

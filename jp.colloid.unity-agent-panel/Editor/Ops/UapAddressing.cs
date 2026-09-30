@@ -42,6 +42,99 @@ namespace Colloid.AgentPanel.Ops
         }
 
         /// <summary>
+        /// Pure: parses one path segment of the form "Name[2]" (0-based
+        /// index among siblings that share that exact name). False when the
+        /// segment has no trailing "[digits]" suffix or the name part would
+        /// be empty. Callers must try the LITERAL segment first -- an object
+        /// really named "Foo[1]" still resolves as itself.
+        /// </summary>
+        public static bool TryParseIndexedSegment(string segment, out string name, out int index)
+        {
+            name = null;
+            index = 0;
+            if (string.IsNullOrEmpty(segment) || segment.Length < 4 || segment[segment.Length - 1] != ']')
+            {
+                return false;
+            }
+            int open = segment.LastIndexOf('[');
+            if (open < 1)
+            {
+                return false;
+            }
+            string digits = segment.Substring(open + 1, segment.Length - open - 2);
+            if (digits.Length == 0)
+            {
+                return false;
+            }
+            for (int i = 0; i < digits.Length; i++)
+            {
+                if (digits[i] < '0' || digits[i] > '9')
+                {
+                    return false;
+                }
+            }
+            int parsed;
+            if (!int.TryParse(digits, System.Globalization.NumberStyles.None,
+                    System.Globalization.CultureInfo.InvariantCulture, out parsed))
+            {
+                return false;
+            }
+            name = segment.Substring(0, open);
+            index = parsed;
+            return true;
+        }
+
+        /// <summary>
+        /// Pure: whole-path instance-id form "#12345". False for anything
+        /// else (including "#" followed by non-digits, which stays an
+        /// ordinary object name).
+        /// </summary>
+        public static bool TryParseInstanceIdPath(string path, out int instanceId)
+        {
+            instanceId = 0;
+            if (string.IsNullOrEmpty(path))
+            {
+                return false;
+            }
+            string trimmed = path.Trim();
+            if (trimmed.Length < 2 || trimmed[0] != '#')
+            {
+                return false;
+            }
+            return int.TryParse(trimmed.Substring(1), System.Globalization.NumberStyles.AllowLeadingSign,
+                System.Globalization.CultureInfo.InvariantCulture, out instanceId);
+        }
+
+        private static Transform FindSibling(IList<Transform> siblings, string segment)
+        {
+            for (int i = 0; i < siblings.Count; i++)
+            {
+                if (siblings[i].name == segment)
+                {
+                    return siblings[i];
+                }
+            }
+            string name;
+            int index;
+            if (TryParseIndexedSegment(segment, out name, out index))
+            {
+                int seen = 0;
+                for (int i = 0; i < siblings.Count; i++)
+                {
+                    if (siblings[i].name == name)
+                    {
+                        if (seen == index)
+                        {
+                            return siblings[i];
+                        }
+                        seen++;
+                    }
+                }
+            }
+            return null;
+        }
+
+        /// <summary>
         /// Pure: which loaded scene (by index into the parallel
         /// names/paths arrays) a "scene" tool argument refers to.
         /// Empty/null <paramref name="sceneQuery"/> resolves to
@@ -110,7 +203,8 @@ namespace Colloid.AgentPanel.Ops
         /// Walks a hierarchy path inside <paramref name="scene"/>, matching
         /// each segment against sibling names (first exact match wins when
         /// several siblings share a name -- Unity itself allows duplicate
-        /// sibling names, see R09 section 1.4). Returns null with a
+        /// sibling names, see R09 section 1.4; "Name[2]" picks the 3rd
+        /// same-named sibling, and a whole path "#12345" is an instance id). Returns null with a
         /// descriptive <paramref name="error"/> when the scene has not
         /// finished loading, the path is empty, or any segment is missing.
         /// </summary>
@@ -122,6 +216,17 @@ namespace Colloid.AgentPanel.Ops
                 error = "The target scene is not valid (not loaded).";
                 return null;
             }
+            int instanceId;
+            if (TryParseInstanceIdPath(path, out instanceId))
+            {
+                GameObject byId = UnityObjectId.FromText(instanceId.ToString()) as GameObject;
+                if (byId == null)
+                {
+                    error = "No GameObject with instance id " + instanceId + " (it may have been destroyed).";
+                    return null;
+                }
+                return byId;
+            }
             string[] segments = SplitHierarchyPath(path);
             if (segments.Length == 0)
             {
@@ -129,31 +234,27 @@ namespace Colloid.AgentPanel.Ops
                 return null;
             }
             GameObject[] roots = scene.GetRootGameObjects();
+            var rootTransforms = new List<Transform>(roots.Length);
+            for (int r = 0; r < roots.Length; r++)
+            {
+                rootTransforms.Add(roots[r].transform);
+            }
             Transform current = null;
             for (int s = 0; s < segments.Length; s++)
             {
-                Transform found = null;
+                Transform found;
                 if (s == 0)
                 {
-                    for (int r = 0; r < roots.Length; r++)
-                    {
-                        if (roots[r].name == segments[0])
-                        {
-                            found = roots[r].transform;
-                            break;
-                        }
-                    }
+                    found = FindSibling(rootTransforms, segments[0]);
                 }
                 else
                 {
+                    var children = new List<Transform>(current.childCount);
                     for (int c = 0; c < current.childCount; c++)
                     {
-                        if (current.GetChild(c).name == segments[s])
-                        {
-                            found = current.GetChild(c);
-                            break;
-                        }
+                        children.Add(current.GetChild(c));
                     }
+                    found = FindSibling(children, segments[s]);
                 }
                 if (found == null)
                 {
@@ -177,7 +278,12 @@ namespace Colloid.AgentPanel.Ops
             return ResolveInScene(scene, path, out error);
         }
 
-        /// <summary>Full slash-joined hierarchy path from the scene root down to <paramref name="transform"/>, for tool result text.</summary>
+        /// <summary>
+        /// Full slash-joined hierarchy path from the scene root down to
+        /// <paramref name="transform"/>, for tool result text. A segment that
+        /// has a same-named sibling is emitted as "Name[i]" (0-based among
+        /// those siblings) so the path resolves back to exactly this object.
+        /// </summary>
         public static string DescribeHierarchyPath(Transform transform)
         {
             if (transform == null)
@@ -188,10 +294,57 @@ namespace Colloid.AgentPanel.Ops
             Transform t = transform;
             while (t != null)
             {
-                segments.Insert(0, t.name);
+                segments.Insert(0, DescribeSegment(t));
                 t = t.parent;
             }
             return string.Join("/", segments.ToArray());
+        }
+
+        /// <summary>The path segment for one transform: its name, or "Name[i]" when a sibling shares the name.</summary>
+        public static string DescribeSegment(Transform t)
+        {
+            if (t == null)
+            {
+                return string.Empty;
+            }
+            int count = 0;
+            int index = 0;
+            if (t.parent != null)
+            {
+                Transform parent = t.parent;
+                for (int i = 0; i < parent.childCount; i++)
+                {
+                    Transform sibling = parent.GetChild(i);
+                    if (sibling.name == t.name)
+                    {
+                        if (sibling == t)
+                        {
+                            index = count;
+                        }
+                        count++;
+                    }
+                }
+            }
+            else
+            {
+                Scene scene = t.gameObject.scene;
+                if (scene.IsValid() && scene.isLoaded)
+                {
+                    GameObject[] roots = scene.GetRootGameObjects();
+                    for (int i = 0; i < roots.Length; i++)
+                    {
+                        if (roots[i].name == t.name)
+                        {
+                            if (roots[i].transform == t)
+                            {
+                                index = count;
+                            }
+                            count++;
+                        }
+                    }
+                }
+            }
+            return count > 1 ? t.name + "[" + index + "]" : t.name;
         }
 
         /// <summary>
