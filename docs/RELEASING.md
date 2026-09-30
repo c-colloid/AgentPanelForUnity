@@ -292,6 +292,7 @@ Core(`vX.Y.Z`)の一覧。Pro のタグは `pro-vX.Y.Z` で、この表には積
 
 - 実環境テスト(アクアリウム)の修正で Core に足したもの: `uap_scene_duplicate`(count / offset / parentPath、プレハブのリンク維持)、`uap_property_set` / `uap_object_inspect` の `componentType:"GameObject"`(active / layer / tag / static)、`uap_editor_screenshot` の `camera` と `sceneView`、階層パスの `Name[i]` と `#id`(同名の兄弟を指せる)。`### Added` が入ったので v0.60.1 の次は 0.61.0-beta.1(2026-09-30)
 - 同梱スキル導入の Core 側: 設定「同梱スキルをこのプロジェクトに配置する」(`bundledSkillsEnabled`、既定オン、再接続不要)を拡張プロファイルのカードに追加、`uap_scene_create_object` の `primitiveType` 説明をブロックアウト・コライダー用途に限定。0.61.0-beta.2(2026-09-30)
+- 長い会話でタブ再表示時に数秒〜十数秒固まる件の対策: トランスクリプトを仮想化し、ビューポート近傍の行だけ実体化してスクロールに応じて生成・解放する(上下は計測/推定高さのスペーサー、読んでいる行は動かない、300 件上限と非表示注記は廃止、スクロール位置はメッセージ単位でリロード後も復元)。0.61.0-beta.3(2026-09-30)
 
 | タグ | 内容 |
 |---|---|
