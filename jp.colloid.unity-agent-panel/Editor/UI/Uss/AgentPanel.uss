@@ -812,14 +812,12 @@
     flex-shrink: 1;
 }
 
-.uap-prune-note {
-    -unity-text-align: middle-center;
-    font-size: var(--uap-font-size-small);
-    color: var(--uap-text-disabled);
-    margin-top: var(--uap-space-s);
-    margin-bottom: var(--uap-space-s);
-    margin-left: var(--uap-space-s);
-    margin-right: var(--uap-space-s);
+/* Virtualized transcript (design note 2026-09-30-transcript-
+   virtualization.md): the two spacers stand in for the rows above and
+   below the live window at their measured / estimated heights. */
+.uap-msg-spacer {
+    flex-shrink: 0;
+    flex-grow: 0;
 }
 
 /* ---- Jump-to-bottom pill --------------------------------------------------- */

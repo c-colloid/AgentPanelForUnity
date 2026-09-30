@@ -58,7 +58,7 @@ namespace Colloid.AgentPanel.Ops
                         .Set("scene", JsonNode.NewObject().Set("type", "string")
                             .Set("description", "Scene name or path. Omit to use the active scene (or the open prefab stage)."))
                         .Set("componentType", JsonNode.NewObject().Set("type", "string")
-                            .Set("description", "Component type to inspect (short or fully-qualified name)."))
+                            .Set("description", "Component type to inspect (short or fully-qualified name). \"GameObject\" lists the GameObject's own m_IsActive, m_Layer, m_TagString, m_StaticEditorFlags."))
                         .Set("componentIndex", JsonNode.NewObject().Set("type", "integer")
                             .Set("description", "Which component when several of the same type exist (default 0). This is the PER-TYPE ordinal -- uap_component_list reports it as typeIndex; do not pass that tool's all-components index.")))
                     .Set("required", JsonNode.NewArray().Add("path").Add("componentType"))
@@ -91,22 +91,51 @@ namespace Colloid.AgentPanel.Ops
             {
                 throw new InvalidOperationException(error);
             }
-            Type type = UapComponentTypeResolver.ResolveComponentType(componentTypeName, out error);
-            if (type == null)
+            bool isGameObject = string.Equals(componentTypeName, "GameObject", StringComparison.OrdinalIgnoreCase);
+            UnityEngine.Object target;
+            if (isGameObject)
             {
-                throw new InvalidOperationException(error);
+                target = go;
             }
-            int componentIndex = input["componentIndex"].AsInt(0);
-            Component[] comps = go.GetComponents(type);
-            if (componentIndex < 0 || componentIndex >= comps.Length)
+            else
             {
-                throw new InvalidOperationException("No component of type '" + componentTypeName
-                    + "' at index " + componentIndex + " on '" + path + "' (found " + comps.Length + ").");
+                Type type = UapComponentTypeResolver.ResolveComponentType(componentTypeName, out error);
+                if (type == null)
+                {
+                    throw new InvalidOperationException(error);
+                }
+                int componentIndex = input["componentIndex"].AsInt(0);
+                Component[] comps = go.GetComponents(type);
+                if (componentIndex < 0 || componentIndex >= comps.Length)
+                {
+                    throw new InvalidOperationException("No component of type '" + componentTypeName
+                        + "' at index " + componentIndex + " on '" + path + "' (found " + comps.Length + ").");
+                }
+                target = comps[componentIndex];
             }
-            Component target = comps[componentIndex];
 
             var so = new SerializedObject(target);
             JsonNode props = JsonNode.NewArray();
+            if (isGameObject)
+            {
+                string[] goPaths = { "m_IsActive", "m_Layer", "m_TagString", "m_StaticEditorFlags" };
+                for (int g = 0; g < goPaths.Length; g++)
+                {
+                    SerializedProperty gp = so.FindProperty(goPaths[g]);
+                    if (gp == null)
+                    {
+                        continue;
+                    }
+                    props.Add(JsonNode.NewObject()
+                        .Set("path", gp.propertyPath)
+                        .Set("type", gp.propertyType.ToString())
+                        .Set("value", DescribeValue(gp)));
+                }
+                return UapToolResults.Text(JsonWriter.Write(JsonNode.NewObject()
+                    .Set("gameObjectPath", path)
+                    .Set("component", "UnityEngine.GameObject")
+                    .Set("properties", props)));
+            }
             SerializedProperty it = so.GetIterator();
             bool enterChildren = true;
             int emitted = 0;

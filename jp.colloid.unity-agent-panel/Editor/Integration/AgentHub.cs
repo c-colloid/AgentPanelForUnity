@@ -7412,6 +7412,7 @@ namespace Colloid.AgentPanel.Integration
                     ? new List<string>(source.uapOpsModules) : new List<string>(),
                 extensionProfilesEnabled = source.extensionProfilesEnabled,
                 unityPluginSteeringEnabled = source.unityPluginSteeringEnabled,
+                bundledSkillsEnabled = source.bundledSkillsEnabled,
                 approvedProfileHashes = source.approvedProfileHashes != null
                     ? new List<string>(source.approvedProfileHashes) : new List<string>(),
                 agentModelOverrides = CloneAgentModelOverrides(source.agentModelOverrides),

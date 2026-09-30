@@ -351,6 +351,8 @@ namespace Colloid.AgentPanel.UI
                 settingsUnityPluginRepoLabel: "リポジトリ",
                 settingsUnityPluginSteeringLabel: "Claude に公式スキルの使い分けを指示する",
                 settingsUnityPluginSteeringTooltip: "システムプロンプトに短い注記を足します: UI・パッケージ・検索は /unity: スキルへ、Editor 操作はパネル自身のツールに留め、古い Unity では Unity 6 限定の指針を飛ばす。次のチャットから反映されます。",
+                settingsBundledSkillsEnabledLabel: "同梱スキルをこのプロジェクトに配置する",
+                settingsBundledSkillsEnabledTooltip: "スキルを同梱するパッケージ(Agent Panel Pro: モデリング手順)が、プロジェクト直下の .claude/skills/ と .agents/skills/ にそれを書き出します。Claude Code と、Agent Skills の共通配置を読むエージェント(Codex、Gemini CLI など)が、該当する作業のときに手順全体を読み込みます。編集したコピーは上書きしません(消せば同梱版に戻ります)。次にスキルが参照されたときから効き、再接続は不要です。",
                 settingsUloopCaveatVcc:
                     "このプロジェクトは VCC/VPM 管理下です(vpm-manifest.json を検出)。"
                     + "ここでの変更は VCC に上書き・巻き戻される可能性があるため、VCC 側での導入を推奨します。",
@@ -423,7 +425,6 @@ namespace Colloid.AgentPanel.UI
                 chatThinkingIndicatorStreamingTokensFmt: "思考中... (~{0}トークン)",
                 chatThinkingIndicatorDone: "思考済み",
                 chatThinkingIndicatorDoneTokensFmt: "思考済み (~{0}トークン)",
-                chatPruneNoteFmt: "{0}件の過去のメッセージは非表示です",
                 chatJumpToLatestButton: "最新",
                 chatCompactingIndicator:
                     "コンテキストを圧縮しています... モデルがここまでの会話を要約中です。しばらく時間がかかることがあります。",

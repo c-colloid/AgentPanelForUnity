@@ -655,6 +655,13 @@ namespace Colloid.AgentPanel.UI
             "Adds a short note to the system prompt: route UI, package and search work through the /unity: skills,"
             + " keep Editor control on the panel's own tools, and skip Unity 6-only guidance on older versions."
             + " Applies from the next chat.";
+        public readonly string SettingsBundledSkillsEnabledLabel = "Install bundled agent skills into this project";
+        public readonly string SettingsBundledSkillsEnabledTooltip =
+            "A package that ships skills (Agent Panel Pro: the modeling workflow) copies them into"
+            + " .claude/skills/ and .agents/skills/ under the project, so Claude Code and the agents"
+            + " that read the open Agent Skills layout (Codex, Gemini CLI, ...) load the full procedure"
+            + " when the task matches. A copy you edit is never overwritten; delete it to get the"
+            + " bundled version back. Takes effect at the next skill lookup, no reconnect needed.";
 
         public readonly string SettingsUloopCaveatVcc =
             "This project is managed by VCC/VPM (vpm-manifest.json found). Package changes made"
@@ -789,9 +796,6 @@ namespace Colloid.AgentPanel.UI
         // ==================================================================
         // MessageListController.cs
         // ==================================================================
-
-        /// <summary>{0} = number of hidden earlier messages.</summary>
-        public readonly string ChatPruneNoteFmt = "{0} earlier messages are hidden";
 
         public readonly string ChatJumpToLatestButton = "Latest";
 
@@ -2927,6 +2931,8 @@ namespace Colloid.AgentPanel.UI
             string settingsUnityPluginRepoLabel,
             string settingsUnityPluginSteeringLabel,
             string settingsUnityPluginSteeringTooltip,
+            string settingsBundledSkillsEnabledLabel,
+            string settingsBundledSkillsEnabledTooltip,
             string settingsUloopCaveatVcc,
             string settingsUloopCaveatOffline,
             string settingsUloopCaveatManifestUnreadable,
@@ -2974,7 +2980,6 @@ namespace Colloid.AgentPanel.UI
             string chatThinkingIndicatorStreamingTokensFmt,
             string chatThinkingIndicatorDone,
             string chatThinkingIndicatorDoneTokensFmt,
-            string chatPruneNoteFmt,
             string chatJumpToLatestButton,
             string chatCompactingIndicator,
             string statusDisconnected,
@@ -3828,6 +3833,8 @@ namespace Colloid.AgentPanel.UI
             SettingsUnityPluginRepoLabel = settingsUnityPluginRepoLabel;
             SettingsUnityPluginSteeringLabel = settingsUnityPluginSteeringLabel;
             SettingsUnityPluginSteeringTooltip = settingsUnityPluginSteeringTooltip;
+            SettingsBundledSkillsEnabledLabel = settingsBundledSkillsEnabledLabel;
+            SettingsBundledSkillsEnabledTooltip = settingsBundledSkillsEnabledTooltip;
             SettingsUloopCaveatVcc = settingsUloopCaveatVcc;
             SettingsUloopCaveatOffline = settingsUloopCaveatOffline;
             SettingsUloopCaveatManifestUnreadable = settingsUloopCaveatManifestUnreadable;
@@ -3875,7 +3882,6 @@ namespace Colloid.AgentPanel.UI
             ChatThinkingIndicatorStreamingTokensFmt = chatThinkingIndicatorStreamingTokensFmt;
             ChatThinkingIndicatorDone = chatThinkingIndicatorDone;
             ChatThinkingIndicatorDoneTokensFmt = chatThinkingIndicatorDoneTokensFmt;
-            ChatPruneNoteFmt = chatPruneNoteFmt;
             ChatJumpToLatestButton = chatJumpToLatestButton;
             ChatCompactingIndicator = chatCompactingIndicator;
             StatusDisconnected = statusDisconnected;

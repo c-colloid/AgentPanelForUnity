@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Colloid.AgentPanel.Model;
+using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace Colloid.AgentPanel.UI
@@ -18,25 +19,48 @@ namespace Colloid.AgentPanel.UI
     /// - Stick-to-bottom: follows content growth via GeometryChangedEvent
     ///   on the content container + verticalScroller.highValue; scrolling
     ///   up (wheel or scroller drag) detaches and shows the jump pill.
-    /// - Pruning: only the newest 300 messages are rendered; a small note
-    ///   reports how many older ones are hidden (risk 9).
+    /// - Virtualized window (docs/design-notes/2026-09-30-transcript-
+    ///   virtualization.md): only the messages near the viewport are live
+    ///   elements. Everything above and below is represented by two
+    ///   spacers whose heights are the measured heights of rows that were
+    ///   live once, or an estimate for rows never built. Scrolling builds
+    ///   rows as they approach the viewport and releases rows that moved
+    ///   far away, so the live tree stays a few dozen rows however long
+    ///   the conversation is. That bounds the cost of the full re-style /
+    ///   re-measure UI Toolkit runs every time the docked tab is re-shown
+    ///   (Unity detaches and re-attaches the window root), which used to
+    ///   stall for seconds on a long transcript.
     /// </summary>
     public sealed class MessageListController
     {
-        private const int MaxRenderedMessages = 300;
+        /// <summary>
+        /// Rows a fresh build makes around its anchor (the tail when
+        /// following the bottom). Enough to fill any reasonable viewport
+        /// with slack; the window pass grows it if not.
+        /// </summary>
+        internal const int InitialRows = 24;
+
+        /// <summary>Rows one window pass adds on a side that ran short.</summary>
+        internal const int LoadChunk = 8;
 
         /// <summary>
-        /// UICODE-3 hysteresis: how far past MaxRenderedMessages the
-        /// rendered window may grow before the anchor moves forward. The
-        /// old anchor (always count - max) advanced by one on EVERY append
-        /// past the cap, which failed the prefix check and full-rebuilt
-        /// all 300 rows per message. With slack, appends between anchor
-        /// moves stay on the O(delta) incremental path, and each anchor
-        /// move prunes a batch of head rows instead of rebuilding.
+        /// Viewport heights beyond the visible range that must be covered
+        /// by live rows (rows are built when the covered range is shorter).
         /// </summary>
-        internal const int PruneSlack = 50;
+        internal const float LoadMarginViewports = 1.0f;
+
+        /// <summary>
+        /// Viewport heights beyond the visible range past which a live
+        /// row is released. Larger than the load margin so a row is never
+        /// built and released again by the same scroll (hysteresis).
+        /// </summary>
+        internal const float ReleaseMarginViewports = 2.5f;
+
+        /// <summary>Height assumed for a row that has never been measured.</summary>
+        internal const float DefaultRowHeight = 96f;
 
         private const float StickSlackPixels = 4f;
+        private const long WindowPassDelayMillis = 16;
 
         private sealed class Row
         {
@@ -48,13 +72,38 @@ namespace Colloid.AgentPanel.UI
         private readonly ScrollView _scroll;
         private readonly Button _pill;
         private readonly StreamingLabelPump _pump;
+        private readonly VisualElement _topSpacer;
+        private readonly VisualElement _bottomSpacer;
         private readonly Dictionary<string, Row> _rows = new Dictionary<string, Row>();
         private readonly List<string> _renderedIds = new List<string>();
+
+        /// <summary>Measured outer height of every row that was live once, by id.</summary>
+        private readonly Dictionary<string, float> _heights = new Dictionary<string, float>();
+        private float _measuredSum;
+        private int _measuredCount;
+
+        private List<ChatMessage> _messages;
         private int _renderedStart = -1;
-        private bool _pruneNoteVisible;
+        private int _lastCount;
         private bool _stick = true;
         private bool _pillShown;
-        private float _pendingRestoreOffset = -1f;
+        private IVisualElementScheduledItem _windowPass;
+
+        // Scroll anchoring for a head insert: rows built ABOVE the
+        // viewport replace an estimated spacer height with real heights,
+        // and the scroller's pixel offset would then show different
+        // content. The offset and content height captured before the
+        // insert are re-applied with the height delta once layout lands.
+        private bool _anchorPending;
+        private float _anchorOffset;
+        private float _anchorBaselineHeight;
+
+        // Restore after a rebuild: the row (counted from the end, so a
+        // head-truncated reload still resolves) and the pixel offset from
+        // its top that the viewport top sat at.
+        private bool _restorePending;
+        private int _restoreFromEnd;
+        private float _restoreDelta;
 
         /// <summary>Container holding the scroll view and the jump pill.</summary>
         public VisualElement Root
@@ -81,7 +130,18 @@ namespace Colloid.AgentPanel.UI
             _pill.style.display = DisplayStyle.None;
             _root.Add(_pill);
 
+            // Spacers stand in for the rows outside the live window: the
+            // content container is always [top spacer][rows...][bottom
+            // spacer], so row i is child i + 1.
+            _topSpacer = new VisualElement();
+            _topSpacer.AddToClassList("uap-msg-spacer");
+            _bottomSpacer = new VisualElement();
+            _bottomSpacer.AddToClassList("uap-msg-spacer");
+            _scroll.contentContainer.Add(_topSpacer);
+            _scroll.contentContainer.Add(_bottomSpacer);
+
             _scroll.contentContainer.RegisterCallback<GeometryChangedEvent>(OnContentGeometryChanged);
+            _scroll.contentViewport.RegisterCallback<GeometryChangedEvent>(OnViewportGeometryChanged);
             _scroll.verticalScroller.valueChanged += OnScrollerValueChanged;
             _scroll.RegisterCallback<WheelEvent>(OnWheel);
         }
@@ -92,40 +152,24 @@ namespace Colloid.AgentPanel.UI
         public void Refresh(ChatSession session)
         {
             List<ChatMessage> messages = session != null ? session.messages : null;
+            _messages = messages;
             if (messages == null || messages.Count == 0)
             {
                 if (_renderedIds.Count > 0 || _renderedStart != 0)
                 {
-                    FullRebuild(new List<ChatMessage>(), 0);
+                    Rebuild(new List<ChatMessage>());
                 }
+                _lastCount = 0;
                 return;
             }
 
-            int start = ComputePruneAnchor(
-                messages.Count, _renderedStart, MaxRenderedMessages, PruneSlack);
-            int windowCount = messages.Count - start;
-
-            // Two ways onto the incremental path: the anchor is unchanged
-            // and the rendered rows are a prefix of the window (the
-            // ordinary case), or the anchor moved FORWARD and the rendered
-            // rows minus a droppable head are still that prefix (UICODE-3:
-            // prune the head rows, keep everything else incremental).
-            int pruneDrop = 0;
-            bool incremental = false;
-            if (start == _renderedStart && _renderedIds.Count <= windowCount)
+            // Rows must be exactly messages[_renderedStart .. +count):
+            // anything else (nothing built yet, session switch, clear,
+            // restored transcript) is a fresh build around the anchor.
+            if (_renderedStart < 0 || !RenderedIdsMatch(messages))
             {
-                incremental = RenderedIdsMatch(messages, start, 0);
-            }
-            else if (_renderedStart >= 0 && start > _renderedStart
-                && start - _renderedStart < _renderedIds.Count
-                && _renderedIds.Count - (start - _renderedStart) <= windowCount)
-            {
-                pruneDrop = start - _renderedStart;
-                incremental = RenderedIdsMatch(messages, start, pruneDrop);
-            }
-            if (!incremental)
-            {
-                FullRebuild(messages, start);
+                Rebuild(messages);
+                _lastCount = messages.Count;
                 return;
             }
 
@@ -145,17 +189,10 @@ namespace Colloid.AgentPanel.UI
             float savedOffset = _scroll.verticalScroller.value;
             bool contentMutated = false;
 
-            if (pruneDrop > 0)
-            {
-                PruneHeadRows(pruneDrop, start);
-                contentMutated = true;
-            }
-            int offset = _pruneNoteVisible ? 1 : 0;
-
-            // Update structurally-changed existing rows in place.
+            // Update structurally-changed live rows in place.
             for (int i = 0; i < _renderedIds.Count; i++)
             {
-                ChatMessage message = messages[start + i];
+                ChatMessage message = messages[_renderedStart + i];
                 Row row = _rows[message.id];
                 int signature = ComputeSignature(message);
                 if (signature == row.Signature)
@@ -163,7 +200,7 @@ namespace Colloid.AgentPanel.UI
                     continue;
                 }
                 VisualElement fresh = MessageBlockFactory.CreateMessageElement(message, _pump);
-                int childIndex = i + offset;
+                int childIndex = i + 1;
                 content.RemoveAt(childIndex);
                 content.Insert(childIndex, fresh);
                 row.Element = fresh;
@@ -171,13 +208,21 @@ namespace Colloid.AgentPanel.UI
                 contentMutated = true;
             }
 
-            // Append rows for new messages.
-            for (int i = _renderedIds.Count; i < windowCount; i++)
+            // New messages: appended as live rows while the tail is live
+            // (the usual case: following the bottom, or reading near it);
+            // otherwise they only grow the bottom spacer and the window
+            // pass builds them when the user scrolls down to them.
+            int renderedEnd = _renderedStart + _renderedIds.Count;
+            if (renderedEnd == _lastCount && messages.Count > _lastCount)
             {
-                ChatMessage message = messages[start + i];
-                AppendRow(message);
+                for (int i = renderedEnd; i < messages.Count; i++)
+                {
+                    InsertRow(messages[i], _renderedIds.Count);
+                }
                 contentMutated = true;
             }
+            _lastCount = messages.Count;
+            UpdateSpacers();
 
             if (contentMutated)
             {
@@ -194,12 +239,22 @@ namespace Colloid.AgentPanel.UI
                     ComputeRestoredScrollValue(wasSticking, savedOffset, _scroll.verticalScroller.highValue);
                 UpdatePill();
             }
+            RequestWindowPass();
         }
 
         /// <summary>Scrolls to the bottom and re-enables follow mode.</summary>
         public void ScrollToBottom()
         {
             _stick = true;
+            if (_messages != null && _renderedStart >= 0
+                && _renderedStart + _renderedIds.Count < _messages.Count)
+            {
+                // The tail is not live (the user was reading far up):
+                // rebuild around it instead of paging through everything
+                // in between.
+                Rebuild(_messages);
+                _lastCount = _messages.Count;
+            }
             _scroll.verticalScroller.value = _scroll.verticalScroller.highValue;
             UpdatePill();
         }
@@ -207,83 +262,81 @@ namespace Colloid.AgentPanel.UI
         /// <summary>Current offset for SessionState persistence (-1 = following bottom).</summary>
         public float GetScrollOffset()
         {
-            return _stick ? -1f : _scroll.verticalScroller.value;
+            if (_stick)
+            {
+                return -1f;
+            }
+            int index = FindViewportAnchorRow();
+            if (index < 0)
+            {
+                return _scroll.verticalScroller.value;
+            }
+            return Math.Max(0f, _scroll.verticalScroller.value - RowAt(index).layout.y);
         }
 
         /// <summary>
-        /// Restores a persisted offset once layout has actually produced a
-        /// scrollable range. A fixed timer is not enough: on a large
-        /// restored transcript the 30 ms tick can fire while highValue is
-        /// still 0, which would clamp the target to the top. The offset is
-        /// applied from the first GeometryChangedEvent where highValue can
-        /// satisfy it (or at least is non-zero), then the hook unregisters.
+        /// The row <see cref="GetScrollOffset"/> is measured from, counted
+        /// from the end of the transcript (1 = the newest message); 0 when
+        /// following the bottom or nothing is live. Counted from the end
+        /// so a reload that truncates the transcript's head (the loader's
+        /// message cap) still resolves the same message.
         /// </summary>
-        public void RestoreScrollOffset(float offset)
+        public int GetScrollAnchorFromEnd()
+        {
+            if (_stick || _messages == null)
+            {
+                return 0;
+            }
+            int index = FindViewportAnchorRow();
+            if (index < 0)
+            {
+                return 0;
+            }
+            return _messages.Count - (_renderedStart + index);
+        }
+
+        /// <summary>
+        /// Restores a persisted scroll state before the first Refresh:
+        /// <paramref name="offset"/> below zero follows the bottom;
+        /// otherwise the first build renders around the message
+        /// <paramref name="anchorFromEnd"/> from the end and puts the
+        /// viewport top <paramref name="offset"/> pixels below that row's
+        /// top once it has a layout. With no anchor (0) the offset is a
+        /// plain pixel offset from the top, clamped into range.
+        /// </summary>
+        public void RestoreScrollOffset(float offset, int anchorFromEnd)
         {
             if (offset < 0f)
             {
                 _stick = true;
+                _restorePending = false;
                 _scroll.schedule.Execute(ScrollToBottom).StartingIn(30);
                 return;
             }
             _stick = false;
-            _pendingRestoreOffset = offset;
-            _scroll.contentContainer.RegisterCallback<GeometryChangedEvent>(OnRestoreGeometry);
+            _restorePending = true;
+            _restoreFromEnd = anchorFromEnd;
+            _restoreDelta = offset;
         }
 
-        private void OnRestoreGeometry(GeometryChangedEvent evt)
+        /// <summary>Pixel-offset restore with no anchor row (legacy callers).</summary>
+        public void RestoreScrollOffset(float offset)
         {
-            if (_pendingRestoreOffset < 0f)
-            {
-                _scroll.contentContainer.UnregisterCallback<GeometryChangedEvent>(OnRestoreGeometry);
-                return;
-            }
-            float high = _scroll.verticalScroller.highValue;
-            if (high <= 0f)
-            {
-                // Layout not settled yet; wait for the next geometry pass.
-                return;
-            }
-            _scroll.verticalScroller.value = Math.Min(_pendingRestoreOffset, high);
-            _pendingRestoreOffset = -1f;
-            _scroll.contentContainer.UnregisterCallback<GeometryChangedEvent>(OnRestoreGeometry);
+            RestoreScrollOffset(offset, 0);
         }
 
-        // -- Rebuild helpers ------------------------------------------------------
+        // -- Window building --------------------------------------------------------
 
-        /// <summary>
-        /// Pure anchor decision (UICODE-3, internal for the EditMode
-        /// table): where the rendered window starts. Holds the CURRENT
-        /// anchor while the window fits within max + slack (so ordinary
-        /// appends past the cap stay incremental), and re-anchors to the
-        /// newest max once the slack is exhausted (the caller then prunes
-        /// the head rows). A negative renderedStart means nothing is
-        /// rendered yet -- anchor straight to the newest max.
-        /// </summary>
-        internal static int ComputePruneAnchor(int messageCount, int renderedStart,
-            int max, int slack)
+        /// <summary>Whether the live rows are exactly the transcript slice at _renderedStart.</summary>
+        private bool RenderedIdsMatch(List<ChatMessage> messages)
         {
-            // Nothing rendered yet, or the transcript shrank below the old
-            // anchor (session switch/clear): anchor to the newest max.
-            if (renderedStart < 0 || renderedStart > messageCount)
+            if (_renderedStart + _renderedIds.Count > messages.Count)
             {
-                return Math.Max(0, messageCount - max);
+                return false;
             }
-            if (messageCount - renderedStart <= max + slack)
+            for (int i = 0; i < _renderedIds.Count; i++)
             {
-                return renderedStart;
-            }
-            return messageCount - max;
-        }
-
-        /// <summary>Whether the rendered ids, minus a dropped head of
-        /// <paramref name="drop"/>, are a prefix of the window at
-        /// <paramref name="start"/>.</summary>
-        private bool RenderedIdsMatch(List<ChatMessage> messages, int start, int drop)
-        {
-            for (int i = drop; i < _renderedIds.Count; i++)
-            {
-                if (!string.Equals(_renderedIds[i], messages[start + i - drop].id,
+                if (!string.Equals(_renderedIds[i], messages[_renderedStart + i].id,
                     StringComparison.Ordinal))
                 {
                     return false;
@@ -293,52 +346,11 @@ namespace Colloid.AgentPanel.UI
         }
 
         /// <summary>
-        /// UICODE-3: drops the oldest <paramref name="drop"/> rendered rows
-        /// and moves the anchor to <paramref name="newStart"/>, updating
-        /// (or creating) the prune note in place -- O(drop), where the old
-        /// path rebuilt all rendered rows. Runs inside Refresh's scroll
-        /// capture/restore window like every other mutation there.
+        /// Fresh build: live rows around the anchor -- the pending restore
+        /// row, or the tail. Everything else becomes spacer height.
         /// </summary>
-        private void PruneHeadRows(int drop, int newStart)
+        private void Rebuild(List<ChatMessage> messages)
         {
-            VisualElement content = _scroll.contentContainer;
-            int noteOffset = _pruneNoteVisible ? 1 : 0;
-            for (int i = 0; i < drop; i++)
-            {
-                content.RemoveAt(noteOffset);
-                _rows.Remove(_renderedIds[i]);
-            }
-            _renderedIds.RemoveRange(0, drop);
-            _renderedStart = newStart;
-
-            if (newStart <= 0)
-            {
-                return;
-            }
-            if (_pruneNoteVisible)
-            {
-                var note = content[0] as Label;
-                if (note != null)
-                {
-                    note.text = L10n.F(L10n.S.ChatPruneNoteFmt, newStart);
-                }
-            }
-            else
-            {
-                var note = new Label(L10n.F(L10n.S.ChatPruneNoteFmt, newStart));
-                note.AddToClassList("uap-prune-note");
-                content.Insert(0, note);
-                _pruneNoteVisible = true;
-            }
-        }
-
-        private void FullRebuild(List<ChatMessage> messages, int start)
-        {
-            // UICODE-3: a full rebuild must preserve scroll intent exactly
-            // like the incremental path -- content.Clear() zeroes the
-            // scroller, and without this capture/restore a reader who had
-            // scrolled up was yanked to the top (then, if sticking logic
-            // kicked in, to the bottom) whenever a rebuild landed.
             bool wasSticking = _stick;
             float savedOffset = _scroll.verticalScroller.value;
 
@@ -346,36 +358,359 @@ namespace Colloid.AgentPanel.UI
             content.Clear();
             _rows.Clear();
             _renderedIds.Clear();
+            _anchorPending = false;
+            content.Add(_topSpacer);
+            content.Add(_bottomSpacer);
+
+            int count = messages.Count;
+            int anchor = -1;
+            if (_restorePending && _restoreFromEnd > 0)
+            {
+                anchor = count - _restoreFromEnd;
+                if (anchor < 0 || anchor >= count)
+                {
+                    // The transcript no longer holds that message: nothing
+                    // to anchor to, fall back to the newest rows.
+                    _restorePending = false;
+                    anchor = -1;
+                }
+            }
+            int start = ComputeWindowStart(count, anchor, InitialRows);
+            int end = Math.Min(count, start + InitialRows);
             _renderedStart = start;
-            _pruneNoteVisible = start > 0;
-
-            if (_pruneNoteVisible)
+            for (int i = start; i < end; i++)
             {
-                var note = new Label(L10n.F(L10n.S.ChatPruneNoteFmt, start));
-                note.AddToClassList("uap-prune-note");
-                content.Add(note);
+                InsertRow(messages[i], _renderedIds.Count);
             }
-            for (int i = start; i < messages.Count; i++)
-            {
-                AppendRow(messages[i]);
-            }
+            UpdateSpacers();
 
+            if (_restorePending)
+            {
+                // Applied by OnContentGeometryChanged once the anchor row
+                // (or, with no anchor row, the content) has a layout.
+                return;
+            }
             _stick = wasSticking;
             _scroll.verticalScroller.value = ComputeRestoredScrollValue(
                 wasSticking, savedOffset, _scroll.verticalScroller.highValue);
             UpdatePill();
+            RequestWindowPass();
         }
 
-        private void AppendRow(ChatMessage message)
+        /// <summary>
+        /// Pure: the first live row of a fresh build. With an anchor row,
+        /// a few rows above it are included so the viewport top has slack
+        /// to scroll up into without an immediate head insert; without
+        /// one, the newest <paramref name="rows"/>.
+        /// </summary>
+        internal static int ComputeWindowStart(int messageCount, int anchor, int rows)
+        {
+            if (anchor < 0)
+            {
+                return Math.Max(0, messageCount - rows);
+            }
+            int above = rows / 4;
+            return Math.Max(0, Math.Min(anchor - above, messageCount - rows));
+        }
+
+        /// <summary>Builds the element for a message and makes it live row <paramref name="rowIndex"/>.</summary>
+        private void InsertRow(ChatMessage message, int rowIndex)
         {
             VisualElement element = MessageBlockFactory.CreateMessageElement(message, _pump);
-            _scroll.contentContainer.Add(element);
+            _scroll.contentContainer.Insert(rowIndex + 1, element);
             _rows[message.id] = new Row
             {
                 Element = element,
                 Signature = ComputeSignature(message)
             };
-            _renderedIds.Add(message.id);
+            _renderedIds.Insert(rowIndex, message.id);
+        }
+
+        /// <summary>
+        /// Releases live row <paramref name="rowIndex"/>, remembering its
+        /// measured height so the spacer that takes its place has exactly
+        /// the same extent (no scroll jump).
+        /// </summary>
+        private void ReleaseRow(int rowIndex)
+        {
+            string id = _renderedIds[rowIndex];
+            Row row = _rows[id];
+            RecordHeight(id, OuterHeight(row.Element));
+            row.Element.RemoveFromHierarchy();
+            _rows.Remove(id);
+            _renderedIds.RemoveAt(rowIndex);
+        }
+
+        private VisualElement RowAt(int rowIndex)
+        {
+            return _rows[_renderedIds[rowIndex]].Element;
+        }
+
+        private static float OuterHeight(VisualElement element)
+        {
+            float height = element.layout.height;
+            if (float.IsNaN(height))
+            {
+                return float.NaN;
+            }
+            float top = element.resolvedStyle.marginTop;
+            float bottom = element.resolvedStyle.marginBottom;
+            return height + (float.IsNaN(top) ? 0f : top) + (float.IsNaN(bottom) ? 0f : bottom);
+        }
+
+        private void RecordHeight(string id, float height)
+        {
+            if (float.IsNaN(height) || height <= 0f)
+            {
+                return;
+            }
+            float previous;
+            if (_heights.TryGetValue(id, out previous))
+            {
+                _measuredSum += height - previous;
+            }
+            else
+            {
+                _measuredSum += height;
+                _measuredCount++;
+            }
+            _heights[id] = height;
+        }
+
+        /// <summary>Estimated outer height of a message that is not live.</summary>
+        private float EstimateHeight(ChatMessage message)
+        {
+            float height;
+            if (_heights.TryGetValue(message.id, out height))
+            {
+                return height;
+            }
+            return _measuredCount > 0 ? _measuredSum / _measuredCount : DefaultRowHeight;
+        }
+
+        /// <summary>Total estimated height of messages[from, to).</summary>
+        private float EstimateRange(List<ChatMessage> messages, int from, int to)
+        {
+            float total = 0f;
+            for (int i = from; i < to; i++)
+            {
+                total += EstimateHeight(messages[i]);
+            }
+            return total;
+        }
+
+        private void UpdateSpacers()
+        {
+            List<ChatMessage> messages = _messages;
+            if (messages == null || _renderedStart < 0)
+            {
+                _topSpacer.style.height = 0f;
+                _bottomSpacer.style.height = 0f;
+                return;
+            }
+            int end = _renderedStart + _renderedIds.Count;
+            _topSpacer.style.height = EstimateRange(messages, 0, _renderedStart);
+            _bottomSpacer.style.height = EstimateRange(messages, end, messages.Count);
+        }
+
+        // -- Window pass (virtualization) ---------------------------------------------
+
+        private void RequestWindowPass()
+        {
+            if (_windowPass == null)
+            {
+                _windowPass = _scroll.schedule.Execute(WindowPass);
+            }
+            // ExecuteLater on an existing item cancels its pending run and
+            // re-schedules it: scroll events and geometry changes within
+            // one frame coalesce into a single pass.
+            _windowPass.ExecuteLater(WindowPassDelayMillis);
+        }
+
+        /// <summary>
+        /// One virtualization step: release rows far outside the viewport,
+        /// then build a chunk on any side whose live coverage falls short
+        /// of the load margin. A pass that changed the tree ends in new
+        /// geometry, which requests the next pass, so a long scroll
+        /// converges in a few frames without ever touching more than a
+        /// chunk per frame.
+        /// </summary>
+        private void WindowPass()
+        {
+            List<ChatMessage> messages = _messages;
+            if (messages == null || _renderedStart < 0 || _renderedIds.Count == 0
+                || _anchorPending || _restorePending)
+            {
+                return;
+            }
+            float viewport = _scroll.contentViewport.layout.height;
+            if (float.IsNaN(viewport) || viewport <= 0f)
+            {
+                return;
+            }
+            VisualElement first = RowAt(0);
+            VisualElement last = RowAt(_renderedIds.Count - 1);
+            if (float.IsNaN(first.layout.y) || float.IsNaN(last.layout.height))
+            {
+                // Not laid out yet; the geometry event re-requests the pass.
+                return;
+            }
+
+            // Messages appended since the last Refresh are not this pass's
+            // business (Refresh appends them when the tail is live): the
+            // list is mutated by AgentHub between refreshes, so the count
+            // Refresh saw is the bound here.
+            int count = Math.Min(_lastCount, messages.Count);
+            if (_stick && _renderedStart + _renderedIds.Count < count)
+            {
+                // Following the bottom with the tail not live (the user
+                // dragged the thumb to the end from far up): rebuild at
+                // the tail instead of paging through everything between.
+                Rebuild(messages);
+                _lastCount = messages.Count;
+                return;
+            }
+
+            float value = _scroll.verticalScroller.value;
+            float visibleTop = value;
+            float visibleBottom = value + viewport;
+            float loadMargin = viewport * LoadMarginViewports;
+            float releaseMargin = viewport * ReleaseMarginViewports;
+
+            // Refresh the height record of every live row (a streaming row
+            // grows; a card expands) so the spacers stay honest.
+            for (int i = 0; i < _renderedIds.Count; i++)
+            {
+                RecordHeight(_renderedIds[i], OuterHeight(RowAt(i)));
+            }
+
+            bool changed = false;
+
+            // Release above: rows whose bottom edge is far above the
+            // visible top. Never the last live row.
+            while (_renderedIds.Count > 1
+                && ShouldReleaseAbove(RowAt(0).layout.yMax, visibleTop, releaseMargin))
+            {
+                ReleaseRow(0);
+                _renderedStart++;
+                changed = true;
+            }
+
+            // Release below: rows whose top edge is far below the visible
+            // bottom. Not while following the bottom (the tail must stay
+            // live to be followed).
+            while (!_stick && _renderedIds.Count > 1
+                && ShouldReleaseBelow(RowAt(_renderedIds.Count - 1).layout.y, visibleBottom, releaseMargin))
+            {
+                ReleaseRow(_renderedIds.Count - 1);
+                changed = true;
+            }
+
+            int end = _renderedStart + _renderedIds.Count;
+
+            // Load below first (no anchoring needed): the last live row's
+            // bottom edge is within the load margin below the visible
+            // bottom and there are messages after it.
+            if (end < count
+                && ShouldLoadBelow(RowAt(_renderedIds.Count - 1).layout.yMax, visibleBottom, loadMargin))
+            {
+                int take = Math.Min(LoadChunk, count - end);
+                for (int i = 0; i < take; i++)
+                {
+                    InsertRow(messages[end + i], _renderedIds.Count);
+                }
+                changed = true;
+            }
+
+            // Load above: the first live row's top edge is within the load
+            // margin above the visible top and there are messages before
+            // it. The spacer shrinks by the estimate the new rows carried
+            // and the rows arrive with their real heights, so the offset is
+            // re-applied with the height delta once layout lands.
+            if (_renderedStart > 0
+                && ShouldLoadAbove(RowAt(0).layout.y, visibleTop, loadMargin))
+            {
+                float baseline = _scroll.contentContainer.layout.height;
+                if (!float.IsNaN(baseline) && baseline > 0f)
+                {
+                    _anchorPending = true;
+                    _anchorOffset = value;
+                    _anchorBaselineHeight = baseline;
+                }
+                int take = Math.Min(LoadChunk, _renderedStart);
+                for (int i = 0; i < take; i++)
+                {
+                    InsertRow(messages[_renderedStart - 1], 0);
+                    _renderedStart--;
+                }
+                changed = true;
+            }
+
+            if (changed)
+            {
+                UpdateSpacers();
+                UpdatePill();
+            }
+        }
+
+        /// <summary>Pure: a row whose bottom edge is more than the release margin above the visible top is released.</summary>
+        internal static bool ShouldReleaseAbove(float rowBottom, float visibleTop, float releaseMargin)
+        {
+            return rowBottom < visibleTop - releaseMargin;
+        }
+
+        /// <summary>Pure: a row whose top edge is more than the release margin below the visible bottom is released.</summary>
+        internal static bool ShouldReleaseBelow(float rowTop, float visibleBottom, float releaseMargin)
+        {
+            return rowTop > visibleBottom + releaseMargin;
+        }
+
+        /// <summary>Pure: rows are built above when the first live row's top is within the load margin of the visible top.</summary>
+        internal static bool ShouldLoadAbove(float firstRowTop, float visibleTop, float loadMargin)
+        {
+            return firstRowTop > visibleTop - loadMargin;
+        }
+
+        /// <summary>Pure: rows are built below when the last live row's bottom is within the load margin of the visible bottom.</summary>
+        internal static bool ShouldLoadBelow(float lastRowBottom, float visibleBottom, float loadMargin)
+        {
+            return lastRowBottom < visibleBottom + loadMargin;
+        }
+
+        /// <summary>
+        /// Pure: the scroller value that keeps the same content in view
+        /// after rows were inserted above it. The content grew by
+        /// (newHeight - baselineHeight); shifting the offset by exactly
+        /// that keeps the first previously-visible row where it was.
+        /// </summary>
+        internal static float ComputeAnchoredScrollValue(float savedOffset,
+            float baselineHeight, float newHeight)
+        {
+            float value = savedOffset + (newHeight - baselineHeight);
+            return value < 0f ? 0f : value;
+        }
+
+        /// <summary>Index of the live row under the viewport top (-1 = none / not laid out).</summary>
+        private int FindViewportAnchorRow()
+        {
+            if (_renderedStart < 0 || _renderedIds.Count == 0)
+            {
+                return -1;
+            }
+            float value = _scroll.verticalScroller.value;
+            for (int i = 0; i < _renderedIds.Count; i++)
+            {
+                Rect layout = RowAt(i).layout;
+                if (float.IsNaN(layout.y))
+                {
+                    return -1;
+                }
+                if (layout.yMax > value)
+                {
+                    return i;
+                }
+            }
+            return _renderedIds.Count - 1;
         }
 
         /// <summary>
@@ -532,11 +867,70 @@ namespace Colloid.AgentPanel.UI
 
         private void OnContentGeometryChanged(GeometryChangedEvent evt)
         {
+            if (_restorePending)
+            {
+                if (!TryApplyRestore())
+                {
+                    return;
+                }
+            }
+            if (_anchorPending)
+            {
+                // The first layout after a head insert: the delta is the
+                // real height of the inserted rows minus the estimate the
+                // spacer gave up, whatever else moved in between.
+                _anchorPending = false;
+                _scroll.verticalScroller.value = ComputeAnchoredScrollValue(
+                    _anchorOffset, _anchorBaselineHeight, evt.newRect.height);
+            }
             if (_stick)
             {
                 _scroll.verticalScroller.value = _scroll.verticalScroller.highValue;
             }
             UpdatePill();
+            RequestWindowPass();
+        }
+
+        /// <summary>
+        /// Applies a pending restore once layout can satisfy it: the anchor
+        /// row has a real height (or, with no anchor row, the scroller has
+        /// a range). A fixed timer is not enough: on a large restored
+        /// transcript the first ticks can fire while highValue is still 0,
+        /// which would clamp the target to the top.
+        /// </summary>
+        private bool TryApplyRestore()
+        {
+            float high = _scroll.verticalScroller.highValue;
+            float target;
+            int anchorRow = _messages != null && _restoreFromEnd > 0
+                ? _messages.Count - _restoreFromEnd - _renderedStart : -1;
+            if (anchorRow >= 0 && anchorRow < _renderedIds.Count)
+            {
+                Rect layout = RowAt(anchorRow).layout;
+                if (float.IsNaN(layout.y) || layout.height <= 0f)
+                {
+                    return false;
+                }
+                target = layout.y + _restoreDelta;
+            }
+            else
+            {
+                if (high <= 0f)
+                {
+                    return false;
+                }
+                target = _restoreDelta;
+            }
+            _restorePending = false;
+            _stick = false;
+            _scroll.verticalScroller.value = Math.Max(0f, Math.Min(target, high));
+            return true;
+        }
+
+        private void OnViewportGeometryChanged(GeometryChangedEvent evt)
+        {
+            // A taller viewport needs more live rows to cover its margins.
+            RequestWindowPass();
         }
 
         private void OnScrollerValueChanged(float value)
@@ -544,6 +938,7 @@ namespace Colloid.AgentPanel.UI
             float high = _scroll.verticalScroller.highValue;
             _stick = value >= high - StickSlackPixels;
             UpdatePill();
+            RequestWindowPass();
         }
 
         private void OnWheel(WheelEvent evt)

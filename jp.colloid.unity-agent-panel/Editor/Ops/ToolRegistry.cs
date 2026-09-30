@@ -136,6 +136,8 @@ namespace Colloid.AgentPanel.Ops
             RegisterUnlessCovered(registry, new UapSceneDestroyObjectTool(), uloopDetected);
             RegisterUnlessCovered(registry, new UapSceneReparentTool(), uloopDetected);
             RegisterUnlessCovered(registry, new UapSceneRenameTool(), uloopDetected);
+            // 2026-09-30: no duplicate tool existed (agents recreated objects by hand).
+            RegisterUnlessCovered(registry, new UapSceneDuplicateTool(), uloopDetected);
             RegisterUnlessCovered(registry, new UapScenePlaceAssetTool(), uloopDetected);
             // 2026-09-17: there was no way to save a scene, so agents ran
             // "File/Save" through uap_editor_execute_menu -- a native modal

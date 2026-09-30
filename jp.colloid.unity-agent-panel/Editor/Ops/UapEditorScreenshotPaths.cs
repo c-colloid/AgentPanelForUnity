@@ -121,6 +121,18 @@ namespace Colloid.AgentPanel.Ops
             return sb.ToString();
         }
 
+        /// <summary>Output path for an offscreen render of an explicit camera ("uap_camera_...png"), never colliding with the view captures.</summary>
+        public static string BuildCameraOutputPath(DateTime utcTimestamp, string projectRoot)
+        {
+            if (string.IsNullOrEmpty(projectRoot))
+            {
+                throw new ArgumentException("'projectRoot' must not be empty.", "projectRoot");
+            }
+            string fileName = "uap_camera_"
+                + utcTimestamp.ToString("yyyyMMdd_HHmmss_fff", CultureInfo.InvariantCulture) + ".png";
+            return Path.Combine(Path.Combine(projectRoot, "Temp", "UapOpsScreenshots"), fileName).Replace('\\', '/');
+        }
+
         /// <summary>
         /// Parses a "view" tool argument: "scene" or "game" (case-
         /// insensitive, surrounding whitespace ignored); null/empty

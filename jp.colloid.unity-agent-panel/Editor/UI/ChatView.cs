@@ -161,7 +161,8 @@ namespace Colloid.AgentPanel.UI
             // cap (the var(--uap-perm-card-min) floor lives in USS).
             _root.RegisterCallback<GeometryChangedEvent>(OnRootGeometryChanged);
 
-            _list.RestoreScrollOffset(SessionStateBridge.ScrollPosition);
+            _list.RestoreScrollOffset(
+                SessionStateBridge.ScrollPosition, SessionStateBridge.ScrollAnchorFromEnd);
             return _root;
         }
 
@@ -228,6 +229,7 @@ namespace Colloid.AgentPanel.UI
             if (_list != null)
             {
                 SessionStateBridge.ScrollPosition = _list.GetScrollOffset();
+                SessionStateBridge.ScrollAnchorFromEnd = _list.GetScrollAnchorFromEnd();
             }
             if (_composer != null)
             {
