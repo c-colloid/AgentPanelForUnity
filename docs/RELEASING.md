@@ -290,7 +290,7 @@ Core(`vX.Y.Z`)の一覧。Pro のタグは `pro-vX.Y.Z` で、この表には積
 
 ### 次の安定版に含める作業
 
-(なし)
+- 実環境テスト(アクアリウム)の修正で Core に足したもの: `uap_scene_duplicate`(count / offset / parentPath、プレハブのリンク維持)、`uap_property_set` / `uap_object_inspect` の `componentType:"GameObject"`(active / layer / tag / static)、`uap_editor_screenshot` の `camera` と `sceneView`、階層パスの `Name[i]` と `#id`(同名の兄弟を指せる)。`### Added` が入ったので v0.60.1 の次は 0.61.0-beta.1(2026-09-30)
 
 | タグ | 内容 |
 |---|---|
