@@ -76,7 +76,7 @@ namespace Colloid.AgentPanel.Ops
                         .Set("propertyPath", JsonNode.NewObject().Set("type", "string")
                             .Set("description", "SerializedProperty path, e.g. 'm_Speed' or 'items.Array.data[0].name'."))
                         .Set("value", JsonNode.NewObject()
-                            .Set("description", "New value; shape depends on the property's type (number/bool/string, {x,y,z}, {r,g,b,a}, an enum name matched ignoring case/spaces, a LayerMask as an int/layer name/array of names, or an object reference as an asset path or 'path#subAssetName' for a sub-asset)."))
+                            .Set("description", "New value; shape depends on the property's type (number/bool/string, {x,y,z} or [x,y,z], {r,g,b,a} or [r,g,b,a], an enum name matched ignoring case/spaces, a LayerMask as an int/layer name/array of names, or an object reference as an asset path or 'path#subAssetName' for a sub-asset). Prefer sending the JSON object/array itself; a JSON-encoded string such as \"{\\\"x\\\": 1, \\\"y\\\": 2}\" is parsed and accepted too."))
                         .Set("valueIsNull", JsonNode.NewObject().Set("type", "boolean")
                             .Set("description", "Set true to clear an object-reference property instead of assigning 'value'.")))
                     .Set("required", JsonNode.NewArray().Add("propertyPath"))

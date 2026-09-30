@@ -126,6 +126,10 @@ namespace Colloid.AgentPanel.Model
                 Settings.ignoredConsoleErrorPatterns = sidecarPatterns;
             }
             bool consoleIgnoresMigrated = Settings.MigrateLegacyConsoleIgnores();
+
+            // v0.60.1-beta.6: the shared ACP sign-in method became one
+            // value per backend; move an older asset's shared value once.
+            bool acpAuthMethodMigrated = Settings.MigrateLegacyAcpAuthMethod();
             if (consoleIgnoresMigrated)
             {
                 ConsoleIgnore.Save(Settings.ignoredConsoleErrors,
@@ -134,7 +138,7 @@ namespace Colloid.AgentPanel.Model
 
             if (stateVersion != CurrentStateVersion || cjkDefaultApplied
                 || moduleDefaultsApplied || autoApproveMigrated
-                || consoleIgnoresMigrated)
+                || consoleIgnoresMigrated || acpAuthMethodMigrated)
             {
                 // Legacy layout, a corrupted asset that loaded as
                 // defaults, or a freshly-decided CJK default: rewrite the

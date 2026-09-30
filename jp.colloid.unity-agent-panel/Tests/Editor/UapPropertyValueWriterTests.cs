@@ -200,5 +200,103 @@ namespace Colloid.AgentPanel.Tests
                 .Set("r", 1.0).Set("g", 0.0).Set("b", 0.0).Set("a", 1.0));
             Assert.AreEqual(new Color(1f, 0f, 0f, 1f), camera.backgroundColor);
         }
+
+        // -- JSON-encoded strings (2026-09-28) ------------------------------
+        //
+        // Measured 2026-09-28: the tool schema declares 'value' without a
+        // type, and the model sent a Color as the STRING
+        // "{\"r\": 1.0, \"g\": 0.75, \"b\": 0.45, \"a\": 1.0}" -- five retries,
+        // every one refused by RequireObject. The scalar cases already
+        // accept "1.5" / "true"; the struct cases now parse a string that
+        // looks like JSON and continue with the parsed node. Design note
+        // docs/design-notes/2026-09-28-property-set-encoded-json-value.md.
+
+        [Test]
+        public void ColorProperty_JsonEncodedObjectString_IsParsedAndWritten()
+        {
+            var camera = _go.AddComponent<Camera>();
+            SerializedProperty prop = Prop(camera, "m_BackGroundColor");
+            WriteAndApply(prop, JsonNode.Of("{\"r\": 1.0, \"g\": 0.75, \"b\": 0.45, \"a\": 1.0}"));
+            Assert.AreEqual(new Color(1f, 0.75f, 0.45f, 1f), camera.backgroundColor);
+        }
+
+        [Test]
+        public void Vector3Property_JsonEncodedObjectString_IsParsedAndWritten()
+        {
+            SerializedProperty prop = Prop(_collider, "m_Size");
+            WriteAndApply(prop, JsonNode.Of("  {\"x\": 5, \"y\": 6, \"z\": 7} "));
+            Assert.AreEqual(new Vector3(5f, 6f, 7f), _collider.size);
+        }
+
+        [Test]
+        public void Vector3Property_JsonEncodedPartialObjectString_StillMerges()
+        {
+            _collider.size = new Vector3(2f, 3f, 4f);
+            WriteAndApply(Prop(_collider, "m_Size"), JsonNode.Of("{\"y\": 9}"));
+            Assert.AreEqual(new Vector3(2f, 9f, 4f), _collider.size);
+        }
+
+        [Test]
+        public void ColorProperty_PlainNonJsonString_IsStillRefused()
+        {
+            var camera = _go.AddComponent<Camera>();
+            SerializedProperty prop = Prop(camera, "m_BackGroundColor");
+            var ex = Assert.Throws<System.ArgumentException>(delegate
+            {
+                UapPropertyValueWriter.Write(prop, JsonNode.Of("warm orange"), false);
+            });
+            StringAssert.Contains("a string", ex.Message);
+        }
+
+        [Test]
+        public void Vector3Property_CommaSeparatedString_IsStillRefused()
+        {
+            var ex = Assert.Throws<System.ArgumentException>(delegate
+            {
+                UapPropertyValueWriter.Write(Prop(_collider, "m_Size"), JsonNode.Of("5,6,7"), false);
+            });
+            StringAssert.Contains("a string", ex.Message);
+            Assert.AreEqual(Vector3.one, _collider.size, "the refused write must change nothing");
+        }
+
+        [Test]
+        public void Vector3Property_MalformedJsonString_IsRefusedWithParserReason()
+        {
+            var ex = Assert.Throws<System.ArgumentException>(delegate
+            {
+                UapPropertyValueWriter.Write(Prop(_collider, "m_Size"), JsonNode.Of("{\"x\": 5, \"y\": "), false);
+            });
+            StringAssert.Contains("looks like JSON but does not parse", ex.Message);
+            Assert.AreEqual(Vector3.one, _collider.size);
+        }
+
+        [Test]
+        public void ColorProperty_FourNumberArray_IsWrittenPositionally()
+        {
+            var camera = _go.AddComponent<Camera>();
+            SerializedProperty prop = Prop(camera, "m_BackGroundColor");
+            WriteAndApply(prop, JsonNode.NewArray().Add(1.0).Add(0.75).Add(0.45).Add(1.0));
+            Assert.AreEqual(new Color(1f, 0.75f, 0.45f, 1f), camera.backgroundColor);
+        }
+
+        [Test]
+        public void ColorProperty_JsonEncodedArrayString_IsParsedAndWritten()
+        {
+            var camera = _go.AddComponent<Camera>();
+            SerializedProperty prop = Prop(camera, "m_BackGroundColor");
+            WriteAndApply(prop, JsonNode.Of("[0.25, 0.5, 0.75, 1]"));
+            Assert.AreEqual(new Color(0.25f, 0.5f, 0.75f, 1f), camera.backgroundColor);
+        }
+
+        [Test]
+        public void Vector3Property_ArrayWithWrongCount_IsRefused()
+        {
+            var ex = Assert.Throws<System.ArgumentException>(delegate
+            {
+                UapPropertyValueWriter.Write(Prop(_collider, "m_Size"), JsonNode.NewArray().Add(1.0).Add(2.0), false);
+            });
+            StringAssert.Contains("exactly 3 numbers", ex.Message);
+            Assert.AreEqual(Vector3.one, _collider.size);
+        }
     }
 }

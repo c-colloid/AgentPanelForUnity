@@ -74,27 +74,28 @@ namespace Colloid.AgentPanel.Ops
                     WriteEnum(prop, value);
                     return;
                 case SerializedPropertyType.Color:
-                    RequireObject(value, prop);
-                    prop.colorValue = ReadColor(value, prop.colorValue);
+                    value = UnwrapEncodedJson(value, prop);
+                    prop.colorValue = ReadColor(value, prop.colorValue, prop);
                     return;
                 case SerializedPropertyType.Vector2:
-                    RequireObject(value, prop);
-                    prop.vector2Value = ReadVector(value, prop.vector2Value.x, prop.vector2Value.y, 0f, 0f);
+                    value = UnwrapEncodedJson(value, prop);
+                    prop.vector2Value = ReadVector2(value, prop.vector2Value, prop);
                     return;
                 case SerializedPropertyType.Vector3:
-                    RequireObject(value, prop);
-                    prop.vector3Value = ReadVector3(value, prop.vector3Value);
+                    value = UnwrapEncodedJson(value, prop);
+                    prop.vector3Value = ReadVector3(value, prop.vector3Value, prop);
                     return;
                 case SerializedPropertyType.Vector4:
-                    RequireObject(value, prop);
-                    prop.vector4Value = ReadVector4(value, prop.vector4Value);
+                    value = UnwrapEncodedJson(value, prop);
+                    prop.vector4Value = ReadVector4(value, prop.vector4Value, prop);
                     return;
                 case SerializedPropertyType.Quaternion:
-                    RequireObject(value, prop);
-                    Vector3 euler = ReadVector3(value, prop.quaternionValue.eulerAngles);
+                    value = UnwrapEncodedJson(value, prop);
+                    Vector3 euler = ReadVector3(value, prop.quaternionValue.eulerAngles, prop);
                     prop.quaternionValue = Quaternion.Euler(euler);
                     return;
                 case SerializedPropertyType.Rect:
+                    value = UnwrapEncodedJson(value, prop);
                     RequireObject(value, prop);
                     prop.rectValue = ReadRect(value, prop.rectValue);
                     return;
@@ -102,7 +103,7 @@ namespace Colloid.AgentPanel.Ops
                     WriteObjectReference(prop, value);
                     return;
                 case SerializedPropertyType.LayerMask:
-                    prop.intValue = ReadLayerMask(value, prop);
+                    prop.intValue = ReadLayerMask(UnwrapEncodedJson(value, prop), prop);
                     return;
                 default:
                     throw new InvalidOperationException(
@@ -499,8 +500,84 @@ namespace Colloid.AgentPanel.Ops
                 + DescribeJsonType(value) + ".");
         }
 
-        private static Color ReadColor(JsonNode value, Color fallback)
+        /// <summary>
+        /// 2026-09-28 (design note 2026-09-28-property-set-encoded-json-value):
+        /// the tool schema declares 'value' without a JSON type (it is
+        /// polymorphic), and the CLI / model then sends structured values
+        /// JSON-ENCODED AS A STRING -- "{\"r\": 1, \"g\": 0.75, ...}" -- the
+        /// same way it sends "1.5" for a float. The scalar cases already
+        /// parse numeric strings; this is the struct-shaped counterpart. A
+        /// string whose trimmed text starts with '{' or '[' is parsed and the
+        /// parsed node takes its place. Anything else (a plain word, a
+        /// number, a "5,6,7") is returned untouched so RequireObject still
+        /// refuses it with the existing message; a string that LOOKS like
+        /// JSON but does not parse is refused here with the parser's reason.
+        /// </summary>
+        private static JsonNode UnwrapEncodedJson(JsonNode value, SerializedProperty prop)
         {
+            if (value == null || !value.IsString)
+            {
+                return value;
+            }
+            string text = value.AsString(string.Empty).Trim();
+            if (text.Length == 0 || (text[0] != '{' && text[0] != '['))
+            {
+                return value;
+            }
+            JsonNode parsed;
+            string error;
+            if (JsonParser.TryParse(text, out parsed, out error))
+            {
+                return parsed;
+            }
+            throw new ArgumentException("Property '" + prop.propertyPath + "' (" + prop.propertyType
+                + ") was given a string that looks like JSON but does not parse (" + error
+                + "). Send the object itself, e.g. {\"x\": 1, \"y\": 2}.");
+        }
+
+        /// <summary>
+        /// Positional form for Color and the vectors: [r,g,b,a] / [x,y,z].
+        /// Every element must be a number and the count must be exactly one
+        /// of <paramref name="allowedCounts"/> -- a partial array has no
+        /// unambiguous meaning, unlike a partial object. Returns null when
+        /// <paramref name="value"/> is not an array at all, so the caller
+        /// falls through to the object path.
+        /// </summary>
+        private static float[] ReadNumberArray(JsonNode value, SerializedProperty prop, params int[] allowedCounts)
+        {
+            if (value == null || !value.IsArray)
+            {
+                return null;
+            }
+            if (Array.IndexOf(allowedCounts, value.Count) < 0)
+            {
+                throw new ArgumentException("Property '" + prop.propertyPath + "' (" + prop.propertyType
+                    + ") given as an array needs exactly " + string.Join(" or ", Array.ConvertAll(allowedCounts, c => c.ToString(CultureInfo.InvariantCulture)))
+                    + " numbers, but has " + value.Count + " elements.");
+            }
+            var result = new float[value.Count];
+            for (int i = 0; i < result.Length; i++)
+            {
+                JsonNode item = value[i];
+                if (!item.IsNumber)
+                {
+                    throw new ArgumentException("Property '" + prop.propertyPath + "' (" + prop.propertyType
+                        + ") given as an array must hold only numbers, but element " + i + " is "
+                        + DescribeJsonType(item) + ".");
+                }
+                result[i] = (float)item.AsDouble();
+            }
+            return result;
+        }
+
+        private static Color ReadColor(JsonNode value, Color fallback, SerializedProperty prop)
+        {
+            float[] parts = ReadNumberArray(value, prop, 3, 4);
+            if (parts != null)
+            {
+                return new Color(parts[0], parts[1], parts[2], parts.Length == 4 ? parts[3] : fallback.a);
+            }
+            RequireObject(value, prop);
             return new Color(
                 (float)value["r"].AsDouble(fallback.r),
                 (float)value["g"].AsDouble(fallback.g),
@@ -508,21 +585,39 @@ namespace Colloid.AgentPanel.Ops
                 (float)value["a"].AsDouble(fallback.a));
         }
 
-        private static Vector2 ReadVector(JsonNode value, float fx, float fy, float fz, float fw)
+        private static Vector2 ReadVector2(JsonNode value, Vector2 fallback, SerializedProperty prop)
         {
-            return new Vector2((float)value["x"].AsDouble(fx), (float)value["y"].AsDouble(fy));
+            float[] parts = ReadNumberArray(value, prop, 2);
+            if (parts != null)
+            {
+                return new Vector2(parts[0], parts[1]);
+            }
+            RequireObject(value, prop);
+            return new Vector2((float)value["x"].AsDouble(fallback.x), (float)value["y"].AsDouble(fallback.y));
         }
 
-        private static Vector3 ReadVector3(JsonNode value, Vector3 fallback)
+        private static Vector3 ReadVector3(JsonNode value, Vector3 fallback, SerializedProperty prop)
         {
+            float[] parts = ReadNumberArray(value, prop, 3);
+            if (parts != null)
+            {
+                return new Vector3(parts[0], parts[1], parts[2]);
+            }
+            RequireObject(value, prop);
             return new Vector3(
                 (float)value["x"].AsDouble(fallback.x),
                 (float)value["y"].AsDouble(fallback.y),
                 (float)value["z"].AsDouble(fallback.z));
         }
 
-        private static Vector4 ReadVector4(JsonNode value, Vector4 fallback)
+        private static Vector4 ReadVector4(JsonNode value, Vector4 fallback, SerializedProperty prop)
         {
+            float[] parts = ReadNumberArray(value, prop, 4);
+            if (parts != null)
+            {
+                return new Vector4(parts[0], parts[1], parts[2], parts[3]);
+            }
+            RequireObject(value, prop);
             return new Vector4(
                 (float)value["x"].AsDouble(fallback.x),
                 (float)value["y"].AsDouble(fallback.y),

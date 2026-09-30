@@ -43,7 +43,8 @@ namespace Colloid.AgentPanel.UI
     ///   Esc closes. A sent "/name args" goes to the CLI verbatim -- no
     ///   context chips or images ride along, they stay pending for the
     ///   next real message -- except "/clear", which the panel handles
-    ///   itself as New chat (AgentHub.StartFresh).
+    ///   itself as New chat (AgentHub.StartFresh), and "/mcp", which it
+    ///   answers itself from system/init (AgentHub.ShowMcpStatus).
     /// </summary>
     public sealed class ComposerView
     {
@@ -785,7 +786,11 @@ namespace Colloid.AgentPanel.UI
         /// pending for the next real message. "/clear" never reaches the
         /// CLI: the CLI's own /clear starts a new session id underneath a
         /// panel still showing the old one, so it maps to the panel's New
-        /// chat (AgentHub.StartFresh) instead.
+        /// chat (AgentHub.StartFresh) instead. "/mcp" never reaches it
+        /// either: the CLI's /mcp is an interactive screen, and in
+        /// stream-json mode it degrades to a synthetic one-liner, so the
+        /// panel lists the servers from system/init itself
+        /// (AgentHub.ShowMcpStatus).
         /// </summary>
         private void SendSlashCommand(string text, string commandName)
         {
@@ -794,6 +799,11 @@ namespace Colloid.AgentPanel.UI
             if (SlashCommandCatalog.IsClear(commandName))
             {
                 AgentHub.StartFresh();
+                return;
+            }
+            if (SlashCommandCatalog.IsMcp(commandName))
+            {
+                AgentHub.ShowMcpStatus();
                 return;
             }
             CompileGate.SendOrQueue(text, text, null, null);

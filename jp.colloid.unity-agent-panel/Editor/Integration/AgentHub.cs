@@ -358,7 +358,29 @@ namespace Colloid.AgentPanel.Integration
             return url.Length > 8 ? url : null;
         }
 
-        private static void OnAcpAuthenticationStarted(string methodId, string methodName)
+        /// <summary>
+        /// The backend a note about the RUNNING agent should name: the one
+        /// its process was launched with, not the Settings selection, which
+        /// may already point at the next agent while the old process is
+        /// still answering (design note
+        /// 2026-09-29-per-agent-auth-method-and-ui-fixes.md section 4: a
+        /// Codex sign-in request was attributed to Grok Build ("Grok Build
+        /// needs you to sign in (ChatGPT)") after the picker moved to Grok
+        /// Build). Falls back to
+        /// the selection before anything was spawned.
+        /// </summary>
+        internal static AgentBackend ResolveNoteBackend(PanelSettings spawnedSnapshot, AgentBackend selected)
+        {
+            return spawnedSnapshot != null ? spawnedSnapshot.agentBackend : selected;
+        }
+
+        /// <summary>HubAcpSignInStartedNoteFmt ("&lt;agent&gt; needs you to sign in (&lt;method&gt;)...") for the agent that raised it.</summary>
+        internal static string FormatAcpSignInStartedNote(AgentBackend raisedBy, string methodName)
+        {
+            return L10n.F(L10n.S.HubAcpSignInStartedNoteFmt, AgentBackends.DisplayName(raisedBy), methodName);
+        }
+
+        private static void OnAcpAuthenticationStarted(AgentBackend raisedBy, string methodId, string methodName)
         {
             // Arbitrary thread (the bridge raises from the reader thread):
             // set flags, defer the UI work to the main thread.
@@ -371,8 +393,7 @@ namespace Colloid.AgentPanel.Integration
                 _acpAuthMethodNameInFlight = name;
                 AcpSignInUrl = null;
                 AcpSignInError = null;
-                AppendSystemNote(L10n.F(L10n.S.HubAcpSignInStartedNoteFmt,
-                    AgentBackends.DisplayName(CurrentBackend), name), false);
+                AppendSystemNote(FormatAcpSignInStartedNote(raisedBy, name), false);
                 RaiseChanged();
             });
         }
@@ -391,7 +412,7 @@ namespace Colloid.AgentPanel.Integration
         /// <summary>True once the current process reached Ready (the handshake completed).</summary>
         private static bool _reachedReadyThisProcess;
 
-        private static void OnAcpAuthenticationFinished(bool success, string error)
+        private static void OnAcpAuthenticationFinished(AgentBackend raisedBy, bool success, string error)
         {
             if (!success)
             {
@@ -410,7 +431,7 @@ namespace Colloid.AgentPanel.Integration
                 else
                 {
                     AppendSystemNote(L10n.F(L10n.S.HubAcpSignInFailedNoteFmt,
-                        AgentBackends.DisplayName(CurrentBackend), error ?? string.Empty), true);
+                        AgentBackends.DisplayName(raisedBy), error ?? string.Empty), true);
                 }
                 RaiseChanged();
             });
@@ -1376,8 +1397,8 @@ namespace Colloid.AgentPanel.Integration
         /// <summary>
         /// The slash commands the composer offers right now: the cached
         /// CLI catalog (PanelSettings.slashCommandCatalog, refreshed on
-        /// every live connection) with /compact and /clear guaranteed at
-        /// the front (SlashCommandCatalog.WithBuiltins). Never null.
+        /// every live connection) with /compact, /clear and /mcp guaranteed
+        /// at the front (SlashCommandCatalog.WithBuiltins). Never null.
         /// </summary>
         public static List<SlashCommandEntry> SlashCommands
         {
@@ -1385,7 +1406,177 @@ namespace Colloid.AgentPanel.Integration
             {
                 return SlashCommandCatalog.WithBuiltins(
                     PanelStateStore.instance.Settings.slashCommandCatalog,
-                    L10n.S.SlashCompactDescription, L10n.S.SlashClearDescription);
+                    L10n.S.SlashCompactDescription, L10n.S.SlashClearDescription,
+                    L10n.S.SlashMcpDescription);
+            }
+        }
+
+        /// <summary>
+        /// The panel's own "/mcp" (design note docs/design-notes/
+        /// 2026-09-27-mcp-slash-command.md sections 3 and 6): echoes the
+        /// command as a user bubble (the CLI never sees it, so nothing else
+        /// would record that it was typed), then appends the MCP status
+        /// card: one row per server the current connection's system/init
+        /// reported, with status, its tools and a Reconnect button. Never
+        /// reaches the CLI -- in stream-json mode the CLI answers /mcp with
+        /// a one-line "&lt;synthetic&gt;" summary the transcript then rendered
+        /// as a CLI error. Reads the init the hub last saw (an ACP bridge's
+        /// synthesized init included); with no connection yet the card is
+        /// replaced by a note saying so.
+        /// </summary>
+        public static void ShowMcpStatus()
+        {
+            SystemInitMessage init = _client != null ? _client.InitMessage : null;
+            int turnId = _client != null ? _client.CurrentTurnId : 0;
+            var echo = new ChatMessage
+            {
+                role = ChatMessage.RoleUser,
+                timestamp = DateTime.UtcNow.ToString("o"),
+                turnId = turnId,
+                delivered = true
+            };
+            echo.Add(ChatMessageBlock.MakeText("/" + SlashCommandCatalog.McpCommand));
+            Session.AddMessage(echo);
+
+            var answer = new ChatMessage
+            {
+                role = ChatMessage.RoleSystem,
+                timestamp = DateTime.UtcNow.ToString("o"),
+                turnId = turnId
+            };
+            if (init == null)
+            {
+                answer.Add(ChatMessageBlock.MakeSystemNote(McpStatusNote.Describe((SystemInitMessage)null)));
+            }
+            else
+            {
+                List<McpServerEntry> entries = McpStatusNote.BuildEntries(init);
+                answer.Add(ChatMessageBlock.MakeMcpStatus(McpStatusNote.Describe(entries), entries));
+            }
+            Session.AddMessage(answer);
+            SaveSessionCache();
+            RaiseChanged();
+        }
+
+        /// <summary>
+        /// True while a Reconnect button on the MCP card can do anything:
+        /// a live CLI process exists to take the mcp_reconnect request.
+        /// </summary>
+        public static bool CanReconnectMcpServer
+        {
+            get
+            {
+                return _client != null
+                    && _client.State != AgentClientState.NotStarted
+                    && _client.State != AgentClientState.Errored;
+            }
+        }
+
+        /// <summary>
+        /// The MCP card's Reconnect button (design note section 6): sends
+        /// the CLI's mcp_reconnect for <paramref name="serverName"/> and
+        /// records the request as a system note. The outcome arrives via
+        /// OnControlRequestResolved (kind "mcp_reconnect"), which updates
+        /// the card's row and adds a second note. No-op without a live
+        /// client (the button is disabled then, this is the safety net).
+        /// </summary>
+        public static void ReconnectMcpServer(string serverName)
+        {
+            if (string.IsNullOrEmpty(serverName) || !CanReconnectMcpServer)
+            {
+                return;
+            }
+            AppendSystemNote(L10n.F(L10n.S.HubMcpReconnectRequestedFmt, serverName), false);
+            SendMcpReconnectTracked(serverName, true);
+            SaveSessionCache();
+            RaiseChanged();
+        }
+
+        /// <summary>
+        /// One mcp_reconnect in flight per queue slot: the control_response
+        /// carries no server name, so the hub remembers, in send order,
+        /// which server each pending request was for and whether the user
+        /// asked (card button) or the panel did (the UapOps safety nets).
+        /// Every mcp_reconnect send goes through here so the FIFO stays in
+        /// step with the CLI's replies.
+        /// </summary>
+        private static readonly Queue<KeyValuePair<string, bool>> _pendingMcpReconnects =
+            new Queue<KeyValuePair<string, bool>>();
+
+        private static void SendMcpReconnectTracked(string serverName, bool userInitiated)
+        {
+            if (_client == null || string.IsNullOrEmpty(serverName))
+            {
+                return;
+            }
+            _pendingMcpReconnects.Enqueue(new KeyValuePair<string, bool>(serverName, userInitiated));
+            _client.SendMcpReconnect(serverName);
+        }
+
+        /// <summary>
+        /// mcp_reconnect resolved: a user-requested one gets a note either
+        /// way and the newest MCP card's row for that server is set to
+        /// "connected" on success / "failed" on failure (the CLI sends no
+        /// fresh system/init, so the row would otherwise stay stale); a
+        /// panel-initiated one only reports a failure.
+        /// </summary>
+        private static void OnMcpReconnectResolved(bool success, string error)
+        {
+            if (_pendingMcpReconnects.Count == 0)
+            {
+                return;
+            }
+            KeyValuePair<string, bool> pending = _pendingMcpReconnects.Dequeue();
+            string serverName = pending.Key;
+            bool userInitiated = pending.Value;
+            UpdateMcpCardStatus(serverName, success ? "connected" : "failed");
+            if (success && userInitiated)
+            {
+                AppendSystemNote(L10n.F(L10n.S.HubMcpReconnectedFmt, serverName), false);
+            }
+            else if (!success)
+            {
+                AppendSystemNote(L10n.F(L10n.S.HubMcpReconnectFailedFmt, serverName,
+                    string.IsNullOrEmpty(error) ? "unknown error" : error), true);
+            }
+            SaveSessionCache();
+            RaiseChanged();
+        }
+
+        /// <summary>
+        /// Sets <paramref name="serverName"/>'s status on the NEWEST McpStatus
+        /// block of the session (older cards are history and keep what they
+        /// showed) and refreshes that block's plain-text fallback so the
+        /// row rebuilds (MessageListController hashes the text).
+        /// </summary>
+        internal static void UpdateMcpCardStatus(string serverName, string status)
+        {
+            List<ChatMessage> messages = Session.messages;
+            for (int m = messages.Count - 1; m >= 0; m--)
+            {
+                ChatMessage message = messages[m];
+                if (message == null)
+                {
+                    continue;
+                }
+                for (int b = message.blocks.Count - 1; b >= 0; b--)
+                {
+                    ChatMessageBlock block = message.blocks[b];
+                    if (block == null || block.kind != ChatBlockKind.McpStatus || block.mcpServers == null)
+                    {
+                        continue;
+                    }
+                    for (int i = 0; i < block.mcpServers.Count; i++)
+                    {
+                        McpServerEntry entry = block.mcpServers[i];
+                        if (entry != null && string.Equals(entry.name, serverName, StringComparison.Ordinal))
+                        {
+                            entry.status = status;
+                        }
+                    }
+                    block.text = McpStatusNote.Describe(block.mcpServers);
+                    return;
+                }
             }
         }
 
@@ -1913,6 +2104,7 @@ namespace Colloid.AgentPanel.Integration
         internal static void ResetForTests()
         {
             _session = new ChatSession();
+            _pendingMcpReconnects.Clear();
             _streamingAssistant = null;
             _pendingPermission = null;
             _openToolCalls.Clear();
@@ -2543,7 +2735,7 @@ namespace Colloid.AgentPanel.Integration
                 && _client.State != AgentClientState.Errored
                 && UapOpsServer.IsRunning)
             {
-                _client.SendMcpReconnect(UapOpsMcpConfig.ServerName);
+                SendMcpReconnectTracked(UapOpsMcpConfig.ServerName, false);
             }
         }
 
@@ -3980,12 +4172,21 @@ namespace Colloid.AgentPanel.Integration
                     ResumeSessionId = resumeSessionId,
                     Model = ResolveSpawnModel(resumeSessionId, settings.model),
                     PermissionMode = settings.permissionMode,
-                    AuthMethodId = settings.acpAuthMethod,
+                    AuthMethodId = settings.GetAcpAuthMethod(backend),
                     ClientVersion = PackageVersionForClientInfo()
                 };
                 var acpTransport = new AcpBridgeTransport(acpSpec, killer, Log);
-                acpTransport.AuthenticationStarted += OnAcpAuthenticationStarted;
-                acpTransport.AuthenticationFinished += OnAcpAuthenticationFinished;
+                // Bound to this spawn's backend: the notes name the agent
+                // that asked, even after the picker has moved on.
+                AgentBackend spawnedBackend = backend;
+                acpTransport.AuthenticationStarted += delegate(string methodId, string methodName)
+                {
+                    OnAcpAuthenticationStarted(spawnedBackend, methodId, methodName);
+                };
+                acpTransport.AuthenticationFinished += delegate(bool success, string error)
+                {
+                    OnAcpAuthenticationFinished(spawnedBackend, success, error);
+                };
                 transport = acpTransport;
             }
             else
@@ -4068,12 +4269,17 @@ namespace Colloid.AgentPanel.Integration
                 else
                 {
                     mcpConfigValue = ComputeMcpConfigValue(
-                        true, projectRoot, UapOpsServer.Port, UapOpsServer.Token, Log);
+                        true, projectRoot, UapOpsServer.Port, UapOpsServer.Token, settings.mcpServers, Log);
                 }
             }
             else
             {
                 UapOpsServer.Stop();
+                if (!isAcp)
+                {
+                    // The user's own MCP servers do not depend on UapOps.
+                    mcpConfigValue = ComputeMcpConfigValue(false, projectRoot, 0, null, settings.mcpServers, Log);
+                }
             }
 
             // Script validation gate hook (design section 8.7): generate/
@@ -4390,12 +4596,73 @@ namespace Colloid.AgentPanel.Integration
         internal static string ComputeMcpConfigValue(
             bool uapOpsEnabled, string projectRoot, int port, string token, Action<string> log)
         {
-            if (!uapOpsEnabled)
+            return ComputeMcpConfigValue(uapOpsEnabled, projectRoot, port, token, null, log);
+        }
+
+        /// <summary>
+        /// The `--mcp-config` value for a spawn: the UapOps server (when
+        /// enabled) plus the user's own servers from Settings (design note
+        /// docs/design-notes/2026-09-27-mcp-servers-in-panel.md section 2),
+        /// written to the config file. Null -- no `--mcp-config` at all --
+        /// only when neither contributes a server, so a user server still
+        /// reaches the CLI with UapOps switched off. Remembers the file
+        /// path for OpenTerminalForMcp.
+        /// </summary>
+        internal static string ComputeMcpConfigValue(bool uapOpsEnabled, string projectRoot, int port,
+            string token, List<McpServerConfig> extraServers, Action<string> log)
+        {
+            if (!uapOpsEnabled && !UapOpsMcpConfig.HasUsableServer(extraServers))
             {
+                _lastMcpConfigPath = null;
                 return null;
             }
-            string path = UapOpsMcpConfig.EnsureConfigFileWritten(projectRoot, port, token, log);
-            return path != null ? path : UapOpsMcpConfig.BuildConfigJson(port, token);
+            string path = UapOpsMcpConfig.EnsureConfigFileWritten(
+                projectRoot, uapOpsEnabled, port, token, extraServers, log);
+            _lastMcpConfigPath = path;
+            return path != null ? path : UapOpsMcpConfig.BuildConfigJson(uapOpsEnabled, port, token, extraServers);
+        }
+
+        /// <summary>The config file the last spawn was pointed at (null when it had none).</summary>
+        private static string _lastMcpConfigPath;
+
+        /// <summary>
+        /// The MCP card's "Authenticate in a terminal" button (design note
+        /// docs/design-notes/2026-09-27-mcp-servers-in-panel.md section 4):
+        /// opens the OS terminal running the interactive CLI on the panel's
+        /// MCP config, where /mcp can run the OAuth flow the panel cannot.
+        /// The config file is (re)written first so the terminal sees the
+        /// current server list even before the next spawn. Returns null on
+        /// success, else a message for the note.
+        /// </summary>
+        public static string OpenTerminalForMcp()
+        {
+            string cliPath = ResolveAuthCliPath();
+            if (string.IsNullOrEmpty(cliPath))
+            {
+                return L10n.S.HubMcpTerminalNoCli;
+            }
+            PanelSettings settings = PanelStateStore.instance.Settings;
+            string configPath = _lastMcpConfigPath;
+            if (settings.uapOpsEnabled && UapOpsServer.IsRunning)
+            {
+                configPath = UapOpsMcpConfig.EnsureConfigFileWritten(GetProjectRoot(), true,
+                    UapOpsServer.Port, UapOpsServer.Token, settings.mcpServers, Log);
+            }
+            else if (UapOpsMcpConfig.HasUsableServer(settings.mcpServers))
+            {
+                configPath = UapOpsMcpConfig.EnsureConfigFileWritten(GetProjectRoot(), false,
+                    0, null, settings.mcpServers, Log);
+            }
+            string error = TerminalLauncher.Start(Application.platform, cliPath, configPath);
+            if (error != null)
+            {
+                Log("Could not open a terminal: " + error);
+                return L10n.F(L10n.S.HubMcpTerminalFailedFmt, error);
+            }
+            AppendSystemNote(L10n.S.HubMcpTerminalOpenedNote, false);
+            SaveSessionCache();
+            RaiseChanged();
+            return null;
         }
 
         /// <summary>
@@ -4959,6 +5226,9 @@ namespace Colloid.AgentPanel.Integration
             // dies with the client; the next spawn reads the settings.
             _pendingSessionModel = null;
             _requestedSessionModel = null;
+            // A reconnect the dead client never answered would otherwise
+            // be matched to the next client's first reply.
+            _pendingMcpReconnects.Clear();
             AcpAuthMethodId = null;
             AcpAuthMethodName = null;
             _acpAuthMethodIdInFlight = null;
@@ -5295,7 +5565,12 @@ namespace Colloid.AgentPanel.Integration
                 {
                     toolUseId = block.Id,
                     subagentType = block.Input["subagent_type"].AsString(string.Empty),
-                    description = block.Input["description"].AsString(string.Empty)
+                    description = block.Input["description"].AsString(string.Empty),
+                    // run_in_background:true = the CLI answers the Agent
+                    // tool_use at once and the subagent keeps working after
+                    // it (and after this turn) -- see OnToolResultReceived
+                    // and DemoteOpenRecordsAndClear for what that changes.
+                    background = block.Input["run_in_background"].AsBool(false)
                 };
                 record.subagent = subagent;
                 _openSubagents[block.Id] = subagent;
@@ -5461,6 +5736,23 @@ namespace Colloid.AgentPanel.Integration
             record.Complete(block.IsError, summary, DateTime.UtcNow.Ticks);
             record.resultImagePaths = ResolveResultImages(block.ResultContent);
             TryTrackScriptsCommitAttribution(record.toolName, block);
+            if (record.subagent != null && record.subagent.background && !block.IsError
+                && !IsTerminalSubagentStatus(record.subagent.status))
+            {
+                // Background spawn (run_in_background:true): this tool_result
+                // only acknowledges the LAUNCH ("Async agent launched...");
+                // the subagent is still working and its parent-tagged
+                // messages / task_* events keep arriving afterwards, often
+                // after this turn's result. Closing the record here (as the
+                // foreground path below does) is exactly what used to drop
+                // every one of those onto the top-level transcript as plain
+                // cards and leave the card frozen at "completed" with no
+                // summary (design note 2026-09-27-background-subagent-card.md
+                // section 1). Keep it open: CloseSubagentIfTerminal closes
+                // it on the terminal task_updated/task_notification instead.
+                RaiseChanged();
+                return;
+            }
             if (record.subagent != null)
             {
                 // The top-level tool_result is the final authority on this
@@ -5563,6 +5855,11 @@ namespace Colloid.AgentPanel.Integration
                 return;
             }
             subagent.status = message.PatchStatus;
+            // Deliberately NOT a closure point, even for a background
+            // record: the measured order is task_updated{completed} THEN
+            // task_notification{summary} (R02c section 2), so closing here
+            // would make the very next event unresolvable and drop the
+            // summary. HandleTaskNotification is the one that closes.
             RaiseChanged();
         }
 
@@ -5590,7 +5887,46 @@ namespace Colloid.AgentPanel.Integration
             {
                 subagent.durationMs = message.DurationMs;
             }
+            CloseSubagentIfTerminal(subagent);
             RaiseChanged();
+        }
+
+        /// <summary>
+        /// True for any task status that is not an in-flight one. The CLI
+        /// reports "completed" / "failed" on the measured fixtures; unknown
+        /// future terminal spellings ("killed", ...) must still close a
+        /// background record, so this is an allowlist of the in-flight
+        /// spellings rather than of the terminal ones.
+        /// </summary>
+        internal static bool IsTerminalSubagentStatus(string status)
+        {
+            if (string.IsNullOrEmpty(status))
+            {
+                return false;
+            }
+            return status != "running" && status != "pending" && status != "in_progress";
+        }
+
+        /// <summary>
+        /// Closure path for a BACKGROUND subagent: its top-level tool_result
+        /// already came and went at launch (OnToolResultReceived kept the
+        /// record open), so the terminal task_notification -- the LAST
+        /// task_* event the CLI emits for a task, after task_updated -- is
+        /// the one that closes it. Foreground records are left to
+        /// OnToolResultReceived, which stays the final authority for them
+        /// exactly as before.
+        /// </summary>
+        private static void CloseSubagentIfTerminal(SubagentRecord subagent)
+        {
+            if (!subagent.background || !IsTerminalSubagentStatus(subagent.status))
+            {
+                return;
+            }
+            _openSubagents.Remove(subagent.toolUseId);
+            if (!string.IsNullOrEmpty(subagent.taskId))
+            {
+                _taskIdToToolUseId.Remove(subagent.taskId);
+            }
         }
 
         /// <summary>
@@ -6025,7 +6361,11 @@ namespace Colloid.AgentPanel.Integration
 
         private static void OnTurnCompleted(ResultMessage result)
         {
-            FinalizeStreamingMessage();
+            // keepBackgroundSubagents: a result closes the PARENT's turn,
+            // not the background subagents it launched -- those keep
+            // reporting (task_progress / task_notification and their
+            // parent-tagged nested calls) after this line, process alive.
+            FinalizeStreamingMessage(keepBackgroundSubagents: true);
             _pendingPermission = null;
             // A manual /compact's own result is what ends its compaction
             // when the CLI sends no boundary (older CLI, or a compaction
@@ -6270,6 +6610,10 @@ namespace Colloid.AgentPanel.Integration
         /// </summary>
         private static void OnControlRequestResolved(string kind, bool success, string error)
         {
+            if (string.Equals(kind, "mcp_reconnect", StringComparison.Ordinal))
+            {
+                OnMcpReconnectResolved(success, error);
+            }
             if (string.Equals(kind, "set_model", StringComparison.Ordinal))
             {
                 // The user had no confirmation either way (2026-09-17 note):
@@ -6461,7 +6805,7 @@ namespace Colloid.AgentPanel.Integration
             {
                 return;
             }
-            _client.SendMcpReconnect(UapOpsMcpConfig.ServerName);
+            SendMcpReconnectTracked(UapOpsMcpConfig.ServerName, false);
         }
 
         /// <summary>
@@ -6621,8 +6965,9 @@ namespace Colloid.AgentPanel.Integration
                 // so stop here with the next step spelled out. Not counted
                 // as a crash: the user's Sign in or Reconnect starts fresh.
                 var signInNote = new ChatMessage { role = ChatMessage.RoleSystem };
-                string login = AgentBackends.LoginCommand(CurrentBackend);
-                string loginOrName = string.IsNullOrEmpty(login) ? AgentBackends.DisplayName(CurrentBackend) : login;
+                AgentBackend deadBackend = ResolveNoteBackend(_lastSpawnedSettingsSnapshot, CurrentBackend);
+                string login = AgentBackends.LoginCommand(deadBackend);
+                string loginOrName = string.IsNullOrEmpty(login) ? AgentBackends.DisplayName(deadBackend) : login;
                 bool signInFailed = _acpSignInFailedThisProcess || AcpSignInError != null;
                 // Sign-in failed means every method the agent offers was
                 // tried and rejected -- for Gemini CLI that ends at
@@ -6632,9 +6977,9 @@ namespace Colloid.AgentPanel.Integration
                 // and-method-display.md section 3).
                 string signInText = signInFailed
                     ? AppendSentence(
-                        L10n.F(L10n.S.HubAcpSignInRequiredNoteFmt, AgentBackends.DisplayName(CurrentBackend), loginOrName),
-                        ComposeAcpApiKeyGuidance(CurrentBackend))
-                    : L10n.F(L10n.S.HubAcpHandshakeDeathNoteFmt, AgentBackends.DisplayName(CurrentBackend), reason, loginOrName);
+                        L10n.F(L10n.S.HubAcpSignInRequiredNoteFmt, AgentBackends.DisplayName(deadBackend), loginOrName),
+                        ComposeAcpApiKeyGuidance(deadBackend))
+                    : L10n.F(L10n.S.HubAcpHandshakeDeathNoteFmt, AgentBackends.DisplayName(deadBackend), reason, loginOrName);
                 signInNote.Add(ChatMessageBlock.MakeSystemNote(signInText, warning: true));
                 Session.AddMessage(signInNote);
                 RaiseChanged();
@@ -6859,7 +7204,13 @@ namespace Colloid.AgentPanel.Integration
             target.Add(added);
         }
 
-        private static void FinalizeStreamingMessage()
+        /// <param name="keepBackgroundSubagents">True from OnTurnCompleted
+        /// only: a turn ending normally does not end the background
+        /// subagents it launched (the CLI process, and they, keep running),
+        /// so their records must survive the boundary. Every abort/teardown
+        /// path passes false -- there the process is gone or being replaced
+        /// and nothing will ever report their completion.</param>
+        private static void FinalizeStreamingMessage(bool keepBackgroundSubagents = false)
         {
             if (_streamingAssistant != null)
             {
@@ -6869,7 +7220,7 @@ namespace Colloid.AgentPanel.Integration
                 }
                 _streamingAssistant = null;
             }
-            DemoteOpenRecordsAndClear();
+            DemoteOpenRecordsAndClear(keepBackgroundSubagents);
         }
 
         /// <summary>
@@ -6892,18 +7243,70 @@ namespace Colloid.AgentPanel.Integration
         /// (normal completion): that path already knows the exact outcome
         /// (completed/failed) and prunes its own single taskId entry there.
         /// </summary>
-        private static void DemoteOpenRecordsAndClear()
+        private static void DemoteOpenRecordsAndClear(bool keepBackgroundSubagents)
         {
+            // Background subagents that outlive a normally-completed turn
+            // stay open, together with the nested tool calls still running
+            // inside them (their tool_result arrives later, parent-tagged,
+            // and needs the _openToolCalls entry to correlate).
+            var keptSubagents = new List<SubagentRecord>();
+            var keptToolCallIds = new HashSet<string>();
+            if (keepBackgroundSubagents)
+            {
+                foreach (KeyValuePair<string, SubagentRecord> pair in _openSubagents)
+                {
+                    if (!pair.Value.background)
+                    {
+                        continue;
+                    }
+                    keptSubagents.Add(pair.Value);
+                    for (int i = 0; i < pair.Value.blocks.Count; i++)
+                    {
+                        ToolCallRecord nested = pair.Value.blocks[i].toolCall;
+                        if (nested != null && nested.status == ToolCallStatus.Running
+                            && !string.IsNullOrEmpty(nested.toolUseId))
+                        {
+                            keptToolCallIds.Add(nested.toolUseId);
+                        }
+                    }
+                }
+            }
             foreach (KeyValuePair<string, ToolCallRecord> pair in _openToolCalls)
             {
+                if (keptToolCallIds.Contains(pair.Key))
+                {
+                    continue;
+                }
                 if (pair.Value.status == ToolCallStatus.Running)
                 {
                     pair.Value.status = ToolCallStatus.Pending;
                 }
             }
-            _openToolCalls.Clear();
+            if (keptToolCallIds.Count == 0)
+            {
+                _openToolCalls.Clear();
+            }
+            else
+            {
+                var dropIds = new List<string>();
+                foreach (string id in _openToolCalls.Keys)
+                {
+                    if (!keptToolCallIds.Contains(id))
+                    {
+                        dropIds.Add(id);
+                    }
+                }
+                for (int i = 0; i < dropIds.Count; i++)
+                {
+                    _openToolCalls.Remove(dropIds[i]);
+                }
+            }
             foreach (KeyValuePair<string, SubagentRecord> pair in _openSubagents)
             {
+                if (keptSubagents.Contains(pair.Value))
+                {
+                    continue;
+                }
                 if (pair.Value.status == "running")
                 {
                     pair.Value.status = "stopped";
@@ -6914,6 +7317,10 @@ namespace Colloid.AgentPanel.Integration
                 }
             }
             _openSubagents.Clear();
+            for (int i = 0; i < keptSubagents.Count; i++)
+            {
+                _openSubagents[keptSubagents[i].toolUseId] = keptSubagents[i];
+            }
         }
 
         // -- Small helpers ------------------------------------------------------------
@@ -6963,6 +7370,22 @@ namespace Colloid.AgentPanel.Integration
         /// CloneNextSpawnOnlyFieldsTests exercises it directly instead of
         /// through a real CLI spawn.
         /// </summary>
+        private static List<AcpAuthMethodEntry> CloneAcpAuthMethods(List<AcpAuthMethodEntry> source)
+        {
+            var copy = new List<AcpAuthMethodEntry>();
+            if (source != null)
+            {
+                foreach (AcpAuthMethodEntry entry in source)
+                {
+                    if (entry != null)
+                    {
+                        copy.Add(new AcpAuthMethodEntry { backend = entry.backend, method = entry.method ?? string.Empty });
+                    }
+                }
+            }
+            return copy;
+        }
+
         internal static PanelSettings CloneNextSpawnOnlyFields(PanelSettings source)
         {
             return new PanelSettings
@@ -6971,7 +7394,7 @@ namespace Colloid.AgentPanel.Integration
                 agentBackend = source.agentBackend,
                 acpCommand = source.acpCommand ?? string.Empty,
                 acpArguments = source.acpArguments ?? string.Empty,
-                acpAuthMethod = source.acpAuthMethod ?? string.Empty,
+                acpAuthMethods = CloneAcpAuthMethods(source.acpAuthMethods),
                 model = source.model ?? string.Empty,
                 subagentModel = source.subagentModel ?? string.Empty,
                 claudeAuth = source.claudeAuth,
@@ -6991,7 +7414,8 @@ namespace Colloid.AgentPanel.Integration
                 unityPluginSteeringEnabled = source.unityPluginSteeringEnabled,
                 approvedProfileHashes = source.approvedProfileHashes != null
                     ? new List<string>(source.approvedProfileHashes) : new List<string>(),
-                agentModelOverrides = CloneAgentModelOverrides(source.agentModelOverrides)
+                agentModelOverrides = CloneAgentModelOverrides(source.agentModelOverrides),
+                mcpServers = McpServerConfig.CloneList(source.mcpServers)
             };
         }
 

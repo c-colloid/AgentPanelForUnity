@@ -55,6 +55,19 @@ namespace Colloid.AgentPanel.Tests
         }
 
         [Test]
+        public void DifferentMcpServers_RequireReconnect()
+        {
+            PanelSettings a = Make("C:/claude.exe");
+            PanelSettings b = Make("C:/claude.exe");
+            b.mcpServers.Add(new McpServerConfig { name = "fs", command = "npx" });
+            Assert.IsTrue(SettingsChangeDetector.RequiresReconnect(a, b));
+            a.mcpServers.Add(new McpServerConfig { name = "fs", command = "npx" });
+            Assert.IsFalse(SettingsChangeDetector.RequiresReconnect(a, b));
+            b.mcpServers[0].enabled = false;
+            Assert.IsTrue(SettingsChangeDetector.RequiresReconnect(a, b), "an enabled flip changes the spawn");
+        }
+
+        [Test]
         public void DifferentCliPath_RequiresReconnect()
         {
             PanelSettings a = Make("C:/old.exe");

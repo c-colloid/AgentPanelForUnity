@@ -158,7 +158,7 @@ namespace Colloid.AgentPanel.Model
                 || spawnedWith.agentBackend != current.agentBackend
                 || !string.Equals(spawnedWith.acpCommand ?? string.Empty, current.acpCommand ?? string.Empty, StringComparison.Ordinal)
                 || !string.Equals(spawnedWith.acpArguments ?? string.Empty, current.acpArguments ?? string.Empty, StringComparison.Ordinal)
-                || !string.Equals(spawnedWith.acpAuthMethod ?? string.Empty, current.acpAuthMethod ?? string.Empty, StringComparison.Ordinal)
+                || !string.Equals(spawnedWith.GetAcpAuthMethod(spawnedWith.agentBackend), current.GetAcpAuthMethod(current.agentBackend), StringComparison.Ordinal)
                 || !string.Equals(spawnedWith.subagentModel, current.subagentModel, StringComparison.Ordinal)
                 || spawnedWith.claudeAuth != current.claudeAuth
                 || spawnedWith.subagentCostPolicy != current.subagentCostPolicy
@@ -169,6 +169,7 @@ namespace Colloid.AgentPanel.Model
                 || spawnedWith.extensionProfilesEnabled != current.extensionProfilesEnabled
                 || spawnedWith.unityPluginSteeringEnabled != current.unityPluginSteeringEnabled
                 || spawnedWith.uloopAgentUseEnabled != current.uloopAgentUseEnabled
+                || !McpServerConfig.ListsEqual(spawnedWith.mcpServers, current.mcpServers)
                 || !StringListsEqual(spawnedWith.allowedTools, current.allowedTools)
                 || !StringListsEqual(spawnedWith.disallowedTools, current.disallowedTools)
                 || !StringListsEqual(spawnedWith.approvedProfileHashes, current.approvedProfileHashes)

@@ -296,6 +296,31 @@ namespace Colloid.AgentPanel.Model
             // dropping the flag here silently demoted the one note the
             // user should read back to narration grey after every restore.
             node.Set("warning", block.warning);
+            // Additive (2026-09-27 /mcp card): written only for McpStatus
+            // blocks, so every other kind's JSON is byte-for-byte what it
+            // was and a pre-card reader ignores the unknown key.
+            if (block.mcpServers != null)
+            {
+                JsonNode servers = JsonNode.NewArray();
+                for (int i = 0; i < block.mcpServers.Count; i++)
+                {
+                    McpServerEntry entry = block.mcpServers[i];
+                    if (entry == null)
+                    {
+                        continue;
+                    }
+                    JsonNode tools = JsonNode.NewArray();
+                    for (int t = 0; t < entry.tools.Count; t++)
+                    {
+                        tools.Add(entry.tools[t] ?? string.Empty);
+                    }
+                    servers.Add(JsonNode.NewObject()
+                        .Set("name", entry.name ?? string.Empty)
+                        .Set("status", entry.status ?? string.Empty)
+                        .Set("tools", tools));
+                }
+                node.Set("mcpServers", servers);
+            }
             return node;
         }
 
@@ -339,6 +364,7 @@ namespace Colloid.AgentPanel.Model
                 .Set("toolUseId", subagent.toolUseId ?? string.Empty)
                 .Set("subagentType", subagent.subagentType ?? string.Empty)
                 .Set("description", subagent.description ?? string.Empty)
+                .Set("background", subagent.background)
                 .Set("status", subagent.status ?? string.Empty)
                 .Set("progressLine", subagent.progressLine ?? string.Empty)
                 .Set("lastToolName", subagent.lastToolName ?? string.Empty)
@@ -432,6 +458,29 @@ namespace Colloid.AgentPanel.Model
             {
                 block.toolCall = ReadToolCall(toolCall);
             }
+            JsonNode mcpServers = node["mcpServers"];
+            if (mcpServers.IsArray)
+            {
+                block.mcpServers = new List<McpServerEntry>();
+                foreach (JsonNode item in mcpServers.Items)
+                {
+                    if (!item.IsObject)
+                    {
+                        continue;
+                    }
+                    var entry = new McpServerEntry
+                    {
+                        name = item["name"].AsString(string.Empty),
+                        status = item["status"].AsString(string.Empty)
+                    };
+                    string[] tools = item["tools"].AsStringArray();
+                    if (tools != null)
+                    {
+                        entry.tools.AddRange(tools);
+                    }
+                    block.mcpServers.Add(entry);
+                }
+            }
             return block;
         }
 
@@ -479,6 +528,8 @@ namespace Colloid.AgentPanel.Model
                 toolUseId = node["toolUseId"].AsString(string.Empty),
                 subagentType = node["subagentType"].AsString(string.Empty),
                 description = node["description"].AsString(string.Empty),
+                // Absent in caches written before the field existed: false.
+                background = node["background"].AsBool(false),
                 status = node["status"].AsString("running"),
                 progressLine = node["progressLine"].AsString(string.Empty),
                 lastToolName = node["lastToolName"].AsString(string.Empty),

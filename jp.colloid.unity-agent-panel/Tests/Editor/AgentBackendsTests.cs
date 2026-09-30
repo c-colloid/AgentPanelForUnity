@@ -296,8 +296,14 @@ namespace Colloid.AgentPanel.Tests
             Assert.IsTrue(SettingsChangeDetector.RequiresReconnect(a, c));
             var d = new PanelSettings { acpArguments = "--x" };
             Assert.IsTrue(SettingsChangeDetector.RequiresReconnect(a, d));
-            var e = new PanelSettings { acpAuthMethod = "oauth-personal" };
+            var e = new PanelSettings();
+            e.SetAcpAuthMethod(AgentBackend.ClaudeCode, "oauth-personal");
             Assert.IsTrue(SettingsChangeDetector.RequiresReconnect(a, e));
+            // Another backend's method is not the one the running agent was
+            // launched with: changing it needs no reconnect.
+            var f = new PanelSettings();
+            f.SetAcpAuthMethod(AgentBackend.GeminiCli, "gemini-api-key");
+            Assert.IsFalse(SettingsChangeDetector.RequiresReconnect(a, f));
             Assert.IsFalse(SettingsChangeDetector.RequiresReconnect(a, new PanelSettings()));
         }
 
@@ -308,14 +314,100 @@ namespace Colloid.AgentPanel.Tests
             {
                 agentBackend = AgentBackend.CodexAcp,
                 acpCommand = "codex-acp",
-                acpArguments = "--v",
-                acpAuthMethod = "chatgpt"
+                acpArguments = "--v"
             };
+            source.SetAcpAuthMethod(AgentBackend.CodexAcp, "chatgpt");
+            source.SetAcpAuthMethod(AgentBackend.GeminiCli, "gemini-api-key");
             PanelSettings clone = AgentHub.CloneNextSpawnOnlyFields(source);
             Assert.AreEqual(AgentBackend.CodexAcp, clone.agentBackend);
             Assert.AreEqual("codex-acp", clone.acpCommand);
             Assert.AreEqual("--v", clone.acpArguments);
-            Assert.AreEqual("chatgpt", clone.acpAuthMethod);
+            Assert.AreEqual("chatgpt", clone.GetAcpAuthMethod(AgentBackend.CodexAcp));
+            Assert.AreEqual("gemini-api-key", clone.GetAcpAuthMethod(AgentBackend.GeminiCli));
+            // A copy, not the same list: a later edit must not leak into
+            // the "spawned with" snapshot.
+            source.SetAcpAuthMethod(AgentBackend.CodexAcp, "apikey");
+            Assert.AreEqual("chatgpt", clone.GetAcpAuthMethod(AgentBackend.CodexAcp));
+        }
+
+        // -- Notes name the agent that raised them (2026-09-29) --------------------
+
+        [Test]
+        public void NoteBackend_IsTheSpawnedOne_NotTheSelection()
+        {
+            var spawned = new PanelSettings { agentBackend = AgentBackend.CodexAcp };
+            Assert.AreEqual(AgentBackend.CodexAcp, AgentHub.ResolveNoteBackend(spawned, AgentBackend.GrokBuild));
+            Assert.AreEqual(AgentBackend.GrokBuild, AgentHub.ResolveNoteBackend(null, AgentBackend.GrokBuild));
+        }
+
+        [Test]
+        public void SignInStartedNote_NamesTheAgentThatAsked()
+        {
+            string note = AgentHub.FormatAcpSignInStartedNote(AgentBackend.CodexAcp, "ChatGPT");
+            StringAssert.Contains(AgentBackends.DisplayName(AgentBackend.CodexAcp), note);
+            StringAssert.DoesNotContain(AgentBackends.DisplayName(AgentBackend.GrokBuild), note);
+            StringAssert.Contains("ChatGPT", note);
+        }
+
+        // -- Per-backend ACP sign-in method (2026-09-29) --------------------------
+
+        [Test]
+        public void AcpAuthMethod_IsPerBackend()
+        {
+            var s = new PanelSettings();
+            s.SetAcpAuthMethod(AgentBackend.GeminiCli, " gemini-api-key ");
+            Assert.AreEqual("gemini-api-key", s.GetAcpAuthMethod(AgentBackend.GeminiCli));
+            Assert.AreEqual(string.Empty, s.GetAcpAuthMethod(AgentBackend.AcpCustom));
+            Assert.AreEqual(string.Empty, s.GetAcpAuthMethod(AgentBackend.CodexAcp));
+            s.SetAcpAuthMethod(AgentBackend.GeminiCli, "oauth-personal");
+            Assert.AreEqual("oauth-personal", s.GetAcpAuthMethod(AgentBackend.GeminiCli));
+            Assert.AreEqual(1, s.acpAuthMethods.Count);
+            s.SetAcpAuthMethod(AgentBackend.GeminiCli, "");
+            Assert.AreEqual(string.Empty, s.GetAcpAuthMethod(AgentBackend.GeminiCli));
+            Assert.AreEqual(0, s.acpAuthMethods.Count);
+        }
+
+        [Test]
+        public void MigrateLegacyAcpAuthMethod_GoesToSelectedAcpBackendOnce()
+        {
+            var s = new PanelSettings { agentBackend = AgentBackend.AcpCustom };
+            s.SetLegacyAcpAuthMethodForTests("qwen-oauth");
+            Assert.IsTrue(s.MigrateLegacyAcpAuthMethod());
+            Assert.AreEqual("qwen-oauth", s.GetAcpAuthMethod(AgentBackend.AcpCustom));
+            Assert.AreEqual(string.Empty, s.GetAcpAuthMethod(AgentBackend.GeminiCli));
+            Assert.IsFalse(s.MigrateLegacyAcpAuthMethod());
+        }
+
+        [Test]
+        public void MigrateLegacyAcpAuthMethod_ClaudeSelected_KeepsOnlyGeminiIds()
+        {
+            var gemini = new PanelSettings { agentBackend = AgentBackend.ClaudeCode };
+            gemini.SetLegacyAcpAuthMethodForTests("gemini-api-key");
+            Assert.IsTrue(gemini.MigrateLegacyAcpAuthMethod());
+            Assert.AreEqual("gemini-api-key", gemini.GetAcpAuthMethod(AgentBackend.GeminiCli));
+
+            var unknown = new PanelSettings { agentBackend = AgentBackend.ClaudeCode };
+            unknown.SetLegacyAcpAuthMethodForTests("chatgpt");
+            Assert.IsTrue(unknown.MigrateLegacyAcpAuthMethod());
+            Assert.AreEqual(0, unknown.acpAuthMethods.Count);
+        }
+
+        [Test]
+        public void MigrateLegacyAcpAuthMethod_NeverOverwritesExistingEntry()
+        {
+            var s = new PanelSettings { agentBackend = AgentBackend.GeminiCli };
+            s.SetAcpAuthMethod(AgentBackend.GeminiCli, "vertex-ai");
+            s.SetLegacyAcpAuthMethodForTests("gemini-api-key");
+            Assert.IsTrue(s.MigrateLegacyAcpAuthMethod());
+            Assert.AreEqual("vertex-ai", s.GetAcpAuthMethod(AgentBackend.GeminiCli));
+        }
+
+        [Test]
+        public void MigrateLegacyAcpAuthMethod_NothingLegacy_NoChange()
+        {
+            var s = new PanelSettings { agentBackend = AgentBackend.GeminiCli };
+            Assert.IsFalse(s.MigrateLegacyAcpAuthMethod());
+            Assert.AreEqual(0, s.acpAuthMethods.Count);
         }
 
         [Test]

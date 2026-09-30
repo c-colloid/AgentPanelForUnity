@@ -60,10 +60,108 @@ namespace Colloid.AgentPanel.Model
 
         /// <summary>
         /// ACP backends: preferred `authenticate` method id when the agent
-        /// asks for authentication (e.g. Gemini CLI "oauth-personal").
-        /// Empty = the first method the agent advertises.
+        /// asks for authentication (e.g. Gemini CLI "oauth-personal"), one
+        /// entry per backend -- read and written through
+        /// <see cref="GetAcpAuthMethod"/> / <see cref="SetAcpAuthMethod"/>.
+        /// A backend without an entry (or with an empty one) uses the first
+        /// method the agent advertises. Until v0.60.1-beta.6 this was one
+        /// string shared by every ACP backend, so a Gemini-only id followed
+        /// the user to Codex / Grok / a custom agent
+        /// (docs/design-notes/2026-09-29-per-agent-auth-method-and-ui-fixes.md).
         /// </summary>
-        public string acpAuthMethod = string.Empty;
+        public List<AcpAuthMethodEntry> acpAuthMethods = new List<AcpAuthMethodEntry>();
+
+        /// <summary>
+        /// The pre-v0.60.1-beta.6 shared value, still read from an older
+        /// State.asset (same serialized name) so
+        /// <see cref="MigrateLegacyAcpAuthMethod"/> can move it to one
+        /// backend's entry exactly once. Cleared after migration.
+        /// </summary>
+        [SerializeField, UnityEngine.Serialization.FormerlySerializedAs("acpAuthMethod")]
+        private string legacyAcpAuthMethod = string.Empty;
+
+        /// <summary>The Gemini CLI authenticate method ids (AgentBackend.GeminiCli's doc comment).</summary>
+        private static readonly string[] GeminiAuthMethodIds = { "oauth-personal", "gemini-api-key", "vertex-ai" };
+
+        /// <summary>The sign-in method stored for <paramref name="backend"/>; empty when none.</summary>
+        public string GetAcpAuthMethod(AgentBackend backend)
+        {
+            if (acpAuthMethods != null)
+            {
+                foreach (AcpAuthMethodEntry entry in acpAuthMethods)
+                {
+                    if (entry != null && entry.backend == backend)
+                    {
+                        return entry.method ?? string.Empty;
+                    }
+                }
+            }
+            return string.Empty;
+        }
+
+        /// <summary>Stores <paramref name="method"/> for <paramref name="backend"/> only (trimmed); empty removes the entry.</summary>
+        public void SetAcpAuthMethod(AgentBackend backend, string method)
+        {
+            if (acpAuthMethods == null)
+            {
+                acpAuthMethods = new List<AcpAuthMethodEntry>();
+            }
+            acpAuthMethods.RemoveAll(e => e == null || e.backend == backend);
+            string value = (method ?? string.Empty).Trim();
+            if (value.Length > 0)
+            {
+                acpAuthMethods.Add(new AcpAuthMethodEntry { backend = backend, method = value });
+            }
+        }
+
+        /// <summary>
+        /// One-time upgrade of the shared pre-v0.60.1-beta.6 value: it goes
+        /// to the ACP backend currently selected (the one it was last used
+        /// with). With Claude Code selected there is no such backend, so a
+        /// Gemini CLI method id (the only ids the settings hint ever listed)
+        /// goes to Gemini CLI and anything else is dropped -- which agent it
+        /// was meant for cannot be known, and sending it to the wrong one is
+        /// exactly the bug. An existing entry for the target is never
+        /// overwritten. Returns true when it changed anything (the caller
+        /// schedules a clean asset rewrite).
+        /// </summary>
+        public bool MigrateLegacyAcpAuthMethod()
+        {
+            string legacy = (legacyAcpAuthMethod ?? string.Empty).Trim();
+            if (legacy.Length == 0)
+            {
+                if (legacyAcpAuthMethod == null)
+                {
+                    legacyAcpAuthMethod = string.Empty;
+                }
+                return false;
+            }
+            legacyAcpAuthMethod = string.Empty;
+            AgentBackend target;
+            if (AgentBackends.IsAcp(agentBackend))
+            {
+                target = agentBackend;
+            }
+            else if (Array.IndexOf(GeminiAuthMethodIds, legacy) >= 0)
+            {
+                target = AgentBackend.GeminiCli;
+            }
+            else
+            {
+                return true;
+            }
+            if (GetAcpAuthMethod(target).Length == 0)
+            {
+                SetAcpAuthMethod(target, legacy);
+            }
+            return true;
+        }
+
+        /// <summary>Test seam for <see cref="MigrateLegacyAcpAuthMethod"/> (the holder is private by design).</summary>
+        internal void SetLegacyAcpAuthMethodForTests(string value)
+        {
+            legacyAcpAuthMethod = value;
+        }
 
         /// <summary>Model alias or full name for --model. Empty = CLI default.</summary>
         public string model = string.Empty;
@@ -557,6 +655,18 @@ namespace Colloid.AgentPanel.Model
         public List<string> uapOpsModules = new List<string> { "core", "prefab", "editor", "markers", "web" };
 
         /// <summary>
+        /// Extra MCP servers the user added in Settings (design note
+        /// docs/design-notes/2026-09-27-mcp-servers-in-panel.md). Passed to
+        /// the CLI in the same `--mcp-config` file as the UapOps server;
+        /// because the spawn is `--strict-mcp-config`, this list is the
+        /// only source of non-UapOps servers in a panel session. Next-
+        /// spawn-only: SettingsChangeDetector.RequiresReconnect compares
+        /// it and AgentHub.CloneNextSpawnOnlyFields clones it, so an edit
+        /// auto-applies through the ordinary reconnect path.
+        /// </summary>
+        public List<McpServerConfig> mcpServers = new List<McpServerConfig>();
+
+        /// <summary>
         /// Phase 5c L3(3): after a turn's staged scripts compile and the
         /// domain reloads, automatically send a continuation turn so the
         /// agent can react to the compile result instead of the work simply
@@ -965,5 +1075,13 @@ namespace Colloid.AgentPanel.Model
             legacyIgnoredConsoleErrors = errors ?? new List<string>();
             legacyIgnoredConsoleErrorPatterns = patterns ?? string.Empty;
         }
+    }
+
+    /// <summary>One backend's preferred ACP authenticate method id (<see cref="PanelSettings.acpAuthMethods"/>).</summary>
+    [Serializable]
+    public class AcpAuthMethodEntry
+    {
+        public AgentBackend backend;
+        public string method = string.Empty;
     }
 }
