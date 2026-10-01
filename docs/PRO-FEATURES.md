@@ -1,7 +1,7 @@
 # Agent Panel Pro 収録機能一覧
 
 **対象版: pro-v0.14.0**(2026-09-28 時点)。
-公開 URL: <https://github.com/c-colloid/AgentPanelForUnity/blob/main/docs/PRO-FEATURES.md>
+公開 URL: <https://github.com/c-colloid/AgentPanelForUnity/blob/main/docs/PRO-FEATURES.md>(サイト版: <https://agentpanel.futeikei.com/pro-features/>)
 同梱プロファイルは別文書 [PRO-PROFILES.md](PRO-PROFILES.md) にあります。
 
 この文書は **販売ページ(BOOTH など)の「収録機能」欄の元原稿** です。

@@ -2,7 +2,7 @@
 
 # Agent Panel for Unity
 
-*日本語: [README.md](README.md)*
+*日本語: [README.md](README.md)* · 📖 Documentation site: <https://agentpanel.futeikei.com/en/>
 
 A chat panel that puts a coding agent inside the Unity Editor. Claude Code is the default, and Codex, Grok Build and other ACP-capable CLIs can be selected instead. From a docked panel you can ask the agent to write code, fix files and work on the scene. A permission card appears before every tool runs, and the conversation survives script recompiles.
 
@@ -128,6 +128,7 @@ This README installs **Core** (`jp.colloid.unity-agent-panel`, MIT), which works
 
 ## Documentation
 
+- [Documentation site](https://agentpanel.futeikei.com/en/) — the user guide, showcase and changelog with search (same content as the Markdown below)
 - [User guide](docs/USER-GUIDE.md) (Japanese) — a task-based index: getting started, per-agent sign-in, layout and chat, chips and attachments, permission cards, history, Unity tools, settings reference, troubleshooting
 - [CHANGELOG](jp.colloid.unity-agent-panel/CHANGELOG.md)
 - [docs/](docs/README.md) — architecture and design notes

@@ -2,7 +2,7 @@
 
 # Agent Panel for Unity
 
-*English: [README.en.md](README.en.md)*
+*English: [README.en.md](README.en.md)* · 📖 ドキュメントサイト: <https://agentpanel.futeikei.com/>
 
 コーディングエージェントを Unity エディタの中で使うためのチャットパネルです。Claude Code を中心に、Codex・Grok Build などの ACP 対応 CLI にも切り替えられます。エディタにドッキングしたパネルから、コードを書く・ファイルを直す・シーンを操作するといった作業をエージェントに頼めます。ツールを実行する前には許可カードが出て、スクリプトの再コンパイルをまたいでも会話は続きます。
 
@@ -128,6 +128,7 @@ Git がインストールされている必要があります(無ければ [git-
 
 ## ドキュメント
 
+- [ドキュメントサイト](https://agentpanel.futeikei.com/) — 操作ガイド・使用例・変更履歴を検索付きで読めるサイト(内容は以下の Markdown と同じ)
 - [操作ガイド](docs/USER-GUIDE.md) — 目的別の目次。はじめに、エージェント別のサインイン手順、画面とチャット、チップと添付、許可カード、履歴、Unity 操作ツール、設定リファレンス、困ったときは
 - [CHANGELOG](jp.colloid.unity-agent-panel/CHANGELOG.md) — 変更履歴
 - [docs/](docs/README.md) — アーキテクチャと設計ノート

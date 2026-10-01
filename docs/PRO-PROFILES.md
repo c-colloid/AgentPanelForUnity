@@ -1,7 +1,7 @@
 # Agent Panel Pro 同梱プロファイル一覧
 
 **対象版: pro-v0.14.0**(2026-09-28 時点)。
-公開 URL: <https://github.com/c-colloid/AgentPanelForUnity/blob/main/docs/PRO-PROFILES.md>
+公開 URL: <https://github.com/c-colloid/AgentPanelForUnity/blob/main/docs/PRO-PROFILES.md>(サイト版: <https://agentpanel.futeikei.com/pro-profiles/>)
 Pro のツール一覧は別文書 [PRO-FEATURES.md](PRO-FEATURES.md) にあります。
 
 この文書は **販売ページ(BOOTH など)の「対応アセット / 同梱プロファイル」欄の

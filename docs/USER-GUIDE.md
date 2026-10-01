@@ -1,5 +1,7 @@
 # Agent Panel for Unity 操作ガイド
 
+> サイト版: <https://agentpanel.futeikei.com/> — 同じ内容を目次・検索付きで読めます。
+
 Unity エディタ内でコーディングエージェント(Claude Code、Codex、Grok Build などの ACP 対応 CLI)を使うパネルの操作説明です。インストールと必要要件は [README](../README.md) を参照してください。
 
 ガイドはテーマごとのページに分かれています。下の表から目的のページを開いてください。本文中の「」内はパネルに表示される日本語 UI の文言です(設定 > パネル > 外観 の「言語」で English に切り替えられます)。

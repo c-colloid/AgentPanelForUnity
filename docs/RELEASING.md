@@ -276,6 +276,17 @@ VPM リスティングには両方が載って VCC / ALCOM 側の表示設定で
   は無し。パッケージは直前のリリースのまま)。リリースを切らない docs
   タスクでも公開側の README が古くならない。手動で流すときは
   *Mirror Core to public repo* を `docs_only` にチェックして実行する。
+- **ドキュメントサイト**(`https://agentpanel.futeikei.com/`): 同じワークフローが、
+  許可リストを通した公開側のツリーから `ci/docs-site/`(Astro Starlight)で
+  サイトを組み、Cloudflare Workers の静的アセットとして `wrangler deploy` する
+  (`ci/docs-site/wrangler.toml`、Pro レジストリと同じ `CLOUDFLARE_API_TOKEN` /
+  `CLOUDFLARE_ACCOUNT_ID`)。docs モードでも安定版リリースでも走り、ベータ
+  (pre-release)では走らない(サイトは公開 `main` の docs と一致させる)。
+  サイトのビルド失敗はミラーを止めない(`continue-on-error`、Step Summary に
+  出る)。PR 段階では `.github/workflows/docs-site-check.yml` が同じ組み立てと
+  ビルド(リンク検証付き)を回す。カスタムドメインの作成には API トークンに
+  `futeikei.com` ゾーンの DNS: Edit / Workers Routes: Edit が要る(初回のみ)。
+  設計: `docs/design-notes/2026-10-01-documentation-site.md`。
 - Pro に関するドキュメントを Core 側の許可対象ファイル(`docs/*.md`・
   design-notes 等)に追記するときは、必ず `allowlist.txt` も見直すこと
   (Pro 固有の内容が公開ミラーに漏れないよう、design-notes は個別の
