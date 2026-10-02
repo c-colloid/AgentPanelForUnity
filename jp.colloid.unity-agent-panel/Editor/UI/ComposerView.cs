@@ -200,8 +200,17 @@ namespace Colloid.AgentPanel.UI
                 return;
             }
             string current = _field.value ?? string.Empty;
-            _field.value = current.Length == 0 ? text : current + "\n" + text;
-            FocusField();
+            string next = current.Length == 0 ? text : current + "\n" + text;
+            _field.value = next;
+            // Caret after the inserted text (a quote from "Ask about
+            // selection" expects the question typed under it), not the
+            // select-all a TextField does on focus.
+            int end = next.Length;
+            _field.schedule.Execute(() =>
+            {
+                _field.Focus();
+                _field.SelectRange(end, end);
+            }).StartingIn(1);
         }
 
         /// <summary>Persists the draft (called from SerializeState).</summary>

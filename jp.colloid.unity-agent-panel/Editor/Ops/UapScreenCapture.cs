@@ -199,6 +199,121 @@ namespace Colloid.AgentPanel.Ops
             return true;
         }
 
+        /// <summary>Requested capture size (width/height arguments): default 1280x720, clamped to 32..4096.</summary>
+        public static int ClampRequestedDimension(int requested, bool isWidth)
+        {
+            return ClampDimension(requested, isWidth ? DefaultWidth : DefaultHeight);
+        }
+
+        /// <summary>
+        /// Resolves the Camera on the GameObject at <paramref name="path"/>
+        /// (optionally in <paramref name="sceneQuery"/>) for an offscreen
+        /// render that needs no open view.
+        /// </summary>
+        public static bool TryResolveCameraByPath(string path, string sceneQuery, out Camera camera, out string error)
+        {
+            camera = null;
+            GameObject go = UapAddressing.ResolveHierarchyPath(sceneQuery, path, out error);
+            if (go == null)
+            {
+                return false;
+            }
+            camera = go.GetComponent<Camera>();
+            if (camera == null)
+            {
+                error = "GameObject '" + path + "' has no Camera component.";
+                return false;
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// Moves the Scene view before a capture: pivot / rotation (Euler) /
+        /// size / orthographic, or lookAt (frames that object's bounds).
+        /// The Scene view's camera is synced by hand afterwards because it
+        /// would otherwise only follow on the next repaint.
+        /// </summary>
+        public static bool TryApplySceneViewSettings(SceneView sv, Colloid.AgentPanel.Core.Json.JsonNode spec,
+            string sceneQuery, out string error)
+        {
+            error = null;
+            if (sv == null)
+            {
+                error = "No Scene view is open.";
+                return false;
+            }
+            Vector3 pivot = sv.pivot;
+            Quaternion rotation = sv.rotation;
+            float size = sv.size;
+            bool ortho = sv.orthographic;
+
+            var pivotNode = spec["pivot"];
+            if (pivotNode.IsObject)
+            {
+                pivot = new Vector3((float)pivotNode["x"].AsDouble(pivot.x), (float)pivotNode["y"].AsDouble(pivot.y),
+                    (float)pivotNode["z"].AsDouble(pivot.z));
+            }
+            var rotationNode = spec["rotation"];
+            if (rotationNode.IsObject)
+            {
+                Vector3 e = rotation.eulerAngles;
+                rotation = Quaternion.Euler((float)rotationNode["x"].AsDouble(e.x),
+                    (float)rotationNode["y"].AsDouble(e.y), (float)rotationNode["z"].AsDouble(e.z));
+            }
+            bool sizeGiven = spec["size"].IsNumber;
+            if (sizeGiven)
+            {
+                size = (float)spec["size"].AsDouble(size);
+                if (size <= 0f)
+                {
+                    error = "sceneView.size must be greater than 0.";
+                    return false;
+                }
+            }
+            if (spec["orthographic"].IsBool)
+            {
+                ortho = spec["orthographic"].AsBool(ortho);
+            }
+            string lookAt = spec["lookAt"].AsString(null);
+            if (!string.IsNullOrEmpty(lookAt))
+            {
+                GameObject target = UapAddressing.ResolveHierarchyPath(sceneQuery, lookAt, out error);
+                if (target == null)
+                {
+                    return false;
+                }
+                Bounds bounds = new Bounds(target.transform.position, Vector3.zero);
+                Renderer[] renderers = target.GetComponentsInChildren<Renderer>();
+                for (int i = 0; i < renderers.Length; i++)
+                {
+                    bounds.Encapsulate(renderers[i].bounds);
+                }
+                if (!pivotNode.IsObject)
+                {
+                    pivot = bounds.center;
+                }
+                if (!sizeGiven)
+                {
+                    size = Mathf.Max(bounds.extents.magnitude * 1.5f, 0.5f);
+                }
+            }
+            sv.LookAt(pivot, rotation, size, ortho, true);
+            sv.Repaint();
+            SceneView.RepaintAll();
+            Camera cam = sv.camera;
+            if (cam != null)
+            {
+                cam.orthographic = sv.orthographic;
+                if (sv.orthographic)
+                {
+                    cam.orthographicSize = sv.size;
+                }
+                cam.transform.rotation = sv.rotation;
+                cam.transform.position = sv.pivot + sv.rotation * new Vector3(0f, 0f, -sv.cameraDistance);
+            }
+            return true;
+        }
+
         private static int ClampDimension(float raw, int fallback)
         {
             if (float.IsNaN(raw) || raw <= 0f)
