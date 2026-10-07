@@ -1,196 +1,230 @@
 # Agent Panel Pro 収録機能一覧
 
-**対象版: pro-v0.14.0**(2026-09-28 時点)。
-公開 URL: <https://github.com/c-colloid/AgentPanelForUnity/blob/main/docs/PRO-FEATURES.md>(サイト版: <https://agentpanel.futeikei.com/pro-features/>)
-同梱プロファイルは別文書 [PRO-PROFILES.md](PRO-PROFILES.md) にあります。
+<!--
+メンテナ向け(読者には表示されません):
+- この文書は BOOTH などの販売ページの元原稿です。公開ミラーとドキュメントサイト
+  (https://agentpanel.futeikei.com/pro-features/)に載るので、書いてよいのは
+  販売ページに載せる粒度の説明まで。実装の詳細(設計ノートの内容)は書かない。
+- Pro にツールを足したら、同じブランチで「各モジュールのツール」の表、末尾の
+  「販売ページ用テキスト」、「版ごとの追加分」を更新し、「対象版」をそのリリースの
+  版に合わせる。プロファイルを足したら PRO-PROFILES.md も同様。
+- ci/check-pro-docs.sh(.github/workflows/pro-docs-check.yml)が、登録されている
+  すべての uap_* ツール名がこの文書にあること、「対象版: pro-vX.Y.Z」「pro-vX.Y.Z 時点」
+  「Unity 操作ツール N 本」「N 件」が package.json と実数に一致することを確認する。
+  説明文の古さまでは見ないので、変更した機能の説明は手で読み直す。
+- 設計: docs/design-notes/2026-09-16-pro-docs-for-booth.md、
+  docs/design-notes/2026-10-07-pro-docs-brushup.md
+-->
 
-この文書は **販売ページ(BOOTH など)の「収録機能」欄の元原稿** です。
-Pro の機能が増えたときはここだけを更新し、販売ページには上の URL を載せるか、
-下の「短い版」をコピーして貼り直します。文書の更新ルールは末尾の
-「メンテナ向け」を参照してください。
+**対象版: pro-v0.14.0**(2026-09-28 時点)。同梱プロファイルは [別文書](PRO-PROFILES.md) にあります。
 
----
+Agent Panel Pro は、無料の [Agent Panel for Unity](../README.md)(Core)に **Unity 操作ツール 50 本** と **同梱プロファイル 18 件** を追加する有料パッケージです。ツールはすべて Core のチャット画面からエージェント(Claude Code など)が呼び出すもので、スクリプトを書かせることなく、プレハブ・アニメーション・ライトマップ・メッシュなどを直接編集させられます。
 
-## 短い版(販売ページ貼り付け用)
+| | |
+|---|---|
+| 動作要件 | Unity 2022.3 LTS 以降(Unity 6 系を含む)、Agent Panel for Unity(Core) |
+| 導入 | 購入時に受け取るレジストリ URL と製品キーを 設定 > Agent Panel Pro の更新 に入力すると、Package Manager または VCC / ALCOM から導入・更新できます([操作ガイド](guide/settings.md)) |
+| ライセンス | PolyForm Internal Use License 1.0.0(内部利用と改変は可、再配布は不可)。共同制作者との共有についての追加許諾を含みます |
 
-そのままコピーして貼れるプレーンテキストです(Markdown 記法は使っていません)。
+## モジュール一覧
 
-```text
-■ Agent Panel Pro 収録機能(pro-v0.14.0 時点)
-Agent Panel for Unity(無料・Core)に追加する Unity 操作ツール 50 本(テスト実行を含む)と、主要アセット向けの同梱プロファイル 18 件(モデリング作法を含む)。
-すべて Core のチャット画面からエージェント(Claude Code)が呼び出すツールで、スクリプトのコンパイルなしに動きます。
+ツールはモジュール単位で 設定 > Unity 連携 > Unity 操作(UapOps) からオン / オフできます。
 
-・プレハブ: プレハブ作成(Variant 判定つき)/シーンの物を既存プレハブのインスタンスに変換/オーバーライドの一覧・適用(全部または 1 件)・差し戻し/Prefab Mode の開閉(中身をそのまま編集)
-・アニメーション: AnimationClip 作成(float・ON/OFF・スプライト差し替え、キー補間)/AnimatorController 編集(レイヤー・サブステートマシン・遷移の詳細・削除)/BlendTree(1D/2D/Direct)/StateMachineBehaviour(VRChat の ParameterDriver 等)/AvatarMask/AnimatorOverrideController/アセットとインポーターのプロパティ/Humanoid 設定
-・ライトマップ: 非同期ベイク・メモリ見積りプリフライト・自動調整/Bakery GPU Lightmapper の設定と非同期ベイク
-・UI 操作: UI Toolkit 製エディタウィンドウの一覧・ツリーダンプ・クリック・値設定(SDK の独自ウィンドウを自動操作)
-・プロファイル作成: このプロジェクト用の拡張プロファイル(.uap-profiles)の下書きと検証/Claude Code スキルの書き出し
-・アバター: 三角形数・マテリアル・ボーン・PhysBone 等の計測とベイク前後の差分(VRChat SDK があれば PC/Quest ランクも)/NDMF の手動ベイク実行/VRChat エキスプレッションメニュー・パラメータの読み書き(SDK の制限を事前検証)
-・パーティクル: Particle System の 23 モジュールをスクリプト API の名前で読み書き(バースト含む)/煙・炎・火花・雨・塵のプリセット
-・メッシュ: 数値からメッシュ生成(プリミティブ・押し出し・回転体・スクリュー・経路に沿う掃引・SDF・生データ、ライトマップ UV)/頂点の調査/変形編集(移動・膨張・スムーズ・細分化・ノイズ・頂点カラー)/ブーリアン(同一平面の断片を併合、連続しても膨れない)/不整合の検証と修復/マテリアルのシェーダープロパティ一括設定/シーンの Z ファイティング検出/Scene ビューに描いたスケッチ線を取り込んでの溝・盛り上げ・チューブ・穴あけ/マテリアル・手続きテクスチャ(パレットアトラス・チェッカー・グラデーション・ノイズ・室内キューブマップ)・シェーダー雛形(頂点カラー Lit・窓の interior mapping・デカール・フリップブック・トリプラナー)の生成/曲率・稜線・マテリアル境界に沿う四角形主体リメッシュ/ケージの位相編集(押し出し・インセット・ループカット・ブリッジ・三角形→四角形)/Forge シーンの非破壊モデルへの移行
-・一括実行: 複数ツール呼び出しを 1 回・許可カード 1 枚で実行
-・テスト実行: EditMode テストの実行と失敗の報告(Test Framework 導入時)
-・同梱プロファイル 18 件: モデリング作法(Pro 自身で常に有効。プロップ分解・三角形予算・経路の選択・マテリアル予算)、VRChat SDK3(共通/アバター/ワールド)、Udon、UdonSharp、NDMF、Modular Avatar、AAO: Avatar Optimizer、VRCFury、lilycalInventory、lilToon、UniVRM、MagicaCloth2、Final IK、Bakery、ProBuilder、RPG Maker Unite
-
-動作要件: Unity 2022.3 LTS 以降(Unity 6 系を含む)、Agent Panel for Unity(Core)。
-一覧の詳細: https://github.com/c-colloid/AgentPanelForUnity/blob/main/docs/PRO-FEATURES.md
-同梱プロファイルの詳細: https://github.com/c-colloid/AgentPanelForUnity/blob/main/docs/PRO-PROFILES.md
-```
-
----
-
-## 詳細
-
-以下はモジュール(設定 > Unity 操作(UapOps) のトグル)ごとの一覧です。
-「追加」列はそのツールが最初に入った Pro の版で、販売ページの「追加分だけ
-追記したい」ときの目印です。ツール名は `uap_*` の MCP ツール名で、エージェントが
-呼ぶ名前です(利用者が打ち込む必要はありません)。
-
-### プレハブ(prefab)
-
-| ツール | できること | 追加 |
+| モジュール | できること | ツール数 |
 |---|---|---|
-| `uap_prefab_create` | シーンの GameObject からプレハブアセットを作成し、インスタンスとして接続。ソースが既にプレハブインスタンスなら Unity の仕様どおり **Variant** を作り、どちらを作ったか(Variant なら base も)を返す。`expect` で期待と違えば**書く前に**拒否。非破壊モデルを含む場合はプレビューメッシュをプレハブのサブアセットとして保存(Mesh が None にならない) | 0.1.0(モデルのメッシュ同梱 0.14.0) |
-| `uap_prefab_get_overrides` | プレハブインスタンスのオーバーライド(プロパティ変更・追加コンポーネント・追加子オブジェクト)を一覧(読み取り専用) | 0.1.0 |
-| `uap_prefab_apply_overrides` | インスタンスのオーバーライドをプレハブアセットへ適用(`kind` で 1 件だけ) | 0.1.0(1 件指定 0.14.0) |
-| `uap_prefab_convert` | シーンに直に置いた GameObject を**既存の**プレハブアセットのインスタンスに変換(階層または名前で対応付け、違いはオーバーライドとして保持。参照が切れない) | 0.14.0 |
-| `uap_prefab_revert_overrides` | インスタンスの全オーバーライドをアセットの既定値に差し戻す(インスタンスのみ変更) | 0.1.0 |
-| `uap_prefab_revert_override` | オーバーライドを 1 件だけ種類指定(property / component / object)で差し戻す | 0.1.0 |
-| `uap_prefab_stage` | Prefab Mode の開閉と状態確認。開いている間は通常のシーン系ツールでプレハブの**中身**を編集でき、閉じると保留中の編集がコミットされる | 0.9.0 |
+| [プレハブ](#プレハブ) | プレハブの作成・変換、オーバーライドの適用と差し戻し、Prefab Mode の操作 | 7 |
+| [アニメーション](#アニメーション) | AnimationClip と AnimatorController の作成・編集、BlendTree、AvatarMask、Humanoid 設定 | 8 |
+| [ライトマップ](#ライトマップ) | Progressive Lightmapper と Bakery の非同期ベイク | 2 |
+| [UI 操作](#ui-操作) | UI Toolkit 製のエディタウィンドウ(SDK 独自のウィンドウなど)の自動操作 | 4 |
+| [プロファイル作成](#プロファイル作成) | 自作の拡張プロファイルと Claude Code スキルの下書き・検証 | 3 |
+| [アバター](#アバター) | アバターの計測、NDMF の手動ベイク、VRChat メニューの編集 | 3 |
+| [パーティクル](#パーティクル) | Particle System の全モジュールの読み書きとプリセット | 1 |
+| [メッシュ・マテリアル](#メッシュマテリアル) | メッシュの生成・編集・ブーリアン・検証と修復、マテリアル・テクスチャ・シェーダーの生成、glTF の入出力 | 16 |
+| [非破壊モデリング](#非破壊モデリング) | 形状ノードを組み合わせて作る編集可能なモデルと、ゲーム用アセットへの書き出し | 4 |
+| [一括実行](#一括実行) | 複数のツール呼び出しを許可カード 1 枚で実行 | 1 |
+| [テスト実行](#テスト実行) | EditMode テストの実行と失敗の報告 | 1 |
 
-### アニメーション(anim)
+## 各モジュールのツール
 
-| ツール | できること | 追加 |
-|---|---|---|
-| `uap_anim_create_clip` | AnimationClip アセットの作成。float カーブ、GameObject の ON/OFF、スプライト・マテリアル差し替え(オブジェクト参照カーブ)。キー補間(Smooth / Linear / Constant)をカーブ単位・キー単位で指定 | 0.1.0(ON/OFF・参照カーブ 0.4.0、補間 0.6.0) |
-| `uap_animator_edit` | AnimatorController の編集。パラメータ・ステート・既定ステート・遷移(Any State / Entry / Exit / サブステートマシン、Exit Time や割り込み設定などの遷移詳細)・レイヤー(追加・設定・名前変更)・サブステートマシン・`remove_*` 系の削除・一覧。初回書き込み時にアセットを自動作成 | 0.1.0(レイヤー 0.3.0、サブステートマシン・Entry/Exit 0.4.0、遷移詳細・削除 0.5.0) |
-| `uap_animator_blendtree` | BlendTree(1D / 2D / Direct)の作成・編集・子の追加・一覧。入れ子は `childPath` で指定 | 0.3.0 |
-| `uap_animator_behaviour` | StateMachineBehaviour の付与・設定・一覧・削除(VRChat の VRCAvatarParameterDriver / VRCAnimatorTrackingControl / VRCAnimatorLayerControl、Modular Avatar の MMD レイヤー制御、プロジェクト独自のものも) | 0.3.0 |
-| `uap_avatar_mask` | AvatarMask アセット(.mask)の作成・編集。Humanoid の部位トグルと Transform パス一覧(シーンの階層から生成可) | 0.4.0 |
-| `uap_animator_override` | AnimatorOverrideController(.overrideController)の作成・編集。ベースコントローラとクリップ差し替え表 | 0.6.0 |
-| `uap_asset_set_property` | アセット、またはそのインポーターのプロパティを SerializedProperty パスで設定(インポーターは同期リインポート) | 0.1.0 |
-| `uap_avatar_configure` | モデルの Humanoid インポート設定(animationType / avatarSetup)の取得と変更 | 0.1.0 |
+ツール名はエージェントが呼ぶ名前で、利用者が打ち込む必要はありません。
 
-### ライトマップ(editor)
+### プレハブ
 
-Core の `editor` モジュールのうち、ベイク系の 2 本が Pro です(スクリーンショットとメニュー実行は Core)。
+| ツール | できること |
+|---|---|
+| `uap_prefab_create` | シーンの GameObject からプレハブを作成し、インスタンスに置き換えます。元がプレハブインスタンスなら Variant になります |
+| `uap_prefab_convert` | シーンに直接置いたオブジェクトを、既存プレハブのインスタンスに変換します。違いはオーバーライドとして残ります |
+| `uap_prefab_get_overrides` | インスタンスのオーバーライド(プロパティの変更、追加したコンポーネントや子)を一覧します |
+| `uap_prefab_apply_overrides` | オーバーライドをプレハブ本体に適用します(全部、または 1 件だけ) |
+| `uap_prefab_revert_overrides` | すべてのオーバーライドをプレハブの値に戻します |
+| `uap_prefab_revert_override` | オーバーライドを 1 件だけ戻します |
+| `uap_prefab_stage` | Prefab Mode を開閉します。開いている間は通常のシーン操作ツールでプレハブの中身を編集できます |
 
-| ツール | できること | 追加 |
-|---|---|---|
-| `uap_lightmap_bake` | Progressive Lightmapper の非同期ベイク(start / status / cancel)。`preflight` でシステム RAM に収まるかを見積もり、警告と推奨を返す。`start` は同じプリフライトを先に走らせ、`autoOptimize` で Auto Generate を切り、Max Lightmap Size / Lightmap Resolution を収まる値に丸め、未使用アセットをアンロードして「out of system memory」で黙ってスキップされる事故を防ぐ | 0.1.0 |
-| `uap_bakery_bake` | Bakery GPU Lightmapper(導入時)の設定一覧・設定変更(シーンに保存)・非同期ベイク(全体 / 選択 / ライトプローブ / リフレクションプローブ、preview / balanced / final プリセット)・進捗・中断 | 0.1.0 |
+### アニメーション
 
-### UI 操作(ui)
+| ツール | できること |
+|---|---|
+| `uap_anim_create_clip` | AnimationClip を作成します。数値カーブ、オブジェクトの ON / OFF、スプライトやマテリアルの差し替え、キーの補間方法を指定できます |
+| `uap_animator_edit` | AnimatorController を編集します。パラメータ・ステート・遷移(条件や Exit Time などの詳細も)・レイヤー・サブステートマシンの追加、変更、削除 |
+| `uap_animator_blendtree` | BlendTree(1D / 2D / Direct)を作成・編集します |
+| `uap_animator_behaviour` | ステートに StateMachineBehaviour(VRChat の Parameter Driver など)を付けて設定します |
+| `uap_avatar_mask` | AvatarMask を作成・編集します |
+| `uap_animator_override` | AnimatorOverrideController を作成し、クリップの差し替えを設定します |
+| `uap_asset_set_property` | アセットやインポーターのプロパティを設定します(必要なリインポートまで行います) |
+| `uap_avatar_configure` | モデルの Humanoid インポート設定を確認・変更します |
 
-| ツール | できること | 追加 |
-|---|---|---|
-| `uap_editor_ui_list_windows` | 開いているエディタウィンドウの一覧(型・タイトル・フォーカス・位置・UI Toolkit で自動操作できるか) | 0.1.0 |
-| `uap_editor_ui_dump` | UI Toolkit ウィンドウの要素ツリー(パス・型・名前・クラス・テキスト・値)をダンプ | 0.1.0 |
-| `uap_editor_ui_click` | ダンプで得たパスの要素を実際にクリック(pointer down/up を送るので Button のコールバックが動く) | 0.1.0 |
-| `uap_editor_ui_set_value` | TextField / Toggle / ドロップダウンなどの値を設定(ユーザー編集と同じ ChangeEvent を発火) | 0.1.0 |
+### ライトマップ
 
-### プロファイル作成(authoring)
+| ツール | できること |
+|---|---|
+| `uap_lightmap_bake` | Progressive Lightmapper で非同期にベイクします。事前にメモリの見積りを行い、収まらない設定は自動で調整して、メモリ不足で黙って失敗するのを防ぎます |
+| `uap_bakery_bake` | Bakery GPU Lightmapper(導入時)の設定変更と非同期ベイク。全体 / 選択 / ライトプローブ / リフレクションプローブを対象に、品質プリセットを選べます |
 
-| ツール | できること | 追加 |
-|---|---|---|
-| `uap_profile_scaffold` | 導入済み SDK 向けの拡張プロファイル(`.uap-profiles/<id>.json`)の下書き。コンパイル済みの型を実際に走査して検出条件を組み立て(短い型名が衝突すれば完全修飾)、文章だけを TODO として残す | 0.9.0 |
-| `uap_profile_validate` | 拡張プロファイルの検証: このプロジェクトで実際に検出されるか、id が既存と衝突しないか、型と package id が実在するか、指示行が実在する `uap_*` ツールだけを名指ししているか | 0.9.0 |
-| `uap_skill_scaffold` | Claude Code のスキル(`.claude/skills/<name>/SKILL.md`)を書き出し、今のセッションで使えるか新しいチャットが要るかを返す。既存スキルは上書きしない | 0.9.0 |
+### UI 操作
 
-### アバター(avatar)
+SDK が独自に持つエディタウィンドウ(UI Toolkit 製)を、エージェントに操作させるためのツールです。
 
-| ツール | できること | 追加 |
-|---|---|---|
-| `uap_avatar_stats` | アバターの計測: 三角形数・マテリアルスロット・レンダラ・ボーン・ブレンドシェイプ・PhysBone / Contact / Constraint・欠損スクリプト。VRChat SDK があれば PC / Quest のパフォーマンスランクも。`comparePath` で 2 つ目の階層(通常はベイク後のクローン)との差分と 1 行要約 | 0.9.0 |
-| `uap_ndmf_bake` | NDMF の手動ベイクを実行してクローンを特定し、元との差分まで一度に返す(生成物を書くため confirm / dry_run ゲートつき) | 0.9.0 |
-| `uap_vrc_menu` | VRChat エキスプレッションメニューとパラメータの読み取り・書き換え。書く前に SDK が実際に強制する規則を全件検証: 1 メニューのコントロール上限、256 bit の同期パラメータ予算、パペットの subParameters 個数、存在しないパラメータを指すコントロール | 0.9.0 |
+| ツール | できること |
+|---|---|
+| `uap_editor_ui_list_windows` | 開いているエディタウィンドウを一覧します |
+| `uap_editor_ui_dump` | ウィンドウの要素ツリー(ボタン、入力欄、値など)を取得します |
+| `uap_editor_ui_click` | ウィンドウ内のボタンなどをクリックします |
+| `uap_editor_ui_set_value` | 入力欄、トグル、ドロップダウンの値を設定します |
 
-### パーティクル(fx)
+### プロファイル作成
 
-| ツール | できること | 追加 |
-|---|---|---|
-| `uap_particle_set` | Particle System のモジュールを**スクリプト API の名前**(main / emission / shape / colorOverLifetime ...)で読み書き。23 モジュールの有効/無効と全プロパティ。カーブ値は数値 / `{min,max}` / カーブのいずれでも渡せ、モードを同時に決める。OFF のモジュールと `[Obsolete]` プロパティへの書き込みは拒否。バーストもここから設定。`preset`(smoke / fire / sparks / rain / dust)で効果 1 式を 1 回で当てる | 0.9.0 |
+| ツール | できること |
+|---|---|
+| `uap_profile_scaffold` | プロジェクトに入っている SDK 向けに、拡張プロファイルの下書きを作ります |
+| `uap_profile_validate` | 自作の拡張プロファイルを検証します(検出条件が実際に当たるか、id の重複、参照しているツール名) |
+| `uap_skill_scaffold` | Claude Code のスキルファイルを書き出します |
 
-### メッシュ(mesh)
+### アバター
 
-| ツール | できること | 追加 |
-|---|---|---|
-| `uap_mesh_create` | 数値からメッシュ生成: プリミティブ(box / plane / cylinder / cone / sphere / torus / stairs)、`extrude`(XZ 外形の押し出し)、`lathe`(XY プロファイルの回転体)、`screw`(回転しながら上がる = ばね・ねじ・らせん階段)、`sweep`(閉じた断面を 3 次元の経路に沿わせる。点ごとの拡大率で先細り、ねじり、滑らかな曲線 = ホース・曲げた管・額縁)、`sdf`(球・箱・カプセル・円柱・トーラス・楕円体を union / intersect / subtract で合成、`smooth` で継ぎ目を丸める)、`raw`(頂点・三角形・任意で uv / 法線 / サブメッシュ)。Scene ビューに描いたスケッチ線(Core のスケッチ機能)も入力にでき、`sdf` の `stroke`(線に沿ったチューブ)/ `stroke_prism`(閉じた線の外形を厚み分押し出し)と `extrude` の `stroke`(外形の押し出し。ブーリアンの相手に)。`color` で頂点カラー(raw は頂点ごとの `colors` / `uv2` も)。Mesh アセットに保存、または MeshFilter + MeshRenderer(任意で MeshCollider、`materials` でサブメッシュごとのマテリアル)を持つ GameObject としてシーンに配置。plane の向き(`facing`)、`overwrite`(GUID を保って既存アセットを置換)、`lightmapUv`(UV2)。ProBuilder があれば ProBuilderize | 0.12.0 / 0.13.0 / 0.14.0 |
-| `uap_mesh_inspect` | 既存メッシュの頂点数・bounds・保存場所(書き込めるか)・閉じているか、範囲内または点に最も近い頂点の一覧(法線つき) | 0.12.0 |
-| `uap_mesh_edit` | 既存メッシュをその場で編集: `displace`(範囲を移動。球 + 減衰 = プロポーショナル編集)、`inflate`、`smooth`(ラプラシアン)、`subdivide`、`noise`、`colors`(頂点カラー: 単色か軸方向の勾配)、`lightmapuv`(UV2)。範囲には Scene ビューに描いたスケッチ線も指定でき(`stroke` + 半径 + 減衰)、線に沿って溝を掘る・盛り上げる・寄せるが 1 回で済む。複数操作を順に適用、法線はシームと折り目を保って再計算、Ctrl+Z 可。組み込み・インポート済みメッシュは `detach:true` でコピーしてから | 0.12.0 / 0.13.0 |
-| `uap_mesh_boolean` | 閉じた 2 メッシュの union / intersect / subtract を新しいメッシュに(入力は不変)。CSG が残す同一平面の三角形扇を併合し直す(`simplify`)ので連続しても三角形が膨れない、bounds が離れた 2 体は CSG を飛ばす、スライバー・重複を自動除去、`overwrite` / `lightmapUv`、`place.checkZFight` で配置直後の重なりを警告 | 0.12.0 / 0.14.0 |
-| `uap_mesh_validate` | メッシュ内部の不整合を重大度と代表位置つきで報告: 退化・重複三角形、非多様体エッジ、巻き方向の食い違い、開いた辺、未参照 / NaN 頂点、面と逆向きの法線、内向きの面、同一平面の重なり | 0.12.0 |
-| `uap_mesh_repair` | 検証結果を `fix` で選んで修復: 既定は退化・重複・未参照頂点の除去、巻き方向の統一、法線の再計算。溶接・同一平面の重なり除去・同一平面の併合(`mergeCoplanar`)・穴埋めはオプトイン。修復後の検証結果も返す。Ctrl+Z 可 | 0.12.0 |
-| `uap_scene_zfight_scan` | シーン(または範囲)の別オブジェクト同士で同一平面に重なる面を検出し、組ごとに重なり面積・位置・向き(同方向 = ちらつく / 背中合わせ = カリングで隠れる)と対処案を返す | 0.12.0 |
-| `uap_mesh_export` | 既存メッシュを glTF バイナリ(.glb)に書き出し(頂点・法線・UV0・サブメッシュ = プリミティブ + マテリアル)。既定は `Library/uap-mesh/` 配下、プロジェクト外には書かない。外部のメッシュカーネル・Blender・生成 AI との受け渡し用 | 0.14.0 |
-| `uap_mesh_import` | glTF(.glb / .gltf)を Mesh に取り込み: 全ノードの形状を変換込みで 1 メッシュに、サブメッシュはマテリアル単位(またはプリミティブ単位 / 結合)、法線と UV0 を保持。`uap_mesh_create` と同じく Mesh アセット保存 / シーン配置。取り込んだメッシュはそのまま編集・ブーリアン・非破壊モデルの葉に使える | 0.14.0 |
-| `uap_material_create` | マテリアルアセットを 1 回で作成: プリセット(`lit` / `unlit`、Pro 同梱シェーダーの `vertexColor` = 頂点カラー乗算・`interior` = 窓のパララクス室内・`decal` = 面に貼る半透明板・`flipbook` = コマ送りスプライト・`triplanar` = UV 不要の投影。Built-in / URP / HDRP を検出して実シェーダーに解決)か明示のシェーダー名、色・テクスチャ・法線マップ・発光・金属度・滑らかさ・透明化の近道、名前指定のプロパティ(型はシェーダーから)、キーワード、レンダーキュー。`reuse:true` で既存を返し複数プロップで共有 | 0.14.0 |
-| `uap_material_set` | マテリアルアセットまたはシーンのレンダラのシェーダープロパティ(float / color / vector / texture)とキーワードの設定。`floats` / `colors` / `vectors` / `keywords` / `textures` / `renderQueue` / `shader` で一括指定。`op:"list"` でシェーダーのプロパティ表を取得 | 0.1.0(一括指定・mesh モジュールへ 0.14.0) |
-| `uap_texture_create` | 手続きで PNG テクスチャを生成しインポート設定まで(sRGB・法線・ラップ・フィルタ・圧縮・ミップ・読み取り): 単色・グラデーション・チェッカー・ストライプ・タイル可能なノイズ(Perlin / Worley、`invert`)・パレットアトラス(各色のセル中心 UV を返す = 1 マテリアルで色を選ぶ)・室内キューブマップ(interior 用の壁・床・天井・灯り) | 0.14.0 |
-| `uap_shader_create` | 同梱のシェーダー雛形を `.shader` アセットとして書き出し(パイプラインに合わせて Built-in / URP 版を選択。既存は変更せず返す)。雛形: `vertexColor`(頂点カラー乗算の PBR Lit)・`interior`(interior mapping = 窓 1 枚で視差のある室内)・`decal`・`flipbook`・`triplanar` | 0.14.0 |
-| `uap_mesh_remesh` | 既存メッシュを目標面数の四角形主体メッシュにリメッシュ: 辺が曲率・鋭い稜線(`sharpAngle`)・非破壊モデルのマテリアル境界に沿う(Instant Meshes 系の向き場 + 位置場 + 抽出)。出力は四角形トポロジーのサブメッシュ(余った三角形は別サブメッシュ)または全三角化で、頂点は元メッシュの表面上。`mirror` で片側をリメッシュして鏡映(厳密に対称)、`adaptivity` で曲率の高い所ほど細かく。面数・四角形率・閉じているか・不正則頂点・特異点・残った穴を報告。入力は変更しない | 0.14.0 |
-| `uap_cage_edit` | ケージ(四角形トポロジーの Mesh。三角形メッシュは同一平面の対を四角形に併合してから)をポリゴン編集の操作でその場で編集: 範囲と法線で選んだ面の押し出し(`extrude`)・インセット(`inset`)、四角形の帯を横切るループカット(`loopCut`)、2 面をつなぐブリッジ(`bridge`)、三角形→四角形(`trisToQuads`)。面・辺は座標で指定、結果は四角形トポロジーのまま(非破壊モデルのメッシュ葉のケージに使える)。Undo 可 | 0.14.0 |
-| `uap_forge_migrate` | Forge(モディファイアスタック方式の旧モデリング)のシーンを非破壊モデルに移行: 各 ForgeStack をケージメッシュのメッシュ葉に(ミラー・配列・ソリッド化・ベベル・細分割をノードとケージの修飾に対応付け)、ForgeMeshPart を素のメッシュ葉に、ForgeCombine のスロットをモデルのマテリアルに。シーンにしか無いケージはアセットに保存。対応付けできない修飾(ノイズ変位・スクリュー・スイープ・回転配列・頂点番号のクリース)は部品ごとに報告。Forge 側は変更しない | 0.14.0 |
-| `uap_model_inspect` | 非破壊モデル(`Model` コンポーネントの下に距離場の形状ノードを階層で置き、union / intersect / subtract と `smooth` で合成。ノードにはミラー・反復・殻・オフセットの修飾、スケッチ線のチューブ形状、任意の Unity Mesh を距離場にするメッシュ形状(ベベル・クリース付き Catmull-Clark 細分割のケージ修飾も)も)を JSON で読む: ノード id・形状・パラメータ・位置・署名・警告、前回から変わったノード(AI の編集も人のギズモ操作も)、編集ログ、最後のメッシュ化の結果と古さ、スクリプト(変数と式バインディングの現在値)。任意の点の符号付き距離も返す | 0.14.0 |
-| `uap_model_apply` | 同じスキーマのパッチでモデルを編集: ノードの作成・変更・削除・移動(メッシュ形状の `bevel` / `subdivide` / `creaseAngle`、表面の `material` スロットと `color` 頂点カラーも。評価結果はスロットごとのサブメッシュ + 頂点カラーになり、根の `materials` でスロットのマテリアルを指定)、根の合成と分解能、スクリプト(`var` で名前付きの数、`bind` でノードの値を式に追従 = 1 つの数で全体が変わるパラメトリックなモデル)。位置・回転は `space:"parent"` で親ノード相対に、`mirror.space` で鏡映面の基準(モデル / 親 / 自身)、`repeat.rotate` でコピーごとの回転、polyline の `points[].r` で先細り、色付きブラシは面を塗る、根の `showPreview`。パッチ全体を検証してから 1 つの Undo で適用。`createModel` で新しいモデルから始められ、`evaluate:true` でそのままメッシュ化 | 0.14.0 |
-| `uap_model_bake` | モデルをゲーム用アセットに焼く: 高分解能で抽出 → 三角形予算までデシメーション(geometry3Sharp)→ UV 展開 → 距離場から法線マップ(任意で AO)をベイク → Mesh / テクスチャ / マテリアルを書き出し、「(baked)」オブジェクトを配置。マテリアル境界の縫い目はデシメーションの拘束として保たれ、スロットごとにマテリアルを書く。`output: "cage"` で距離場の四角形をそのまま四角形トポロジーの Mesh(ケージ)に書き、`remesh: true` でデシメーションの代わりに曲率・稜線・マテリアル境界に沿う四角形主体リメッシュ(四角形ケージも書き出す)。トポロジー指標を返す。`region` で一部だけ高分解能に、`hidePreview` で焼いた後にモデルのプレビューを隠す、AO は高分解能メッシュへのレイキャスト(形の数に依らない)。木が変わっていなければスキップ | 0.14.0 |
-| `uap_model_evaluate` | モデルの距離場を疎なブリック格子にサンプルし、特徴保存の dual contouring(角と辺が丸まらない)で並列にメッシュ化して根の MeshFilter に載せる。ブリック・頂点・三角形数、薄すぎる形状の警告(必要な分解能つき)、所要時間を返し、長い評価はモデルごとの `status` / `cancel` で追える。`region` でモデルの一部だけを細かく。エディタ側では編集のたびに自動でプレビュー → 静止後に本メッシュ化(ライブプレビュー) | 0.14.0 |
+| ツール | できること |
+|---|---|
+| `uap_avatar_stats` | 三角形数、マテリアル、ボーン、ブレンドシェイプ、PhysBone などを計測します。VRChat SDK があれば PC / Quest のパフォーマンスランクも。ベイク前後の差分比較もできます |
+| `uap_ndmf_bake` | NDMF の手動ベイクを実行し、元との差分を返します |
+| `uap_vrc_menu` | VRChat のエキスプレッションメニューとパラメータを読み書きします。コントロール数や同期パラメータの容量など、SDK の制限を書く前に検証します |
 
-### 一括実行(batch)
+### パーティクル
 
-| ツール | できること | 追加 |
-|---|---|---|
-| `uap_batch` | 複数の UapOps 呼び出し(200 件まで)を 1 回・許可カード 1 枚で実行。結果に同名ツールをまとめた要約。実行前に全件を検証するので 1 件でも不正なら何も実行されない。破壊的ツール・無効化中のモジュール・入れ子のバッチは拒否 | 0.9.0 |
+| ツール | できること |
+|---|---|
+| `uap_particle_set` | Particle System の全モジュール(バーストを含む)を読み書きします。煙・炎・火花・雨・塵のプリセットで効果一式を一度に適用できます |
 
-### テスト実行(tests)
+### メッシュ・マテリアル
 
-| ツール | できること | 追加 |
-|---|---|---|
-| `uap_test_run` | EditMode テストを Unity Test Runner で実行し、失敗の名前・メッセージ・スタックを返す。`assemblyNames` / `groupNames`(正規表現)/ `testNames`(完全一致)/ `categoryNames` で絞り込み、`listOnly` で存在するテストの一覧だけを取得。0 件ヒットは 0 件として報告。PlayMode は非対応。**`com.unity.test-framework` が入っているプロジェクトでのみ現れる** | 0.9.0 |
+**生成と編集**
 
-### 同梱プロファイル
+| ツール | できること |
+|---|---|
+| `uap_mesh_create` | 数値からメッシュを生成します。プリミティブ、外形の押し出し、回転体、らせん、経路に沿った掃引、距離場(SDF)の合成、頂点と三角形の直接指定。Scene ビューに描いたスケッチ線も入力にできます |
+| `uap_mesh_edit` | 既存メッシュをその場で変形します。範囲の移動、膨張、スムーズ、細分化、ノイズ、頂点カラー、ライトマップ UV。スケッチ線に沿って溝を掘る・盛り上げることもできます |
+| `uap_mesh_boolean` | 2 つのメッシュの合成・交差・差分を新しいメッシュにします。連続して使っても三角形が増えにくい作りです |
+| `uap_mesh_remesh` | 既存メッシュを、曲率や稜線に沿った四角形主体のメッシュに作り直します |
+| `uap_cage_edit` | 四角形トポロジーのメッシュをポリゴン編集します(押し出し、インセット、ループカット、ブリッジ、三角形から四角形へ) |
 
-18 件。一覧と各プロファイルがエージェントに教える内容は
-[PRO-PROFILES.md](PRO-PROFILES.md) を参照してください。
+**検査と修復**
 
----
+| ツール | できること |
+|---|---|
+| `uap_mesh_inspect` | 頂点数、大きさ、閉じているか、指定位置に近い頂点などを調べます |
+| `uap_mesh_validate` | 退化した三角形、非多様体エッジ、裏返った面、開いた辺などの不整合を重大度つきで報告します |
+| `uap_mesh_repair` | 検証で見つかった不整合を修復します(不要な頂点や三角形の除去、巻き方向の統一、法線の再計算、溶接、穴埋め) |
+| `uap_scene_zfight_scan` | シーン内で同一平面に重なっている面(Z ファイティングの原因)を検出し、対処案を返します |
+
+**マテリアル・テクスチャ・シェーダー**
+
+| ツール | できること |
+|---|---|
+| `uap_material_create` | マテリアルを作成します。Lit / Unlit と、Pro 同梱シェーダー(頂点カラー、窓の室内表現、デカール、コマ送り、トリプラナー)のプリセット。Built-in / URP / HDRP を自動判別します |
+| `uap_material_set` | マテリアルのシェーダープロパティとキーワードを一括設定します。シェーダーのプロパティ一覧も取得できます |
+| `uap_texture_create` | 手続きテクスチャを PNG で生成し、インポート設定まで行います。単色、グラデーション、チェッカー、ノイズ、パレットアトラス、室内表現用のキューブマップ |
+| `uap_shader_create` | 同梱のシェーダー雛形を `.shader` アセットとして書き出します(パイプラインに合わせた版を選びます) |
+
+**入出力・移行**
+
+| ツール | できること |
+|---|---|
+| `uap_mesh_export` | メッシュを glTF(.glb)に書き出します。Blender や外部ツールとの受け渡しに使えます |
+| `uap_mesh_import` | glTF(.glb / .gltf)を Mesh として取り込みます。取り込んだメッシュはそのまま編集やブーリアンに使えます |
+| `uap_forge_migrate` | 旧モデリング方式(Forge)のシーンを非破壊モデルに移行します |
+
+### 非破壊モデリング
+
+`Model` コンポーネントの下に形状ノードを階層で置き、合成・交差・差分とミラー・反復などの修飾で形を作る、編集可能なモデルです。編集はエディタ上でライブプレビューされ、最後にゲーム用のメッシュに焼きます。
+
+| ツール | できること |
+|---|---|
+| `uap_model_inspect` | モデルの構造(ノード、形状、パラメータ)と、前回からの変更点を読み取ります |
+| `uap_model_apply` | ノードの作成・変更・削除、マテリアルスロットと頂点カラー、変数と式によるパラメトリックな定義を 1 回の Undo で適用します |
+| `uap_model_evaluate` | モデルをメッシュ化してプレビューに反映します |
+| `uap_model_bake` | ゲーム用アセットに焼きます。三角形予算までの削減、UV 展開、法線 / AO のベイク、Mesh・テクスチャ・マテリアルの書き出し |
+
+### 一括実行
+
+| ツール | できること |
+|---|---|
+| `uap_batch` | 複数のツール呼び出し(200 件まで)を 1 回・許可カード 1 枚で実行します。実行前に全件を検証するので、1 件でも不正なら何も実行されません |
+
+### テスト実行
+
+| ツール | できること |
+|---|---|
+| `uap_test_run` | EditMode テストを実行し、失敗したテストの名前・メッセージ・スタックを返します。Unity Test Framework が入っているプロジェクトでのみ使えます |
+
+## 同梱プロファイル
+
+18 件。対応 SDK がプロジェクトに入っていると自動で有効になり、その SDK の要点をエージェントに教えます。一覧は [PRO-PROFILES.md](PRO-PROFILES.md) を参照してください。
 
 ## 版ごとの追加分
 
-販売ページを「前回載せた版」から更新するときは、その版より下の行を足します。
-修正だけの版(0.2.1 〜 0.2.3、0.12.1 など)は載せていません。
+修正だけの版は載せていません。
 
 | 版 | 追加されたもの |
 |---|---|
-| 0.14.0 | 非破壊モデリングの土台: `Model` / `Model Node` コンポーネント(距離場の形状を階層で合成。ミラー・反復・殻・オフセット、スケッチ線のチューブ、Unity Mesh の距離場化とそのケージ修飾 = ベベル・クリース付き細分割)、編集に追従するライブプレビューと編集ログ、`uap_model_inspect` / `uap_model_apply` / `uap_model_evaluate`、ゲーム用出力(デシメーション・UV・場からの法線 / AO ベイク・アセット書き出し)の `uap_model_bake`。外部ツールとの受け渡しに glTF の `uap_mesh_export` / `uap_mesh_import`、モデルのスクリプト(変数と式バインディング)、頂点カラー・UV2・サブメッシュごとのマテリアルの配線(メッシュ生成 / 非破壊モデル / glTF)、マテリアル・手続きテクスチャ・シェーダー雛形(頂点カラー・interior mapping・デカール・フリップブック・トリプラナー)の生成(`uap_material_create` / `uap_texture_create` / `uap_shader_create`)、`uap_particle_set` のプリセット、マテリアル境界を所有ノードの切り替わりで正確に切る評価、四角形主体リメッシュ(`uap_mesh_remesh`、`uap_model_bake` の `remesh` / `output: "cage"`)、ケージ仕上げ(辺属性 = 位置指定のクリース / ベベル / シャープ、ベベルの角格子、`uap_cage_edit` の位相編集、`uap_mesh_boolean` の四角形出力)、変位ブラシ(`displace` + `falloff` のノード)、Forge シーンの移行(`uap_forge_migrate`)、評価 / bake / batch のポーリング化(待機中もエディタが止まらない)、実環境テストの修正一式(`sweep` / `screw`、先細り polyline、`mirror.space` / `space` / `repeat.rotate`、ブーリアンの同一平面併合、`uap_prefab_convert`、`uap_material_set` の mesh モジュール化と一括指定、`region` / `hidePreview`) |
-| 0.13.0 | スケッチ線の取り込み: `uap_mesh_edit` の `stroke` 範囲、`uap_mesh_create` の `sdf` に `stroke` / `stroke_prism`、`extrude` に `stroke` |
-| 0.12.0 | メッシュモジュール一式(`uap_mesh_create` / `uap_mesh_inspect` / `uap_mesh_edit` / `uap_mesh_boolean` / `uap_mesh_validate` / `uap_mesh_repair` / `uap_scene_zfight_scan`) |
-| 0.11.0 | プロファイル: VRChat SDK3(共通)/ VRChat SDK3(ワールド)/ Udon / UdonSharp |
+| 0.14.0 | 非破壊モデリング(`uap_model_*` 4 本)、glTF の入出力、マテリアル・テクスチャ・シェーダーの生成、四角形主体リメッシュとケージ編集、Forge シーンの移行、パーティクルのプリセット、`uap_prefab_convert`。プロファイル: モデリング作法 |
+| 0.13.0 | Scene ビューのスケッチ線をメッシュの生成・編集の入力に |
+| 0.12.0 | メッシュモジュール(生成、編集、ブーリアン、検証と修復、Z ファイティング検出) |
+| 0.11.0 | プロファイル: VRChat SDK3(共通 / ワールド)、Udon、UdonSharp |
 | 0.10.0 | プロファイル: ProBuilder |
-| 0.9.0 | プロファイル作成(`uap_profile_scaffold` / `uap_profile_validate` / `uap_skill_scaffold`)、アバター(`uap_avatar_stats` / `uap_ndmf_bake` / `uap_vrc_menu`)、一括実行(`uap_batch`)、テスト実行(`uap_test_run`)、パーティクル(`uap_particle_set`)、`uap_prefab_stage`。プロファイル: VRCFury / lilycalInventory / lilToon |
-| 0.8.0 | ライセンスの追加許諾(共同制作者との共有)。機能追加なし |
-| 0.7.0 | プロファイル: NDMF / AAO: Avatar Optimizer(Modular Avatar は全面改訂) |
-| 0.6.0 | `uap_animator_override`、`uap_anim_create_clip` のキー補間 |
-| 0.5.0 | `uap_animator_edit`: 遷移の詳細設定・`set_transition`・ステートのパラメータ / タグ / フラグ・レイヤー名変更・`remove_*` 系 |
-| 0.4.0 | `uap_avatar_mask`、`uap_animator_edit` のサブステートマシンと Entry / Exit 遷移、`uap_anim_create_clip` の ON/OFF・参照カーブ |
-| 0.3.0 | `uap_animator_blendtree`、`uap_animator_behaviour`、`uap_animator_edit` のレイヤー操作。プロファイル: Modular Avatar |
+| 0.9.0 | プロファイル作成、アバター、一括実行、テスト実行、パーティクル、`uap_prefab_stage`。プロファイル: VRCFury、lilycalInventory、lilToon |
+| 0.8.0 | ライセンスの追加許諾(共同制作者との共有) |
+| 0.7.0 | プロファイル: NDMF、AAO: Avatar Optimizer(Modular Avatar を全面改訂) |
+| 0.6.0 | `uap_animator_override`、AnimationClip のキー補間 |
+| 0.5.0 | AnimatorController の遷移詳細、削除系の操作 |
+| 0.4.0 | `uap_avatar_mask`、サブステートマシンと Entry / Exit 遷移、AnimationClip の ON / OFF と参照カーブ |
+| 0.3.0 | BlendTree、StateMachineBehaviour、レイヤー操作。プロファイル: Modular Avatar |
 | 0.2.0 | プロファイル: RPG Maker Unite |
-| 0.1.0 | 初版: プレハブ 5 本、ライトマップ / Bakery 2 本、アニメーション 5 本、UI 操作 4 本。プロファイル: VRChat SDK3(アバター)/ Bakery / Final IK / MagicaCloth2 / UniVRM |
+| 0.1.0 | 初版: プレハブ、ライトマップ / Bakery、アニメーション、UI 操作。プロファイル: VRChat SDK3(アバター)、Bakery、Final IK、MagicaCloth2、UniVRM |
 
----
+## 販売ページ用テキスト
 
-## メンテナ向け(この文書の更新ルール)
+<details>
+<summary>BOOTH などに貼るプレーンテキスト(Markdown 記法なし)</summary>
 
-- Pro にツールを足したら、同じブランチで **この文書の該当モジュールの表**、
-  **短い版**、**「版ごとの追加分」**の 3 か所を更新する。プロファイルを足したら
-  [PRO-PROFILES.md](PRO-PROFILES.md) も同様。冒頭の「対象版」もそのリリースの版に
-  合わせる。
-- `ci/check-pro-docs.sh` が、`ProToolProvider` / `ProTestRunnerToolProvider` が
-  登録するすべてのツール名がこの文書に、`Editor/Profiles/*.json` のすべての
-  `id` が PRO-PROFILES.md に載っていることを確認する
-  (`.github/workflows/pro-docs-check.yml`)。名前の漏れは CI で落ちるが、説明文の
-  古さまでは見ないので、変更した機能の説明は手で読み直す。
-- この文書は公開ミラー(`ci/public-mirror/allowlist.txt` に明示的に含めている)
-  に載る。`main` に入ると `mirror-core.yml` の docs-only 同期で上の公開 URL が
-  更新される(Core のリリースを待たない)。**ここに書いてよいのは販売ページに
-  載せる粒度の説明まで**で、実装の詳細(設計ノートの内容)は書かない。
+```text
+■ Agent Panel Pro 収録機能(pro-v0.14.0 時点)
+Agent Panel for Unity(無料・Core)に追加する Unity 操作ツール 50 本と、主要アセット向けの同梱プロファイル 18 件。
+すべて Core のチャット画面からエージェントが呼び出すツールで、スクリプトを書かせずに Unity を直接操作させられます。
+
+・プレハブ: 作成(Variant 対応)/既存プレハブのインスタンスへの変換/オーバーライドの一覧・適用・差し戻し/Prefab Mode の操作
+・アニメーション: AnimationClip・AnimatorController・BlendTree・StateMachineBehaviour・AvatarMask・OverrideController の作成と編集/Humanoid 設定
+・ライトマップ: Progressive Lightmapper と Bakery の非同期ベイク(メモリ見積りと自動調整つき)
+・UI 操作: UI Toolkit 製エディタウィンドウ(SDK 独自のウィンドウなど)の自動操作
+・プロファイル作成: 自作の拡張プロファイルと Claude Code スキルの下書き・検証
+・アバター: 三角形数・マテリアル・ボーンなどの計測(VRChat の PC / Quest ランク対応)/NDMF の手動ベイク/VRChat メニュー・パラメータの編集
+・パーティクル: Particle System の全モジュール編集と煙・炎・火花・雨・塵のプリセット
+・メッシュ・マテリアル: メッシュの生成(プリミティブ・押し出し・回転体・掃引・SDF・スケッチ線から)・変形・ブーリアン・リメッシュ・検証と修復/Z ファイティング検出/マテリアル・手続きテクスチャ・シェーダー雛形の生成/glTF の入出力
+・非破壊モデリング: 形状ノードを組み合わせて作る編集可能なモデルと、ゲーム用メッシュへの書き出し(三角形予算・UV・法線 / AO ベイク)
+・一括実行: 複数のツール呼び出しを許可カード 1 枚で実行
+・テスト実行: EditMode テストの実行と失敗の報告
+・同梱プロファイル 18 件: VRChat SDK3(共通 / アバター / ワールド)、Udon、UdonSharp、NDMF、Modular Avatar、AAO: Avatar Optimizer、VRCFury、lilycalInventory、lilToon、UniVRM、MagicaCloth2、Final IK、Bakery、ProBuilder、RPG Maker Unite、モデリング作法
+
+動作要件: Unity 2022.3 LTS 以降(Unity 6 系を含む)、Agent Panel for Unity(Core)
+一覧の詳細: https://agentpanel.futeikei.com/pro-features/
+同梱プロファイルの詳細: https://agentpanel.futeikei.com/pro-profiles/
+```
+
+</details>
