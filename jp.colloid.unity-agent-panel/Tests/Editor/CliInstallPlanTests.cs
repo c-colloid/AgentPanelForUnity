@@ -157,6 +157,18 @@ namespace Colloid.AgentPanel.Tests
         }
 
         [Test]
+        public void LoginCommandHint_IsTheFirstBacktickedCommandOfTheBridgeReason()
+        {
+            Assert.AreEqual("copilot login", AgentHub.ExtractLoginCommandHint(
+                "This agent signs in from a terminal, not through the panel: run `copilot login` once, then press Reconnect (Settings > Account)."));
+            Assert.AreEqual("kimi login", AgentHub.ExtractLoginCommandHint(
+                "sign-in failed for every method the agent offers (Browser: closed). The remaining method must be completed in a terminal: run `kimi login` or `kimi --login` once, then press Reconnect (Settings > Account)."));
+            Assert.IsNull(AgentHub.ExtractLoginCommandHint("sign-in failed for every method the agent offers (ChatGPT: cancelled). Sign in to the agent's own CLI once, then press Sign in or Reconnect (Settings > Account)."));
+            Assert.IsNull(AgentHub.ExtractLoginCommandHint("odd `` empty"));
+            Assert.IsNull(AgentHub.ExtractLoginCommandHint(null));
+        }
+
+        [Test]
         public void Bridge_RaisesSignInEvents_AroundAuthenticate()
         {
             var toAgent = new System.Collections.Generic.List<string>();

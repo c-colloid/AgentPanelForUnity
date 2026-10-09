@@ -597,6 +597,14 @@
     color: var(--uap-text-primary);
 }
 
+/* Selectable conversation text (docs/design-notes/2026-10-01-transcript-
+   text-selection.md): the highlight the editor uses for text fields, and
+   no caret -- a blinking cursor in read-only prose reads as "editable". */
+.uap-selectable {
+    --unity-selection-color: rgba(61, 128, 223, 0.45);
+    --unity-cursor-color: rgba(0, 0, 0, 0);
+}
+
 /* ---- Code blocks ------------------------------------------------------ */
 
 .uap-code {
@@ -812,14 +820,12 @@
     flex-shrink: 1;
 }
 
-.uap-prune-note {
-    -unity-text-align: middle-center;
-    font-size: var(--uap-font-size-small);
-    color: var(--uap-text-disabled);
-    margin-top: var(--uap-space-s);
-    margin-bottom: var(--uap-space-s);
-    margin-left: var(--uap-space-s);
-    margin-right: var(--uap-space-s);
+/* Virtualized transcript (design note 2026-09-30-transcript-
+   virtualization.md): the two spacers stand in for the rows above and
+   below the live window at their measured / estimated heights. */
+.uap-msg-spacer {
+    flex-shrink: 0;
+    flex-grow: 0;
 }
 
 /* ---- Jump-to-bottom pill --------------------------------------------------- */

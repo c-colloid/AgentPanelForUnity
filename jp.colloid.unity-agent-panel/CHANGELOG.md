@@ -7,7 +7,91 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-(nothing yet)
+### Added
+
+- **Select, copy and ask about conversation text (design note
+  `docs/design-notes/2026-10-01-transcript-text-selection.md`).** The
+  transcript's text -- responses, your messages, thinking, notes, errors
+  and tool input/output -- can be selected with the mouse and copied with
+  Ctrl/Cmd+C. A message's right-click menu offers *Copy* (the selection),
+  *Copy message* (the message's markdown source) and *Ask about
+  selection*, which quotes the selected text into the composer so the
+  follow-up question can be typed under it.
+
+- **Scene tools from the first modeling field test (design note
+  `docs/design-notes/2026-09-30-field-test-fixes.md`).** `uap_scene_duplicate`
+  copies an object `count` times with a per-copy `offset`, under an
+  optional `parentPath`, keeping a prefab instance's link.
+  `uap_property_set` and `uap_object_inspect` accept `componentType:
+  "GameObject"` for `m_IsActive`, `m_Layer` (number or name),
+  `m_TagString` and `m_StaticEditorFlags`, and a Material's
+  `m_SavedProperties` path is refused with a pointer to `uap_material_set`.
+  `uap_editor_screenshot` renders any `camera` (hierarchy path, `width` /
+  `height`, offscreen -- no open view needed) and moves the Scene view
+  first with `sceneView` (`pivot`, `rotation`, `size`, `orthographic`,
+  `lookAt`). Hierarchy paths address same-named siblings with `Name[i]`
+  and any object with `#<id>`; `uap_query_hierarchy` and every tool reply
+  print the index when a sibling shares the name.
+
+- **"Install bundled agent skills into this project" (design note
+  `docs/design-notes/2026-09-30-bundled-modeling-skill.md`).** A switch in
+  the Extension profiles card (`PanelSettings.bundledSkillsEnabled`,
+  default on) that lets an installed provider package copy the skills it
+  ships into `.claude/skills/` and `.agents/skills/` under the project.
+  Core holds only the switch; the install lives in the package that ships
+  the skills. Not reconnect-relevant: the agent reads the files itself.
+
+### Changed
+
+- **ACP agents that sign in from a terminal get told the command (design
+  note `docs/design-notes/2026-10-07-acp-other-agents.md` section 3).**
+  When every sign-in method an agent offers is marked as a terminal one
+  (Qwen Code, GitHub Copilot CLI, Kimi Code), the panel no longer sends an
+  `authenticate` that can only fail and no longer says "complete it in the
+  browser"; the connection error now reads "run `copilot login` once, then
+  press Reconnect", with the exact command the agent published. Browser and
+  device-code methods behave as before, and a mix of the two still tries
+  the browser one first.
+- **A sign-in link printed to the agent's standard output is shown in the
+  chat too.** Gemini CLI prints its Google sign-in URL (and the "Enter the
+  authorization code" prompt) to stdout when it cannot open a browser; the
+  panel now treats such non-protocol lines like stderr, so the "open this
+  link" note appears and the lines are kept in Settings > Connection > CLI
+  output.
+- **`uap_scene_create_object`'s `primitiveType` says what primitives are
+  for** (blockouts, colliders, placeholders) and that a prop is never a set
+  of them, so an agent with a modeling module installed builds a Model
+  instead (design note `docs/design-notes/2026-09-30-bundled-modeling-skill.md`).
+
+### Fixed
+
+- **ACP sign-in notes after a domain reload.** The "sign in in your
+  browser" and "open this link" notes (and the sign-in state behind
+  Settings > Account) are delivered through a main-thread queue that was
+  only started by the Claude sign-in helpers, so with an ACP agent they
+  could stay queued forever after a script reload. The queue now starts
+  when the agent is spawned (design note
+  `docs/design-notes/2026-10-07-acp-other-agents.md` section 5).
+- **No reconnect loop when an ACP agent cannot be signed in from the
+  panel.** An agent whose only sign-in methods are terminal ones, or that
+  offers none at all (Auggie), made the panel retry the handshake four
+  times with the same error before giving up; it now stops after the
+  first, like a failed browser sign-in does, and the "not retried" note
+  names the agent's own login command instead of the agent's name. The
+  duplicate "sign-in failed" note is no longer posted when no sign-in was
+  attempted.
+
+- **Switching back to the panel's tab no longer stalls for seconds on a
+  long conversation** (design note
+  `docs/design-notes/2026-09-30-transcript-virtualization.md`). Unity
+  detaches and re-attaches the whole window tree when a docked tab is
+  re-shown, and every rendered message row was re-styled and re-measured
+  then. The transcript is now virtualized: only the messages near the
+  viewport are live elements, rows are built as you scroll towards them
+  and released once far away, with what you are reading kept in place.
+  Every message is reachable by scrolling (the previous "newest 300"
+  cap and its hidden-messages note are gone), and the scroll position
+  survives a domain reload by message rather than by pixel.
 
 ## [0.60.1] - 2026-09-30
 

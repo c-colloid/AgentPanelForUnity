@@ -97,6 +97,10 @@ namespace Colloid.AgentPanel.UI
                 }
                 i++;
             }
+            // Right-click menu (copy selection / copy message / ask about
+            // selection) and the Ctrl+C shortcut; the labels below opted
+            // into selection where they were built.
+            TranscriptSelection.AttachMessageMenu(root, message);
             TextEscapes.Disable(root);
             return root;
         }
@@ -157,7 +161,7 @@ namespace Colloid.AgentPanel.UI
                     // The live permission request renders as the inline
                     // card (ChatView); a serialized block only appears in
                     // restored transcripts, as a note.
-                    return CreatePlainLabel(block.text, "uap-note");
+                    return Selectable(CreatePlainLabel(block.text, "uap-note"));
                 case ChatBlockKind.ContextAttachment:
                     return CreateContextAttachmentBlock(block, stateKey);
                 case ChatBlockKind.Image:
@@ -180,7 +184,7 @@ namespace Colloid.AgentPanel.UI
                 // (enableRichText stays false; injection-safe by
                 // construction). The full markdown tree is swapped in by
                 // the structural rebuild once the block finalizes.
-                Label label = CreatePlainLabel(string.Empty, "uap-text");
+                Label label = Selectable(CreatePlainLabel(string.Empty, "uap-text"));
                 if (pump != null)
                 {
                     pump.Track(block, label);
@@ -318,7 +322,7 @@ namespace Colloid.AgentPanel.UI
                     List<string> chunks = LongTextChunker.Split(block.text);
                     for (int i = 0; i < chunks.Count; i++)
                     {
-                        Label payload = CreatePlainLabel(chunks[i], "uap-attach-pre");
+                        Label payload = Selectable(CreatePlainLabel(chunks[i], "uap-attach-pre"));
                         if (i > 0)
                         {
                             payload.AddToClassList("uap-attach-pre--cont");
@@ -401,7 +405,7 @@ namespace Colloid.AgentPanel.UI
                 // One label the pump drives; it grows continuation labels
                 // beside this one as the text passes the per-element
                 // ceiling (StreamingLabelPump doc comment).
-                Label label = CreatePlainLabel(string.Empty, "uap-thinking-text");
+                Label label = Selectable(CreatePlainLabel(string.Empty, "uap-thinking-text"));
                 if (pump != null)
                 {
                     pump.Track(block, label);
@@ -421,7 +425,7 @@ namespace Colloid.AgentPanel.UI
             List<string> chunks = LongTextChunker.Split(block.text);
             for (int i = 0; i < chunks.Count; i++)
             {
-                Label part = CreatePlainLabel(chunks[i], "uap-thinking-text");
+                Label part = Selectable(CreatePlainLabel(chunks[i], "uap-thinking-text"));
                 if (i > 0)
                 {
                     part.AddToClassList(StreamingLabelPump.ContinuationClass);
@@ -547,7 +551,7 @@ namespace Colloid.AgentPanel.UI
         /// </summary>
         private static VisualElement CreateSystemNoteBlock(ChatMessageBlock block)
         {
-            Label label = CreatePlainLabel(block.text, "uap-note");
+            Label label = Selectable(CreatePlainLabel(block.text, "uap-note"));
             if (block.warning)
             {
                 label.AddToClassList("uap-note--warn");
@@ -561,12 +565,20 @@ namespace Colloid.AgentPanel.UI
             box.AddToClassList("uap-error");
             box.Add(IconLoader.CreateIcon("d_console.erroricon.sml", IconLoader.GlyphCross,
                 "uap-error-icon", "uap-tool-glyph uap-tool-glyph--fail"));
-            Label label = CreatePlainLabel(text, "uap-error-text");
+            Label label = Selectable(CreatePlainLabel(text, "uap-error-text"));
             box.Add(label);
             return box;
         }
 
         // -- Shared helpers ---------------------------------------------------------------------
+
+        /// <summary>Opts a conversation-text label into mouse selection
+        /// (TranscriptSelection); returns the same label.</summary>
+        private static Label Selectable(Label label)
+        {
+            TranscriptSelection.MakeSelectable(label);
+            return label;
+        }
 
         /// <summary>
         /// The single Label construction path for model-controlled text

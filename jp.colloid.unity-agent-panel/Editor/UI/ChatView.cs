@@ -155,13 +155,17 @@ namespace Colloid.AgentPanel.UI
             // after both exist -- is safe for the card built above.
             _permissionCard.ConsumeExternalDenyMessage = _composer.ConsumeTextForDeny;
             _root.Add(_composer.Root);
+            // "Ask about selection" in a message's context menu quotes the
+            // selected transcript text into the composer.
+            TranscriptSelection.AskAboutRequested = OnAskAboutSelection;
 
             // The expanded card is capped to 40 percent of the chat content
             // height; recompute from real geometry, never a hardcoded pixel
             // cap (the var(--uap-perm-card-min) floor lives in USS).
             _root.RegisterCallback<GeometryChangedEvent>(OnRootGeometryChanged);
 
-            _list.RestoreScrollOffset(SessionStateBridge.ScrollPosition);
+            _list.RestoreScrollOffset(
+                SessionStateBridge.ScrollPosition, SessionStateBridge.ScrollAnchorFromEnd);
             return _root;
         }
 
@@ -228,6 +232,7 @@ namespace Colloid.AgentPanel.UI
             if (_list != null)
             {
                 SessionStateBridge.ScrollPosition = _list.GetScrollOffset();
+                SessionStateBridge.ScrollAnchorFromEnd = _list.GetScrollAnchorFromEnd();
             }
             if (_composer != null)
             {
@@ -554,6 +559,11 @@ namespace Colloid.AgentPanel.UI
         private void OnSuggestionPicked(string text)
         {
             _composer.InsertText(text);
+        }
+
+        private void OnAskAboutSelection(string selected)
+        {
+            _composer.InsertText(TranscriptSelection.FormatQuote(selected));
         }
 
         private static void OnRootKeyDown(KeyDownEvent evt)

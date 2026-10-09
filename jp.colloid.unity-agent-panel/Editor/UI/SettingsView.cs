@@ -250,6 +250,7 @@ namespace Colloid.AgentPanel.UI
         private PopupField<UapAutoApproveLevel> _autoApproveLevelField;
 
         private Toggle _extensionProfilesEnabledToggle;
+        private Toggle _bundledSkillsEnabledToggle;
         private VisualElement _extensionProfilesHost;
 
         // -- uLoop integration (Phase 5c, design section 2/2.5) -------------------
@@ -3728,6 +3729,18 @@ namespace Colloid.AgentPanel.UI
                 + L10n.A(L10n.S.SettingsExtensionProfilesTooltip) + "\n\n"
                 + L10n.S.SettingsExtensionProfilesEnabledTooltip;
 
+            // Bundled skills (2026-09-30-bundled-modeling-skill.md): Core
+            // holds the switch, the provider package does the install.
+            _bundledSkillsEnabledToggle = new Toggle(L10n.S.SettingsBundledSkillsEnabledLabel);
+            _bundledSkillsEnabledToggle.AddToClassList("uap-settings-field");
+            _bundledSkillsEnabledToggle.AddToClassList("uap-switch");
+            _bundledSkillsEnabledToggle.SetValueWithoutNotify(
+                PanelStateStore.instance.Settings.bundledSkillsEnabled);
+            _bundledSkillsEnabledToggle.RegisterValueChangedCallback(OnBundledSkillsEnabledChanged);
+            VisualElement bundledSkillsScope = AddHintScope(section);
+            bundledSkillsScope.Add(_bundledSkillsEnabledToggle);
+            bundledSkillsScope.tooltip = L10n.S.SettingsBundledSkillsEnabledTooltip;
+
             _extensionProfilesHost = new VisualElement();
             _extensionProfilesHost.AddToClassList("uap-settings-qa-list");
             section.Add(_extensionProfilesHost);
@@ -3738,6 +3751,18 @@ namespace Colloid.AgentPanel.UI
         private void OnExtensionProfilesEnabledChanged(ChangeEvent<bool> evt)
         {
             PanelStateStore.instance.Settings.extensionProfilesEnabled = evt.newValue;
+            CommitSettingsChange();
+        }
+
+        /// <summary>
+        /// Through the chokepoint like every other handler; the setting is
+        /// not in SettingsChangeDetector.RequiresReconnect, so no reconnect
+        /// is offered (the agent reads the files itself). The installer
+        /// polls the flag, so switching it on installs within seconds.
+        /// </summary>
+        private void OnBundledSkillsEnabledChanged(ChangeEvent<bool> evt)
+        {
+            PanelStateStore.instance.Settings.bundledSkillsEnabled = evt.newValue;
             CommitSettingsChange();
         }
 

@@ -101,6 +101,7 @@ namespace Colloid.AgentPanel.Core.Acp
             // this bridge drives is never Claude Code, so it is ignored too
             // and the inner _process.Start below always passes the default.
             var bridge = new AcpProtocolBridge(_spec, workingDirectory, WriteToAgent, _output.Enqueue, _logger);
+            bridge.AgentCommand = executablePath ?? string.Empty;
             bridge.HandshakeFailed += OnHandshakeFailed;
             bridge.AuthenticationStarted += delegate(string methodId, string methodName)
             {
@@ -185,10 +186,40 @@ namespace Colloid.AgentPanel.Core.Acp
             {
                 return;
             }
+            if (!LooksLikeJsonRpc(line))
+            {
+                // Not protocol traffic. Gemini CLI prints its sign-in URL
+                // and "Enter the authorization code" prompt to STDOUT when
+                // it cannot open a browser (design note 2026-10-07-acp-live-
+                // harness.md section 2.2); route such lines to the stderr
+                // channel, where AgentHub already picks up a sign-in URL
+                // while the sign-in is pending and keeps the CLI output log.
+                _process.ErrorOutput.Enqueue(line);
+                return;
+            }
             lock (_bridgeLock)
             {
                 bridge.OnAgentLine(line);
             }
+        }
+
+        /// <summary>Pure: true when the line can be a JSON-RPC message (starts with `{` after whitespace).</summary>
+        internal static bool LooksLikeJsonRpc(string line)
+        {
+            if (line == null)
+            {
+                return false;
+            }
+            for (int i = 0; i < line.Length; i++)
+            {
+                char c = line[i];
+                if (char.IsWhiteSpace(c))
+                {
+                    continue;
+                }
+                return c == '{';
+            }
+            return false;
         }
 
         private void OnProcessExited()
