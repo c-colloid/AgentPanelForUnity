@@ -17,3 +17,14 @@ using System.Runtime.CompilerServices;
 // grant Pro's assemblies the same internal access Core's own tools have.
 [assembly: InternalsVisibleTo("Colloid.AgentPanel.Pro.Editor")]
 [assembly: InternalsVisibleTo("Colloid.AgentPanel.Pro.Editor.Tests")]
+
+// 2026-09-28 uLoop phase 4 (docs/design-notes/2026-09-28-uloop-phase4.md
+// section 4, "UapSnippetCompiler adapter"): the new
+// Colloid.AgentPanel.Pro.Editor.Patching assembly reuses this assembly's
+// existing AssemblyBuilder compile path (UapExecuteCodeTool.GatherReferences,
+// itself built on UapScriptsCommitTool.GatherAdditionalReferences) instead of
+// duplicating the reference-gathering sweep. Both members stay internal --
+// this is a Core assembly that ships MIT and separately from Pro, so nothing
+// about Harmony/Cecil/patching is exposed publicly; only the SAME kind of
+// internal access Pro.Editor already has is extended to the new assembly.
+[assembly: InternalsVisibleTo("Colloid.AgentPanel.Pro.Editor.Patching")]

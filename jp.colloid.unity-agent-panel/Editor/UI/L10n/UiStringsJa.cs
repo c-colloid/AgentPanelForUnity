@@ -307,25 +307,11 @@ namespace Colloid.AgentPanel.UI
                     + "空の会話を表示しています。失われたものはありません。ファイルを保護するため保存を一時停止しており、"
                     + "次のドメインリロードで会話ログは元に戻ります。会話自体にも影響はなく、エージェントは文脈をすべて保持しています。",
                 settingsUloopSectionTitle: "uLoop連携",
-                settingsUloopStatusInstalled: "導入済み",
                 settingsUloopStatusMissing: "未導入",
-                settingsUloopInstallButton: "uLoopを導入",
-                settingsUloopInstallConfirmTitle: "uLoopを導入しますか？ 変更内容を確認してください。",
-                settingsUloopInstallApply: "導入する",
-                settingsUloopInstallCancel: "キャンセル",
-                settingsUloopInstallViaGitFmt:
-                    "Package Manager API でパッケージを追加します: {0}。manifest.json は手編集しません。",
-                settingsUloopInstallViaManifest:
-                    "manifest.json に OpenUPM の scoped registry を追加し、Package Manager にパッケージを要求します。",
-                settingsUloopInstallPathsTooltipFmt:
+                settingsUloopRemoveCancel: "キャンセル",
+                settingsUloopRemovePathsTooltipFmt:
                     "{0} を編集します。編集前のコピーを {1} に保存します。",
-                settingsUloopInstallDiffFoldout: "変更内容を表示",
-                settingsUloopInstallingFmt:
-                    "導入中... {0}秒(Package Manager が OpenUPM から解決しています。実測でおよそ30秒)",
-                settingsUloopInstallAsyncFailedFmt:
-                    "Package Manager がパッケージを解決できませんでした: {0}。manifest.json のレジストリ項目は残っていても無害です。接続を確認するか、Package Manager ウィンドウから再試行してください。",
-                settingsUloopInstallStalled:
-                    "数分たっても解決しません。Package Manager ウィンドウで理由を確認してください。",
+                settingsUloopRemoveDiffFoldout: "変更内容を表示",
                 settingsUnityPluginSectionTitle: "Unity 公式プラグイン",
                 settingsUnityPluginStatusCliUnavailable: "Claude Code CLI が見つからないため、プラグインの状態は不明です。",
                 settingsUnityPluginStatusNotInstalled: "未導入です。",
@@ -351,34 +337,13 @@ namespace Colloid.AgentPanel.UI
                 settingsUnityPluginRepoLabel: "リポジトリ",
                 settingsUnityPluginSteeringLabel: "Claude に公式スキルの使い分けを指示する",
                 settingsUnityPluginSteeringTooltip: "システムプロンプトに短い注記を足します: UI・パッケージ・検索は /unity: スキルへ、Editor 操作はパネル自身のツールに留め、古い Unity では Unity 6 限定の指針を飛ばす。次のチャットから反映されます。",
+                settingsBundledSkillsEnabledLabel: "同梱スキルをこのプロジェクトに配置する",
+                settingsBundledSkillsEnabledTooltip: "スキルを同梱するパッケージ(Agent Panel Pro: モデリング手順)が、プロジェクト直下の .claude/skills/ と .agents/skills/ にそれを書き出します。Claude Code と、Agent Skills の共通配置を読むエージェント(Codex、Gemini CLI など)が、該当する作業のときに手順全体を読み込みます。編集したコピーは上書きしません(消せば同梱版に戻ります)。次にスキルが参照されたときから効き、再接続は不要です。",
                 settingsUloopCaveatVcc:
                     "このプロジェクトは VCC/VPM 管理下です(vpm-manifest.json を検出)。"
                     + "ここでの変更は VCC に上書き・巻き戻される可能性があるため、VCC 側での導入を推奨します。",
-                settingsUloopCaveatOffline:
-                    "ネットワーク接続を検出できません。導入にはレジストリへの接続が必要です。",
                 settingsUloopCaveatManifestUnreadable:
                     "manifest.json を読み取れないため、変更内容を安全に提示できません。",
-                settingsUloopCaveatRegistryConflict:
-                    "同名の scoped registry が異なる設定で既に存在します。"
-                    + "上書きせず、手動で解決してください。",
-                settingsUloopInstallFailed:
-                    "導入を適用できませんでした。変更は行われていません(バックアップを取得していた場合は復元済み)。",
-                settingsUloopInstallFailedManifestUnknownFmt:
-                    "導入に失敗し、自動での巻き戻しにも失敗しました。Packages/manifest.json が"
-                    + "不完全な状態の可能性があります — 確認するまで Unity にパッケージを解決させないでください。"
-                    + "元のファイルの控えは {0} にあります。詳細: {1}",
-                settingsUloopPresetButton: "uloopコマンドを許可",
-                settingsUloopPresetHelp:
-                    "compile / get-logs / list / run-tests だけを確認なしで許可します。それ以外は従来どおり確認します。",
-                settingsUloopPresetTooltip:
-                    "安全な uloop サブコマンドだけを短い許可リストとして追加します。そこに無いものは従来どおり確認を求めます — エディタ内で任意の C# をコンパイルして実行する execute-dynamic-code も含みます。過去にこのエディタをフリーズさせた update / sync / launch は加えて明示的に不許可にし、許可ツールに既にある広い Bash(uloop *) は取り除きます。",
-                settingsUloopPresetApplied: "プリセットを許可ツールに追加しました。",
-                settingsUloopSnippetButton: "指示スニペットを挿入",
-                settingsUloopSnippetHelp:
-                    "uloop execute-dynamic-code よりこのパネルの Unity ツールを優先させる指示を追記します。",
-                settingsUloopSnippetTooltip:
-                    "カスタム指示に短い指示文を追記します。まずこのパネル独自の Unity ツールを使い、それで表現できない操作にだけ uloop execute-dynamic-code を使い、コードを書いてコンパイルするのは最後の手段とする、という内容です。",
-                settingsUloopSnippetApplied: "スニペットをカスタム指示に追記しました。",
                 settingsAutoContinueLabel: "コンパイル後に自動継続する",
                 settingsAutoContinueHelp:
                     "既定 OFF。エージェント自身のスクリプト変更でリロードが起きたとき、継続ターンを自動送信します。会話ログには必ず明示されます。",
@@ -417,13 +382,15 @@ namespace Colloid.AgentPanel.UI
                 chatRoleUser: "あなた",
                 chatRoleAssistant: "{agent}",
                 chatDefaultAttachTitle: "添付コンテキスト",
+                chatMenuCopySelection: "選択をコピー",
+                chatMenuCopyMessage: "メッセージをコピー",
+                chatMenuAskAboutSelection: "選択部分について質問",
                 chatThinkingStreaming: "思考中...",
                 chatThinkingDone: "思考",
                 chatThinkingIndicatorStreaming: "思考中...",
                 chatThinkingIndicatorStreamingTokensFmt: "思考中... (~{0}トークン)",
                 chatThinkingIndicatorDone: "思考済み",
                 chatThinkingIndicatorDoneTokensFmt: "思考済み (~{0}トークン)",
-                chatPruneNoteFmt: "{0}件の過去のメッセージは非表示です",
                 chatJumpToLatestButton: "最新",
                 chatCompactingIndicator:
                     "コンテキストを圧縮しています... モデルがここまでの会話を要約中です。しばらく時間がかかることがあります。",
@@ -774,14 +741,14 @@ namespace Colloid.AgentPanel.UI
                 ctxSketchButton: "スケッチ",
                 ctxSketchButtonArmedPlane: "平面に描画中...",
                 ctxSketchButtonArmedSurface: "表面に描画中...",
-                ctxSketchTooltip: "Scene ビューに線を描いて点列としてエージェントに渡します。平面モードは決めた深度の平面に描き(ホイール / [ ] で深度、F でカーソル下の面に合わせる、X/Y/Z で軸平面に固定、C でカメラ正対、Shift で直線)、表面モードはカーソル下のメッシュ表面に描きます。Esc で終了。",
+                ctxSketchTooltip: "Scene ビューに線を描いて点列としてエージェントに渡します。平面モードは決めた深度の平面に描き(Ctrl+ホイール / [ ] で深度、F でカーソル下の面に合わせる、X/Y/Z で軸平面に固定、C でカメラ正対)、表面モードはカーソル下のメッシュ表面に描きます。形: フリーハンド・直線・折れ線・矩形・楕円(1〜5)。ホイール、右 / 中ドラッグ、Alt はそのまま視点操作に使えます。Esc は描画中の線を破棄、もう一度で終了。",
                 ctxSketchMenuPlane: "平面に描く(深度を決める)",
                 ctxSketchMenuSurface: "メッシュ表面に描く",
                 ctxSketchMenuStop: "スケッチをやめる",
                 ctxSketchPlaneToolbarLabel: "平面",
-                ctxSketchPlaneTooltip: "エージェント スケッチ: 決めた深度の平面に描く(ホイール / [ ]: 深度、F: 面に合わせる、X/Y/Z/C: 平面、Esc: 終了)",
+                ctxSketchPlaneTooltip: "エージェント スケッチ: 決めた深度の平面に描く(Ctrl+ホイール / [ ]: 深度、F: 面に合わせる、X/Y/Z/C: 平面、1〜5: 形、Esc: 終了)",
                 ctxSketchSurfaceToolbarLabel: "表面",
-                ctxSketchSurfaceTooltip: "エージェント スケッチ: カーソル下のメッシュ表面に描く(Esc: 終了)",
+                ctxSketchSurfaceTooltip: "エージェント スケッチ: カーソル下のメッシュ表面に描く(1〜5: 形、Esc: 終了)",
                 ctxSketchChipLabelFmt: "スケッチ S{0}",
                 ctxSketchChipTitleFmt: "シーンスケッチ S{0}",
                 ctxSketchDepthReadoutFmt: "スケッチ平面: 深度 {0} m、{1}",
@@ -789,7 +756,7 @@ namespace Colloid.AgentPanel.UI
                 ctxSketchContourPartial: "(輪郭は一部のみ: シーンが大きすぎます)",
                 ctxSketchSurfaceBehindFmt: "カーソル下の面: 平面の {0} m 後ろ",
                 ctxSketchSurfaceInFrontFmt: "カーソル下の面: 平面の {0} m 手前",
-                ctxSketchKeyHints: "ホイール / [ ]: 深度   F: 面に合わせる   X Y Z / C: 平面   Shift: 直線   Esc: 終了",
+                ctxSketchKeyHints: "Ctrl+ホイール / [ ]: 深度   F: 面に合わせる   X Y Z / C: 平面   1〜5: 形   Shift: 直線 / 正方形   N: 最新に名前   Esc: 終了",
                 ctxStrokePayloadHeaderFmt: "Scene sketch S{0} (user-drawn stroke in the Scene view)",
                 ctxStrokePayloadModeFmt: "mode: {0}",
                 ctxStrokePayloadStatsFmt: "points: {0}, length: {1} m, closed: {2}",
@@ -801,6 +768,25 @@ namespace Colloid.AgentPanel.UI
                 ctxStrokePayloadPointsFmt: "points: {0}",
                 ctxStrokePayloadMorePointsFmt: "({0} of {1} points shown; uap_stroke_list id={2} returns all)",
                 ctxStrokePayloadAllPointsFmt: "(all points shown; uap_stroke_list id={0} returns them with normals)",
+                ctxSketchSurfaceKeyHints: "1〜5: 形   Shift: 直線 / 正方形   N: 最新に名前   Esc: 終了",
+                ctxSketchPolylineHints: "クリック: 点を足す   最初の点をクリック: 閉じる   Enter / ダブルクリック: 確定   Backspace: 1 点戻す   Esc: 破棄",
+                ctxSketchSurfaceReadoutFmt: "表面にスケッチ: 形 {0}",
+                ctxSketchShapeReadoutFmt: "形: {0}",
+                ctxSketchShapeFreehand: "フリーハンド",
+                ctxSketchShapeLine: "直線",
+                ctxSketchShapePolyline: "折れ線",
+                ctxSketchShapeRectangle: "矩形",
+                ctxSketchShapeEllipse: "楕円",
+                ctxSketchMenuShapePrefix: "形/",
+                ctxSketchShapeDropdownTooltip: "スケッチの形: フリーハンド、直線、折れ線(点をクリックで置き、最初の点をクリックで閉じる)、矩形、楕円(Scene ビューで 1〜5)",
+                ctxSketchNameWindowTitleFmt: "スケッチ {0} に名前",
+                ctxSketchNameFieldLabel: "名前",
+                ctxSketchNameApplyButton: "決定",
+                ctxSketchChipMenuName: "名前...",
+                ctxSketchChipLabelNamedFmt: "スケッチ S{0}: {1}",
+                ctxStrokePayloadNameFmt: "name: {0}",
+                ctxStrokePayloadShapeFmt: "shape: {0}",
+                ctxStrokePayloadAreaFmt: "area: {0} m^2 (closed region; uap_stroke_list id={1} lists the objects inside it)",
                 settingsSectionExtensionProfiles: "拡張プロファイル",
                 settingsExtensionProfilesHint:
                     "検出されたサードパーティ SDK の知識ブロックを、{agent} のシステムプロンプトに追加します。",
@@ -840,7 +826,7 @@ namespace Colloid.AgentPanel.UI
                 settingsAcpCommandLabel: "コマンド",
                 settingsAcpArgumentsLabel: "引数",
                 settingsAcpCommandHintFmt: "空欄なら `{0}` を使います。名前だけなら PATH から探し、フルパスはそのまま使います。",
-                settingsAcpCommandHintCustom: "ACP モードでエージェントを起動するコマンド(例: `qwen --experimental-acp`)。必須です。",
+                settingsAcpCommandHintCustom: "ACP モードでエージェントを起動するコマンド(例: `opencode acp`, `qwen --acp`)。必須です。",
                 settingsAcpAuthMethodHint: "ACP の認証メソッド ID。空欄ならエージェントが最初に提示するサインイン方法を使います。",
                 settingsAcpAuthMethodTooltip: "エージェントがサインインを要求したときにブリッジが試す ACP の authenticate メソッド ID(Gemini CLI: oauth-personal / gemini-api-key / vertex-ai)。空欄ならエージェントが最初に提示するものを使います。",
                 settingsAcpLoginHintFmt: "必要になるとブラウザでサインインが開きます。ターミナルでの代替: {0}",
@@ -953,6 +939,11 @@ namespace Colloid.AgentPanel.UI
                     + "(uap_mesh_inspect)。範囲指定の頂点編集とプロポーショナル移動(uap_mesh_edit)。閉じたメッシュ 2 つの和・差・積"
                     + "(uap_mesh_boolean)。不整合(縮退・重複・裏返り・開いた辺)の検出と修復(uap_mesh_validate / uap_mesh_repair)。"
                     + "シーン全体の Z ファイティング(同一平面で重なる面)走査(uap_scene_zfight_scan)。",
+                settingsUapOpsModulePatchingLabel: "ホットリロード / 一時停止ポイント",
+                settingsUapOpsModulePatchingHint: "Harmony 経由で実行中のエディタのメソッド本体を書き換え、一時停止ポイントを挿入。既定OFF。",
+                settingsUapOpsModulePatchingTooltip: "ドメインリロードなしで変更した static メソッド本体をホットリロード(uap_hot_reload)。"
+                    + "ローカル変数を捕捉した file:line での一時停止(uap_pause_point)。Mono スクリプティングランタイム限定"
+                    + "(Unity 6.8+ の CoreCLR エディタは非対応)。呼び出しは常に自動承認されません。",
                 settingsUapOpsModuleTestsLabel: "テスト実行",
                 settingsUapOpsModuleTestsHint: "プロジェクトの EditMode テストを実行し、失敗したテストを報告(uap_test_run)。既定OFF。",
                 settingsUapOpsTestFrameworkAbsentHintFmt: "{0} Unity Test Framework パッケージが必要です(未導入)。",
@@ -1028,6 +1019,11 @@ namespace Colloid.AgentPanel.UI
                 settingsOverviewDangerArmed: "すべての権限確認をスキップ中",
                 settingsUapOpsModuleWebLabel: "Web 取得",
                 settingsUapOpsModuleWebHint: "エージェントが URL の中身を取得(uap_web_fetch)。画像はそのまま表示、PDF などのファイルは Library に保存、ページは本文テキスト。",
+                settingsUapOpsModuleCodeLabel: "動的コード",
+                settingsUapOpsModuleCodeHint: "型付きツールで足りない時だけ、エージェントが C# コードをコンパイルして実行(uap_execute_code)。自動承認の対象外。",
+                permExecuteCodeActionFmt: "action: {0}",
+                permExecuteCodeUsingsFmt: "追加の using: {0}",
+                permExecuteCodeFlagsHeading: "静的スキャンが検出したリスクフラグ:",
                 settingsWebFetchAllowedHostsLabel: "許可するホスト",
                 settingsWebFetchAllowedHostsHint: "1 行 1 ホスト。サブドメインも含みます(example.com)。空なら公開ホストすべて。次の取得から反映。",
                 settingsWebFetchBlockedHostsLabel: "拒否するホスト",
@@ -1064,35 +1060,24 @@ namespace Colloid.AgentPanel.UI
                 settingsModulesPillFmt: "{0} / {1} オン",
                 settingsOverviewSignedInFmt: "{0} ({1})",
                 settingsOverviewReconnectLabel: "再接続",
-                settingsUloopStandingCostHint:
-                    "導入すると常駐サーバと 60Hz のティックが残り、スキル約 2k トークンが毎セッション載ります。",
-                settingsUloopStandingCostTooltip:
-                    "2026-09-21 に uLoop 3.6.3 で計測した内容です。導入すると、パッケージが入っている間ずっと 3 つが動き続けます: "
-                    + "エディタ側のサーバ(エディタを起動するたびに自動で立ち上がります)、16ms ごとの SignalTick ポンプ"
-                    + "(非フォーカスでアイドルでもエディタをティックさせ続けるため、裏に回しても休まなくなります)、"
-                    + "そしてエージェント用スキル約 21 件の説明文(約 5.7KB・1.5〜2k トークン)が、uloop を一度も呼ばない"
-                    + "セッションにも毎回載ります。この 3 つはどれもこのパネルからは止められません(uLoop 側の持ち物です)。"
-                    + "Play モード・コンソール・スクリーンショット・スクリプトのコミット・テスト実行は、"
-                    + "このパネル自身の uap_* ツールで賄えます。詳細: docs/design-notes/2026-09-21-uloop-always-loaded-cost.md",
-                settingsUloopTurnDownHint:
-                    "uLoop のサーバとティックはこのパネルからは止められません。Window > Unity CLI Loop で調整します。",
-                settingsUloopTurnDownTooltip:
-                    "Window > Unity CLI Loop > Server は IPC サーバを「今のエディタセッションだけ」止めます"
-                    + "(16ms のティックポンプは止まらず、次にエディタを起動すればサーバも再び立ちます。"
-                    + "停止フラグは SessionState 保持のためです)。Window > Unity CLI Loop > Settings では uLoop のツールを"
-                    + "個別に無効化でき、無効にしたツールのスキルファイルも配置対象から外れるので、毎セッションの"
-                    + "トークン分も減ります。完全に止める唯一の方法は Package Manager でパッケージを削除することです。"
-                    + "計測と詳細: docs/design-notes/2026-09-21-uloop-always-loaded-cost.md",
+                settingsUloopNoteHint:
+                    "uLoop が入っています。このパネルの Unity ツールで代替できるため、パネル外で使わなければ削除を推奨します。",
+                settingsUloopNoteTooltip:
+                    "uLoop が入っています。Play Mode・入力・ログ・コンパイル・スクリーンショットと動画・動的コードなど、"
+                    + "uLoop の機能はこのパネル独自の Unity ツール(uap_*)で賄えます。"
+                    + "uLoop は自前のエディタ側サーバと 16ms のティックポンプを動かし続け、"
+                    + "エージェントの毎セッションにスキルの説明文を載せます。"
+                    + "パネル以外で uLoop を使っていなければ、削除を推奨します。",
                 settingsUloopAgentUseLabel: "エージェントに uloop コマンドを使わせる",
                 settingsUloopAgentUseHint:
-                    "オフでエージェントの uloop 実行を拒否します。uLoop 自体は止まりません(上の行を参照)。",
+                    "オフ(既定)でエージェントの uloop 実行を拒否します。uLoop 自体は止まりません。",
                 settingsUloopAgentUseTooltip:
-                    "オン(既定)では、このパネルの uap_* ツールで表現できない操作の逃げ道として uloop を残します。"
-                    + "オフにすると、(1) エージェントへの指示文に「uloop は拒否される」と明記し、"
+                    "オフ(新しい設定の既定)にすると、(1) エージェントへの指示文に「uloop は拒否される」と明記し、"
                     + "(2) 次回接続時の起動引数に各シェル用の拒否パターンを足し、"
                     + "(3) それでも届いた uloop コマンドを許可レイヤーで拒否します。"
                     + "3 重にしているのは、--disallowedTools のパターンが CLI に受理されたのに"
-                    + "黙って無視された実測例があるためです。uLoop 自体には何の影響もありません: "
+                    + "黙って無視された実測例があるためです。オンにすると、このパネルの uap_* ツールで"
+                    + "表現できない操作の逃げ道として uloop を残します。どちらでも uLoop 自体には何の影響もありません: "
                     + "エディタ側サーバ・16ms のティックポンプ・スキルはそのまま動き、"
                     + "スキルのトークン消費も毎セッション続きます。反映は次の接続から"
                     + "(許可/禁止ツールリストと同じ)。",
@@ -1137,6 +1122,20 @@ namespace Colloid.AgentPanel.UI
                     "OpenUPM のスコープは残します: 他のパッケージがまだこの経路で解決されています。",
                 settingsUloopCaveatForeignRegistryKept:
                     "別のスコープ付きレジストリが uLoop を登録しています。そちらには触れません。",
+                settingsUapOpsToolListModeLabel: "ツール一覧のモード",
+                settingsUapOpsToolListModeHint:
+                    "エージェントの接続が最初に読み込むツール説明の量を左右します。",
+                settingsUapOpsToolListModeTooltip:
+                    "フルは有効な全ツールを従来どおり説明付きで一覧します。コンパクトはコアモジュールだけを"
+                    + "直接一覧し、他の有効モジュールのツールは検索と実行の 2 本(uap_tools / uap_call)経由で"
+                    + "使います。一覧は短くなりますが、ツールを使う前に一段探す手間が増えます。自動(既定)は"
+                    + "Claude Code ではフル(ツールの説明を必要になってから読み込むため)、それ以外の"
+                    + "エージェントではコンパクトを選びます。反映は、上のモジュール切替と同じく"
+                    + "次の接続からです。",
+                settingsUapOpsToolListModeOptionAuto: "自動(推奨)",
+                settingsUapOpsToolListModeOptionFull: "フル",
+                settingsUapOpsToolListModeOptionCompact: "コンパクト",
+                hubUapOpsUnavailableForAgentNoteFmt: "{0} は今回のセッションで Unity 操作ツールを受け取れません(HTTP MCP に対応しておらず、stdio 中継も起動できませんでした)。このエージェント自身のツールのみ使用できます。",
                 settingsProVersionFmt: "Pro バージョン: {0}",
                 settingsCliUpdateCheckButton: "CLI の更新を確認",
                 settingsCliUpdateButton: "CLI を更新",

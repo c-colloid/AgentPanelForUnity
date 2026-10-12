@@ -9,9 +9,9 @@ using Colloid.AgentPanel.Ops;
 using Colloid.AgentPanel.Ops.Profiles;
 using Colloid.AgentPanel.Ops.UnityPlugin;
 using UnityEditor;
-// PackageManager: only for the uLoop install progress poll (the AddRequest
-// UloopInstaller.Apply hands back and its StatusCode) -- nothing else in
-// this view talks to Package Manager.
+// PackageManager: only for the uLoop removal progress poll (the
+// RemoveRequest UloopUninstaller.Apply hands back and its StatusCode) --
+// nothing else in this view talks to Package Manager.
 using UnityEditor.PackageManager;
 using UnityEditor.PackageManager.Requests;
 using UnityEditor.UIElements;
@@ -214,6 +214,7 @@ namespace Colloid.AgentPanel.UI
         private Toggle _cjkToggle;
 
         private Toggle _uapOpsEnabledToggle;
+        private PopupField<UapToolListMode> _uapToolListModeField;
         private Label _autoApproveWarningLabel;
         private Label _gateWarningLabel;
         private Label _autoContinueWarningLabel;
@@ -228,6 +229,7 @@ namespace Colloid.AgentPanel.UI
         private TextField _webFetchBlockedHostsField;
         private PopupField<string> _webSearchProviderField;
         private TextField _webSearchApiKeyField;
+        private Toggle _uapOpsCodeModuleToggle;
         private Toggle _uapOpsUiModuleToggle;
         private Toggle _uapOpsAuthoringModuleToggle;
         private Toggle _uapOpsAvatarModuleToggle;
@@ -235,6 +237,7 @@ namespace Colloid.AgentPanel.UI
         private Toggle _uapOpsTestsModuleToggle;
         private Toggle _uapOpsFxModuleToggle;
         private Toggle _uapOpsMeshModuleToggle;
+        private Toggle _uapOpsPatchingModuleToggle;
         // Modules whose toggle AddModuleHint disabled because no add-on
         // registered any tool for them (Agent Panel Pro absent). Consulted
         // by RefreshUapOpsStatus, which otherwise re-enabled every module
@@ -250,48 +253,54 @@ namespace Colloid.AgentPanel.UI
         private PopupField<UapAutoApproveLevel> _autoApproveLevelField;
 
         private Toggle _extensionProfilesEnabledToggle;
+        private Toggle _bundledSkillsEnabledToggle;
         private VisualElement _extensionProfilesHost;
 
-        // -- uLoop integration (Phase 5c, design section 2/2.5) -------------------
+        // -- uLoop card (docs/design-notes/2026-10-02-uloop-card-final.md) ----------
+        //
+        // Built once, but displayed ONLY while UloopDetector finds uLoop in the
+        // project (RefreshUloopSection / ShouldShowUloopCard): a project
+        // without it sees nothing about uLoop in Settings.
 
-        private Button _uloopInstallButton;
-        private VisualElement _uloopInstallConfirmCard;
+        /// <summary>The whole card element; its inline display is the card's visibility.</summary>
+        private VisualElement _uloopCard;
+
+        /// <summary>
+        /// Everything that only makes sense while uLoop is installed (the note,
+        /// the agent-use switch, the Remove row and its confirmation). Hidden
+        /// once a removal has landed so the card, which stays up to report the
+        /// outcome, does not keep saying "uLoop is installed".
+        /// </summary>
+        private VisualElement _uloopMainHost;
+
+        /// <summary>
+        /// Whether the card is currently supposed to be on screen; read by the
+        /// settings search (SettingsSearchCard.IsAvailable) so a hidden card is
+        /// never revealed by a query that happens to match its text.
+        /// </summary>
+        private bool _uloopCardShown;
+
+        private VisualElement _uloopConfirmCard;
         private Label _uloopConfirmTitleLabel;
-        private Label _uloopInstallRouteLabel;
+        private Label _uloopConfirmRouteLabel;
         private VisualElement _uloopCaveatsHost;
         private Foldout _uloopDiffFoldout;
         private TextField _uloopDiffField;
-        private Button _uloopInstallApplyButton;
-        private Button _uloopInstallCancelButton;
-        private Label _uloopInstallResultLabel;
+        private Button _uloopConfirmApplyButton;
+        private Button _uloopConfirmCancelButton;
+        private Label _uloopConfirmResultLabel;
 
         /// <summary>
-        /// The ONE live install progress line (design-notes/2026-08-12-
-        /// uloop-install-progress.md section 2a): "Installing... {n}s" while
-        /// a resolve is in flight, the async failure text when the polled
-        /// AddRequest reports Failure, the stalled text when only an old
-        /// in-flight flag remains. Hidden whenever UloopInstallProgress says
-        /// Idle or Succeeded (the status label's "Installed" carries the
-        /// success). Sits at section level, NOT inside the confirmation
-        /// card, because the state it must survive -- the domain reload a
-        /// successful resolve triggers -- rebuilds this view with the card
-        /// closed and no plan; a card-internal label would be invisible for
-        /// exactly the stretch this feature exists to cover.
+        /// The ONE live removal progress line (design-notes/2026-08-12-
+        /// uloop-install-progress.md section 2a, now serving the removal):
+        /// "Removing... {n}s" while a Client.Remove is in flight, the async
+        /// failure text when the polled RemoveRequest reports Failure, the
+        /// stalled text when only an old in-flight flag remains. Sits at
+        /// section level, NOT inside the confirmation card, because the state
+        /// it must survive -- the domain reload a successful removal
+        /// triggers -- rebuilds this view with the card closed and no plan.
         /// </summary>
-        private Label _uloopInstallProgressLabel;
-
-        /// <summary>
-        /// The AddRequest returned by the last successful Apply this domain
-        /// has seen (UloopInstallApplyResult.ClientAddRequest). Deliberately
-        /// a plain field: it CANNOT survive the domain reload a successful
-        /// resolve causes, and that is fine -- the SessionStateBridge flag
-        /// pair covers the post-reload stretch, and UloopInstallProgress
-        /// ranks a live request above the flag whenever both exist. Kept
-        /// (not nulled) after a FailedAsync render so every later refresh
-        /// re-derives the failure text from the request object itself
-        /// instead of a cached string.
-        /// </summary>
-        private AddRequest _uloopLiveAddRequest;
+        private Label _uloopProgressLabel;
 
         /// <summary>True while <see cref="OnUloopProgressTick"/> is subscribed to EditorApplication.update.</summary>
         private bool _uloopProgressTickHooked;
@@ -328,57 +337,27 @@ namespace Colloid.AgentPanel.UI
         private double _uloopDetectLastEvalAt;
 
         /// <summary>
-        /// The plan the currently-open confirmation card is showing --
-        /// exactly what "Apply" acts on (never a freshly-recomputed plan,
-        /// per UloopInstaller.Apply's own doc comment: a plan computed
-        /// against a stale snapshot must not be silently re-validated
-        /// against a since-changed disk state). Null whenever the card is
-        /// closed.
-        /// </summary>
-        private UloopInstallPlan _pendingUloopPlan;
-
-        private Label _uloopPresetAppliedLabel;
-        private Label _uloopSnippetAppliedLabel;
-
-        /// <summary>
-        /// The standing-cost line at the top of the uLoop card and its
-        /// hover scope (docs/design-notes/2026-09-21-uloop-always-loaded-
-        /// cost.md section 5, option 0). One label, two wordings: what
-        /// installing WILL leave running, and -- once it is installed --
-        /// where that package's own controls are, since none of it can be
-        /// switched off from here.
-        /// </summary>
-        private VisualElement _uloopCostScope;
-        private Label _uloopCostHint;
-
-        /// <summary>
-        /// The "let the agent run uloop commands" switch (same design note,
-        /// section 5, option A). Deliberately NOT greyed out when uLoop is
-        /// absent from the project: the thing it denies is the `uloop` CLI
-        /// binary, which an agent can reach whenever it is on PATH --
-        /// whether or not this project carries the Unity package.
+        /// The "let the agent run uloop commands" switch (docs/design-notes/
+        /// 2026-09-21-uloop-always-loaded-cost.md section 5, option A). It
+        /// still gates real behaviour (the steering text, the spawn's deny
+        /// patterns and AgentHub.TryAutoDenyUloopCommand), so it stays on the
+        /// card; it defaults to OFF for a new settings file
+        /// (docs/design-notes/2026-10-02-uloop-card-final.md).
         /// </summary>
         private Toggle _uloopAgentUseToggle;
 
         /// <summary>
-        /// The removal half (docs/design-notes/2026-09-22-uloop-remove-from-
-        /// panel.md). The button is the mirror of "Install uLoop" and is
-        /// shown only while uLoop IS installed; the confirmation card,
-        /// caveat host, diff foldout and apply/cancel row are SHARED with
-        /// the install flow (only one of the two can ever be open, and a
-        /// second near-identical card would be one more place for the
-        /// diff-before-you-write discipline to drift).
-        /// <see cref="_uloopConfirmIsRemoval"/> is which flow the shared
-        /// card is currently showing.
+        /// The removal flow (docs/design-notes/2026-09-22-uloop-remove-from-
+        /// panel.md): the button opens the confirmation card with the exact
+        /// manifest diff before anything is written.
         /// </summary>
         private Button _uloopRemoveButton;
-        private bool _uloopConfirmIsRemoval;
         private UloopUninstallPlan _pendingUloopUninstallPlan;
 
         /// <summary>
-        /// Live RemoveRequest from a dispatched removal, polled exactly like
-        /// <see cref="_uloopLiveAddRequest"/> and dying with the same domain
-        /// reload -- which is what the SessionState remove pair exists to
+        /// Live RemoveRequest from a dispatched removal, polled from an
+        /// EditorApplication.update tick and dying with the domain reload it
+        /// causes -- which is what the SessionState remove pair exists to
         /// survive.
         /// </summary>
         private RemoveRequest _uloopLiveRemoveRequest;
@@ -393,6 +372,9 @@ namespace Colloid.AgentPanel.UI
         /// never read as a failed removal).
         /// </summary>
         private Label _uloopRemoveResultLabel;
+
+        /// <summary>True once <see cref="_uloopRemoveResultLabel"/> has reported an outcome; keeps the card up (reporting only) after the dependency is gone.</summary>
+        private bool _uloopRemoveResultShown;
 
         // -- Unity official plugin (design note 2026-09-10 section 2) -----------
         private Label _unityPluginStatusLabel;
@@ -686,7 +668,7 @@ namespace Colloid.AgentPanel.UI
             // EditorApplication.update poll alive just to update a label
             // nobody can see. The SessionState in-flight pair keeps the
             // truth; OnActivate's RefreshAll -> RefreshUloopSection
-            // re-evaluates and re-hooks if the install is still in flight.
+            // re-evaluates and re-hooks if a removal is still in flight.
             StopUnityPluginProgressTick();
             StopUloopProgressTick();
         }
@@ -776,10 +758,10 @@ namespace Colloid.AgentPanel.UI
         /// <summary>
         /// The coalesced-tick guard in front of UloopDetector's
         /// manifest.json read: the manifest is effectively immutable during
-        /// a turn, so the same 2Hz floor the install-progress tick already
+        /// a turn, so the same 2Hz floor the removal-progress tick already
         /// uses (_uloopProgressLastEvalAt precedent) bounds this scan too.
-        /// Explicit actions (install click, RefreshAll) keep calling
-        /// RefreshUloopSection directly.
+        /// Explicit actions (RefreshAll) keep calling RefreshUloopSection
+        /// directly.
         /// </summary>
         private void RefreshUloopSectionThrottled()
         {
@@ -2876,6 +2858,8 @@ namespace Colloid.AgentPanel.UI
             uapOpsEnabledScope.tooltip = L10n.A(L10n.S.SettingsUapOpsHint) + "\n\n"
                 + L10n.A(L10n.S.SettingsUapOpsTooltip) + "\n\n" + L10n.S.SettingsUapOpsEnabledTooltip;
 
+            BuildToolListModeField(section);
+
             // D6 (phase 4): the twelve module switches (and the web
             // module's own fields) are the card's long tail; they sit under
             // one collapsed row whose pill says how many are on, so the
@@ -2939,6 +2923,23 @@ namespace Colloid.AgentPanel.UI
             _uapOpsWebModuleToggle.RegisterValueChangedCallback(OnUapOpsWebModuleToggleChanged);
             modulesHost.Add(_uapOpsWebModuleToggle);
             _uapOpsWebModuleToggle.tooltip = L10n.S.SettingsUapOpsModuleWebHint;
+
+            // 2026-09-28 "code" module (uap_execute_code, design note
+            // docs/design-notes/2026-09-28-uloop-phase3.md): Core ships the
+            // tool, so -- like "web" above -- the row is never Pro-disabled.
+            // Default ON (generation 4), but every call still shows a
+            // permission card with the full snippet and is never
+            // auto-approved (IUapNeverAutoApproveTool), so this toggle is
+            // the only lever that removes the escape hatch entirely.
+            _uapOpsCodeModuleToggle = new Toggle(L10n.S.SettingsUapOpsModuleCodeLabel);
+            _uapOpsCodeModuleToggle.AddToClassList("uap-settings-field");
+            _uapOpsCodeModuleToggle.AddToClassList("uap-switch");
+            _uapOpsCodeModuleToggle.AddToClassList("uap-settings-field--child");
+            _uapOpsCodeModuleToggle.SetValueWithoutNotify(PanelStateStore.instance.Settings.uapOpsModules.Contains("code"));
+            _uapOpsCodeModuleToggle.RegisterValueChangedCallback(OnUapOpsCodeModuleToggleChanged);
+            modulesHost.Add(_uapOpsCodeModuleToggle);
+            _uapOpsCodeModuleToggle.tooltip = L10n.S.SettingsUapOpsModuleCodeHint;
+
             // Host allow / deny lists for uap_web_fetch (stage 2). The
             // tool reads a snapshot (UapWebFetchTool.HostRules) from its
             // worker thread, so every edit replaces the snapshot here.
@@ -3100,6 +3101,23 @@ namespace Colloid.AgentPanel.UI
             AddModuleHint(section, _uapOpsMeshModuleToggle, "mesh",
                 L10n.S.SettingsUapOpsModuleMeshHint, L10n.S.SettingsUapOpsModuleMeshTooltip);
 
+            // 2026-09-28 "patching" module (uap_hot_reload/uap_pause_point,
+            // docs/design-notes/2026-09-28-uloop-phase4.md), default OFF and
+            // Pro-provided like the rows above it. Opt-in for the strongest
+            // reason of any module here: it rewrites running method bodies
+            // and inserts pause points via Harmony IN THE RUNNING EDITOR,
+            // not merely writing scene/asset data like fx/mesh do.
+            _uapOpsPatchingModuleToggle = new Toggle(L10n.S.SettingsUapOpsModulePatchingLabel);
+            _uapOpsPatchingModuleToggle.AddToClassList("uap-settings-field");
+            _uapOpsPatchingModuleToggle.AddToClassList("uap-switch");
+            _uapOpsPatchingModuleToggle.AddToClassList("uap-settings-field--child");
+            _uapOpsPatchingModuleToggle.SetValueWithoutNotify(
+                PanelStateStore.instance.Settings.uapOpsModules.Contains("patching"));
+            _uapOpsPatchingModuleToggle.RegisterValueChangedCallback(OnUapOpsPatchingModuleToggleChanged);
+            modulesHost.Add(_uapOpsPatchingModuleToggle);
+            AddModuleHint(section, _uapOpsPatchingModuleToggle, "patching",
+                L10n.S.SettingsUapOpsModulePatchingHint, L10n.S.SettingsUapOpsModulePatchingTooltip);
+
             // Script validation gate (design section 7.4/8.2 B1). Warning-
             // styled (AddWarning, not AddHint) per design-notes/2026-08-04-
             // settings-annotation-load.md section 4: one of the three
@@ -3213,6 +3231,69 @@ namespace Colloid.AgentPanel.UI
             autoApproveMovedScope.tooltip = L10n.A(L10n.S.SettingsAutoApproveMovedTooltip);
 
             RefreshUapOpsStatus();
+        }
+
+        // -- Tool-list mode (design note docs/design-notes/2026-09-22-
+        // uloop-phase1.md section 2.8 B): a plain PopupField<enum> row,
+        // same shape as BuildSubagentCostPolicyField -- next-spawn-only, so
+        // its handler commits through the usual CommitSettingsChange()
+        // chokepoint. Placed directly under the master toggle (not inside
+        // the modules foldout): it is not a module switch, it changes HOW
+        // the modules below are served, not which ones are on. -----------
+
+        private void BuildToolListModeField(VisualElement section)
+        {
+            PanelSettings settings = PanelStateStore.instance.Settings;
+            var choices = new List<UapToolListMode>
+            {
+                UapToolListMode.Auto,
+                UapToolListMode.Full,
+                UapToolListMode.Compact
+            };
+            _uapToolListModeField = new PopupField<UapToolListMode>(
+                L10n.S.SettingsUapOpsToolListModeLabel, choices, settings.uapToolListMode,
+                FormatToolListModeOption, FormatToolListModeOption);
+            _uapToolListModeField.AddToClassList("uap-settings-field");
+            _uapToolListModeField.RegisterValueChangedCallback(OnToolListModeChanged);
+            VisualElement toolListModeScope = AddHintScope(section);
+            toolListModeScope.Add(_uapToolListModeField);
+            toolListModeScope.tooltip = L10n.S.SettingsUapOpsToolListModeHint + "\n\n"
+                + L10n.S.SettingsUapOpsToolListModeTooltip;
+        }
+
+        /// <summary>
+        /// Localized label for the three UapToolListMode values. The
+        /// default arm covers Auto explicitly and treats every other value
+        /// (including Full and any future/out-of-range enum value) as
+        /// Full -- an unrecognized value stored on disk should read as the
+        /// more conservative "Full" label rather than silently claiming to
+        /// be "Auto".
+        /// </summary>
+        public static string FormatToolListModeOption(UapToolListMode mode)
+        {
+            switch (mode)
+            {
+                case UapToolListMode.Auto:
+                    return L10n.S.SettingsUapOpsToolListModeOptionAuto;
+                case UapToolListMode.Compact:
+                    return L10n.S.SettingsUapOpsToolListModeOptionCompact;
+                case UapToolListMode.Full:
+                default:
+                    return L10n.S.SettingsUapOpsToolListModeOptionFull;
+            }
+        }
+
+        /// <summary>
+        /// Next-spawn-only like uapOpsEnabled/uapOpsModules: it decides
+        /// which URL path AgentHub.StartClient puts in --mcp-config /
+        /// acpSpec.McpUrl for the NEXT spawn (SettingsChangeDetector
+        /// compares it), so the handler commits through the usual
+        /// CommitSettingsChange() chokepoint rather than applying live.
+        /// </summary>
+        private void OnToolListModeChanged(ChangeEvent<UapToolListMode> evt)
+        {
+            PanelStateStore.instance.Settings.uapToolListMode = evt.newValue;
+            CommitSettingsChange();
         }
 
         /// <summary>
@@ -3344,9 +3425,9 @@ namespace Colloid.AgentPanel.UI
         }
 
         private static readonly string[] ModuleIds =
-            { "core", "prefab", "editor", "markers", "web", "anim", "ui", "authoring", "avatar", "batch", "tests", "fx", "mesh" };
+            { "core", "prefab", "editor", "markers", "web", "code", "anim", "ui", "authoring", "avatar", "batch", "tests", "fx", "mesh", "patching" };
 
-        /// <summary>"N / 13 on" on the modules row: the count of module ids the settings list holds among the known modules.</summary>
+        /// <summary>"N / 15 on" on the modules row: the count of module ids the settings list holds among the known modules.</summary>
         private void RefreshModulesPill()
         {
             List<string> modules = PanelStateStore.instance.Settings.uapOpsModules;
@@ -3492,6 +3573,11 @@ namespace Colloid.AgentPanel.UI
             ToggleUapOpsModule("mesh", evt.newValue);
         }
 
+        private void OnUapOpsPatchingModuleToggleChanged(ChangeEvent<bool> evt)
+        {
+            ToggleUapOpsModule("patching", evt.newValue);
+        }
+
         private void OnUapOpsAvatarModuleToggleChanged(ChangeEvent<bool> evt)
         {
             ToggleUapOpsModule("avatar", evt.newValue);
@@ -3552,6 +3638,11 @@ namespace Colloid.AgentPanel.UI
         private void OnUapOpsWebModuleToggleChanged(ChangeEvent<bool> evt)
         {
             ToggleUapOpsModule("web", evt.newValue);
+        }
+
+        private void OnUapOpsCodeModuleToggleChanged(ChangeEvent<bool> evt)
+        {
+            ToggleUapOpsModule("code", evt.newValue);
         }
 
         private void OnUapOpsMarkersModuleToggleChanged(ChangeEvent<bool> evt)
@@ -3651,6 +3742,7 @@ namespace Colloid.AgentPanel.UI
             }
             RefreshWarningTones();
             bool enabledSetting = PanelStateStore.instance.Settings.uapOpsEnabled;
+            _uapToolListModeField?.SetEnabled(enabledSetting);
             // The module switches are children of the master switch:
             // greyed while it is off, so the hierarchy reads without a hint.
             // A module whose tools are not installed (AddModuleHint) stays
@@ -3660,6 +3752,7 @@ namespace Colloid.AgentPanel.UI
             _uapOpsEditorModuleToggle?.SetEnabled(ModuleToggleEnabled(enabledSetting, "editor"));
             _uapOpsMarkersModuleToggle?.SetEnabled(ModuleToggleEnabled(enabledSetting, "markers"));
             _uapOpsWebModuleToggle?.SetEnabled(ModuleToggleEnabled(enabledSetting, "web"));
+            _uapOpsCodeModuleToggle?.SetEnabled(ModuleToggleEnabled(enabledSetting, "code"));
             _webFetchAllowedHostsField?.SetEnabled(ModuleToggleEnabled(enabledSetting, "web"));
             _webFetchBlockedHostsField?.SetEnabled(ModuleToggleEnabled(enabledSetting, "web"));
             _webSearchProviderField?.SetEnabled(ModuleToggleEnabled(enabledSetting, "web"));
@@ -3672,6 +3765,7 @@ namespace Colloid.AgentPanel.UI
             _uapOpsTestsModuleToggle?.SetEnabled(ModuleToggleEnabled(enabledSetting, "tests"));
             _uapOpsFxModuleToggle?.SetEnabled(ModuleToggleEnabled(enabledSetting, "fx"));
             _uapOpsMeshModuleToggle?.SetEnabled(ModuleToggleEnabled(enabledSetting, "mesh"));
+            _uapOpsPatchingModuleToggle?.SetEnabled(ModuleToggleEnabled(enabledSetting, "patching"));
             // The card's state lives in its header pill (D4): off / port N /
             // not running -- readable with the card collapsed.
             SetSectionStatus(UapOpsCardId,
@@ -3728,6 +3822,18 @@ namespace Colloid.AgentPanel.UI
                 + L10n.A(L10n.S.SettingsExtensionProfilesTooltip) + "\n\n"
                 + L10n.S.SettingsExtensionProfilesEnabledTooltip;
 
+            // Bundled skills (2026-09-30-bundled-modeling-skill.md): Core
+            // holds the switch, the provider package does the install.
+            _bundledSkillsEnabledToggle = new Toggle(L10n.S.SettingsBundledSkillsEnabledLabel);
+            _bundledSkillsEnabledToggle.AddToClassList("uap-settings-field");
+            _bundledSkillsEnabledToggle.AddToClassList("uap-switch");
+            _bundledSkillsEnabledToggle.SetValueWithoutNotify(
+                PanelStateStore.instance.Settings.bundledSkillsEnabled);
+            _bundledSkillsEnabledToggle.RegisterValueChangedCallback(OnBundledSkillsEnabledChanged);
+            VisualElement bundledSkillsScope = AddHintScope(section);
+            bundledSkillsScope.Add(_bundledSkillsEnabledToggle);
+            bundledSkillsScope.tooltip = L10n.S.SettingsBundledSkillsEnabledTooltip;
+
             _extensionProfilesHost = new VisualElement();
             _extensionProfilesHost.AddToClassList("uap-settings-qa-list");
             section.Add(_extensionProfilesHost);
@@ -3738,6 +3844,18 @@ namespace Colloid.AgentPanel.UI
         private void OnExtensionProfilesEnabledChanged(ChangeEvent<bool> evt)
         {
             PanelStateStore.instance.Settings.extensionProfilesEnabled = evt.newValue;
+            CommitSettingsChange();
+        }
+
+        /// <summary>
+        /// Through the chokepoint like every other handler; the setting is
+        /// not in SettingsChangeDetector.RequiresReconnect, so no reconnect
+        /// is offered (the agent reads the files itself). The installer
+        /// polls the flag, so switching it on installs within seconds.
+        /// </summary>
+        private void OnBundledSkillsEnabledChanged(ChangeEvent<bool> evt)
+        {
+            PanelStateStore.instance.Settings.bundledSkillsEnabled = evt.newValue;
             CommitSettingsChange();
         }
 
@@ -3979,29 +4097,6 @@ namespace Colloid.AgentPanel.UI
             RefreshExtensionProfilesSection();
         }
 
-        // -- (b3) uLoop integration (Phase 5c, design section 2/2.5) ---------------
-        //
-        // Three independent affordances, per the design doc:
-        //   1. Status (installed/not) + a one-click install that NEVER edits
-        //      manifest.json without an explicit confirmation card showing the
-        //      exact diff first -- this package's standing rule (ARCHITECTURE
-        //      risk #12) is that the panel does not edit manifest.json, and
-        //      this button is a deliberate, user-triggered exception that is
-        //      only defensible because the diff is shown, never applied blind.
-        //   2. An allowedTools/disallowedTools preset that allows `uloop *`
-        //      while shadowing the three subcommands that have frozen this
-        //      editor before (`update`/`sync`/`launch`) and deliberately
-        //      leaving `execute-dynamic-code` out of BOTH lists so it always
-        //      falls through to a permission card.
-        //   3. A custom-instructions snippet insert (idempotent, never
-        //      clobbers what the user wrote).
-
-        /// <summary>
-        /// Builds the "uLoop integration" card: status line, the (state-
-        /// dependent) install button plus its confirmation sub-card, and the
-        /// two preset buttons with their help text and one-shot "applied"
-        /// confirmation labels.
-        /// </summary>
         // -- Agent Panel Pro updates (design note 2026-09-12-pro-update-
         // delivery.md section 3.3): the purchaser pastes the product key
         // once; ProRegistryAccess writes Unity's .upmconfig.toml and the
@@ -4140,69 +4235,71 @@ namespace Colloid.AgentPanel.UI
             }
         }
 
+        /// <summary>
+        /// Builds the uLoop card (docs/design-notes/2026-10-02-uloop-card-final.md).
+        /// The card is built unconditionally but starts hidden:
+        /// RefreshUloopSection shows it only while UloopDetector finds uLoop in
+        /// the project, so a project without uLoop sees nothing about it. What
+        /// is on it: one short note (the panel's own tools cover uLoop, and
+        /// removing it is recommended), the agent-use switch (which still gates
+        /// real behaviour), and the Remove button with its confirmation card.
+        /// There is no install button, no permission preset and no
+        /// instruction snippet any more.
+        /// </summary>
         private void BuildUloopSection(VisualElement parent)
         {
             VisualElement section = AddCollapsibleSection(parent, L10n.S.SettingsUloopSectionTitle,
-                "d_Package Manager", IconLoader.GlyphOpenWindow, "uloop");
+                "d_Package Manager", IconLoader.GlyphOpenWindow, UloopCardId);
+            _uloopCard = _cardsById[UloopCardId];
+            _uloopCard.style.display = DisplayStyle.None;
+            _uloopCardShown = false;
 
-            // The cost line comes FIRST, above the install button: this
-            // panel's own button is what puts a project into the
-            // always-loaded state, so the facts belong where that decision
-            // is made rather than only in a design note. RefreshUloopSection
-            // swaps the wording once uLoop is present.
-            _uloopCostScope = AddHintScope(section);
-            _uloopCostHint = AddHint(_uloopCostScope, UloopCostHint(false), UloopCostTooltip(false));
+            _uloopMainHost = new VisualElement();
+            section.Add(_uloopMainHost);
 
-            // Directly under the cost line, because it is the one lever
-            // this panel actually owns: the line above says what stays
-            // loaded no matter what, this switch says whether the AGENT may
-            // reach for it. Next-spawn-only, like the allowed/disallowed
-            // tool lists, so it marks the settings reconnect-pending.
+            AddHint(AddHintScope(_uloopMainHost), L10n.S.SettingsUloopNoteHint, L10n.S.SettingsUloopNoteTooltip);
+
+            // The one lever this panel owns over uLoop: whether the AGENT may
+            // reach for it. Next-spawn-only, like the allowed/disallowed tool
+            // lists, so it marks the settings reconnect-pending.
             _uloopAgentUseToggle = new Toggle(L10n.S.SettingsUloopAgentUseLabel);
             _uloopAgentUseToggle.AddToClassList("uap-settings-field");
             _uloopAgentUseToggle.AddToClassList("uap-switch");
             _uloopAgentUseToggle.SetValueWithoutNotify(PanelStateStore.instance.Settings.uloopAgentUseEnabled);
             _uloopAgentUseToggle.RegisterValueChangedCallback(OnUloopAgentUseChanged);
-            VisualElement agentUseScope = AddHintScope(section);
+            VisualElement agentUseScope = AddHintScope(_uloopMainHost);
             agentUseScope.Add(_uloopAgentUseToggle);
             AddHint(agentUseScope, L10n.S.SettingsUloopAgentUseHint, L10n.S.SettingsUloopAgentUseTooltip);
 
-            // Live install progress line, right under the status it will
-            // eventually flip (see the field's own doc comment for why it
-            // lives at section level rather than inside the confirm card).
-            // uap-settings-hint--pending (warn color, bold) fits all three
-            // texts it can show -- Installing/FailedAsync/Stalled are each
-            // "attention, something is in flight or went wrong", the same
-            // register as the pending-reconnect pill this class already
-            // uses that style for.
-            _uloopInstallProgressLabel = new Label(string.Empty);
-            _uloopInstallProgressLabel.AddToClassList("uap-settings-hint");
-            _uloopInstallProgressLabel.AddToClassList("uap-settings-hint--pending");
-            _uloopInstallProgressLabel.enableRichText = false;
-            _uloopInstallProgressLabel.AddToClassList("uap-wrap");
-            _uloopInstallProgressLabel.style.display = DisplayStyle.None;
-            section.Add(_uloopInstallProgressLabel);
-
-            VisualElement installRow = AddRow(section);
-            _uloopInstallButton = new Button(OnUloopInstallButtonClicked)
-                { text = L10n.S.SettingsUloopInstallButton };
-            _uloopInstallButton.AddToClassList("uap-settings-btn");
-            _uloopInstallButton.AddToClassList("uap-settings-btn--primary");
-            installRow.Add(_uloopInstallButton);
-
-            // The counterpart to the install button, in the same row and
-            // visible only while uLoop IS installed (RefreshUloopSection
-            // swaps them). Not a --primary button: removing a package the
-            // project may depend on is not the action to make the eye land
-            // on first, and the cost line above already says removal is the
-            // only complete off.
+            VisualElement removeRow = AddRow(_uloopMainHost);
+            // Not a --primary button: removing a package the project may
+            // depend on is not the action to make the eye land on first.
             _uloopRemoveButton = new Button(OnUloopRemoveButtonClicked)
                 { text = L10n.S.SettingsUloopRemoveButton };
             _uloopRemoveButton.AddToClassList("uap-settings-btn");
             _uloopRemoveButton.tooltip = L10n.S.SettingsUloopRemoveTooltip;
-            _uloopRemoveButton.style.display = DisplayStyle.None;
-            installRow.Add(_uloopRemoveButton);
+            removeRow.Add(_uloopRemoveButton);
 
+            BuildUloopConfirmCard(_uloopMainHost);
+
+            // Removal progress line. At section level, outside the main host:
+            // the dependency can already be gone while the removal is still
+            // reported as in flight, and the main host is hidden by then (see
+            // the field's own doc comment for why it is not inside the
+            // confirm card either). uap-settings-hint--pending
+            // (warn color, bold) fits all three texts it can show -- in
+            // flight / failed / stalled are each "attention".
+            _uloopProgressLabel = new Label(string.Empty);
+            _uloopProgressLabel.AddToClassList("uap-settings-hint");
+            _uloopProgressLabel.AddToClassList("uap-settings-hint--pending");
+            _uloopProgressLabel.enableRichText = false;
+            _uloopProgressLabel.AddToClassList("uap-wrap");
+            _uloopProgressLabel.style.display = DisplayStyle.None;
+            section.Add(_uloopProgressLabel);
+
+            // Outcome of the removal (phase two). Outside the main host: it
+            // must stay readable after the host is hidden because the
+            // dependency is gone.
             _uloopRemoveResultLabel = new Label(string.Empty);
             _uloopRemoveResultLabel.AddToClassList("uap-settings-hint");
             _uloopRemoveResultLabel.enableRichText = false;
@@ -4210,94 +4307,68 @@ namespace Colloid.AgentPanel.UI
             _uloopRemoveResultLabel.style.display = DisplayStyle.None;
             section.Add(_uloopRemoveResultLabel);
 
-            BuildUloopInstallConfirmCard(section);
-
-            VisualElement presetScope = AddHintScope(section);
-            VisualElement presetRow = AddRow(presetScope);
-            var presetButton = new Button(OnUloopPresetButtonClicked)
-                { text = L10n.S.SettingsUloopPresetButton };
-            presetButton.AddToClassList("uap-settings-btn");
-            presetRow.Add(presetButton);
-            AddHint(presetScope, L10n.S.SettingsUloopPresetHelp, L10n.S.SettingsUloopPresetTooltip);
-            _uloopPresetAppliedLabel = new Label(L10n.S.SettingsUloopPresetApplied);
-            _uloopPresetAppliedLabel.AddToClassList("uap-settings-hint");
-            _uloopPresetAppliedLabel.enableRichText = false;
-            _uloopPresetAppliedLabel.style.display = DisplayStyle.None;
-            section.Add(_uloopPresetAppliedLabel);
-
-            VisualElement snippetScope = AddHintScope(section);
-            VisualElement snippetRow = AddRow(snippetScope);
-            var snippetButton = new Button(OnUloopSnippetButtonClicked)
-                { text = L10n.S.SettingsUloopSnippetButton };
-            snippetButton.AddToClassList("uap-settings-btn");
-            snippetRow.Add(snippetButton);
-            AddHint(snippetScope, L10n.S.SettingsUloopSnippetHelp, L10n.S.SettingsUloopSnippetTooltip);
-            _uloopSnippetAppliedLabel = new Label(L10n.S.SettingsUloopSnippetApplied);
-            _uloopSnippetAppliedLabel.AddToClassList("uap-settings-hint");
-            _uloopSnippetAppliedLabel.enableRichText = false;
-            _uloopSnippetAppliedLabel.style.display = DisplayStyle.None;
-            section.Add(_uloopSnippetAppliedLabel);
-
             RefreshUloopSection();
         }
 
         /// <summary>
-        /// Inline install confirmation sub-card, built once and hidden until
-        /// "Install uLoop" is pressed -- the same shape as BuildAccountLoginSubCard's
-        /// inline sub-step pattern (see that method's doc comment), reused
-        /// here for the same reason: an in-progress, temporary flow should
-        /// read as a distinct sub-step inside the card rather than a modal
-        /// dialog. Shows the route explanation, EVERY caveat (mapped through
-        /// DescribeUloopCaveat, so even an unrecognized future caveat code
-        /// still renders honestly instead of an empty row), and the full
-        /// before/after manifest diff (BuildManifestDiffText) -- never a
-        /// summary, per the task's "the diff is the whole point of this UI".
-        /// The Apply button is disabled outright whenever the pending plan's
-        /// CanProceed() is false (a blocking caveat present), so a blocked
-        /// install can be reviewed but never actually applied from here.
-        ///
-        /// 2026-08-12 slimming (design note of that date, section 1's
-        /// measurement: 222px card, of which a 27px two-path route sentence
-        /// and a 124px always-open raw JSON diff): the route line is now one
-        /// short pathless sentence with the two full paths on its tooltip,
-        /// and the diff sits collapsed inside a Foldout -- still the full
-        /// diff, one click away, because 207 chars of JSON is wrong for a
-        /// hover tooltip (not selectable, not mono-spaced) but also wrong to
-        /// force onto every confirmation. Caveats deliberately stay as
-        /// always-visible labels: "a warning that only reads on hover does
-        /// not function as a warning" (2026-08-04 annotation note section 4).
+        /// Pure: whether the uLoop card is on screen. It is for a project that
+        /// HAS uLoop; the two extra cases keep it up just long enough to
+        /// report a removal -- while one is in flight (the dependency can
+        /// already be gone mid-removal) and after it has landed (the outcome
+        /// label lives on the card). Nothing else shows it, so a project
+        /// without uLoop never sees the card (EditMode tested).
         /// </summary>
-        private void BuildUloopInstallConfirmCard(VisualElement section)
+        public static bool ShouldShowUloopCard(bool uloopDetected, bool removalInFlight, bool removalResultShown)
         {
-            _uloopInstallConfirmCard = new VisualElement();
-            _uloopInstallConfirmCard.AddToClassList("uap-settings-login-subcard");
-            _uloopInstallConfirmCard.style.display = DisplayStyle.None;
+            return uloopDetected || removalInFlight || removalResultShown;
+        }
 
-            _uloopConfirmTitleLabel = new Label(L10n.S.SettingsUloopInstallConfirmTitle);
+        /// <summary>
+        /// Inline removal confirmation sub-card, built once and hidden until
+        /// "Remove uLoop" is pressed -- the same shape as BuildAccountLoginSubCard's
+        /// inline sub-step pattern, reused for the same reason: an in-progress,
+        /// temporary flow should read as a distinct sub-step inside the card
+        /// rather than a modal dialog. Shows the route explanation, EVERY
+        /// caveat (mapped through DescribeUloopCaveat, so even an unrecognized
+        /// code still renders honestly instead of an empty row), and the full
+        /// before/after manifest diff (BuildManifestDiffText) -- never a
+        /// summary. The Apply button is disabled whenever the pending plan's
+        /// CanProceed() is false (a blocking caveat present).
+        ///
+        /// The route line is one short pathless sentence with the two full
+        /// paths on its tooltip, and the diff sits collapsed inside a Foldout
+        /// (2026-08-12 slimming). Caveats stay as always-visible labels: "a
+        /// warning that only reads on hover does not function as a warning"
+        /// (2026-08-04 annotation note section 4).
+        /// </summary>
+        private void BuildUloopConfirmCard(VisualElement section)
+        {
+            _uloopConfirmCard = new VisualElement();
+            _uloopConfirmCard.AddToClassList("uap-settings-login-subcard");
+            _uloopConfirmCard.style.display = DisplayStyle.None;
+
+            _uloopConfirmTitleLabel = new Label(L10n.S.SettingsUloopRemoveConfirmTitle);
             _uloopConfirmTitleLabel.AddToClassList("uap-settings-hint");
             _uloopConfirmTitleLabel.enableRichText = false;
             _uloopConfirmTitleLabel.AddToClassList("uap-wrap");
-            _uloopInstallConfirmCard.Add(_uloopConfirmTitleLabel);
+            _uloopConfirmCard.Add(_uloopConfirmTitleLabel);
 
-            _uloopInstallRouteLabel = new Label(string.Empty);
-            _uloopInstallRouteLabel.AddToClassList("uap-settings-hint");
-            _uloopInstallRouteLabel.enableRichText = false;
-            _uloopInstallRouteLabel.AddToClassList("uap-wrap");
-            _uloopInstallConfirmCard.Add(_uloopInstallRouteLabel);
+            _uloopConfirmRouteLabel = new Label(string.Empty);
+            _uloopConfirmRouteLabel.AddToClassList("uap-settings-hint");
+            _uloopConfirmRouteLabel.enableRichText = false;
+            _uloopConfirmRouteLabel.AddToClassList("uap-wrap");
+            _uloopConfirmCard.Add(_uloopConfirmRouteLabel);
 
             _uloopCaveatsHost = new VisualElement();
-            _uloopInstallConfirmCard.Add(_uloopCaveatsHost);
+            _uloopConfirmCard.Add(_uloopCaveatsHost);
 
-            // Collapsed-by-default Foldout around the diff (2026-08-12
-            // slimming -- see this method's doc comment). Plain Foldout, no
-            // USS class: the default header/indent styling is fine here and
-            // adding a class invites the silent flex drift the AddHintScope
-            // doc comment warns about. PopulateUloopInstallConfirmCard
-            // re-collapses it for every new plan, so one install's opened
-            // diff never leaves the NEXT plan's diff pre-expanded (an open
-            // diff should always be a deliberate click on the plan it shows).
+            // Collapsed-by-default Foldout around the diff. Plain Foldout, no
+            // USS class: the default header/indent styling is fine here.
+            // PopulateUloopRemoveConfirmCard re-collapses it for every new
+            // plan, so an open diff is always a deliberate click on the plan
+            // it shows.
             _uloopDiffFoldout = new Foldout
-                { text = L10n.S.SettingsUloopInstallDiffFoldout, value = false };
+                { text = L10n.S.SettingsUloopRemoveDiffFoldout, value = false };
 
             // Reuses the diagnostics tail's exact scroll+field pair
             // (uap-settings-diag-scroll/-field): a bordered, sunken,
@@ -4312,85 +4383,45 @@ namespace Colloid.AgentPanel.UI
             MessageBlockFactory.ApplyMonoFont(_uloopDiffField);
             diffScroll.Add(_uloopDiffField);
             _uloopDiffFoldout.Add(diffScroll);
-            _uloopInstallConfirmCard.Add(_uloopDiffFoldout);
+            _uloopConfirmCard.Add(_uloopDiffFoldout);
 
-            VisualElement actionRow = AddRow(_uloopInstallConfirmCard);
-            _uloopInstallApplyButton = new Button(OnUloopConfirmApplyClicked)
-                { text = L10n.S.SettingsUloopInstallApply };
-            _uloopInstallApplyButton.AddToClassList("uap-settings-btn");
-            _uloopInstallApplyButton.AddToClassList("uap-settings-btn--primary");
-            actionRow.Add(_uloopInstallApplyButton);
-            _uloopInstallCancelButton = new Button(OnUloopInstallCancelClicked)
-                { text = L10n.S.SettingsUloopInstallCancel };
-            _uloopInstallCancelButton.AddToClassList("uap-settings-btn");
-            actionRow.Add(_uloopInstallCancelButton);
+            VisualElement actionRow = AddRow(_uloopConfirmCard);
+            _uloopConfirmApplyButton = new Button(OnUloopRemoveApplyClicked)
+                { text = L10n.S.SettingsUloopRemoveApply };
+            _uloopConfirmApplyButton.AddToClassList("uap-settings-btn");
+            _uloopConfirmApplyButton.AddToClassList("uap-settings-btn--primary");
+            actionRow.Add(_uloopConfirmApplyButton);
+            _uloopConfirmCancelButton = new Button(HideUloopConfirmCard)
+                { text = L10n.S.SettingsUloopRemoveCancel };
+            _uloopConfirmCancelButton.AddToClassList("uap-settings-btn");
+            actionRow.Add(_uloopConfirmCancelButton);
 
-            _uloopInstallResultLabel = new Label(string.Empty);
-            _uloopInstallResultLabel.AddToClassList("uap-settings-hint");
-            _uloopInstallResultLabel.enableRichText = false;
-            _uloopInstallResultLabel.AddToClassList("uap-wrap");
-            _uloopInstallResultLabel.style.display = DisplayStyle.None;
-            _uloopInstallConfirmCard.Add(_uloopInstallResultLabel);
+            _uloopConfirmResultLabel = new Label(string.Empty);
+            _uloopConfirmResultLabel.AddToClassList("uap-settings-hint");
+            _uloopConfirmResultLabel.enableRichText = false;
+            _uloopConfirmResultLabel.AddToClassList("uap-wrap");
+            _uloopConfirmResultLabel.style.display = DisplayStyle.None;
+            _uloopConfirmCard.Add(_uloopConfirmResultLabel);
 
-            section.Add(_uloopInstallConfirmCard);
+            section.Add(_uloopConfirmCard);
         }
 
         /// <summary>
-        /// Computes the plan (UloopInstaller.Plan is pure inspection -- it
-        /// never writes anything, see its own doc comment) and opens the
-        /// confirmation card populated from it. Pressing "Install uLoop"
-        /// again while the card is already open recomputes a fresh plan --
-        /// the card always reflects the CURRENT disk state, never a stale
-        /// one left over from an earlier open.
-        /// </summary>
-        private void OnUloopInstallButtonClicked()
-        {
-            _uloopConfirmIsRemoval = false;
-            _pendingUloopUninstallPlan = null;
-            _pendingUloopPlan = UloopInstaller.Plan(AgentHub.ProjectRoot);
-            PopulateUloopInstallConfirmCard(_pendingUloopPlan);
-            _uloopInstallConfirmCard.style.display = DisplayStyle.Flex;
-        }
-
-        /// <summary>
-        /// The removal's mirror of <see cref="OnUloopInstallButtonClicked"/>:
-        /// computes a fresh plan (UloopUninstaller.Plan is pure -- it reads
-        /// manifest.json and writes nothing) and opens the SHARED
-        /// confirmation card in removal mode. Pressing the button again
-        /// recomputes, so the card always reflects the current disk state.
+        /// Computes a fresh removal plan (UloopUninstaller.Plan is pure -- it
+        /// reads manifest.json and writes nothing) and opens the confirmation
+        /// card populated from it. Pressing the button again recomputes, so
+        /// the card always reflects the current disk state.
         /// </summary>
         private void OnUloopRemoveButtonClicked()
         {
-            _uloopConfirmIsRemoval = true;
-            _pendingUloopPlan = null;
             _pendingUloopUninstallPlan = UloopUninstaller.Plan(AgentHub.ProjectRoot);
             PopulateUloopRemoveConfirmCard(_pendingUloopUninstallPlan);
-            _uloopInstallConfirmCard.style.display = DisplayStyle.Flex;
+            _uloopConfirmCard.style.display = DisplayStyle.Flex;
         }
 
         /// <summary>
-        /// The shared card's Apply button. One handler rather than swapping
-        /// the callback per open: a Button's clicked delegate is registered
-        /// once at build time, and rebinding it on every open is exactly the
-        /// kind of state that ends up one open behind.
-        /// </summary>
-        private void OnUloopConfirmApplyClicked()
-        {
-            if (_uloopConfirmIsRemoval)
-            {
-                OnUloopRemoveApplyClicked();
-            }
-            else
-            {
-                OnUloopInstallApplyClicked();
-            }
-        }
-
-        /// <summary>
-        /// Populates the shared confirmation card for a REMOVAL. Same
-        /// caveat rendering and same diff foldout as the install; what
-        /// differs is the title, the route sentence and the Apply label --
-        /// and the honesty the diff needs: what it shows is a PROJECTION of
+        /// Populates the confirmation card for a removal: the route sentence,
+        /// every caveat and the diff. What the diff shows is a PROJECTION of
         /// where the file ends up after BOTH phases (Unity removes the
         /// dependency, then this panel tidies the registry), never a text
         /// that gets written verbatim. See UloopUninstaller's class doc
@@ -4399,35 +4430,33 @@ namespace Colloid.AgentPanel.UI
         private void PopulateUloopRemoveConfirmCard(UloopUninstallPlan plan)
         {
             _uloopCaveatsHost.Clear();
-            _uloopInstallResultLabel.style.display = DisplayStyle.None;
-            _uloopInstallApplyButton.SetEnabled(plan != null && plan.CanProceed());
-            _uloopInstallApplyButton.text = L10n.S.SettingsUloopRemoveApply;
-            _uloopConfirmTitleLabel.text = L10n.S.SettingsUloopRemoveConfirmTitle;
+            _uloopConfirmResultLabel.style.display = DisplayStyle.None;
+            _uloopConfirmApplyButton.SetEnabled(plan != null && plan.CanProceed());
             _uloopDiffFoldout.value = false;
 
             if (plan == null || !plan.CanProceed())
             {
                 // Blocked (not installed, unreadable manifest): the blocker
                 // text alone, no route sentence and no empty diff above it.
-                _uloopInstallRouteLabel.style.display = DisplayStyle.None;
-                _uloopInstallRouteLabel.tooltip = string.Empty;
+                _uloopConfirmRouteLabel.style.display = DisplayStyle.None;
+                _uloopConfirmRouteLabel.tooltip = string.Empty;
                 _uloopDiffFoldout.style.display = DisplayStyle.None;
                 _uloopDiffField.SetValueWithoutNotify(string.Empty);
             }
             else
             {
-                _uloopInstallRouteLabel.style.display = DisplayStyle.Flex;
+                _uloopConfirmRouteLabel.style.display = DisplayStyle.Flex;
                 _uloopDiffFoldout.style.display = DisplayStyle.Flex;
-                _uloopInstallRouteLabel.text = DescribeUloopRemoveRoute(plan.RegistryCleanup);
-                _uloopInstallRouteLabel.tooltip = L10n.F(
-                    L10n.S.SettingsUloopInstallPathsTooltipFmt, plan.ManifestPath, plan.BackupPath);
+                _uloopConfirmRouteLabel.text = DescribeUloopRemoveRoute(plan.RegistryCleanup);
+                _uloopConfirmRouteLabel.tooltip = L10n.F(
+                    L10n.S.SettingsUloopRemovePathsTooltipFmt, plan.ManifestPath, plan.BackupPath);
             }
 
             if (plan != null)
             {
                 for (int i = 0; i < plan.Caveats.Count; i++)
                 {
-                    UloopInstallCaveat caveat = plan.Caveats[i];
+                    UloopCaveat caveat = plan.Caveats[i];
                     var caveatLabel = new Label(DescribeUloopCaveat(caveat));
                     caveatLabel.AddToClassList("uap-settings-hint");
                     caveatLabel.enableRichText = false;
@@ -4470,16 +4499,15 @@ namespace Colloid.AgentPanel.UI
         /// <summary>
         /// Dispatches the removal (phase one: Client.Remove, which writes
         /// nothing here -- Unity edits manifest.json itself) and hands over
-        /// to the progress line, exactly as the install's Apply does. The
+        /// to the progress line. The
         /// SessionState remove pair is armed BEFORE the refresh so the very
         /// first evaluation already renders "Removing... 0s" from a real
         /// signal, and so the domain reload the removal triggers cannot
         /// silently revert the section.
         ///
-        /// <para>There is no manifest-state-unknown branch here, unlike the
-        /// install's: phase one writes nothing at all, so a synchronous
-        /// failure leaves the project exactly as it was and Apply stays
-        /// enabled for a retry.</para>
+        /// <para>There is no manifest-state-unknown branch here: phase one
+        /// writes nothing at all, so a synchronous failure leaves the project
+        /// exactly as it was and Apply stays enabled for a retry.</para>
         /// </summary>
         private void OnUloopRemoveApplyClicked()
         {
@@ -4494,366 +4522,29 @@ namespace Colloid.AgentPanel.UI
                 _uloopLiveRemoveRequest = result.ClientRemoveRequest;
                 SessionStateBridge.UloopRemoveInFlight = true;
                 SessionStateBridge.UloopRemoveStartedAtUtcTicks = System.DateTime.UtcNow.Ticks;
+                _uloopRemoveResultShown = false;
                 if (_uloopRemoveResultLabel != null)
                 {
                     _uloopRemoveResultLabel.style.display = DisplayStyle.None;
                 }
-                HideUloopInstallConfirmCard();
+                HideUloopConfirmCard();
             }
             else
             {
-                _uloopInstallResultLabel.text = L10n.S.SettingsUloopRemoveFailed;
-                _uloopInstallResultLabel.style.display = DisplayStyle.Flex;
+                _uloopConfirmResultLabel.text = L10n.S.SettingsUloopRemoveFailed;
+                _uloopConfirmResultLabel.style.display = DisplayStyle.Flex;
             }
             RefreshUloopSection();
         }
 
-        private void PopulateUloopInstallConfirmCard(UloopInstallPlan plan)
-        {
-            _uloopCaveatsHost.Clear();
-            _uloopInstallResultLabel.style.display = DisplayStyle.None;
-            _uloopInstallApplyButton.SetEnabled(plan != null && plan.CanProceed());
-            // The shared card's Apply label belongs to whichever flow is
-            // open; set it on every populate rather than only when it
-            // changes, so an install opened after a removal can never
-            // inherit the removal's wording.
-            _uloopInstallApplyButton.text = L10n.S.SettingsUloopInstallApply;
-            _uloopConfirmTitleLabel.text = L10n.S.SettingsUloopInstallConfirmTitle;
-            // Every new plan starts with its diff collapsed -- an expanded
-            // diff must always be the result of a deliberate click on THIS
-            // plan, never inherited from whatever the user opened last time.
-            _uloopDiffFoldout.value = false;
-
-            if (plan == null || plan.AlreadyInstalled)
-            {
-                // Defensive only -- RefreshUloopSection hides the Install
-                // button once installed, so this branch is reachable only
-                // via a race (installed by something else between the
-                // button becoming visible and this click resolving). Shows
-                // something honest rather than an empty/confusing diff.
-                _uloopInstallRouteLabel.style.display = DisplayStyle.Flex;
-                _uloopInstallRouteLabel.text = L10n.S.SettingsUloopStatusInstalled;
-                _uloopInstallRouteLabel.tooltip = string.Empty;
-                _uloopDiffFoldout.style.display = DisplayStyle.None;
-                _uloopDiffField.SetValueWithoutNotify(string.Empty);
-                return;
-            }
-
-            // A plan that could not choose a route (Method == None: malformed
-            // manifest, missing manifest, or a scoped-registry blocker --
-            // three of the four caveat codes) leaves ManifestPath and
-            // BackupPath empty. The route sentence and the (empty) diff
-            // foldout would sit meaninglessly above the real blocker text.
-            // Show the blocker alone.
-            if (plan.Method == UloopInstallMethod.None)
-            {
-                _uloopInstallRouteLabel.style.display = DisplayStyle.None;
-                _uloopInstallRouteLabel.tooltip = string.Empty;
-                _uloopDiffFoldout.style.display = DisplayStyle.None;
-                _uloopDiffField.SetValueWithoutNotify(string.Empty);
-            }
-            else
-            {
-                _uloopInstallRouteLabel.style.display = DisplayStyle.Flex;
-                _uloopDiffFoldout.style.display = DisplayStyle.Flex;
-                // One pathless sentence inline; the two full paths ride the
-                // route label's OWN tooltip (2026-08-12 slimming). The
-                // tooltip goes on this label, not the whole card: a tooltip
-                // set on a shared container is delivered to every child
-                // without one of its own (2026-08-04 note section 3), which
-                // would make hovering the caveats or the Cancel button
-                // answer a question about file paths nobody asked there.
-                _uloopInstallRouteLabel.text = L10n.S.SettingsUloopInstallViaManifest;
-                _uloopInstallRouteLabel.tooltip = L10n.F(
-                    L10n.S.SettingsUloopInstallPathsTooltipFmt,
-                    plan.ManifestPath, plan.BackupPath);
-            }
-
-            for (int i = 0; i < plan.Caveats.Count; i++)
-            {
-                UloopInstallCaveat caveat = plan.Caveats[i];
-                var caveatLabel = new Label(DescribeUloopCaveat(caveat));
-                caveatLabel.AddToClassList("uap-settings-hint");
-                caveatLabel.enableRichText = false;
-                caveatLabel.AddToClassList("uap-wrap");
-                if (caveat != null && caveat.Blocking)
-                {
-                    // Reuses the existing warn-colored hint variant (danger
-                    // zone / pending-reconnect) rather than a new near-
-                    // duplicate USS rule for "this is a blocker".
-                    caveatLabel.AddToClassList("uap-settings-hint--pending");
-                }
-                _uloopCaveatsHost.Add(caveatLabel);
-            }
-            TextEscapes.Disable(_uloopCaveatsHost);
-
-            _uloopDiffField.SetValueWithoutNotify(
-                IconLoader.StripVariationSelectors(BuildManifestDiffText(plan.ManifestBefore, plan.ManifestAfter)));
-        }
-
         /// <summary>
-        /// Applies the pending plan (never a freshly recomputed one -- see
-        /// _pendingUloopPlan's own doc comment) and reports the outcome.
-        /// On success the confirmation card closes outright and the
-        /// section-level progress line takes over: the plan is consumed, the
-        /// dispatched AddRequest is stashed for polling, and the
-        /// SessionState in-flight pair is armed so the domain reload a
-        /// successful resolve triggers cannot silently revert the section
-        /// (2026-08-12 design note 2a) -- the old static
-        /// SettingsUloopInstallStarted sentence this handler used to show is
-        /// exactly what the live elapsed counter replaces (note 2b). On
-        /// SYNCHRONOUS failure NOTHING was changed (UloopInstaller.Apply's
-        /// own contract: any backup taken is restored), so the card stays
-        /// open with the failure text and Apply deliberately left enabled
-        /// for a retry -- except the two restore-failed codes, see below.
-        /// </summary>
-        private void OnUloopInstallApplyClicked()
-        {
-            if (_pendingUloopPlan == null || !_pendingUloopPlan.CanProceed())
-            {
-                return;
-            }
-            string backupPath = _pendingUloopPlan.BackupPath;
-            UloopInstallApplyResult result = UloopInstaller.Apply(_pendingUloopPlan, UnityEngine.Debug.LogError);
-
-            // Two of the failure codes mean the manifest write failed AND the
-            // restore that should have undone it also failed, which is the
-            // one and only case where the file on disk is no longer
-            // known-good. Both of them used to render the same "Nothing was
-            // changed (any backup taken was restored)" line as every other
-            // failure -- telling the user nothing happened at precisely the
-            // moment that is least true, and never mentioning the backup that
-            // is their only way back. Retry is also withheld on those codes:
-            // re-running against a manifest in an unknown state is how a
-            // recoverable mess becomes an unrecoverable one.
-            bool manifestStateUnknown =
-                result.FailureCode == UloopInstaller.ApplyFailureManifestWriteFailedRestoreFailed
-                || result.FailureCode == UloopInstaller.ApplyFailureClientAddThrewRestoreFailed;
-            if (result.Success)
-            {
-                // From here the truth about the install lives in the
-                // dispatched request (and, across the reload it will cause,
-                // in the SessionState pair). Arm both BEFORE the refresh
-                // below so the very first evaluation already renders
-                // "Installing... 0s" from a real signal.
-                _uloopLiveAddRequest = result.ClientAddRequest;
-                SessionStateBridge.UloopInstallInFlight = true;
-                SessionStateBridge.UloopInstallStartedAtUtcTicks = System.DateTime.UtcNow.Ticks;
-                HideUloopInstallConfirmCard();
-            }
-            else if (manifestStateUnknown)
-            {
-                _uloopInstallResultLabel.text = L10n.F(
-                    L10n.S.SettingsUloopInstallFailedManifestUnknownFmt, backupPath, result.FailureDetail);
-                _uloopInstallResultLabel.style.display = DisplayStyle.Flex;
-                _uloopInstallApplyButton.SetEnabled(false);
-            }
-            else
-            {
-                _uloopInstallResultLabel.text = L10n.S.SettingsUloopInstallFailed;
-                _uloopInstallResultLabel.style.display = DisplayStyle.Flex;
-            }
-            RefreshUloopSection();
-        }
-
-        private void OnUloopInstallCancelClicked()
-        {
-            HideUloopInstallConfirmCard();
-        }
-
-        private void HideUloopInstallConfirmCard()
-        {
-            if (_uloopInstallConfirmCard == null)
-            {
-                return;
-            }
-            _uloopInstallConfirmCard.style.display = DisplayStyle.None;
-            _pendingUloopPlan = null;
-            _pendingUloopUninstallPlan = null;
-        }
-
-        /// <summary>
-        /// Re-detects uLoop (a plain manifest.json string scan -- UloopDetector.
-        /// DetectInProject -- cheap enough to run on every OnHubChanged tick,
-        /// the same way RefreshCliStatus already re-probes the CLI path on
-        /// every tick) and shows/hides the Install button accordingly. Once
-        /// installed, the confirmation card (if a stale one were somehow
-        /// still open) is force-closed -- there is nothing left to install.
-        ///
-        /// Also runs the install progress machine on every call (2026-08-12
-        /// design note 2a): this is the method that runs right after a
-        /// domain reload (via BuildUloopSection / RefreshAll), so evaluating
-        /// here is exactly what lets a reload-interrupted install re-enter
-        /// Installing (fresh SessionState flag) or Stalled (old flag)
-        /// instead of silently reverting to "Not installed" -- the reported
-        /// defect this whole feature exists to close.
-        /// </summary>
-        private void RefreshUloopSection()
-        {
-            if (_uloopInstallButton == null)
-            {
-                return;
-            }
-            bool installed = UloopDetector.DetectInProject(AgentHub.ProjectRoot);
-            SetSectionStatus(UloopCardId,
-                installed ? L10n.S.SettingsUloopStatusInstalled : L10n.S.SettingsUloopStatusMissing,
-                installed ? PillTone.Ok : PillTone.Neutral);
-            if (_uloopCostHint != null)
-            {
-                _uloopCostHint.text = UloopCostHint(installed);
-            }
-            if (_uloopCostScope != null)
-            {
-                _uloopCostScope.tooltip = UloopCostTooltip(installed);
-            }
-            _uloopInstallButton.style.display = installed ? DisplayStyle.None : DisplayStyle.Flex;
-            if (_uloopRemoveButton != null)
-            {
-                _uloopRemoveButton.style.display = installed ? DisplayStyle.Flex : DisplayStyle.None;
-            }
-            // Force-close a stale card whose whole premise has gone away:
-            // an INSTALL card once uLoop is installed, a REMOVAL card once
-            // it is not. Scoped by flow on purpose -- the removal card is
-            // open precisely while installed is true, so the unconditional
-            // close this used to do would shut it the instant it opened.
-            if (installed == !_uloopConfirmIsRemoval)
-            {
-                HideUloopInstallConfirmCard();
-            }
-            UpdateUloopInstallProgress(installed);
-        }
-
-        /// <summary>
-        /// Gathers the real signals (live AddRequest flags, detector
+        /// Gathers the real signals (live RemoveRequest flags, detector
         /// verdict, SessionState in-flight pair), lets the pure machine
-        /// (UloopInstallProgress.Evaluate -- table-tested in
+        /// (UloopInstallProgress.EvaluateRemoval -- table-tested in
         /// UloopInstallProgressTests) decide the state, and renders it onto
         /// the single progress label. This method contains NO precedence
-        /// logic of its own on purpose: every "which signal wins" decision
-        /// lives in the pure class where EditMode tests can pin it.
-        /// </summary>
-        private void UpdateUloopInstallProgress(bool installed)
-        {
-            // A removal in flight owns the progress line. The two cannot
-            // overlap (the section offers Install or Remove, never both),
-            // and the removal branch has to win when it is live because the
-            // install machine, fed the same inputs, would read a project
-            // mid-removal as a healthy "Installed" and say nothing at all.
-            if (_uloopLiveRemoveRequest != null || SessionStateBridge.UloopRemoveInFlight)
-            {
-                UpdateUloopRemoveProgress(installed);
-                return;
-            }
-            AddRequest request = _uloopLiveAddRequest;
-            bool hasLive = request != null;
-            bool completed = hasLive && request.IsCompleted;
-            bool failed = completed && request.Status == StatusCode.Failure;
-            bool flagSet = SessionStateBridge.UloopInstallInFlight;
-            long startedTicks = SessionStateBridge.UloopInstallStartedAtUtcTicks;
-            double elapsedSeconds = 0.0;
-            if (startedTicks > 0)
-            {
-                elapsedSeconds = (System.DateTime.UtcNow.Ticks - startedTicks)
-                    / (double)System.TimeSpan.TicksPerSecond;
-                if (elapsedSeconds < 0.0)
-                {
-                    // A clock that moved backwards must read as "fresh", not
-                    // as a negative age -- never worse than Installing.
-                    elapsedSeconds = 0.0;
-                }
-            }
-
-            UloopInstallProgressResult progress = UloopInstallProgress.Evaluate(
-                hasLive, completed, failed, installed, flagSet,
-                elapsedSeconds, UloopInstallProgress.StaleThresholdSeconds);
-
-            if (progress.ShouldClearFlag)
-            {
-                SessionStateBridge.UloopInstallInFlight = false;
-                SessionStateBridge.UloopInstallStartedAtUtcTicks = 0;
-            }
-
-            string text;
-            switch (progress.State)
-            {
-                case UloopInstallProgressState.Installing:
-                    // The elapsed whole-seconds number changing is the
-                    // entire liveness proof (design note 2a's rejected
-                    // alternative: Client.Add exposes no percentage, so a
-                    // progress bar would be fabricated -- the honest maximum
-                    // is a truthful counter).
-                    text = L10n.F(L10n.S.SettingsUloopInstallingFmt,
-                        ((long)elapsedSeconds).ToString(System.Globalization.CultureInfo.InvariantCulture));
-                    break;
-                case UloopInstallProgressState.FailedAsync:
-                    // Null-guarded defensively: nothing in the AddRequest
-                    // API contract promises Error is non-null whenever
-                    // Status is Failure, and this failure path has NOT been
-                    // exercised against a real registry outage yet (the
-                    // PM's live verification covers it) -- fall back to the
-                    // status code string rather than rendering "could not
-                    // resolve: " with a hole in it.
-                    string message = request != null && request.Error != null
-                        ? request.Error.message
-                        : null;
-                    if (string.IsNullOrEmpty(message))
-                    {
-                        message = request != null
-                            ? request.Status.ToString()
-                            : StatusCode.Failure.ToString();
-                    }
-                    text = L10n.F(L10n.S.SettingsUloopInstallAsyncFailedFmt, message);
-                    break;
-                case UloopInstallProgressState.Stalled:
-                    text = L10n.S.SettingsUloopInstallStalled;
-                    break;
-                default:
-                    // Idle and Succeeded both render nothing here: Idle has
-                    // nothing to say, and Succeeded is already carried by
-                    // the status label flipping to "Installed" right above.
-                    text = string.Empty;
-                    break;
-            }
-
-            if (text.Length == 0)
-            {
-                _uloopInstallProgressLabel.style.display = DisplayStyle.None;
-            }
-            else
-            {
-                _uloopInstallProgressLabel.style.display = DisplayStyle.Flex;
-                if (!string.Equals(_uloopInstallProgressLabel.text, text, System.StringComparison.Ordinal))
-                {
-                    _uloopInstallProgressLabel.text = text;
-                }
-            }
-
-            // A second Apply mid-resolve would race the one in flight (two
-            // Client.Add dispatches for the same id), so the Install button
-            // sleeps while Installing -- and only while Installing: after
-            // FailedAsync the button comes back so the user can build a
-            // FRESH plan if they prefer the panel over Package Manager
-            // (never the stale one -- the card was closed and the plan
-            // nulled the moment Apply succeeded).
-            _uloopInstallButton.SetEnabled(progress.State != UloopInstallProgressState.Installing);
-
-            if (progress.State == UloopInstallProgressState.Installing)
-            {
-                StartUloopProgressTick();
-            }
-            else
-            {
-                StopUloopProgressTick();
-            }
-        }
-
-        /// <summary>
-        /// The removal's own progress pass. Reuses the SAME precedence
-        /// machine as the install (UloopInstallProgress.EvaluateRemoval just
-        /// inverts how the detector is read -- a removal succeeds when the
-        /// dependency is GONE), renders its own strings so the word
-        /// "Installing" never appears over a removal, and owns the one
-        /// place phase two can fire.
+        /// logic of its own: every "which signal wins" decision lives in the
+        /// pure class. It also owns the one place phase two can fire.
         ///
         /// <para><b>Phase two runs exactly once, here.</b> The cleanup of
         /// the now-dead scopedRegistries entry is triggered on the single
@@ -4930,14 +4621,14 @@ namespace Colloid.AgentPanel.UI
 
             if (text.Length == 0)
             {
-                _uloopInstallProgressLabel.style.display = DisplayStyle.None;
+                _uloopProgressLabel.style.display = DisplayStyle.None;
             }
             else
             {
-                _uloopInstallProgressLabel.style.display = DisplayStyle.Flex;
-                if (!string.Equals(_uloopInstallProgressLabel.text, text, System.StringComparison.Ordinal))
+                _uloopProgressLabel.style.display = DisplayStyle.Flex;
+                if (!string.Equals(_uloopProgressLabel.text, text, System.StringComparison.Ordinal))
                 {
-                    _uloopInstallProgressLabel.text = text;
+                    _uloopProgressLabel.text = text;
                 }
             }
 
@@ -4963,7 +4654,7 @@ namespace Colloid.AgentPanel.UI
         /// section 0.3 makes that distinction the whole point of splitting
         /// the phases. On the worst code (the write failed AND the restore
         /// failed) the message names the backup, which is the user's only
-        /// way back, exactly as the install's equivalent does.
+        /// way back.
         /// </summary>
         private void RunUloopRegistryCleanup()
         {
@@ -4991,13 +4682,14 @@ namespace Colloid.AgentPanel.UI
             }
             _uloopRemoveResultLabel.text = text;
             _uloopRemoveResultLabel.style.display = DisplayStyle.Flex;
+            _uloopRemoveResultShown = true;
         }
 
         /// <summary>
         /// Hooks <see cref="OnUloopProgressTick"/> onto EditorApplication.
         /// update -- once (idempotent via _uloopProgressTickHooked), same
         /// hook-once/unhook-on-exit discipline as AgentHub's auto-continue
-        /// tick. Hooked whenever an evaluation lands on Installing; unhooked
+        /// tick. Hooked whenever an evaluation lands on "in flight"; unhooked
         /// the moment one lands anywhere else (and on OnDeactivate, so a
         /// hidden settings tab does not keep polling -- OnActivate's
         /// RefreshAll re-evaluates and re-hooks if the install is still in
@@ -5029,8 +4721,7 @@ namespace Colloid.AgentPanel.UI
         /// _uloopProgressLastEvalAt's doc comment for why every editor tick
         /// would be wasteful). Delegates to RefreshUloopSection rather than
         /// evaluating the machine directly so the tick that notices the
-        /// terminal state also flips the status label / Install button in
-        /// the same pass -- one render path for all callers, no
+        /// terminal state also updates the card in the same pass -- one render path for all callers, no
         /// tick-only shortcut that could drift from it.
         /// </summary>
         private void OnUloopProgressTick()
@@ -5060,106 +4751,68 @@ namespace Colloid.AgentPanel.UI
             CommitSettingsChange();
         }
 
-        /// <summary>
-        /// Applies the allowedTools/disallowedTools halves of the uLoop
-        /// preset (see BuildUloopDisallowedPatterns' doc comment for why the
-        /// exclusions live in disallowedTools rather than narrowing the
-        /// allow pattern itself) and refreshes both the Conversation
-        /// section's TextFields and the reconnect-pending state --
-        /// allowedTools/disallowedTools are next-spawn-only
-        /// (SettingsChangeDetector), exactly like a manual edit of either
-        /// field already is.
-        /// </summary>
-        private void OnUloopPresetButtonClicked()
+        private void HideUloopConfirmCard()
         {
-            PanelSettings settings = PanelStateStore.instance.Settings;
-            // Allowlist of specific safe subcommands, NOT the broad
-            // Bash(uloop *) -- see UloopAllowedSubcommands.
-            //
-            // The strip MUST happen before the merge and cannot be skipped.
-            // MergeToolListAdditions only ever appends, so on a machine where
-            // an EARLIER version of this same button already wrote
-            // "Bash(uloop *)", adding the eight narrow patterns next to it
-            // changes nothing at all: the wildcard still grants everything,
-            // including `uloop execute-dynamic-code`, which is measured
-            // auto-allowed under it (design note section 9.2) and which this
-            // button's own help text promises will always ask. The users who
-            // pressed the old button are exactly the uLoop users, so without
-            // this line the rewrite would protect only the people who never
-            // needed it.
-            settings.allowedTools = MergeToolListAdditions(
-                StripBroadUloopAllowEntries(settings.allowedTools),
-                BuildUloopAllowedPatterns());
-            settings.disallowedTools = MergeToolListAdditions(settings.disallowedTools,
-                BuildUloopDisallowedPatterns());
-            CommitSettingsChange();
-            if (_allowedToolsField != null)
+            if (_uloopConfirmCard == null)
             {
-                _allowedToolsField.SetValueWithoutNotify(JoinLines(settings.allowedTools));
+                return;
             }
-            if (_disallowedToolsField != null)
-            {
-                _disallowedToolsField.SetValueWithoutNotify(JoinLines(settings.disallowedTools));
-            }
-            if (_uloopPresetAppliedLabel != null)
-            {
-                _uloopPresetAppliedLabel.style.display = DisplayStyle.Flex;
-            }
+            _uloopConfirmCard.style.display = DisplayStyle.None;
+            _pendingUloopUninstallPlan = null;
         }
 
         /// <summary>
-        /// Appends the L2 usage-norm snippet to the custom-instructions
-        /// sidecar (AppendUloopGuidanceSnippet handles the idempotency/
-        /// no-clobber contract). Reconnect-relevant like any other
-        /// custom-instructions edit.
+        /// Re-detects uLoop (a plain manifest.json string scan -- UloopDetector.
+        /// DetectInProject -- cheap enough to run on every OnHubChanged tick,
+        /// the same way RefreshCliStatus already re-probes the CLI path on
+        /// every tick), shows the card only while uLoop is present
+        /// (<see cref="ShouldShowUloopCard"/>) and runs the removal progress
+        /// machine. Once uLoop is gone, a confirmation card that is somehow
+        /// still open is force-closed -- there is nothing left to remove.
+        ///
+        /// Runs the progress machine on every call: this is the method that
+        /// runs right after a domain reload (via BuildUloopSection /
+        /// RefreshAll), so evaluating here is what lets a reload-interrupted
+        /// removal re-enter "removing" (fresh SessionState flag) or "stalled"
+        /// (old flag), and run the registry cleanup once the dependency is
+        /// observed gone, instead of silently reverting.
         /// </summary>
-        private void OnUloopSnippetButtonClicked()
+        private void RefreshUloopSection()
         {
-            string current = LoadCustomInstructions();
-            string updated = AppendUloopGuidanceSnippet(current);
-            if (!string.Equals(updated, current, System.StringComparison.Ordinal))
+            if (_uloopRemoveButton == null)
             {
-                CustomInstructionsFile.CreateDefault(AgentHub.ProjectRoot).Save(updated);
-                if (_customInstructionsField != null)
-                {
-                    _customInstructionsField.SetValueWithoutNotify(updated);
-                }
-                CommitSettingsChange();
+                return;
             }
-            if (_uloopSnippetAppliedLabel != null)
+            bool installed = UloopDetector.DetectInProject(AgentHub.ProjectRoot);
+            if (!installed)
             {
-                _uloopSnippetAppliedLabel.style.display = DisplayStyle.Flex;
+                HideUloopConfirmCard();
+            }
+            UpdateUloopRemoveProgress(installed);
+            bool removalInFlight = _uloopLiveRemoveRequest != null || SessionStateBridge.UloopRemoveInFlight;
+            bool show = ShouldShowUloopCard(installed, removalInFlight, _uloopRemoveResultShown);
+            _uloopCardShown = show;
+            if (_uloopMainHost != null)
+            {
+                _uloopMainHost.style.display = installed ? DisplayStyle.Flex : DisplayStyle.None;
+            }
+            // While a settings search is on, the filter owns every card's
+            // display (and consults _uloopCardShown through IsAvailable); the
+            // next refresh after the search clears re-applies this.
+            if (_uloopCard != null && !IsSearchActive)
+            {
+                _uloopCard.style.display = show ? DisplayStyle.Flex : DisplayStyle.None;
             }
         }
 
         // -- uLoop pure helpers (EditMode tested via SettingsViewLogicTests) -------
 
         /// <summary>
-        /// Pure: the one-line standing-cost wording for the uLoop card.
-        /// Before installing it says what WILL stay loaded; afterwards it
-        /// says where that package's own controls are, because by then the
-        /// only useful information is how to turn it down -- this panel
-        /// cannot (docs/design-notes/2026-09-21-uloop-always-loaded-cost.md
-        /// section 4).
-        /// </summary>
-        public static string UloopCostHint(bool installed)
-        {
-            return installed ? L10n.S.SettingsUloopTurnDownHint : L10n.S.SettingsUloopStandingCostHint;
-        }
-
-        /// <summary>Pure: the hover text that carries the measured detail behind <see cref="UloopCostHint"/>.</summary>
-        public static string UloopCostTooltip(bool installed)
-        {
-            return installed ? L10n.S.SettingsUloopTurnDownTooltip : L10n.S.SettingsUloopStandingCostTooltip;
-        }
-
-        /// <summary>
-        /// Maps a UloopInstallPlan caveat's stable Code to localized display
-        /// text (task item 2's caveat table). Falls back to the RAW CODE
-        /// itself for any code this switch does not recognize -- "an
-        /// UNKNOWN code must still render something honest rather than an
-        /// empty row" -- rather than an empty string, so a future
-        /// UloopInstaller caveat this UI has not been updated for yet stays
+        /// Maps a UloopCaveat's stable Code to localized display text.
+        /// Falls back to the RAW CODE itself for any code this switch does
+        /// not recognize -- "an UNKNOWN code must still render something
+        /// honest rather than an empty row" -- rather than an empty string,
+        /// so a future caveat this UI has not been updated for yet stays
         /// visible (just untranslated) instead of silently vanishing from
         /// the confirmation card. Appends caveat.Detail in parentheses when
         /// present (a path, an existing registry URL, a parse error) -- the
@@ -5167,7 +4820,7 @@ namespace Colloid.AgentPanel.UI
         /// string, and the detail is exactly the context that makes an
         /// otherwise-identical caveat distinguishable.
         /// </summary>
-        public static string DescribeUloopCaveat(UloopInstallCaveat caveat)
+        public static string DescribeUloopCaveat(UloopCaveat caveat)
         {
             if (caveat == null)
             {
@@ -5176,17 +4829,11 @@ namespace Colloid.AgentPanel.UI
             string text;
             switch (caveat.Code)
             {
-                case UloopInstaller.CaveatCodeVccProject:
+                case UloopManifestSupport.CaveatCodeVccProject:
                     text = L10n.S.SettingsUloopCaveatVcc;
                     break;
-                case UloopInstaller.CaveatCodeOffline:
-                    text = L10n.S.SettingsUloopCaveatOffline;
-                    break;
-                case UloopInstaller.CaveatCodeManifestUnreadable:
+                case UloopManifestSupport.CaveatCodeManifestUnreadable:
                     text = L10n.S.SettingsUloopCaveatManifestUnreadable;
-                    break;
-                case UloopInstaller.CaveatCodeScopedRegistryConflict:
-                    text = L10n.S.SettingsUloopCaveatRegistryConflict;
                     break;
                 // 2026-09-22: the removal path's own codes (UloopUninstaller).
                 case UloopUninstaller.CaveatCodeNotInstalled:
@@ -5209,293 +4856,6 @@ namespace Colloid.AgentPanel.UI
         }
 
         /// <summary>
-        /// The subcommands the preset allows, one explicit pattern each.
-        ///
-        /// An earlier shape wrote a single broad "Bash(uloop *)" instead --
-        /// allow everything, then shadow the dangerous subcommands back out
-        /// via disallowedTools. MEASURED against a live CLI 2026-08-04
-        /// (scratchpad/toolpattern/probe2.js, both shapes, same six commands,
-        /// two identical runs; design note section 9.2):
-        ///
-        ///                        broad+exclude    allowlist
-        ///   uloop compile ......  auto-allowed    auto-allowed
-        ///   uloop update .......  CLI-denied      CLI-denied
-        ///   uloop update --yes .  CLI-denied      CLI-denied
-        ///   uloop launch .......  CLI-denied      CLI-denied
-        ///   execute-dynamic-code  AUTO-ALLOWED    asks
-        ///
-        /// The exclusions work: a bare, argument-less "uloop update" -- the
-        /// exact form of the real freeze incident -- is refused under both
-        /// shapes. That was the risk this change was made to avoid, and it
-        /// turned out not to exist.
-        ///
-        /// What the measurement DID find is on the last row. The broad
-        /// pattern silently auto-allowed `uloop execute-dynamic-code`, which
-        /// compiles and runs arbitrary C# inside the editor, and which design
-        /// section 8.3 requires to ALWAYS prompt. Nothing in the old shape
-        /// was wrong about update/sync/launch; it was wrong about everything
-        /// it had never thought to enumerate. That is the failure mode of
-        /// deny-listing in general -- it can only exclude the dangers someone
-        /// already listed -- and it is why this stays an allowlist even
-        /// though the specific fear that prompted the rewrite was unfounded.
-        ///
-        /// The list is deliberately short: read-only or clearly-scoped
-        /// commands only. Anything absent still works -- it just asks first.
-        /// </summary>
-        private static readonly string[] UloopAllowedSubcommands =
-        {
-            "compile", "get-logs", "list", "run-tests",
-        };
-
-        /// <summary>
-        /// Pure: the exact allowedTools entries the preset adds -- one
-        /// exact-match form and one wildcard-suffix form per safe subcommand,
-        /// for the same reason BuildUloopDisallowedPatterns ships both
-        /// (the wildcard grammar is unmeasured, so neither form is assumed to
-        /// subsume the other). Here the redundancy only buys convenience: a
-        /// form that fails to match costs a permission card, nothing worse.
-        /// </summary>
-        /// <summary>
-        /// Pure: <paramref name="existing"/> with every allowedTools entry
-        /// removed that grants uloop BROADLY -- `Bash(uloop *)` and its
-        /// spacing/casing variants. Everything else is left untouched,
-        /// including the preset's own narrow entries and any unrelated tool.
-        ///
-        /// This exists because the preset's safety is subtractive on upgrade,
-        /// not just additive. A narrow allowlist sitting beside a surviving
-        /// wildcard is not an allowlist. Only entries that are a wildcard
-        /// over the whole `uloop` command are removed -- a user's deliberate
-        /// `Bash(uloop update)` (should they have added one by hand) is
-        /// theirs to keep, and disallowedTools shadows it anyway.
-        /// </summary>
-        public static List<string> StripBroadUloopAllowEntries(List<string> existing)
-        {
-            var result = new List<string>();
-            if (existing == null)
-            {
-                return result;
-            }
-            for (int i = 0; i < existing.Count; i++)
-            {
-                if (!IsBroadUloopAllowEntry(existing[i]))
-                {
-                    result.Add(existing[i]);
-                }
-            }
-            return result;
-        }
-
-        /// <summary>
-        /// True for `Bash(uloop *)` and the shapes a hand-edit plausibly
-        /// produces: extra or missing spaces, several asterisks, different
-        /// casing. Deliberately conservative about what counts as "broad" --
-        /// everything between `uloop` and the closing paren must be nothing
-        /// but whitespace and asterisks, so `Bash(uloop compile *)` is NOT
-        /// stripped.
-        /// </summary>
-        private static bool IsBroadUloopAllowEntry(string entry)
-        {
-            if (string.IsNullOrEmpty(entry))
-            {
-                return false;
-            }
-            string trimmed = entry.Trim();
-            const string prefix = "Bash(uloop";
-            if (!trimmed.StartsWith(prefix, System.StringComparison.OrdinalIgnoreCase)
-                || !trimmed.EndsWith(")", System.StringComparison.Ordinal))
-            {
-                return false;
-            }
-            string middle = trimmed.Substring(prefix.Length, trimmed.Length - prefix.Length - 1);
-            bool sawStar = false;
-            for (int i = 0; i < middle.Length; i++)
-            {
-                char c = middle[i];
-                if (c == '*')
-                {
-                    sawStar = true;
-                    continue;
-                }
-                if (!char.IsWhiteSpace(c))
-                {
-                    return false;
-                }
-            }
-            return sawStar;
-        }
-
-        public static List<string> BuildUloopAllowedPatterns()
-        {
-            var result = new List<string>(UloopAllowedSubcommands.Length * 2);
-            for (int i = 0; i < UloopAllowedSubcommands.Length; i++)
-            {
-                string sub = UloopAllowedSubcommands[i];
-                result.Add("Bash(uloop " + sub + ")");
-                result.Add("Bash(uloop " + sub + " *)");
-            }
-            return result;
-        }
-
-        /// <summary>
-        /// Subcommands that have frozen this editor before (this project's
-        /// real incident, referenced by SettingsUloopPresetHelp) and must
-        /// never be auto-allowed. They are already absent from
-        /// UloopAllowedSubcommands, so listing them here is the second of two
-        /// independent barriers, not the only one.
-        /// `execute-dynamic-code` is deliberately NOT in this list -- see
-        /// BuildUloopDisallowedPatterns' doc comment for why it needs to
-        /// stay off of BOTH lists instead of being added here.
-        /// </summary>
-        private static readonly string[] UloopBlockedSubcommands = { "update", "sync", "launch" };
-
-        /// <summary>
-        /// Pure: the exact disallowedTools entries the preset adds for
-        /// UloopBlockedSubcommands.
-        ///
-        /// Since the allowlist above never names these subcommands, they
-        /// would already fall through to a permission card without this list
-        /// at all. It is kept anyway because a card is not a block: the user
-        /// still has to notice and refuse one, at the end of a long unattended
-        /// run, for the one command that froze this editor. Belt and braces.
-        ///
-        /// AgentClient.BuildArguments (read before choosing this shape, per
-        /// the task instruction) treats --allowedTools/--disallowedTools as
-        /// two entirely independent CLI argument lists -- AppendToolList is
-        /// called once per list with no cross-list logic at all. There is no
-        /// exclusion mechanism IN THIS REPO that makes a disallowedTools
-        /// entry "win" over an allowedTools entry; that precedence is the
-        /// CLI's OWN permission engine, already relied on elsewhere in this
-        /// project's design (docs/design-notes/2026-08-01-phase5-unity-ops-
-        /// design.md section 8.7's measured finding "deny beats permission-
-        /// mode" -- deny beating a mere allow rule, which this preset relies
-        /// on, is the strictly weaker and therefore implied claim). The
-        /// 2026-08-04 measurement confirmed that engine refuses these
-        /// outright ("Permission to use Bash with command uloop update has
-        /// been denied"), including under the old broad-allow shape, so
-        /// disallowedTools is the right home for the exclusion.
-        ///
-        /// Two forms per subcommand, not one. When this was written the
-        /// wildcard grammar was unmeasured and the redundancy was insurance
-        /// against the BARE, no-argument form -- the exact shape of the real
-        /// incident, a lone "uloop update" with nothing after it -- slipping
-        /// through. The 2026-08-04 measurement (see UloopAllowedSubcommands)
-        /// showed both forms are in fact refused, so the redundancy is no
-        /// longer load-bearing. It costs six short strings and is kept:
-        /// <list type="bullet">
-        /// <item>"Bash(uloop update)" -- an exact-match form, covering the
-        /// agent invoking the bare command with no trailing arguments at
-        /// all.</item>
-        /// <item>"Bash(uloop update *)" -- the wildcard-suffix shape,
-        /// covering any invocation WITH trailing arguments/flags.</item>
-        /// </list>
-        /// `execute-dynamic-code` is intentionally ABSENT from this list AND
-        /// from the allowlist -- keeping it out of both is the only way to
-        /// make it always ASK, and the 2026-08-04 probe confirmed it does
-        /// (it produced a can_use_tool round trip under the allowlist shape,
-        /// and ran unattended under the old broad one).
-        /// The task requires it to always ASK, not to be blocked outright --
-        /// and this codebase's allowedTools/disallowedTools machinery has no
-        /// third "ask" list (AgentClientOptions only has AllowedTools/
-        /// DisallowedTools; see AgentClient.BuildArguments). The only way to
-        /// make a command "always ask" with just those two lists is to keep
-        /// it out of BOTH: an entry absent from both always falls through to
-        /// whatever the live permission mode does for an unlisted Bash
-        /// command, which is a can_use_tool round trip (a card) in every
-        /// mode this panel exposes today (default/plan/acceptEdits) --
-        /// docs/design-notes/2026-08-03-auto-approve-levels.md section 1
-        /// measured that acceptEdits only skips that round trip for
-        /// Write/Edit-family tools, never Bash, so this holds even there.
-        /// Putting execute-dynamic-code in disallowedTools would make it a
-        /// hard, silent block instead of a card -- the wrong behaviour for
-        /// this one entry.
-        /// </summary>
-        public static List<string> BuildUloopDisallowedPatterns()
-        {
-            var result = new List<string>(UloopBlockedSubcommands.Length * 2);
-            for (int i = 0; i < UloopBlockedSubcommands.Length; i++)
-            {
-                string sub = UloopBlockedSubcommands[i];
-                result.Add("Bash(uloop " + sub + ")");
-                result.Add("Bash(uloop " + sub + " *)");
-            }
-            return result;
-        }
-
-        /// <summary>
-        /// Pure, idempotent merge: appends every entry of `toAdd` that is
-        /// not already present (ordinal, exact string match) in `existing`,
-        /// preserving `existing`'s current order/entries untouched and never
-        /// mutating the input list. Shared by the allowedTools and
-        /// disallowedTools halves of the uLoop preset (and reusable by any
-        /// future one-click preset) so pressing the button any number of
-        /// times can never duplicate an entry -- the task's explicit
-        /// "idempotent: pressing twice must not duplicate entries"
-        /// requirement.
-        /// </summary>
-        public static List<string> MergeToolListAdditions(List<string> existing, IList<string> toAdd)
-        {
-            var result = existing != null ? new List<string>(existing) : new List<string>();
-            if (toAdd == null)
-            {
-                return result;
-            }
-            for (int i = 0; i < toAdd.Count; i++)
-            {
-                string candidate = toAdd[i];
-                if (!string.IsNullOrEmpty(candidate) && !result.Contains(candidate))
-                {
-                    result.Add(candidate);
-                }
-            }
-            return result;
-        }
-
-        /// <summary>
-        /// The exact literal text the "Insert guidance snippet" button
-        /// appends to the custom-instructions sidecar (task item 4 / design
-        /// section 2 item 3: prefer this panel's own Unity tools; `uloop
-        /// execute-dynamic-code` only for what they cannot express; writing
-        /// and compiling code is the last resort). Deliberately plain ASCII
-        /// English, NOT routed through L10n -- like AgentHub.
-        /// ComposeUapOpsSteeringSection's own steering text (the closest
-        /// sibling to this one), this string is CONSUMED BY THE MODEL via
-        /// --append-system-prompt, never displayed as UI chrome, so it is
-        /// not a candidate for the L10n treatment SettingsUloopSnippetHelp
-        /// (the BUTTON's own human-facing description) already has.
-        /// </summary>
-        public const string UloopGuidanceSnippet =
-            "Prefer this panel's own Unity tools (uap_*) for Unity edits."
-            + " Reach for `uloop execute-dynamic-code` only for what those"
-            + " tools cannot express. Writing and compiling new C# code is"
-            + " the last resort.";
-
-        /// <summary>
-        /// Pure, idempotent append: returns `existingText` completely
-        /// unchanged when it already contains UloopGuidanceSnippet verbatim
-        /// (ordinal substring search) -- pressing the button twice, or
-        /// reopening a project whose custom instructions already carry it
-        /// from a prior session, must never duplicate it, and must never
-        /// touch (let alone clobber) any other text the user wrote.
-        /// Otherwise appends the snippet after exactly one blank line,
-        /// trimming trailing whitespace off `existingText` first so the
-        /// separator is always exactly one blank line regardless of how the
-        /// user's existing text happens to end (matches AgentHub.
-        /// ComposeAppendSystemPrompt's own blank-line join convention
-        /// between composed sections). A null/empty `existingText` yields
-        /// the snippet alone, with no leading blank line.
-        /// </summary>
-        public static string AppendUloopGuidanceSnippet(string existingText)
-        {
-            string current = existingText ?? string.Empty;
-            if (current.IndexOf(UloopGuidanceSnippet, System.StringComparison.Ordinal) >= 0)
-            {
-                return current;
-            }
-            string trimmed = current.TrimEnd();
-            return trimmed.Length == 0 ? UloopGuidanceSnippet : trimmed + "\n\n" + UloopGuidanceSnippet;
-        }
-
-        /// <summary>
         /// Pure line-level diff between a manifest's before/after text (task
         /// item 2: "the diff is the whole point of this UI ... do not
         /// collapse or truncate it into a summary"). Rendered with unified-
@@ -5508,26 +4868,19 @@ namespace Colloid.AgentPanel.UI
         /// language (the same convention unified diff/`git diff` output
         /// already uses).
         ///
-        /// Exploits the fact that UloopInstaller.BuildManifestAfterText only
-        /// ever INSERTS content (a brand-new "scopedRegistries" array, or
-        /// one new scope string appended into an existing array) and never
-        /// deletes or reorders anything already there: finding the longest
-        /// common line PREFIX and the longest common line SUFFIX (not
-        /// overlapping the prefix) between the two texts isolates the
-        /// changed region without needing a general (and here unnecessary)
-        /// LCS diff algorithm. Everything strictly between prefix and suffix
-        /// in `before` renders as removed and everything strictly between
-        /// them in `after` renders as added; for every diff this class
-        /// actually produces the "removed" slice is typically empty or a
-        /// single line (nothing is ever deleted outright -- at most a line
-        /// gains a trailing comma when a sibling is inserted after it), so
-        /// in practice this reads as a tight, minimal diff around the one
-        /// inserted stanza/line.
+        /// Finds the longest common line PREFIX and the longest common line
+        /// SUFFIX (not overlapping the prefix) between the two texts, which
+        /// isolates the changed region without needing a general LCS diff
+        /// algorithm: the removal only DELETES lines (the dependency, a scope
+        /// or a registry entry) and never reorders anything. Everything
+        /// strictly between prefix and suffix in `before` renders as removed
+        /// and everything strictly between them in `after` renders as added,
+        /// so in practice this reads as a tight, minimal diff around the
+        /// deleted stanza/line.
         ///
         /// Degrades honestly, never incorrectly, when the ORIGINAL
         /// manifest.json was not already in the exact 2-space-indent style
-        /// PrettyPrintManifest always re-emits (UloopInstaller's own doc
-        /// comment: re-indentation, key order and newline style are not
+        /// PrettyPrintManifest always re-emits (UloopManifestSupport: re-indentation, key order and newline style are not
         /// preserved) -- the common prefix/suffix can then be short or even
         /// empty, so the diff shows most or all of the file as removed and
         /// re-added. That is not a bug in this function: it is an accurate
@@ -5592,7 +4945,7 @@ namespace Colloid.AgentPanel.UI
         /// Splits on both "\n" and "\r\n" (SplitLines' own convention
         /// elsewhere in this file), then drops exactly one trailing empty
         /// element when the text ends with a newline -- PrettyPrintManifest
-        /// (UloopInstaller) always ends its output with a single trailing
+        /// (UloopManifestSupport) always ends its output with a single trailing
         /// "\n", and without this, a manifest text ending in a newline would
         /// otherwise contribute a spurious blank context line at the very
         /// end of every diff this class ever renders. Null/empty input
@@ -6946,7 +6299,12 @@ namespace Colloid.AgentPanel.UI
                     TabLabel = TabLabel(tab),
                     Title = _cardTitles[pair.Key],
                     Card = pair.Value,
-                    Body = _cardBodies[pair.Key]
+                    Body = _cardBodies[pair.Key],
+                    // The uLoop card only exists for a project that has uLoop;
+                    // a query must not reveal it otherwise.
+                    IsAvailable = pair.Key == UloopCardId
+                        ? new System.Func<bool>(delegate { return _uloopCardShown; })
+                        : null
                 });
             }
             return cards;

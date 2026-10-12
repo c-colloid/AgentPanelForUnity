@@ -114,5 +114,24 @@ namespace Colloid.AgentPanel.Tests
             Assert.IsNull(error);
             CollectionAssert.AreEqual(new[] { "real.id" }, profile.PackageIds);
         }
+
+        [Test]
+        public void Parse_RequiresUapModules_ReadsTheList_AndDefaultsToEmpty()
+        {
+            string error;
+            ExtensionProfile gated = ExtensionProfile.Parse(
+                "{ \"id\": \"foo\", \"requiresUapModules\": [\"mesh\", \"\"], \"instructionLines\": [] }", out error);
+            Assert.IsNull(error);
+            CollectionAssert.AreEqual(new[] { "mesh" }, gated.RequiresUapModules);
+
+            ExtensionProfile plain = ExtensionProfile.Parse("{ \"id\": \"foo\", \"instructionLines\": [] }", out error);
+            Assert.IsNull(error);
+            Assert.IsEmpty(plain.RequiresUapModules);
+
+            ExtensionProfile wrongShape = ExtensionProfile.Parse(
+                "{ \"id\": \"foo\", \"requiresUapModules\": \"mesh\", \"instructionLines\": [] }", out error);
+            Assert.IsNull(error);
+            Assert.IsEmpty(wrongShape.RequiresUapModules, "a non-array value is ignored, never thrown on");
+        }
     }
 }

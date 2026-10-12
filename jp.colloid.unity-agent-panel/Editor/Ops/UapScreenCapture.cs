@@ -199,6 +199,121 @@ namespace Colloid.AgentPanel.Ops
             return true;
         }
 
+        /// <summary>Requested capture size (width/height arguments): default 1280x720, clamped to 32..4096.</summary>
+        public static int ClampRequestedDimension(int requested, bool isWidth)
+        {
+            return ClampDimension(requested, isWidth ? DefaultWidth : DefaultHeight);
+        }
+
+        /// <summary>
+        /// Resolves the Camera on the GameObject at <paramref name="path"/>
+        /// (optionally in <paramref name="sceneQuery"/>) for an offscreen
+        /// render that needs no open view.
+        /// </summary>
+        public static bool TryResolveCameraByPath(string path, string sceneQuery, out Camera camera, out string error)
+        {
+            camera = null;
+            GameObject go = UapAddressing.ResolveHierarchyPath(sceneQuery, path, out error);
+            if (go == null)
+            {
+                return false;
+            }
+            camera = go.GetComponent<Camera>();
+            if (camera == null)
+            {
+                error = "GameObject '" + path + "' has no Camera component.";
+                return false;
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// Moves the Scene view before a capture: pivot / rotation (Euler) /
+        /// size / orthographic, or lookAt (frames that object's bounds).
+        /// The Scene view's camera is synced by hand afterwards because it
+        /// would otherwise only follow on the next repaint.
+        /// </summary>
+        public static bool TryApplySceneViewSettings(SceneView sv, Colloid.AgentPanel.Core.Json.JsonNode spec,
+            string sceneQuery, out string error)
+        {
+            error = null;
+            if (sv == null)
+            {
+                error = "No Scene view is open.";
+                return false;
+            }
+            Vector3 pivot = sv.pivot;
+            Quaternion rotation = sv.rotation;
+            float size = sv.size;
+            bool ortho = sv.orthographic;
+
+            var pivotNode = spec["pivot"];
+            if (pivotNode.IsObject)
+            {
+                pivot = new Vector3((float)pivotNode["x"].AsDouble(pivot.x), (float)pivotNode["y"].AsDouble(pivot.y),
+                    (float)pivotNode["z"].AsDouble(pivot.z));
+            }
+            var rotationNode = spec["rotation"];
+            if (rotationNode.IsObject)
+            {
+                Vector3 e = rotation.eulerAngles;
+                rotation = Quaternion.Euler((float)rotationNode["x"].AsDouble(e.x),
+                    (float)rotationNode["y"].AsDouble(e.y), (float)rotationNode["z"].AsDouble(e.z));
+            }
+            bool sizeGiven = spec["size"].IsNumber;
+            if (sizeGiven)
+            {
+                size = (float)spec["size"].AsDouble(size);
+                if (size <= 0f)
+                {
+                    error = "sceneView.size must be greater than 0.";
+                    return false;
+                }
+            }
+            if (spec["orthographic"].IsBool)
+            {
+                ortho = spec["orthographic"].AsBool(ortho);
+            }
+            string lookAt = spec["lookAt"].AsString(null);
+            if (!string.IsNullOrEmpty(lookAt))
+            {
+                GameObject target = UapAddressing.ResolveHierarchyPath(sceneQuery, lookAt, out error);
+                if (target == null)
+                {
+                    return false;
+                }
+                Bounds bounds = new Bounds(target.transform.position, Vector3.zero);
+                Renderer[] renderers = target.GetComponentsInChildren<Renderer>();
+                for (int i = 0; i < renderers.Length; i++)
+                {
+                    bounds.Encapsulate(renderers[i].bounds);
+                }
+                if (!pivotNode.IsObject)
+                {
+                    pivot = bounds.center;
+                }
+                if (!sizeGiven)
+                {
+                    size = Mathf.Max(bounds.extents.magnitude * 1.5f, 0.5f);
+                }
+            }
+            sv.LookAt(pivot, rotation, size, ortho, true);
+            sv.Repaint();
+            SceneView.RepaintAll();
+            Camera cam = sv.camera;
+            if (cam != null)
+            {
+                cam.orthographic = sv.orthographic;
+                if (sv.orthographic)
+                {
+                    cam.orthographicSize = sv.size;
+                }
+                cam.transform.rotation = sv.rotation;
+                cam.transform.position = sv.pivot + sv.rotation * new Vector3(0f, 0f, -sv.cameraDistance);
+            }
+            return true;
+        }
+
         private static int ClampDimension(float raw, int fallback)
         {
             if (float.IsNaN(raw) || raw <= 0f)
@@ -226,18 +341,53 @@ namespace Colloid.AgentPanel.Ops
         /// <summary>Renders <paramref name="camera"/> at the given size into a PNG at <paramref name="path"/>.</summary>
         public static void CaptureCameraToPng(Camera camera, int width, int height, string path)
         {
+            Texture2D tex = CaptureCameraToTexture(camera, width, height);
+            try
+            {
+                File.WriteAllBytes(path, tex.EncodeToPNG());
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(tex);
+            }
+        }
+
+        /// <summary>
+        /// As <see cref="CaptureCameraToPng"/>, but hands back the readable
+        /// Texture2D instead of encoding/writing it -- uap_editor_
+        /// screenshot's annotate_ui (design note docs/design-notes/2026-09-
+        /// 22-uloop-phase1.md section 2.1) needs to draw element outlines
+        /// and labels into the pixels BEFORE they are encoded to PNG. The
+        /// caller owns the returned texture and must DestroyImmediate it --
+        /// but only once this method actually RETURNS it: on any exception
+        /// between allocating it and handing it back (Render()/ReadPixels()
+        /// can both throw), the half-built Texture2D is destroyed here
+        /// instead of leaking, exactly as the single try/finally in the
+        /// pre-split CaptureCameraToPng used to guarantee.
+        /// </summary>
+        public static Texture2D CaptureCameraToTexture(Camera camera, int width, int height)
+        {
             RenderTexture previousTargetTexture = camera.targetTexture;
             RenderTexture previousActive = RenderTexture.active;
             var rt = new RenderTexture(width, height, 24);
-            var tex = new Texture2D(width, height, TextureFormat.RGB24, false);
+            Texture2D tex = null;
             try
             {
+                tex = new Texture2D(width, height, TextureFormat.RGB24, false);
                 camera.targetTexture = rt;
                 camera.Render();
                 RenderTexture.active = rt;
                 tex.ReadPixels(new Rect(0, 0, width, height), 0, 0);
                 tex.Apply();
-                File.WriteAllBytes(path, tex.EncodeToPNG());
+                return tex;
+            }
+            catch
+            {
+                if (tex != null)
+                {
+                    UnityEngine.Object.DestroyImmediate(tex);
+                }
+                throw;
             }
             finally
             {
@@ -245,8 +395,125 @@ namespace Colloid.AgentPanel.Ops
                 RenderTexture.active = previousActive;
                 rt.Release();
                 UnityEngine.Object.DestroyImmediate(rt);
-                UnityEngine.Object.DestroyImmediate(tex);
             }
+        }
+
+        // -- uGUI annotation drawing (uap_editor_screenshot annotate_ui) ---------------
+
+        private static readonly Color UiOutlineColor = new Color(1f, 0.15f, 0.85f, 1f);
+        private static readonly Color UiLabelBackground = new Color(0f, 0f, 0f, 1f);
+        private static readonly Color UiLabelForeground = new Color(1f, 1f, 1f, 1f);
+        private const int UiLabelScale = 2;
+        private const int UiLabelPadding = 2;
+
+        /// <summary>
+        /// Draws an outline plus a small letter label for each mark
+        /// directly into <paramref name="texture"/> (uap_editor_screenshot's
+        /// annotate_ui, design note docs/design-notes/2026-09-22-uloop-
+        /// phase1.md section 2.1). Marks must already be in the SAME top-
+        /// left-origin pixel space as <paramref name="texture"/> itself --
+        /// the caller (UapEditorScreenshotTool) rescales from the canonical
+        /// Game View render-pixel space (Handles.GetMainGameViewSize) to
+        /// the captured image's actual pixel dimensions first
+        /// (UapUiAnnotationPolicy.ScaleMarks), since a Game View WINDOW's
+        /// on-screen point size and its configured render resolution are
+        /// not always the same number.
+        /// </summary>
+        public static void DrawUiAnnotationMarks(Texture2D texture, IList<UapUiAnnotationMark> marks)
+        {
+            if (texture == null || marks == null || marks.Count == 0)
+            {
+                return;
+            }
+            for (int i = 0; i < marks.Count; i++)
+            {
+                UapUiAnnotationMark mark = marks[i];
+                DrawUiOutline(texture, mark.X, mark.Y, mark.Width, mark.Height);
+                DrawUiLabel(texture, mark.Label, mark.X, mark.Y);
+            }
+            texture.Apply();
+        }
+
+        private static void DrawUiOutline(Texture2D texture, double xTopLeft, double yTopLeft, double width, double height)
+        {
+            int x0 = Mathf.RoundToInt((float)xTopLeft);
+            int y0 = Mathf.RoundToInt((float)yTopLeft);
+            int x1 = Mathf.RoundToInt((float)(xTopLeft + width));
+            int y1 = Mathf.RoundToInt((float)(yTopLeft + height));
+            for (int x = x0; x <= x1; x++)
+            {
+                SetPixelTopLeft(texture, x, y0, UiOutlineColor);
+                SetPixelTopLeft(texture, x, y1, UiOutlineColor);
+            }
+            for (int y = y0; y <= y1; y++)
+            {
+                SetPixelTopLeft(texture, x0, y, UiOutlineColor);
+                SetPixelTopLeft(texture, x1, y, UiOutlineColor);
+            }
+        }
+
+        /// <summary>Draws a filled background box plus the glyph pixels for <paramref name="label"/>, anchored at its rect's top-left corner.</summary>
+        private static void DrawUiLabel(Texture2D texture, string label, double anchorXTopLeft, double anchorYTopLeft)
+        {
+            if (string.IsNullOrEmpty(label))
+            {
+                return;
+            }
+            int anchorX = Mathf.RoundToInt((float)anchorXTopLeft);
+            int anchorY = Mathf.RoundToInt((float)anchorYTopLeft);
+            int glyphPixelWidth = UapUiAnnotationPolicy.GlyphWidth * UiLabelScale;
+            int glyphPixelHeight = UapUiAnnotationPolicy.GlyphHeight * UiLabelScale;
+            int totalWidth = label.Length * glyphPixelWidth + (label.Length - 1) * UiLabelScale + UiLabelPadding * 2;
+            int totalHeight = glyphPixelHeight + UiLabelPadding * 2;
+            for (int dx = 0; dx < totalWidth; dx++)
+            {
+                for (int dy = 0; dy < totalHeight; dy++)
+                {
+                    SetPixelTopLeft(texture, anchorX + dx, anchorY + dy, UiLabelBackground);
+                }
+            }
+            int cursorX = anchorX + UiLabelPadding;
+            for (int i = 0; i < label.Length; i++)
+            {
+                string[] rows;
+                if (UapUiAnnotationPolicy.TryGetGlyph(label[i], out rows))
+                {
+                    for (int row = 0; row < rows.Length; row++)
+                    {
+                        string line = rows[row];
+                        for (int col = 0; col < line.Length; col++)
+                        {
+                            if (line[col] != '#')
+                            {
+                                continue;
+                            }
+                            for (int sx = 0; sx < UiLabelScale; sx++)
+                            {
+                                for (int sy = 0; sy < UiLabelScale; sy++)
+                                {
+                                    SetPixelTopLeft(texture, cursorX + col * UiLabelScale + sx,
+                                        anchorY + UiLabelPadding + row * UiLabelScale + sy, UiLabelForeground);
+                                }
+                            }
+                        }
+                    }
+                }
+                cursorX += glyphPixelWidth + UiLabelScale;
+            }
+        }
+
+        private static void SetPixelTopLeft(Texture2D texture, int x, int yTopLeft, Color color)
+        {
+            if (x < 0 || x >= texture.width)
+            {
+                return;
+            }
+            int y = texture.height - 1 - yTopLeft;
+            if (y < 0 || y >= texture.height)
+            {
+                return;
+            }
+            texture.SetPixel(x, y, color);
         }
 
         // -- Window capture ------------------------------------------------------------

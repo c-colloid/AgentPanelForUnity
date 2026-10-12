@@ -133,6 +133,12 @@ namespace Colloid.AgentPanel.Model
     /// (ComputeEnvVarsToRemove), read fresh at EVERY process start
     /// including a --resume spawn -- exactly like subagentModel above, so
     /// it is reconnect-relevant the same way.
+    ///
+    /// ADDED here (docs/design-notes/2026-09-22-uloop-phase1.md section
+    /// 2.8 B): PanelSettings.uapToolListMode. It decides which URL path
+    /// (full "/mcp" vs compact "/mcp/compact") AgentHub.StartClient puts
+    /// in --mcp-config / acpSpec.McpUrl -- a spawn argument exactly like
+    /// uapOpsEnabled above, so it is reconnect-relevant the same way.
     /// </summary>
     public static class SettingsChangeDetector
     {
@@ -169,6 +175,7 @@ namespace Colloid.AgentPanel.Model
                 || spawnedWith.extensionProfilesEnabled != current.extensionProfilesEnabled
                 || spawnedWith.unityPluginSteeringEnabled != current.unityPluginSteeringEnabled
                 || spawnedWith.uloopAgentUseEnabled != current.uloopAgentUseEnabled
+                || spawnedWith.uapToolListMode != current.uapToolListMode
                 || !McpServerConfig.ListsEqual(spawnedWith.mcpServers, current.mcpServers)
                 || !StringListsEqual(spawnedWith.allowedTools, current.allowedTools)
                 || !StringListsEqual(spawnedWith.disallowedTools, current.disallowedTools)

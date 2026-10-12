@@ -27,6 +27,9 @@ namespace Colloid.AgentPanel.Ops.Markers
     /// section 4): a pushpin-like pivot handle for the pin, a flat grid
     /// for the plane sketch and the terrain "raise" brush for the surface
     /// sketch; the earlier "d_Grid.Default" drew as a plain cursor arrow.
+    /// A fourth element, the shape dropdown (freehand / line / polyline /
+    /// rectangle / ellipse), drives <see cref="SceneStrokeSketch.Shape"/>
+    /// (design note 2026-10-09-sketch-shapes-navigation-regions.md).
     /// </summary>
     [Overlay(typeof(SceneView), OverlayId, "Agent Tools", true)]
     public sealed class SceneAgentToolsOverlay : ToolbarOverlay
@@ -34,7 +37,8 @@ namespace Colloid.AgentPanel.Ops.Markers
         public const string OverlayId = "uap-agent-tools";
 
         public SceneAgentToolsOverlay()
-            : base(SceneMarkerPinToggle.ElementId, SceneStrokePlaneToggle.ElementId, SceneStrokeSurfaceToggle.ElementId)
+            : base(SceneMarkerPinToggle.ElementId, SceneStrokePlaneToggle.ElementId, SceneStrokeSurfaceToggle.ElementId,
+                SceneStrokeShapeDropdown.ElementId)
         {
         }
     }
@@ -169,6 +173,43 @@ namespace Colloid.AgentPanel.Ops.Markers
         public SceneStrokeSurfaceToggle()
             : base(SceneStrokeMode.Surface, "d_TerrainInspector.TerrainToolRaise", L10n.S.CtxSketchSurfaceToolbarLabel, L10n.S.CtxSketchSurfaceTooltip)
         {
+        }
+    }
+
+    /// <summary>
+    /// The shape dropdown: shows the current shape's name, opens a menu of
+    /// the five shapes, and follows <see cref="SceneStrokeSketch.Shape"/>
+    /// when the 1-5 keys or the context bar change it.
+    /// </summary>
+    [EditorToolbarElement(ElementId, typeof(SceneView))]
+    internal sealed class SceneStrokeShapeDropdown : EditorToolbarDropdown
+    {
+        public const string ElementId = "uap/agent-sketch-shape";
+
+        public SceneStrokeShapeDropdown()
+        {
+            tooltip = L10n.S.CtxSketchShapeDropdownTooltip;
+            clicked += ShowMenu;
+            Sync();
+            RegisterCallback<AttachToPanelEvent>(delegate { SceneStrokeSketch.ArmedChanged += Sync; Sync(); });
+            RegisterCallback<DetachFromPanelEvent>(delegate { SceneStrokeSketch.ArmedChanged -= Sync; });
+        }
+
+        private void Sync()
+        {
+            text = SceneStrokeSketch.ShapeLabel(SceneStrokeSketch.Shape);
+        }
+
+        private void ShowMenu()
+        {
+            var menu = new GenericMenu();
+            for (int i = 0; i < SceneStroke.ShapeCount; i++)
+            {
+                var shape = (SceneStrokeShape)i;
+                menu.AddItem(new GUIContent(SceneStrokeSketch.ShapeLabel(shape)), SceneStrokeSketch.Shape == shape,
+                    delegate { SceneStrokeSketch.Shape = shape; });
+            }
+            menu.DropDown(worldBound);
         }
     }
 }

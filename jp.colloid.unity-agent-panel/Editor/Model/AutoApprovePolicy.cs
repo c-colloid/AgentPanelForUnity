@@ -90,7 +90,23 @@ namespace Colloid.AgentPanel.Model
         public static bool ShouldAutoApprove(UapAutoApproveLevel level, bool isUapOpsTool, bool readOnly,
             bool undoable, bool requiresUserInteraction)
         {
-            if (requiresUserInteraction)
+            return ShouldAutoApprove(level, isUapOpsTool, readOnly, undoable, requiresUserInteraction, false);
+        }
+
+        /// <summary>
+        /// docs/design-notes/2026-09-28-uloop-phase3.md (IUapNeverAutoApproveTool,
+        /// carrying forward 2026-08-01 design note section 8's "never
+        /// auto-approve dynamic code"): <paramref name="neverAutoApprove"/>
+        /// short-circuits to false BEFORE the AllTools/AllUnityOps checks,
+        /// unlike every other parameter here -- a tool that opts into this
+        /// is refused a silent allow at EVERY level, not just below the top
+        /// of the ladder. Every other combination is identical to the
+        /// 5-argument overload, which now simply passes false.
+        /// </summary>
+        public static bool ShouldAutoApprove(UapAutoApproveLevel level, bool isUapOpsTool, bool readOnly,
+            bool undoable, bool requiresUserInteraction, bool neverAutoApprove)
+        {
+            if (requiresUserInteraction || neverAutoApprove)
             {
                 return false;
             }
