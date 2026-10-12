@@ -516,7 +516,7 @@ Cecil / Harmony / Roslyn を使う最も壊れやすい種類のコードであ�
 | get-logs | **無し**（`ConsoleErrorProvider` はパネル UI 用で、ツールとしては未公開） | ギャップ（**270 行**） |
 | clear-console | 無し | ギャップ（167 行） |
 | set-game-view-size | 無し | ギャップ（157 行） |
-| simulate-keyboard / mouse-input（PlayMode 中の実入力） | 無し | ギャップ（約 3.7k 行） |
+| simulate-keyboard / mouse-ui（PlayMode 中の実入力） | `uap_game_key` / `uap_game_pointer`（**v0.59.0-beta.2 で追加**、`2026-09-22-game-input-tools.md`） | 済（mouse-input = Input System の `Mouse.current` 注入だけ見送り） |
 | execute-dynamic-code | 無し（意図的） | **自前化しない** |
 | hot-reload | 無し | **自前化しない**（51k 行） |
 | pause-point / watch | 無し | **自前化しない**（Harmony transpiler） |
@@ -550,6 +550,10 @@ Cecil / Harmony / Roslyn を使う最も壊れやすい種類のコードであ�
    この 4 本を自前で持てば、**一般的なユーザーにとって uLoop は「任意」に降格**し、
    §1 の常駐コストを払う必要がそもそも無くなる。これが今回の質問に対する
    最も効果の大きい打ち手。
+   → **v0.59.0-beta.1 で 4 本とも実装済み。** 残っていた「PlayMode 中の実入力」も
+   **v0.59.0-beta.2** で `uap_game_pointer` / `uap_game_key` として自前化した
+   （`docs/design-notes/2026-09-22-game-input-tools.md`）。これで表のギャップは
+   意図的に自前化しない 3 本（dynamic-code / hot-reload / pause-point）だけになった。
 3. **自前版のほうが統合上は優れている**（uLoop の CLI 経由では得られない）:
    権限カード、Undo グループ、`uap_job_status`、そしてコンパイル/コンソール
    エラーを**エージェントに polling させず会話へ差し戻す**既存経路。

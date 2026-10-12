@@ -38,11 +38,13 @@ The card is in one of these 4 states. The status pill at the right end of the he
 
 ### Differences between agents
 
-Permission cards, chips and attachments, Unity tools, the script validation gate, thinking blocks, the history browser, in-panel login and the subagent model settings work the same with every agent. There are three differences.
+Permission cards, chips and attachments, Unity tools, the script validation gate, thinking blocks, the history browser, in-panel login and the subagent model settings work the same with every agent. There are five differences.
 
 - **History**: the panel itself saves ACP agent conversations under `UserSettings/AgentPanel/Sessions/`, and they appear in the same list as Claude Code sessions (labeled with the agent name). An agent that does not support `session/load` starts a new session on resume and receives the earlier conversation log along with your next message (a note about this appears in the conversation).
 - **Subagent model settings**: "Force subagent model" and "Per-type overrides (advanced)" are sent as instructions at the start of a new session (they cannot be passed through environment variables or `.claude/agents` as with Claude Code). They are followed when the agent can choose subagent models.
 - **The script validation gate hook** (the `PreToolUse` hook) is Claude Code only. With ACP, only the panel-side `uap_scripts_commit` gate applies.
+- **Unity tool list**: it defaults to "Compact", and tools outside the core are used through `uap_tools` / `uap_call` (see "Tool list mode" in [Unity tools](../unity-ops.en.md)).
+- **Agents without HTTP MCP support**: the Unity tools are handed over as an HTTP MCP server. For an agent that does not advertise HTTP and supports only stdio, the panel builds a small relay program with the .NET runtime and compiler bundled with Unity and hands the tools over through stdio (the first time, a build of a few seconds runs, and the result is stored in `Library/UnityAgentPanel/McpStdioRelay/`; a connection that could not wait for it gets the tools from the next connection). If neither works, a note to that effect appears in the conversation right after the connection.
 
 Available models vary with the CLI, authentication method and account; choose one in the header's model picker ([Choosing a model](../sessions-and-models.en.md#choosing-a-model)). Real examples for each agent are in [Agent usage examples](../../AGENT-SHOWCASE.en.md).
 

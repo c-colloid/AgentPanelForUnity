@@ -42,7 +42,8 @@ Agent Panel Pro は、無料の [Agent Panel for Unity](../README.md)(Core)に *
 | [メッシュ・マテリアル](#メッシュマテリアル) | メッシュの生成・編集・ブーリアン・検証と修復、マテリアル・テクスチャ・シェーダーの生成、glTF の入出力 | 16 |
 | [非破壊モデリング](#非破壊モデリング) | 形状ノードを組み合わせて作る編集可能なモデルと、ゲーム用アセットへの書き出し | 4 |
 | [一括実行](#一括実行) | 複数のツール呼び出しを許可カード 1 枚で実行 | 1 |
-| [テスト実行](#テスト実行) | EditMode テストの実行と失敗の報告 | 1 |
+| [テスト実行](#テスト実行) | EditMode / PlayMode テストの実行と失敗の報告 | 1 |
+| [ホットリロード / 一時停止ポイント](#ホットリロード--一時停止ポイント) | 変更した static メソッドの中身をドメインリロードなしで差し替え、指定行でローカル変数を記録して一時停止(Mono ランタイムのみ、既定はオフ) | 2 |
 
 ## 各モジュールのツール
 
@@ -172,7 +173,16 @@ SDK が独自に持つエディタウィンドウ(UI Toolkit 製)を、エージ
 
 | ツール | できること |
 |---|---|
-| `uap_test_run` | EditMode テストを実行し、失敗したテストの名前・メッセージ・スタックを返します。Unity Test Framework が入っているプロジェクトでのみ使えます |
+| `uap_test_run` | EditMode / PlayMode テストを実行し、失敗したテストの名前・メッセージ・スタックを返します。PlayMode(`mode:"play"`)は Play モードへの切り替えをまたいで結果を保持し、`status:true` で回収します。Unity Test Framework が入っているプロジェクトでのみ使えます |
+
+### ホットリロード / 一時停止ポイント
+
+既定ではオフのモジュールです。どちらも Harmony で実行中のコードを書き換えるため、Mono スクリプトランタイムでのみ動作し(Unity 6.8 以降の CoreCLR エディタでは理由を返して何もしません)、権限カードはどの自動承認レベルでも省略されません。
+
+| ツール | できること |
+|---|---|
+| `uap_hot_reload` | 編集した .cs の変更のうち static メソッドの中身だけを、ドメインリロードなしに実行中の Editor(Play モード中も)へ反映します。メンバーの追加・削除、シグネチャ変更、新しい型、インスタンスメソッド、ジェネリックなどは一覧を付けて丸ごと断り、`uap_scripts_commit` / `uap_compile` へ案内します。`status` で適用中の一覧、`revert` で元に戻せます |
+| `uap_pause_point` | `ファイル:行` を指定し、実行がその行に来たらローカル変数・引数・`this` の値を記録して、Play モードならそのフレームの終わりで一時停止します。条件(`==` / `<` など)、N 回目で止める、1 回で解除を指定できます。デバッガのブレークポイントではなく「その行での値の記録 + フレーム末の一時停止」です |
 
 ## 同梱プロファイル
 
@@ -184,7 +194,7 @@ SDK が独自に持つエディタウィンドウ(UI Toolkit 製)を、エージ
 
 | 版 | 追加されたもの |
 |---|---|
-| 0.14.0 | 非破壊モデリング(`uap_model_*` 4 本)、glTF の入出力、マテリアル・テクスチャ・シェーダーの生成、四角形主体リメッシュとケージ編集、Forge シーンの移行、パーティクルのプリセット、`uap_prefab_convert`。プロファイル: モデリング作法 |
+| 0.14.0 | ホットリロード / 一時停止ポイント(`uap_hot_reload` / `uap_pause_point`、既定はオフ)、`uap_test_run` の PlayMode 対応、非破壊モデリング(`uap_model_*` 4 本)、glTF の入出力、マテリアル・テクスチャ・シェーダーの生成、四角形主体リメッシュとケージ編集、Forge シーンの移行、パーティクルのプリセット、`uap_prefab_convert`。プロファイル: モデリング作法 |
 | 0.13.0 | Scene ビューのスケッチ線をメッシュの生成・編集の入力に |
 | 0.12.0 | メッシュモジュール(生成、編集、ブーリアン、検証と修復、Z ファイティング検出) |
 | 0.11.0 | プロファイル: VRChat SDK3(共通 / ワールド)、Udon、UdonSharp |
@@ -206,7 +216,7 @@ SDK が独自に持つエディタウィンドウ(UI Toolkit 製)を、エージ
 
 ```text
 ■ Agent Panel Pro 収録機能(pro-v0.14.0 時点)
-Agent Panel for Unity(無料・Core)に追加する Unity 操作ツール 50 本と、主要アセット向けの同梱プロファイル 18 件。
+Agent Panel for Unity(無料・Core)に追加する Unity 操作ツール 52 本と、主要アセット向けの同梱プロファイル 18 件。
 すべて Core のチャット画面からエージェントが呼び出すツールで、スクリプトを書かせずに Unity を直接操作させられます。
 
 ・プレハブ: 作成(Variant 対応)/既存プレハブのインスタンスへの変換/オーバーライドの一覧・適用・差し戻し/Prefab Mode の操作
@@ -219,8 +229,9 @@ Agent Panel for Unity(無料・Core)に追加する Unity 操作ツール 50 本
 ・メッシュ・マテリアル: メッシュの生成(プリミティブ・押し出し・回転体・掃引・SDF・スケッチ線から)・変形・ブーリアン・リメッシュ・検証と修復/Z ファイティング検出/マテリアル・手続きテクスチャ・シェーダー雛形の生成/glTF の入出力
 ・非破壊モデリング: 形状ノードを組み合わせて作る編集可能なモデルと、ゲーム用メッシュへの書き出し(三角形予算・UV・法線 / AO ベイク)
 ・一括実行: 複数のツール呼び出しを許可カード 1 枚で実行
-・テスト実行: EditMode テストの実行と失敗の報告
-・同梱プロファイル 18 件: VRChat SDK3(共通 / アバター / ワールド)、Udon、UdonSharp、NDMF、Modular Avatar、AAO: Avatar Optimizer、VRCFury、lilycalInventory、lilToon、UniVRM、MagicaCloth2、Final IK、Bakery、ProBuilder、RPG Maker Unite、モデリング作法
+・テスト実行: EditMode / PlayMode テストの実行と失敗の報告
+・ホットリロード / 一時停止ポイント: 変更した static メソッドの中身をドメインリロードなしで差し替え/指定した行に来たらローカル変数を記録してフレーム末で一時停止(Mono ランタイムのみ、既定はオフ)
+・同梱プロファイル 18 件: VRChat SDK3(共通 / アバター / ワールド)、Udon、UdonSharp、NDMF、Modular Avatar、AAO: Avatar Optimizer、VRCFury、lilycalInventory、lilToon、UniVRM、MagicaCloth2、Final IK、Bakery、ProBuilder、RPG Maker Unite、モデリング作法(mesh モジュールが有効なときだけ)
 
 動作要件: Unity 2022.3 LTS 以降(Unity 6 系を含む)、Agent Panel for Unity(Core)
 一覧の詳細: https://agentpanel.futeikei.com/pro-features/

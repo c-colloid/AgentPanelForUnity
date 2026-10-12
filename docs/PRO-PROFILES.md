@@ -64,7 +64,7 @@ Agent Panel for Unity は、プロジェクトに入っているサードパー�
 
 | プロファイル | 対応 SDK | エージェントが知ること |
 |---|---|---|
-| **Modeling workflow**(`modeling`) | Agent Panel Pro 自身(常に有効。設定でオフにできます) | モデリングの進め方: まずプロップの一覧と三角形予算を決め、形状の種類に合わせて作り方(ケージ、距離場、ProBuilder、glTF 取り込み)を選び、仕上げの順序とマテリアル数の予算を守り、最後に結果を報告すること |
+| **Modeling workflow**(`modeling`) | Agent Panel Pro 自身(mesh モジュールが有効なときだけ。設定でオフにできます) | モデリングの進め方: まずプロップの一覧と三角形予算を決め、形状の種類に合わせて作り方(ケージ、距離場、ProBuilder、glTF 取り込み)を選び、仕上げの順序とマテリアル数の予算を守り、最後に結果を報告すること |
 
 ### ゲーム制作
 
@@ -76,7 +76,7 @@ Agent Panel for Unity は、プロジェクトに入っているサードパー�
 
 | 版 | 追加されたプロファイル |
 |---|---|
-| 0.14.0 | Modeling workflow |
+| 0.14.0 | Modeling workflow(mesh モジュールが有効なときだけ) |
 | 0.11.0 | VRChat SDK3 (Base)、VRChat SDK3 (Worlds)、VRChat Udon、UdonSharp |
 | 0.10.0 | ProBuilder |
 | 0.9.0 | VRCFury、lilycalInventory、lilToon |
@@ -97,7 +97,7 @@ Agent Panel for Unity は、プロジェクトに入っているサードパー�
 【VRChat】VRChat SDK3(共通 / アバター / ワールド)、Udon、UdonSharp、NDMF、Modular Avatar、AAO: Avatar Optimizer、VRCFury、lilycalInventory、lilToon
 【アバター / 物理 / IK】UniVRM(VRM 0.x / 1.0)、MagicaCloth2、Final IK
 【ライティング / メッシュ】Bakery GPU Lightmapper、ProBuilder
-【モデリング】モデリング作法(Pro 自身で常に有効)
+【モデリング】モデリング作法(Pro 自身。mesh モジュールが有効なときだけ)
 【ゲーム制作】RPG Maker Unite
 
 一覧の詳細: https://agentpanel.futeikei.com/pro-profiles/

@@ -307,6 +307,55 @@ Core(`vX.Y.Z`)の一覧。Pro のタグは `pro-vX.Y.Z` で、この表には積
 - 会話ログのテキスト選択・コピー・「選択部分について質問」: 応答・自分の発言・思考・ノート・エラー・ツール結果の Label をマウス選択可能にし(Ctrl/Cmd+C でコピー)、メッセージの右クリックメニューに「選択をコピー」「メッセージをコピー(Markdown 原文)」「選択部分について質問(引用を入力欄へ挿入)」を追加。0.61.0-beta.4(2026-10-01)
 - その他の ACP エージェント実機テスト(`ci/AcpLive`、13 本)で見えた 2 点: 端末専用の認証メソッド(`_meta.terminal-auth` / `type:"terminal"`、Qwen Code・Copilot CLI・Kimi Code)しか無いときは `authenticate` を送らず「`copilot login` を実行して再接続」とコマンド名を出す。エージェントが stdout に書いたサインイン URL(Gemini CLI のブラウザ無し経路)も stderr と同じ経路でチャットのリンク注記と CLI 出力ログに出す。その他 ACP ガイド用の実機スクリーンショット(OpenCode の接続〜応答、Qwen / Copilot / Auggie / Cline のサインイン画面)を撮る過程で、ドメインリロード後に ACP のサインイン注記が出ない件と、端末専用認証で再接続を 4 回繰り返す件を修正。0.61.0-beta.5(2026-10-07〜08)
 - スケッチの高機能化: 形(フリーハンド / 直線 / 折れ線 / 矩形 / 楕円。ツールバーのドロップダウン・「形」サブメニュー・1〜5 キー、表面モードはドレープ)、描画中の視点操作(ホイールはズームに戻し、深度は Ctrl+ホイール / `[` `]`。折れ線はクリックの合間に視点を動かせる)、エリア分け(閉じた線を塗って名前を付け、`uap_stroke_list` に `name` / `shape` / `area` / `centroid` / `contains`)。0.61.0-beta.6(2026-10-09)
+- v0.61.0-beta.7: Play 中のゲームへの入力ツールを追加。`uap_game_pointer`
+  (uGUI の EventSystem にクリック / 長押し / ドラッグを送る。階層パスまたは
+  左上原点のスクリーンショット座標で指定)と `uap_game_key`(Input System に
+  キーの押下・保持・解放を注入。旧 Input Manager は非対応と明示)。どちらも
+  リフレクション実装で、パッケージが無いプロジェクトでもコンパイルが通る。
+  これで uLoop 常駐コスト調査 §9.2 のギャップ表が埋まり、uLoop は hot-reload /
+  pause-point / dynamic-code のためだけの任意パッケージになる
+  (`docs/design-notes/2026-09-22-game-input-tools.md`)。
+  あわせて uLoop 自前化ロードマップのフェーズ 1 を実装
+  (`docs/design-notes/2026-09-22-uloop-phase1.md`): スクリーンショットの UI 要素一覧
+  (`annotate_ui`)、`uap_game_mouse`、`uap_compile`、`uap_project_info`、
+  `uap_editor_focus`、`uap_help`、Claude Code 以外向けのコンパクトなツール一覧
+  (`uap_tools` / `uap_call`。既定は自動)、HTTP MCP 非対応の ACP エージェント向けの
+  stdio 中継(Unity 同梱の .NET でビルド)、CI の Core-only ホストに uGUI / Input System を追加。
+  続けてフェーズ 2(記録と観測、`docs/design-notes/2026-09-23-uloop-phase2.md`)も
+  同じベータに入れた: 値の時系列を 1 回で返す `uap_game_watch`、Game / Scene ビューを
+  裏で録画する `uap_record_video`(mp4 / Linux は webm)、Play 中の入力を記録・再生する
+  `uap_input_record` / `uap_input_replay`。
+  フェーズ 3(`docs/design-notes/2026-09-28-uloop-phase3.md`)として、型付きツールで
+  できない操作用の C# 実行 `uap_execute_code` を新モジュール「code」(既定で有効)に追加:
+  AssemblyBuilder で裏コンパイル、権限カードに全文を必ず表示し自動承認しない、危険パターン
+  検出時は `confirm:true` が必要、Undo グループ、ロード済み件数の報告と `action:"reset"`。
+  フェーズ 4(`docs/design-notes/2026-09-28-uloop-phase4.md`)として、Agent Panel Pro に
+  Harmony + Cecil 基盤の新「patching」モジュールを追加し、Core 側にもトグル行を配線:
+  `uap_hot_reload`(ドメインリロードなしで static メソッド本体を書き換え)と
+  `uap_pause_point`(file:line にローカル変数付きの一時停止ポイントを挿入)。
+  Mono スクリプティングランタイム限定(Unity 6.8+ の CoreCLR エディタは非対応)で、
+  既定OFF・fx/mesh と同じく Agent Panel Pro 提供。ステアリング文にも家族テキストを追加。
+  さらに、複数ツールにまたがる手順(Play で動作確認、uGUI クリック、スクリプト変更、
+  入力の記録と再生、execute_code、コンパクト一覧)を `uap_help topic:"<id>"` の
+  プレイブックとして必要なときだけ返す仕組みを追加し、ステアリング文は手順を外して
+  利用可能な ID の 1 行だけにした(`docs/design-notes/2026-10-02-uap-help-playbooks.md`。
+  追加プロバイダ `IUapPlaybookProvider` で Pro も patching / test-run のプレイブックを提供)。
+  最後に uLoop 自前化ロードマップ §6 の最終行(`docs/design-notes/2026-10-02-uloop-card-final.md`):
+  設定の uLoop カードは uLoop を検出したプロジェクトでだけ表示し、中身は注意書き 1 行と
+  「エージェントに uloop を使わせる」スイッチと削除ボタンだけにした(導入ボタン・進捗行・許可プリセット・
+  指示スニペット・長いコスト説明と、それ専用のコードを撤去)。スイッチの既定は新規設定でオフ
+  (保存済みの値は移行しない)。`UloopCapabilityMatrix` と `ToolRegistry.CreateDefault(bool)` の uLoop
+  フラグも削除し、全ての `uap_*` ツールを常に登録する。
+  最後にセッション常駐コストの計測で見つかった 3 件を直した
+  (`docs/design-notes/2026-10-02-session-context-cost.md`): Claude Code が 2,048 文字で
+  切る MCP ツール説明を超えていた `uap_execute_code` / `uap_hot_reload` / `uap_model_apply` を
+  1,700 字前後に縮めて安全文を残し(ガードテストつき)、モデリング プロファイルを新フィールド
+  `requiresUapModules` で mesh モジュールが有効なときだけ注入し、Core 単体のステアリング文が
+  Pro 専用ツール名(prefab の上書き等)を出さないようにした。
+  コンパクトなツール一覧(Claude Code 以外が毎セッション読む分)の `inputSchema` を、
+  型・enum・required・範囲などはそのままに各項目の説明を 1 文(100 字まで)に縮めた軽量版にして
+  35,681 → 29,738 字(-16.7%)にした。フル一覧と `uap_help` / `uap_tools` の `names` は完全なスキーマのまま
+  (`UapLeanSchema`、`docs/design-notes/2026-10-02-session-context-cost.md` §6)。
 
 | タグ | 内容 |
 |---|---|
