@@ -21,6 +21,7 @@ namespace Colloid.AgentPanel.Model
         private const string KeyPendingSends = Prefix + "PendingSends";
         private const string KeyInputDraft = Prefix + "InputDraft";
         private const string KeyScrollPosition = Prefix + "ScrollPosition";
+        private const string KeyScrollAnchorFromEnd = Prefix + "ScrollAnchorFromEnd";
         private const string KeyCliVersion = Prefix + "CliVersion";
         private const string KeyHandoverPendingFrom = Prefix + "HandoverPendingFrom";
         private const string KeyCliBinaryVersion = Prefix + "CliBinaryVersion";
@@ -160,11 +161,32 @@ namespace Colloid.AgentPanel.Model
             set { SessionState.SetString(KeyInputDraft, value ?? string.Empty); }
         }
 
-        /// <summary>Message list scroll position preserved across reloads.</summary>
+        /// <summary>
+        /// Message list scroll position preserved across reloads: -1 =
+        /// following the bottom; otherwise the pixel offset of the
+        /// viewport top below the top of the message named by
+        /// <see cref="ScrollAnchorFromEnd"/> (or from the top of the list
+        /// when that is 0). The transcript is virtualized
+        /// (docs/design-notes/2026-09-30-transcript-virtualization.md), so
+        /// an absolute pixel offset alone would not name the same row
+        /// after a rebuild: the rows outside the live window are estimates.
+        /// </summary>
         public static float ScrollPosition
         {
             get { return SessionState.GetFloat(KeyScrollPosition, -1f); }
             set { SessionState.SetFloat(KeyScrollPosition, value); }
+        }
+
+        /// <summary>
+        /// The message <see cref="ScrollPosition"/> is measured from,
+        /// counted from the end of the transcript (1 = newest); 0 = none.
+        /// Counted from the end so a reload that truncates the head still
+        /// resolves the same message.
+        /// </summary>
+        public static int ScrollAnchorFromEnd
+        {
+            get { return SessionState.GetInt(KeyScrollAnchorFromEnd, 0); }
+            set { SessionState.SetInt(KeyScrollAnchorFromEnd, value); }
         }
 
         /// <summary>Clears the process bookkeeping after a clean shutdown.</summary>

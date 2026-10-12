@@ -47,7 +47,10 @@ namespace Colloid.AgentPanel.Ops
                     + " renders the view's camera offscreen (no gizmos, Handles or marker labels; lighting"
                     + " can differ from the Scene view); capture:\"window\" (Scene view only) reads the"
                     + " view exactly as displayed, labels and gizmos included, and needs the view visible"
-                    + " on screen. Fails with a structured error when the requested view is not open.";
+                    + " on screen. Fails with a structured error when the requested view is not open."
+                    + " To render a specific camera pass camera (hierarchy path) with optional width/height:"
+                    + " it is drawn offscreen and needs no open view. To position the Scene view first pass"
+                    + " sceneView {pivot, rotation, size, orthographic, lookAt}.";
             }
         }
 
@@ -85,14 +88,68 @@ namespace Colloid.AgentPanel.Ops
                             .Set("enum", JsonNode.NewArray().Add("camera").Add("window"))
                             .Set("description", "\"camera\" (default): offscreen render of the view's camera."
                                 + " \"window\": the Scene view's pixels as displayed (labels, gizmos, grid);"
-                                + " view must be \"scene\" and visible on screen.")))
+                                + " view must be \"scene\" and visible on screen."))
+                        .Set("camera", JsonNode.NewObject().Set("type", "string")
+                            .Set("description", "Hierarchy path of a GameObject with a Camera to render offscreen"
+                                + " (no open view needed; forces camera capture; 'view' and 'sceneView' are ignored/not allowed)."))
+                        .Set("scene", JsonNode.NewObject().Set("type", "string")
+                            .Set("description", "Scene name or path for 'camera' and 'sceneView.lookAt'. Omit to use the active scene (or the open prefab stage)."))
+                        .Set("width", JsonNode.NewObject().Set("type", "integer")
+                            .Set("description", "Image width in pixels when 'camera' is given (default 1280, clamped to 32..4096)."))
+                        .Set("height", JsonNode.NewObject().Set("type", "integer")
+                            .Set("description", "Image height in pixels when 'camera' is given (default 720, clamped to 32..4096)."))
+                        .Set("sceneView", JsonNode.NewObject().Set("type", "object")
+                            .Set("description", "Moves the Scene view before capturing (implies view \"scene\"). Needs an open Scene view.")
+                            .Set("properties", JsonNode.NewObject()
+                                .Set("pivot", Vec3Schema("Point the view looks at (world space)."))
+                                .Set("rotation", Vec3Schema("View rotation as Euler angles in degrees."))
+                                .Set("size", JsonNode.NewObject().Set("type", "number")
+                                    .Set("description", "Scene view size (zoom); omit to keep the current one (or auto-fit with lookAt)."))
+                                .Set("orthographic", JsonNode.NewObject().Set("type", "boolean")
+                                    .Set("description", "true for an orthographic view, false for perspective."))
+                                .Set("lookAt", JsonNode.NewObject().Set("type", "string")
+                                    .Set("description", "Hierarchy path of a GameObject to frame (pivot/size default to its bounds).")))
+                            .Set("additionalProperties", false)))
                     .Set("additionalProperties", false);
             }
         }
 
+        private static JsonNode Vec3Schema(string description)
+        {
+            return JsonNode.NewObject()
+                .Set("type", "object")
+                .Set("description", description)
+                .Set("properties", JsonNode.NewObject()
+                    .Set("x", JsonNode.NewObject().Set("type", "number"))
+                    .Set("y", JsonNode.NewObject().Set("type", "number"))
+                    .Set("z", JsonNode.NewObject().Set("type", "number")));
+        }
+
         public JsonNode Execute(JsonNode input)
         {
+            string cameraPath = input["camera"].AsString(null);
+            JsonNode sceneViewSpec = input["sceneView"];
+            bool hasSceneViewSpec = sceneViewSpec.IsObject;
+            if (!string.IsNullOrEmpty(cameraPath))
+            {
+                if (hasSceneViewSpec)
+                {
+                    throw new ArgumentException("'camera' renders offscreen and cannot be combined with 'sceneView'.");
+                }
+                return ExecuteCameraCapture(input, cameraPath);
+            }
             string viewArg = input["view"].AsString(null);
+            if (hasSceneViewSpec)
+            {
+                if (string.IsNullOrEmpty(viewArg))
+                {
+                    viewArg = "scene";
+                }
+                else if (!string.Equals(viewArg.Trim(), "scene", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new ArgumentException("'sceneView' needs view:\"scene\" (or omit 'view').");
+                }
+            }
             UapScreenshotView view;
             string error;
             if (!UapEditorScreenshotPaths.TryParseView(viewArg, out view, out error))
@@ -118,6 +175,19 @@ namespace Colloid.AgentPanel.Ops
             if (!UapScreenCapture.TryResolveView(view, out camera, out sceneView, out width, out height, out viewDescription, out error))
             {
                 throw new InvalidOperationException(error);
+            }
+
+            if (hasSceneViewSpec)
+            {
+                if (!UapScreenCapture.TryApplySceneViewSettings(sceneView, sceneViewSpec,
+                        input["scene"].AsString(null), out error))
+                {
+                    throw new InvalidOperationException(error);
+                }
+                // Re-read: the view's camera and size may have changed.
+                camera = sceneView.camera;
+                width = UapScreenCapture.ClampRequestedDimension(Mathf.RoundToInt(sceneView.position.width), true);
+                height = UapScreenCapture.ClampRequestedDimension(Mathf.RoundToInt(sceneView.position.height), false);
             }
 
             string projectRoot = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
@@ -154,8 +224,40 @@ namespace Colloid.AgentPanel.Ops
             {
                 sb.Append('\n').Append(note);
             }
-            JsonNode content = UapToolResults.Text(sb.ToString());
-            if (input["return_image"].AsBool(false))
+            return FinishResult(sb.ToString(), path, input["return_image"].AsBool(false));
+        }
+
+        private static JsonNode ExecuteCameraCapture(JsonNode input, string cameraPath)
+        {
+            Camera camera;
+            string error;
+            if (!UapScreenCapture.TryResolveCameraByPath(cameraPath, input["scene"].AsString(null), out camera, out error))
+            {
+                throw new InvalidOperationException(error);
+            }
+            int width = UapScreenCapture.ClampRequestedDimension(input["width"].AsInt(0), true);
+            int height = UapScreenCapture.ClampRequestedDimension(input["height"].AsInt(0), false);
+            string projectRoot = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
+            string path = UapEditorScreenshotPaths.BuildCameraOutputPath(DateTime.UtcNow, projectRoot);
+            Directory.CreateDirectory(Path.GetDirectoryName(path));
+            UapScreenCapture.CaptureCameraToPng(camera, width, height, path);
+            var sb = new StringBuilder(160);
+            sb.Append("Captured camera '").Append(UapAddressing.DescribeHierarchyPath(camera.transform))
+              .Append("' offscreen to ").Append(path).Append(" (").Append(width).Append('x').Append(height).Append(").");
+            string markers = UapEditorScreenshotPaths.FormatMarkersInView(
+                UapScreenCapture.ProjectMarkers(camera), width, height);
+            if (markers != null)
+            {
+                sb.Append('\n').Append(markers);
+            }
+            sb.Append("\nNote: offscreen render of the camera -- no gizmos or marker labels.");
+            return FinishResult(sb.ToString(), path, input["return_image"].AsBool(false));
+        }
+
+        private static JsonNode FinishResult(string text, string path, bool returnImage)
+        {
+            JsonNode content = UapToolResults.Text(text);
+            if (returnImage)
             {
                 // Same pipeline as a composer attachment: long-edge cap,
                 // PNG or JPEG, hard size cap -- so the block the model gets

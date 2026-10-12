@@ -385,6 +385,7 @@ namespace Colloid.AgentPanel.Integration
             // Arbitrary thread (the bridge raises from the reader thread):
             // set flags, defer the UI work to the main thread.
             string name = AcpProtocolBridge.DescribeAuthMethod(methodId, methodName);
+            _acpSignInStartedThisProcess = true;
             AuthCli.EnqueueCallback(delegate
             {
                 AcpSignInPending = true;
@@ -409,6 +410,46 @@ namespace Colloid.AgentPanel.Integration
         /// </summary>
         private static volatile bool _acpSignInFailedThisProcess;
 
+        /// <summary>
+        /// True once the bridge actually sent `authenticate` this process
+        /// (AuthenticationStarted). When it never did -- terminal-only
+        /// methods, or no method at all -- the failure is already the error
+        /// block the handshake emits, so the "sign-in failed" note would
+        /// only repeat it (2026-10-08 captures of Qwen Code and Auggie).
+        /// </summary>
+        private static volatile bool _acpSignInStartedThisProcess;
+
+        /// <summary>The bridge's reason for that failure, stored synchronously for the same race (null until a failure).</summary>
+        private static volatile string _acpSignInFailReasonThisProcess;
+
+        /// <summary>
+        /// Pure: the first backtick-quoted command in a bridge sign-in
+        /// failure ("... run `copilot login` once, then press Reconnect"),
+        /// or null. The custom-command preset has no LoginCommand of its
+        /// own, so the not-retried note names the command the agent
+        /// published instead of the backend's display name (design note
+        /// 2026-10-07-acp-other-agents.md section 3).
+        /// </summary>
+        internal static string ExtractLoginCommandHint(string reason)
+        {
+            if (string.IsNullOrEmpty(reason))
+            {
+                return null;
+            }
+            int start = reason.IndexOf('`');
+            if (start < 0)
+            {
+                return null;
+            }
+            int end = reason.IndexOf('`', start + 1);
+            if (end <= start + 1)
+            {
+                return null;
+            }
+            string command = reason.Substring(start + 1, end - start - 1).Trim();
+            return command.Length > 0 ? command : null;
+        }
+
         /// <summary>True once the current process reached Ready (the handshake completed).</summary>
         private static bool _reachedReadyThisProcess;
 
@@ -416,6 +457,7 @@ namespace Colloid.AgentPanel.Integration
         {
             if (!success)
             {
+                _acpSignInFailReasonThisProcess = error;
                 _acpSignInFailedThisProcess = true;
             }
             AuthCli.EnqueueCallback(delegate
@@ -428,7 +470,7 @@ namespace Colloid.AgentPanel.Integration
                     AcpAuthMethodName = _acpAuthMethodNameInFlight;
                     AppendAcpApiKeyAuthNoteIfNeeded();
                 }
-                else
+                else if (_acpSignInStartedThisProcess)
                 {
                     AppendSystemNote(L10n.F(L10n.S.HubAcpSignInFailedNoteFmt,
                         AgentBackends.DisplayName(raisedBy), error ?? string.Empty), true);
@@ -4179,6 +4221,14 @@ namespace Colloid.AgentPanel.Integration
                 // Bound to this spawn's backend: the notes name the agent
                 // that asked, even after the picker has moved on.
                 AgentBackend spawnedBackend = backend;
+                // The sign-in handlers below defer their UI work through
+                // AuthCli's main-thread pump, which is only subscribed to
+                // EditorApplication.update once something asks for it. On
+                // an ACP backend nothing else does after a domain reload,
+                // so the "sign in in your browser" and link notes sat in
+                // the queue forever (2026-10-08 capture of Cline). Hook it
+                // here, on the main thread, before the first event can fire.
+                AuthCli.EnsurePumpHooked();
                 acpTransport.AuthenticationStarted += delegate(string methodId, string methodName)
                 {
                     OnAcpAuthenticationStarted(spawnedBackend, methodId, methodName);
@@ -4200,6 +4250,8 @@ namespace Colloid.AgentPanel.Integration
             _acpAuthMethodIdInFlight = null;
             _acpAuthMethodNameInFlight = null;
             _acpSignInFailedThisProcess = false;
+            _acpSignInStartedThisProcess = false;
+            _acpSignInFailReasonThisProcess = null;
             _reachedReadyThisProcess = false;
             var client = new AgentClient(transport, Log);
             client.StateChanged += OnStateChanged;
@@ -6967,6 +7019,10 @@ namespace Colloid.AgentPanel.Integration
                 var signInNote = new ChatMessage { role = ChatMessage.RoleSystem };
                 AgentBackend deadBackend = ResolveNoteBackend(_lastSpawnedSettingsSnapshot, CurrentBackend);
                 string login = AgentBackends.LoginCommand(deadBackend);
+                if (string.IsNullOrEmpty(login))
+                {
+                    login = ExtractLoginCommandHint(_acpSignInFailReasonThisProcess ?? AcpSignInError);
+                }
                 string loginOrName = string.IsNullOrEmpty(login) ? AgentBackends.DisplayName(deadBackend) : login;
                 bool signInFailed = _acpSignInFailedThisProcess || AcpSignInError != null;
                 // Sign-in failed means every method the agent offers was
@@ -7412,6 +7468,7 @@ namespace Colloid.AgentPanel.Integration
                     ? new List<string>(source.uapOpsModules) : new List<string>(),
                 extensionProfilesEnabled = source.extensionProfilesEnabled,
                 unityPluginSteeringEnabled = source.unityPluginSteeringEnabled,
+                bundledSkillsEnabled = source.bundledSkillsEnabled,
                 approvedProfileHashes = source.approvedProfileHashes != null
                     ? new List<string>(source.approvedProfileHashes) : new List<string>(),
                 agentModelOverrides = CloneAgentModelOverrides(source.agentModelOverrides),

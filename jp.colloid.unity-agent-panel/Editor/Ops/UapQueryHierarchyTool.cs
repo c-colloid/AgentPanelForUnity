@@ -43,7 +43,8 @@ namespace Colloid.AgentPanel.Ops
             get
             {
                 return "Dumps a scene's GameObject hierarchy (or the subtree under an optional target)"
-                    + " as indented lines with component types and child counts. Read-only.";
+                    + " as indented lines with component types, child counts and instanceId (#id, usable as path \"#id\"); same-named"
+                    + " siblings are shown as Name[i] (usable in paths). Read-only.";
             }
         }
 
@@ -197,8 +198,9 @@ namespace Colloid.AgentPanel.Ops
             }
             var sb = new StringBuilder();
             sb.Append(' ', depth * 2);
-            sb.Append(t.name).Append(" [").Append(string.Join(",", typeNames.ToArray())).Append("] (")
-                .Append(t.childCount).Append(t.childCount == 1 ? " child)" : " children)");
+            sb.Append(UapAddressing.DescribeSegment(t)).Append(" [").Append(string.Join(",", typeNames.ToArray())).Append("] (")
+                .Append(t.childCount).Append(t.childCount == 1 ? " child)" : " children)")
+                .Append(" #").Append(UnityObjectId.TextOf(t.gameObject));
             return sb.ToString();
         }
     }

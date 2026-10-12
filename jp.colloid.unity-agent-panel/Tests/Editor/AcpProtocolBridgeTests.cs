@@ -386,6 +386,128 @@ namespace Colloid.AgentPanel.Tests
             Assert.AreEqual(1, finished);
         }
 
+        // -- Terminal-only auth methods (design note 2026-10-07-acp-other-
+        // agents.md section 3): Qwen Code / Copilot CLI / Kimi Code mark the
+        // method as something to run in a terminal; `authenticate` can only
+        // fail, so the bridge skips it and names the command instead.
+
+        private static JsonNode TerminalMethod(string id, string name, string command, params string[] args)
+        {
+            JsonNode argList = JsonNode.NewArray();
+            foreach (string a in args) { argList.Add(a); }
+            return JsonNode.NewObject().Set("id", id).Set("name", name)
+                .Set("_meta", JsonNode.NewObject().Set("terminal-auth", JsonNode.NewObject()
+                    .Set("command", command).Set("args", argList)));
+        }
+
+        [Test]
+        public void TerminalAuthCommand_ReadsTerminalAuthMeta_AndTypeTerminalWithArgs()
+        {
+            Assert.AreEqual("copilot login", AcpProtocolBridge.TerminalAuthCommand(
+                TerminalMethod("copilot-login", "Log in with Copilot CLI", "/opt/copilot-linux-x64/copilot", "login"), "copilot"));
+            Assert.AreEqual("kimi login", AcpProtocolBridge.TerminalAuthCommand(
+                TerminalMethod("login", "Login with Kimi account", "C:\\Users\\me\\kimi.exe", "login"), string.Empty));
+            // Qwen Code: type on _meta, args on _meta, no command -> the agent's own executable.
+            JsonNode qwen = JsonNode.NewObject().Set("id", "openai").Set("name", "Use OpenAI API key")
+                .Set("_meta", JsonNode.NewObject().Set("type", "terminal").Set("args", JsonNode.NewArray().Add("--auth-type=openai")));
+            Assert.AreEqual("qwen --auth-type=openai", AcpProtocolBridge.TerminalAuthCommand(qwen, "/usr/local/bin/qwen"));
+            // type at the method level (Kimi Code's shape) with args there too.
+            JsonNode kimi = JsonNode.NewObject().Set("id", "login").Set("type", "terminal")
+                .Set("args", JsonNode.NewArray().Add("--login"));
+            Assert.AreEqual("kimi --login", AcpProtocolBridge.TerminalAuthCommand(kimi, "kimi"));
+            // Ordinary methods (browser OAuth, env_var) are not terminal.
+            Assert.IsNull(AcpProtocolBridge.TerminalAuthCommand(JsonNode.NewObject().Set("id", "oauth-personal"), "gemini"));
+            Assert.IsNull(AcpProtocolBridge.TerminalAuthCommand(JsonNode.NewObject().Set("id", "codex-api-key").Set("type", "env_var"), "codex-acp"));
+            // Terminal flag without any command to name -> null (falls back to authenticate).
+            Assert.IsNull(AcpProtocolBridge.TerminalAuthCommand(JsonNode.NewObject().Set("id", "x").Set("type", "terminal"), string.Empty));
+        }
+
+        [Test]
+        public void TerminalSignInReason_NamesTheCommands_AndKeepsTheOldWordingWithoutThem()
+        {
+            string onlyTerminal = AcpProtocolBridge.TerminalSignInReason(new List<string> { "copilot login" }, string.Empty, null);
+            StringAssert.Contains("run `copilot login` once", onlyTerminal);
+            StringAssert.DoesNotContain("failed", onlyTerminal);
+            string mixed = AcpProtocolBridge.TerminalSignInReason(new List<string> { "kimi login", "kimi --login" }, "Browser: closed", null);
+            StringAssert.Contains("sign-in failed for every method the agent offers (Browser: closed)", mixed);
+            StringAssert.Contains("run `kimi login` or `kimi --login` once", mixed);
+            string legacy = AcpProtocolBridge.TerminalSignInReason(new List<string>(), "ChatGPT: cancelled", "codex login");
+            StringAssert.Contains("(codex login)", legacy);
+            StringAssert.Contains("Sign in or Reconnect", legacy);
+        }
+
+        [Test]
+        public void Handshake_TerminalOnlyAuthMethod_SkipsAuthenticateAndNamesTheCommand()
+        {
+            var started = new List<string>();
+            int finished = 0;
+            string failed = null;
+            _bridge.AuthenticationStarted += delegate(string id, string name) { started.Add(id); };
+            _bridge.AuthenticationFinished += delegate(bool ok, string error) { finished++; };
+            _bridge.HandshakeFailed += delegate(string reason) { failed = reason; };
+            _bridge.AgentCommand = "/usr/local/bin/copilot";
+            _bridge.OnPanelLine(OutboundMessages.Initialize("req_1"));
+            JsonNode init = InitializeResult(false, true, true);
+            init["authMethods"].Add(TerminalMethod("copilot-login", "Log in with Copilot CLI", "/opt/copilot-linux-x64/copilot", "login"));
+            Respond(AgentLine("initialize"), init);
+            RespondError(AgentLine("session/new"), AcpJsonRpc.AuthRequired, "Authentication required");
+            Assert.AreEqual("session/new", LastAgentLine().Method, "no authenticate request may be sent");
+            Assert.AreEqual(0, started.Count, "no 'complete it in the browser' note for a terminal method");
+            Assert.AreEqual(1, finished, "Finished(false) still fires: AgentHub's no-reconnect decision depends on it");
+            Assert.IsNotNull(failed);
+            StringAssert.Contains("run `copilot login` once", failed);
+            Assert.IsTrue(LastPanel<ResultMessage>().IsError);
+            StringAssert.Contains("copilot login", LastPanel<ControlResponseMessage>().Error);
+        }
+
+        [Test]
+        public void Handshake_AuthRequiredWithNoMethods_FailsOnceAsASignInFailure()
+        {
+            int finished = 0;
+            string failed = null;
+            _bridge.AuthenticationFinished += delegate(bool ok, string error) { finished++; Assert.IsFalse(ok); };
+            _bridge.HandshakeFailed += delegate(string reason) { failed = reason; };
+            _bridge.OnPanelLine(OutboundMessages.Initialize("req_1"));
+            Respond(AgentLine("initialize"), InitializeResult(false, true, true));
+            RespondError(AgentLine("session/new"), AcpJsonRpc.AuthRequired,
+                "Authentication required: Auggie does not currently support authenticating over ACP. Please run `auggie login` from your terminal then try again.");
+            Assert.AreEqual("session/new", LastAgentLine().Method, "nothing to authenticate with");
+            Assert.AreEqual(1, finished, "a sign-in failure, so the hub does not retry the handshake");
+            StringAssert.Contains("no sign-in method over ACP", failed);
+            StringAssert.Contains("`auggie login`", failed);
+            Assert.IsTrue(LastPanel<ResultMessage>().IsError);
+        }
+
+        [Test]
+        public void Handshake_MixedAuthMethods_TriesTheBrowserOne_ThenNamesTheTerminalOne()
+        {
+            string failed = null;
+            _bridge.HandshakeFailed += delegate(string reason) { failed = reason; };
+            _bridge.AgentCommand = "kimi";
+            _bridge.OnPanelLine(OutboundMessages.Initialize("req_1"));
+            JsonNode init = InitializeResult(false, true, true, "browser-oauth");
+            init["authMethods"].Add(TerminalMethod("login", "Login with Kimi account", "kimi", "login"));
+            Respond(AgentLine("initialize"), init);
+            RespondError(AgentLine("session/new"), AcpJsonRpc.AuthRequired, "Authentication required");
+            AcpInbound auth = AgentLine("authenticate");
+            Assert.AreEqual("browser-oauth", auth.Params["methodId"].AsString());
+            RespondError(auth, -32603, "browser closed");
+            Assert.AreEqual("authenticate", LastAgentLine().Method, "the terminal method is never sent");
+            StringAssert.Contains("browser closed", failed);
+            StringAssert.Contains("run `kimi login` once", failed);
+        }
+
+        [Test]
+        public void LooksLikeJsonRpc_OnlyBraceLinesCountAsProtocol()
+        {
+            Assert.IsTrue(AcpBridgeTransport.LooksLikeJsonRpc("{\"jsonrpc\":\"2.0\"}"));
+            Assert.IsTrue(AcpBridgeTransport.LooksLikeJsonRpc("  {\"id\":1}"));
+            Assert.IsFalse(AcpBridgeTransport.LooksLikeJsonRpc("Please visit the following URL to authorize the application:"));
+            Assert.IsFalse(AcpBridgeTransport.LooksLikeJsonRpc("\u001b[2J\u001b[Hhttps://accounts.google.com/o/oauth2/v2/auth?x=1"));
+            Assert.IsFalse(AcpBridgeTransport.LooksLikeJsonRpc(string.Empty));
+            Assert.IsFalse(AcpBridgeTransport.LooksLikeJsonRpc(null));
+        }
+
         [Test]
         public void RankAuthMethods_BrowserLoginsFirst_KeyLikeLast()
         {

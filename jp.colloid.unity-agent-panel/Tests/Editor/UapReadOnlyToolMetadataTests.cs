@@ -62,6 +62,7 @@ namespace Colloid.AgentPanel.Tests
             "uap_scene_destroy_object",
             "uap_scene_reparent",
             "uap_scene_rename",
+            "uap_scene_duplicate",
             "uap_scene_save",
             "uap_scene_open",
             "uap_scene_place_asset",

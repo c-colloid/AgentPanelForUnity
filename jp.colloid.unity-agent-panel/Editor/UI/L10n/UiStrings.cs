@@ -655,6 +655,13 @@ namespace Colloid.AgentPanel.UI
             "Adds a short note to the system prompt: route UI, package and search work through the /unity: skills,"
             + " keep Editor control on the panel's own tools, and skip Unity 6-only guidance on older versions."
             + " Applies from the next chat.";
+        public readonly string SettingsBundledSkillsEnabledLabel = "Install bundled agent skills into this project";
+        public readonly string SettingsBundledSkillsEnabledTooltip =
+            "A package that ships skills (Agent Panel Pro: the modeling workflow) copies them into"
+            + " .claude/skills/ and .agents/skills/ under the project, so Claude Code and the agents"
+            + " that read the open Agent Skills layout (Codex, Gemini CLI, ...) load the full procedure"
+            + " when the task matches. A copy you edit is never overwritten; delete it to get the"
+            + " bundled version back. Takes effect at the next skill lookup, no reconnect needed.";
 
         public readonly string SettingsUloopCaveatVcc =
             "This project is managed by VCC/VPM (vpm-manifest.json found). Package changes made"
@@ -765,6 +772,13 @@ namespace Colloid.AgentPanel.UI
         public readonly string ChatRoleUser = "You";
         public readonly string ChatRoleAssistant = "{agent}";
         public readonly string ChatDefaultAttachTitle = "Attached context";
+
+        /// <summary>Message context menu (TranscriptSelection): copy the
+        /// selected text / the whole message, quote the selection into the
+        /// composer.</summary>
+        public readonly string ChatMenuCopySelection = "Copy";
+        public readonly string ChatMenuCopyMessage = "Copy message";
+        public readonly string ChatMenuAskAboutSelection = "Ask about selection";
         public readonly string ChatThinkingStreaming = "Thinking...";
         public readonly string ChatThinkingDone = "Thinking";
 
@@ -789,9 +803,6 @@ namespace Colloid.AgentPanel.UI
         // ==================================================================
         // MessageListController.cs
         // ==================================================================
-
-        /// <summary>{0} = number of hidden earlier messages.</summary>
-        public readonly string ChatPruneNoteFmt = "{0} earlier messages are hidden";
 
         public readonly string ChatJumpToLatestButton = "Latest";
 
@@ -1883,16 +1894,18 @@ namespace Colloid.AgentPanel.UI
         public readonly string CtxSketchButtonArmedSurface = "Sketching on surface...";
         public readonly string CtxSketchTooltip =
             "Draw a stroke in the Scene view and hand it to the agent as points. Plane mode draws at a chosen depth"
-            + " (wheel / [ ] change depth, F snaps to the surface under the cursor, X/Y/Z lock an axis plane, C faces"
-            + " the camera, Shift for a straight line); surface mode draws on the mesh under the cursor. Esc leaves the mode.";
+            + " (Ctrl+wheel / [ ] change depth, F snaps to the surface under the cursor, X/Y/Z lock an axis plane, C faces"
+            + " the camera); surface mode draws on the mesh under the cursor. Shapes: freehand, line, polyline, rectangle,"
+            + " ellipse (1-5). The plain wheel, right / middle drag and Alt still move the view. Esc cancels the stroke, then"
+            + " leaves the mode.";
         public readonly string CtxSketchMenuPlane = "Sketch on a plane (choose depth)";
         public readonly string CtxSketchMenuSurface = "Sketch on mesh surfaces";
         public readonly string CtxSketchMenuStop = "Stop sketching";
         public readonly string CtxSketchPlaneToolbarLabel = "Plane";
         public readonly string CtxSketchPlaneTooltip =
-            "Agent sketch: draw on a plane at a chosen depth (wheel / [ ]: depth, F: snap to surface, X/Y/Z/C: plane, Esc: exit)";
+            "Agent sketch: draw on a plane at a chosen depth (Ctrl+wheel / [ ]: depth, F: snap to surface, X/Y/Z/C: plane, 1-5: shape, Esc: exit)";
         public readonly string CtxSketchSurfaceToolbarLabel = "Surface";
-        public readonly string CtxSketchSurfaceTooltip = "Agent sketch: draw on the mesh surface under the cursor (Esc: exit)";
+        public readonly string CtxSketchSurfaceTooltip = "Agent sketch: draw on the mesh surface under the cursor (1-5: shape, Esc: exit)";
         public readonly string CtxSketchChipLabelFmt = "Sketch S{0}";
         public readonly string CtxSketchChipTitleFmt = "Scene sketch S{0}";
         /// <summary>Scene-view readout: {0} = depth in metres (F2), {1} = plane axis name.</summary>
@@ -1902,7 +1915,34 @@ namespace Colloid.AgentPanel.UI
         /// <summary>{0} = distance in metres (F2).</summary>
         public readonly string CtxSketchSurfaceBehindFmt = "surface under cursor: {0} m behind the plane";
         public readonly string CtxSketchSurfaceInFrontFmt = "surface under cursor: {0} m in front of the plane";
-        public readonly string CtxSketchKeyHints = "wheel / [ ]: depth   F: snap to surface   X Y Z / C: plane   Shift: straight   Esc: exit";
+        public readonly string CtxSketchKeyHints = "Ctrl+wheel / [ ]: depth   F: snap to surface   X Y Z / C: plane   1-5: shape   Shift: straight / square   N: name newest   Esc: exit";
+        // Shapes, navigation and regions (design note 2026-10-09-sketch-shapes-navigation-regions.md).
+        public readonly string CtxSketchSurfaceKeyHints = "1-5: shape   Shift: straight / square   N: name newest   Esc: exit";
+        public readonly string CtxSketchPolylineHints = "click: add a point   click the first point: close   Enter / double-click: finish   Backspace: undo a point   Esc: cancel";
+        /// <summary>{0} = shape name.</summary>
+        public readonly string CtxSketchSurfaceReadoutFmt = "sketch on surface: shape {0}";
+        /// <summary>{0} = shape name (appended to the plane readout).</summary>
+        public readonly string CtxSketchShapeReadoutFmt = "shape: {0}";
+        public readonly string CtxSketchShapeFreehand = "Freehand";
+        public readonly string CtxSketchShapeLine = "Line";
+        public readonly string CtxSketchShapePolyline = "Polyline";
+        public readonly string CtxSketchShapeRectangle = "Rectangle";
+        public readonly string CtxSketchShapeEllipse = "Ellipse";
+        /// <summary>GenericMenu submenu prefix; the shape name follows.</summary>
+        public readonly string CtxSketchMenuShapePrefix = "Shape/";
+        public readonly string CtxSketchShapeDropdownTooltip =
+            "Sketch shape: freehand, line, polyline (click the points; click the first one to close), rectangle or ellipse (1-5 in the Scene view)";
+        /// <summary>{0} = "S3".</summary>
+        public readonly string CtxSketchNameWindowTitleFmt = "Name sketch {0}";
+        public readonly string CtxSketchNameFieldLabel = "Name";
+        public readonly string CtxSketchNameApplyButton = "Apply";
+        public readonly string CtxSketchChipMenuName = "Name...";
+        /// <summary>{0} = S number, {1} = name.</summary>
+        public readonly string CtxSketchChipLabelNamedFmt = "Sketch S{0}: {1}";
+        public readonly string CtxStrokePayloadNameFmt = "name: {0}";
+        public readonly string CtxStrokePayloadShapeFmt = "shape: {0}";
+        /// <summary>{0} = area (F2), {1} = stroke id.</summary>
+        public readonly string CtxStrokePayloadAreaFmt = "area: {0} m^2 (closed region; uap_stroke_list id={1} lists the objects inside it)";
         public readonly string CtxStrokePayloadHeaderFmt = "Scene sketch S{0} (user-drawn stroke in the Scene view)";
         public readonly string CtxStrokePayloadModeFmt = "mode: {0}";
         /// <summary>{0} = point count, {1} = length in metres (F2), {2} = closed yes/no.</summary>
@@ -2052,7 +2092,7 @@ namespace Colloid.AgentPanel.UI
 
         public readonly string SettingsAcpCommandHintCustom =
             "The command that starts the agent in ACP mode (for example"
-            + " `qwen --experimental-acp`). Required.";
+            + " `opencode acp`, `qwen --acp`). Required.";
 
         public readonly string SettingsAcpAuthMethodHint =
             "The ACP authenticate method id. Empty = the first sign-in method the agent offers.";
@@ -2927,6 +2967,8 @@ namespace Colloid.AgentPanel.UI
             string settingsUnityPluginRepoLabel,
             string settingsUnityPluginSteeringLabel,
             string settingsUnityPluginSteeringTooltip,
+            string settingsBundledSkillsEnabledLabel,
+            string settingsBundledSkillsEnabledTooltip,
             string settingsUloopCaveatVcc,
             string settingsUloopCaveatOffline,
             string settingsUloopCaveatManifestUnreadable,
@@ -2968,13 +3010,15 @@ namespace Colloid.AgentPanel.UI
             string chatRoleUser,
             string chatRoleAssistant,
             string chatDefaultAttachTitle,
+            string chatMenuCopySelection,
+            string chatMenuCopyMessage,
+            string chatMenuAskAboutSelection,
             string chatThinkingStreaming,
             string chatThinkingDone,
             string chatThinkingIndicatorStreaming,
             string chatThinkingIndicatorStreamingTokensFmt,
             string chatThinkingIndicatorDone,
             string chatThinkingIndicatorDoneTokensFmt,
-            string chatPruneNoteFmt,
             string chatJumpToLatestButton,
             string chatCompactingIndicator,
             string statusDisconnected,
@@ -3311,6 +3355,25 @@ namespace Colloid.AgentPanel.UI
             string ctxStrokePayloadPointsFmt,
             string ctxStrokePayloadMorePointsFmt,
             string ctxStrokePayloadAllPointsFmt,
+            string ctxSketchSurfaceKeyHints,
+            string ctxSketchPolylineHints,
+            string ctxSketchSurfaceReadoutFmt,
+            string ctxSketchShapeReadoutFmt,
+            string ctxSketchShapeFreehand,
+            string ctxSketchShapeLine,
+            string ctxSketchShapePolyline,
+            string ctxSketchShapeRectangle,
+            string ctxSketchShapeEllipse,
+            string ctxSketchMenuShapePrefix,
+            string ctxSketchShapeDropdownTooltip,
+            string ctxSketchNameWindowTitleFmt,
+            string ctxSketchNameFieldLabel,
+            string ctxSketchNameApplyButton,
+            string ctxSketchChipMenuName,
+            string ctxSketchChipLabelNamedFmt,
+            string ctxStrokePayloadNameFmt,
+            string ctxStrokePayloadShapeFmt,
+            string ctxStrokePayloadAreaFmt,
             string settingsSectionExtensionProfiles,
             string settingsExtensionProfilesHint,
             string settingsExtensionProfilesTooltip,
@@ -3828,6 +3891,8 @@ namespace Colloid.AgentPanel.UI
             SettingsUnityPluginRepoLabel = settingsUnityPluginRepoLabel;
             SettingsUnityPluginSteeringLabel = settingsUnityPluginSteeringLabel;
             SettingsUnityPluginSteeringTooltip = settingsUnityPluginSteeringTooltip;
+            SettingsBundledSkillsEnabledLabel = settingsBundledSkillsEnabledLabel;
+            SettingsBundledSkillsEnabledTooltip = settingsBundledSkillsEnabledTooltip;
             SettingsUloopCaveatVcc = settingsUloopCaveatVcc;
             SettingsUloopCaveatOffline = settingsUloopCaveatOffline;
             SettingsUloopCaveatManifestUnreadable = settingsUloopCaveatManifestUnreadable;
@@ -3869,13 +3934,15 @@ namespace Colloid.AgentPanel.UI
             ChatRoleUser = chatRoleUser;
             ChatRoleAssistant = chatRoleAssistant;
             ChatDefaultAttachTitle = chatDefaultAttachTitle;
+            ChatMenuCopySelection = chatMenuCopySelection;
+            ChatMenuCopyMessage = chatMenuCopyMessage;
+            ChatMenuAskAboutSelection = chatMenuAskAboutSelection;
             ChatThinkingStreaming = chatThinkingStreaming;
             ChatThinkingDone = chatThinkingDone;
             ChatThinkingIndicatorStreaming = chatThinkingIndicatorStreaming;
             ChatThinkingIndicatorStreamingTokensFmt = chatThinkingIndicatorStreamingTokensFmt;
             ChatThinkingIndicatorDone = chatThinkingIndicatorDone;
             ChatThinkingIndicatorDoneTokensFmt = chatThinkingIndicatorDoneTokensFmt;
-            ChatPruneNoteFmt = chatPruneNoteFmt;
             ChatJumpToLatestButton = chatJumpToLatestButton;
             ChatCompactingIndicator = chatCompactingIndicator;
             StatusDisconnected = statusDisconnected;
@@ -4212,6 +4279,25 @@ namespace Colloid.AgentPanel.UI
             CtxStrokePayloadPointsFmt = ctxStrokePayloadPointsFmt;
             CtxStrokePayloadMorePointsFmt = ctxStrokePayloadMorePointsFmt;
             CtxStrokePayloadAllPointsFmt = ctxStrokePayloadAllPointsFmt;
+            CtxSketchSurfaceKeyHints = ctxSketchSurfaceKeyHints;
+            CtxSketchPolylineHints = ctxSketchPolylineHints;
+            CtxSketchSurfaceReadoutFmt = ctxSketchSurfaceReadoutFmt;
+            CtxSketchShapeReadoutFmt = ctxSketchShapeReadoutFmt;
+            CtxSketchShapeFreehand = ctxSketchShapeFreehand;
+            CtxSketchShapeLine = ctxSketchShapeLine;
+            CtxSketchShapePolyline = ctxSketchShapePolyline;
+            CtxSketchShapeRectangle = ctxSketchShapeRectangle;
+            CtxSketchShapeEllipse = ctxSketchShapeEllipse;
+            CtxSketchMenuShapePrefix = ctxSketchMenuShapePrefix;
+            CtxSketchShapeDropdownTooltip = ctxSketchShapeDropdownTooltip;
+            CtxSketchNameWindowTitleFmt = ctxSketchNameWindowTitleFmt;
+            CtxSketchNameFieldLabel = ctxSketchNameFieldLabel;
+            CtxSketchNameApplyButton = ctxSketchNameApplyButton;
+            CtxSketchChipMenuName = ctxSketchChipMenuName;
+            CtxSketchChipLabelNamedFmt = ctxSketchChipLabelNamedFmt;
+            CtxStrokePayloadNameFmt = ctxStrokePayloadNameFmt;
+            CtxStrokePayloadShapeFmt = ctxStrokePayloadShapeFmt;
+            CtxStrokePayloadAreaFmt = ctxStrokePayloadAreaFmt;
             SettingsSectionExtensionProfiles = settingsSectionExtensionProfiles;
             SettingsExtensionProfilesHint = settingsExtensionProfilesHint;
             SettingsExtensionProfilesTooltip = settingsExtensionProfilesTooltip;

@@ -84,6 +84,7 @@ namespace Colloid.AgentPanel.Core.Acp
         private readonly List<string> _authCandidates = new List<string>();
         private int _authCandidateIndex;
         private readonly List<string> _authFailures = new List<string>();
+        private readonly List<string> _authTerminalCommands = new List<string>();
         private bool _loadingSession;
         private bool _sessionLoaded;
         private string _sessionId;
@@ -94,6 +95,16 @@ namespace Colloid.AgentPanel.Core.Acp
         private bool _capMcpHttp;
         private readonly List<string> _authMethodIds = new List<string>();
         private readonly List<string> _authMethodNames = new List<string>();
+        /// <summary>Per auth method: the terminal command line that completes it (see <see cref="TerminalAuthCommand"/>), or null when `authenticate` can run it.</summary>
+        private readonly List<string> _authMethodTerminalCommands = new List<string>();
+
+        /// <summary>
+        /// The agent's executable as launched (bare name or path), used only
+        /// to word a terminal sign-in hint for methods that give arguments
+        /// but no command of their own. Set by AcpBridgeTransport before the
+        /// process starts; empty when unknown.
+        /// </summary>
+        public string AgentCommand = string.Empty;
         private readonly List<KeyValuePair<string, string>> _modes =
             new List<KeyValuePair<string, string>>();
         private string _currentModeId;
@@ -336,6 +347,7 @@ namespace Colloid.AgentPanel.Core.Acp
             _agentVersion = result["agentInfo"]["version"].AsString(string.Empty) ?? string.Empty;
             _authMethodIds.Clear();
             _authMethodNames.Clear();
+            _authMethodTerminalCommands.Clear();
             foreach (JsonNode method in result["authMethods"].Items)
             {
                 string id = method["id"].AsString();
@@ -343,6 +355,7 @@ namespace Colloid.AgentPanel.Core.Acp
                 {
                     _authMethodIds.Add(id);
                     _authMethodNames.Add(method["name"].AsString(id));
+                    _authMethodTerminalCommands.Add(TerminalAuthCommand(method, AgentCommand));
                 }
             }
             OpenSession();
@@ -388,10 +401,27 @@ namespace Colloid.AgentPanel.Core.Acp
             {
                 if (response.IsError)
                 {
-                    if (!_authAttempted && _authMethodIds.Count > 0
-                        && LooksLikeAuthRequired(response))
+                    if (!_authAttempted && LooksLikeAuthRequired(response))
                     {
-                        Authenticate();
+                        if (_authMethodIds.Count > 0)
+                        {
+                            Authenticate();
+                            return;
+                        }
+                        // No method to try (Auggie: "does not currently
+                        // support authenticating over ACP. Please run
+                        // `auggie login`"). Still a sign-in failure, so
+                        // Finished(false) fires and AgentHub does not retry
+                        // the handshake four times (2026-10-08 capture).
+                        _authAttempted = true;
+                        string reason = "sign-in required, but the agent offers no sign-in method over ACP ("
+                            + response.ErrorMessage + "). Sign in to the agent's own CLI once, then press Reconnect (Settings > Account).";
+                        Action<bool, string> finished = AuthenticationFinished;
+                        if (finished != null)
+                        {
+                            finished(false, reason);
+                        }
+                        FailHandshake(reason);
                         return;
                     }
                     FailHandshake("session/new failed: " + response.ErrorMessage);
@@ -438,24 +468,44 @@ namespace Colloid.AgentPanel.Core.Acp
             {
                 _authAttempted = true;
                 _authCandidates.Clear();
-                _authCandidates.AddRange(RankAuthMethods(_spec.AuthMethodId, _authMethodIds, _authMethodNames));
+                _authTerminalCommands.Clear();
+                foreach (string id in RankAuthMethods(_spec.AuthMethodId, _authMethodIds, _authMethodNames))
+                {
+                    // A terminal method (design note 2026-10-07-acp-other-
+                    // agents.md section 3.1) cannot be completed over ACP:
+                    // Qwen Code, Copilot CLI and Kimi Code all answer
+                    // `authenticate` with an error. Do not spend a round trip
+                    // (and a "complete it in the browser" note) on it; keep
+                    // its command line for the final message instead.
+                    string terminal = _authMethodTerminalCommands[_authMethodIds.IndexOf(id)];
+                    if (terminal != null)
+                    {
+                        if (!_authTerminalCommands.Contains(terminal))
+                        {
+                            _authTerminalCommands.Add(terminal);
+                        }
+                        continue;
+                    }
+                    _authCandidates.Add(id);
+                }
                 _authCandidateIndex = 0;
                 _authFailures.Clear();
             }
             if (_authCandidateIndex >= _authCandidates.Count)
             {
                 string summary = string.Join("; ", _authFailures.ToArray());
+                string reason = TerminalSignInReason(_authTerminalCommands, summary, AgentBackends.LoginCommand(_spec.Backend));
+                // Finished(false) fires even when no `authenticate` was sent
+                // (terminal-only methods): AgentHub's no-reconnect decision
+                // for the process death that follows hangs on it. Without it
+                // the panel retried the handshake four times before giving
+                // up (seen in the 2026-10-08 capture of Qwen Code).
                 Action<bool, string> finished = AuthenticationFinished;
                 if (finished != null)
                 {
-                    finished(false, summary);
+                    finished(false, reason);
                 }
-                FailHandshake("sign-in failed for every method the agent offers (" + summary
-                    + "). Sign in to the agent's own CLI once"
-                    + (string.IsNullOrEmpty(AgentBackends.LoginCommand(_spec.Backend))
-                        ? string.Empty
-                        : " (" + AgentBackends.LoginCommand(_spec.Backend) + ")")
-                    + ", then press Sign in or Reconnect (Settings > Account).");
+                FailHandshake(reason);
                 return;
             }
             string methodId = _authCandidates[_authCandidateIndex++];
@@ -531,6 +581,118 @@ namespace Colloid.AgentPanel.Core.Acp
                 }
             }
             return result;
+        }
+
+        /// <summary>
+        /// Pure: the command line a user runs in a terminal to complete this
+        /// auth method, or null when the method is meant for `authenticate`.
+        /// Two shapes exist in the wild (2026-10-07 live run): an explicit
+        /// `_meta["terminal-auth"]` with `command` + `args` (Copilot CLI,
+        /// Kimi Code), and `type:"terminal"` on the method or in `_meta`
+        /// with only `args` (Qwen Code: `--auth-type=openai`), in which case
+        /// the agent's own executable is the command. Paths are reduced to
+        /// their file name so the hint reads like what the user types
+        /// (`copilot login`, not `/usr/lib/node_modules/.../copilot login`).
+        /// </summary>
+        internal static string TerminalAuthCommand(JsonNode method, string agentCommand)
+        {
+            if (method == null || method.IsNull)
+            {
+                return null;
+            }
+            JsonNode meta = method["_meta"];
+            JsonNode terminalAuth = meta["terminal-auth"];
+            if (terminalAuth.IsObject)
+            {
+                string command = terminalAuth["command"].AsString(string.Empty);
+                string line = JoinCommand(string.IsNullOrEmpty(command) ? agentCommand : command, terminalAuth["args"]);
+                return string.IsNullOrEmpty(line) ? null : line;
+            }
+            bool terminal = method["type"].AsString(string.Empty) == "terminal"
+                || meta["type"].AsString(string.Empty) == "terminal";
+            if (!terminal)
+            {
+                return null;
+            }
+            JsonNode args = method["args"].IsArray ? method["args"] : meta["args"];
+            string joined = JoinCommand(agentCommand, args);
+            return string.IsNullOrEmpty(joined) ? null : joined;
+        }
+
+        private static string JoinCommand(string command, JsonNode args)
+        {
+            var sb = new StringBuilder();
+            if (!string.IsNullOrEmpty(command))
+            {
+                string name = command;
+                int cut = Math.Max(command.LastIndexOf('/'), command.LastIndexOf('\\'));
+                if (cut >= 0 && cut + 1 < command.Length)
+                {
+                    name = command.Substring(cut + 1);
+                }
+                if (name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
+                    || name.EndsWith(".cmd", StringComparison.OrdinalIgnoreCase))
+                {
+                    name = name.Substring(0, name.Length - 4);
+                }
+                sb.Append(name);
+            }
+            if (args != null && args.IsArray)
+            {
+                foreach (JsonNode arg in args.Items)
+                {
+                    string text = arg.AsString(string.Empty);
+                    if (text.Length == 0)
+                    {
+                        continue;
+                    }
+                    if (sb.Length > 0)
+                    {
+                        sb.Append(' ');
+                    }
+                    sb.Append(text);
+                }
+            }
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// Pure: the handshake failure text once sign-in cannot be completed
+        /// from the panel. `terminalCommands` are the commands of the
+        /// methods that were skipped as terminal-only (empty when none),
+        /// `failures` the "name: error" summary of the methods that were
+        /// tried (empty when none), `presetLoginCommand` the backend's own
+        /// login command when the panel knows one.
+        /// </summary>
+        internal static string TerminalSignInReason(List<string> terminalCommands, string failures, string presetLoginCommand)
+        {
+            var sb = new StringBuilder();
+            bool anyTerminal = terminalCommands != null && terminalCommands.Count > 0;
+            bool anyFailure = !string.IsNullOrEmpty(failures);
+            if (anyFailure)
+            {
+                sb.Append("sign-in failed for every method the agent offers (").Append(failures).Append("). ");
+            }
+            if (anyTerminal)
+            {
+                sb.Append(anyFailure
+                    ? "The remaining method must be completed in a terminal: run `"
+                    : "This agent signs in from a terminal, not through the panel: run `");
+                sb.Append(terminalCommands[0]).Append('`');
+                for (int i = 1; i < terminalCommands.Count; i++)
+                {
+                    sb.Append(i == terminalCommands.Count - 1 ? " or `" : ", `").Append(terminalCommands[i]).Append('`');
+                }
+                sb.Append(" once, then press Reconnect (Settings > Account).");
+                return sb.ToString();
+            }
+            sb.Append("Sign in to the agent's own CLI once");
+            if (!string.IsNullOrEmpty(presetLoginCommand))
+            {
+                sb.Append(" (").Append(presetLoginCommand).Append(')');
+            }
+            sb.Append(", then press Sign in or Reconnect (Settings > Account).");
+            return sb.ToString();
         }
 
         /// <summary>The rank <see cref="ClassifyAuthMethod"/> gives key/gateway methods: tried last, and billed to the key rather than a subscription.</summary>

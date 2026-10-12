@@ -113,6 +113,39 @@ namespace Colloid.AgentPanel.Ops
             return _value.ToString();
         }
 
+        /// <summary>
+        /// The id as the text a tool reply carries (a hierarchy path
+        /// "#&lt;id&gt;" addresses the object by it, see UapAddressing).
+        /// </summary>
+        public static string TextOf(Object obj)
+        {
+            return Of(obj).ToString();
+        }
+
+        /// <summary>
+        /// The live object whose <see cref="TextOf"/> is <paramref name="text"/>,
+        /// or null. Before Unity 6000.3 the text is the instance id; from
+        /// 6000.3 it is the EntityId's text, matched by scanning the loaded
+        /// GameObjects (no int conversion of an EntityId exists).
+        /// </summary>
+        public static Object FromText(string text)
+        {
+            if (string.IsNullOrEmpty(text))
+            {
+                return null;
+            }
+#if UNITY_6000_3_OR_NEWER
+            foreach (GameObject go in Resources.FindObjectsOfTypeAll<GameObject>())
+            {
+                if (TextOf(go) == text) return go;
+            }
+            return null;
+#else
+            int id;
+            return int.TryParse(text, out id) ? UnityEditor.EditorUtility.InstanceIDToObject(id) : null;
+#endif
+        }
+
         public static bool operator ==(UnityObjectId left, UnityObjectId right)
         {
             return left.Equals(right);
