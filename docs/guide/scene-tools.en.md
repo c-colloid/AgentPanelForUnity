@@ -29,17 +29,37 @@ A toolbar named "Agent Tools" appears at the bottom right of the Scene view. Fro
 
 ## Sketches (lines)
 
-Enter a drawing mode with the plane or surface toggle (or the "Sketch" menu in the context bar) and **left-drag** in the Scene view to draw a line (S1, S2, ...). The line appears in the context bar as a "Sketch S1" chip and is passed to the agent as a series of points (the agent can read every point, the normals, the drawn object, the length, whether it is closed and the sketch plane as JSON with `uap_stroke_list`). Drawn lines are thinned out before saving (bumps smaller than 0.5% of the length are dropped).
+Enter a drawing mode with the plane or surface toggle (or the "Sketch" menu in the context bar) and **left-drag** in the Scene view to draw a line (S1, S2, ...). The line appears in the context bar as a "Sketch S1" chip and is passed to the agent as a series of points (the agent can read every point, the normals, the drawn object, the length, whether it is closed and the sketch plane as JSON with `uap_stroke_list`). Freehand lines are thinned out before saving (bumps smaller than 0.5% of the length are dropped).
+
+### Shapes
+
+The **shape dropdown** at the right end of the Agent Tools toolbar (or the "Shape" submenu of the context bar's Sketch menu, or the **1**-**5** keys in the Scene view) picks what the next stroke is:
+
+| Shape | Key | How to draw |
+|---|---|---|
+| Freehand | 1 | Left-drag. Shift makes it a straight line. |
+| Line | 2 | Left-drag from one end to the other. |
+| Polyline | 3 | **Click** to place each corner. Click the first corner again to close it, or press Enter (or double-click) to finish it open. Backspace removes the last corner, Esc discards the whole polyline. |
+| Rectangle | 4 | Left-drag from corner to corner. Shift for a square. Always closed. |
+| Ellipse | 5 | Left-drag the bounding box. Shift for a circle. Always closed. |
+
+A rectangle is stored as its four corners, an ellipse as 48 points, so the agent sees exact corners and curves (`shape` in `uap_stroke_list`). In surface mode a shape is draped onto the mesh point by point, so a rectangle drawn on uneven ground follows it.
+
+### Moving the view while sketching
+
+The mouse wheel, right-drag, middle-drag and Alt-drag keep their Scene view meaning (zoom, look, pan, orbit) while a sketch mode is on. A polyline is placed click by click, so you can zoom out, orbit and pan between clicks to outline an area larger than the screen. Depth in plane mode is on **Ctrl+wheel** (Cmd on macOS) or `[` `]`. Esc discards a stroke in progress; pressing it again leaves the mode.
 
 **Sketch on a plane** draws on a plane whose depth you set first. The top shows the plane's depth and axis, and a readout of how many meters in front of or behind the plane the surface under the cursor is. A light-blue **outline** appears where the plane cuts the surrounding objects, and a depth-tested **grid** appears around the cursor, so you can see at what depth the plane sits.
 
 | Key | Action |
 |---|---|
-| Wheel / `[` `]` | Move the depth forward / back |
+| Ctrl+wheel / `[` `]` | Move the depth forward / back (the plain wheel zooms the view) |
 | **F** | Match the depth of the surface under the cursor |
 | **X** / **Y** / **Z** | Use a plane fixed to a world axis |
 | **C** | Return to a camera-facing plane |
-| **Shift** + drag | Straight line |
+| **Shift** + drag | Straight line (freehand) / square or circle (rectangle, ellipse) |
+| **1** - **5** | Shape: freehand / line / polyline / rectangle / ellipse |
+| **N** | Name the newest sketch |
 
 ![Plane mode. The depth readout at the top, the light-blue outline where the plane cuts the floor and wall, and the grid around the cursor](../images/guide/13-agent-tools-plane-armed.png)
 
@@ -48,6 +68,14 @@ Enter a drawing mode with the plane or surface toggle (or the "Sketch" menu in t
 **Sketch on mesh surfaces** draws along the mesh surface under the cursor. The drawn object and the normal at each point are passed along too, which suits handing over "this spot on this surface".
 
 ![S2 drawn on the floor in surface mode. Only the surface toggle on the toolbar is lit](../images/guide/13-agent-tools-surface-stroke.png)
+
+### Areas: closed sketches with a name
+
+A closed sketch (a rectangle, an ellipse, a polyline closed on its first corner, or a freehand loop) is an **area**: it is filled with a translucent tint of its colour (each S number has its own colour), and you can **name** it. Click the "S1" label in the Scene view, right-click the chip and choose "Name...", or press **N** while sketching to name the newest one. The name shows in the label ("S1 plaza"), in the chip ("Sketch S1: plaza") and in what the agent gets.
+
+For an area the agent's `uap_stroke_list` also reports the **area** in m², the **centroid**, and **the objects inside it** (`contains`: the visible objects whose bounds centre falls inside the outline; the ground the area was drawn on and anything larger than the outline are left out). This is how you split an existing world into zones: draw a rectangle on the ground in surface mode (or in plane mode with **Y** for a horizontal plane and **F** to drop it onto the ground), name it "plaza", draw the next one, name it "forest", and ask:
+
+> Place 4 benches evenly inside the plaza, and scale the trees inside the forest area to 1.5x.
 
 Pro's mesh tools can use these lines directly: dig or raise a groove along a line (`uap_mesh_edit`), build a tube along a line, or cut a hole or add a plate with the outline of a closed line (`sdf` / `extrude` of `uap_mesh_create`).
 

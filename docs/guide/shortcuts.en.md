@@ -10,8 +10,9 @@
 | Slash suggestions | ↑ / ↓ / Tab / Enter / Esc | Select / complete / send / close |
 | Permission card (when focused) | Y / N | Allow / deny |
 | Scene view (placing a pin) | Left click / Shift+click / Esc | Place / place repeatedly / cancel |
-| Scene view (sketching) | Left drag / Shift+drag / Esc | Draw / straight line / finish |
-| Scene view (plane sketch) | Wheel, `[` `]` / F / X, Y, Z / C | Depth / snap to surface / axis plane / face camera |
+| Scene view (sketching) | Left drag / Shift+drag / 1-5 / N / Esc | Draw / straight line or square / shape / name the newest / cancel, then finish |
+| Scene view (polyline sketch) | Click / click the first point / Enter / Backspace | Add a point / close / finish / undo a point |
+| Scene view (plane sketch) | Ctrl+wheel, `[` `]` / F / X, Y, Z / C | Depth / snap to surface / axis plane / face camera |
 | Unity | Ctrl+Z | Undo the previous turn's Unity operations in one step |
 
 ---
