@@ -356,6 +356,7 @@ Core(`vX.Y.Z`)の一覧。Pro のタグは `pro-vX.Y.Z` で、この表には積
   型・enum・required・範囲などはそのままに各項目の説明を 1 文(100 字まで)に縮めた軽量版にして
   35,681 → 29,738 字(-16.7%)にした。フル一覧と `uap_help` / `uap_tools` の `names` は完全なスキーマのまま
   (`UapLeanSchema`、`docs/design-notes/2026-10-02-session-context-cost.md` §6)。
+- v0.61.0-beta.8: `uap_execute_code` の行アイコンを Console の警告マークから C# スクリプトのアイコンへ変更(実行前から「失敗した」ように見えていた)。
 
 | タグ | 内容 |
 |---|---|
