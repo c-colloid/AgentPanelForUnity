@@ -7,7 +7,366 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-(nothing yet)
+### Added
+
+- **`uap_game_pointer`: the agent can press the game's own buttons.**
+  Clicks, long-presses and drags uGUI widgets in the running game by
+  sending the pointer events its EventSystem would (pointerDown / Up /
+  Click, beginDrag / drag / endDrag / drop), so "press Start and see if
+  the level loads" no longer needs a human at the mouse. Works whether the
+  project uses the legacy Input Manager or the Input System, because uGUI
+  sits above both. Say where with a hierarchy path (`target`, exact and
+  immune to raycast blockers) or with screenshot-style coordinates (origin
+  top-left, in the Game View's render resolution, or 0..1 with
+  `normalized:true`); the reply names what was hit and which object took
+  each event. Long-press and drag span frames without blocking the Editor.
+  `docs/design-notes/2026-09-22-game-input-tools.md`.
+- **`uap_game_key`: the agent can press keys in the running game.**
+  Press, hold (`down` / `up`) or release keys through the Input System,
+  with the shorthand an agent writes ("shift", "esc", "1", "up") mapped
+  onto the package's key names and a suggestion on a wrong one. A press
+  stays down for at least one input update so the game sees the edge, the
+  reply reads the device back, and every held key is released when Play
+  Mode ends. Input System only -- the legacy Input class has no injection
+  API -- and the reply says so, pointing at `uap_game_pointer` for UI.
+  Holds are capped at 10 s per call so a release can never be lost to the
+  call's own timeout; longer holds are `down` then `up`.
+- Both reach uGUI and the Input System by reflection, since neither
+  package is guaranteed to be installed, and report which step failed
+  instead of failing silently. With them the last capability that made a
+  project install uLoop (its simulate-keyboard / simulate-mouse-ui tools)
+  is covered natively; uLoop stays optional for hot-reload, pause points
+  and dynamic code only.
+- **`uap_editor_screenshot` lists the UI an agent can press.**
+  `annotate_ui:true` returns every clickable or draggable uGUI element
+  (Button, Toggle, Slider, Dropdown, InputField, Scrollbar and their TMP
+  versions, plus anything handling pointer clicks, drags or drops) with a
+  letter label, its hierarchy path, type, interactable state, visible text
+  and its centre in the same top-left render-pixel convention
+  `uap_game_pointer` takes, so the path goes straight into that tool's
+  `target` instead of a pixel guessed from a picture. `ui_only:true`
+  returns only the list, even with no view open; Game-view captures also
+  get outlines and labels drawn in.
+  `docs/design-notes/2026-09-22-uloop-phase1.md` section 2.1.
+- **`uap_game_mouse`: the game's own mouse device.** Click, long-press,
+  move to a point, inject a raw movement delta (optionally spread over a
+  duration, for look / aim code that reads `Mouse.current.delta`) or
+  scroll, through the Input System, with `uap_game_pointer`'s button and
+  coordinate rules. `dry_run:true` needs neither Play Mode nor the Input
+  System: a ray from `Camera.main` through the point reports what it hits
+  in 3D or 2D, so a coordinate can be checked before a real click. Section
+  2.2 of the same note.
+- **A key, button, press or drag is never left held when its call gives
+  up.** While the Editor is unfocused in Play Mode a tool call waits only
+  8 s, shorter than the longest hold, and a call that ran out of time used
+  to stay pressed in the game until Play Mode ended. `uap_game_key`,
+  `uap_game_mouse` and `uap_game_pointer` now release exactly what the
+  abandoned call held (a key held by an earlier `down` stays held).
+  Section 3 of the same note.
+- **`uap_compile`: recompile the project and read its errors.**
+  `uap_scripts_commit` only validates scripts the agent staged; after an
+  edit made outside the panel there was no way to ask "does it compile
+  now". `action:request` schedules the compile right after the reply (a
+  compile reloads the domain and would drop an inline answer) and
+  `action:status` returns file / line / message for every error and
+  warning, kept across the reload. Refused in Play Mode or while a compile
+  is running; a request that never produced a compile stops blocking new
+  ones after 20 s. Section 2.3.
+- **`uap_project_info`** reports, in one read-only call, the facts that
+  decide whether the other tools can work: Unity version, build target,
+  Active Input Handling (the Input System tools need "new" or "both"),
+  Enter Play Mode Settings, Run In Background, color space, and whether
+  uGUI, the Input System, the Test Framework, TextMeshPro, uLoop and Agent
+  Panel Pro are installed -- each with the `uap_*` tool it limits.
+  **`uap_editor_focus`** brings the Editor to the front at the OS level
+  (Windows, macOS; Linux with `wmctrl`) and says which part worked: the
+  fix for the time-outs an unfocused Editor causes in Play Mode. Sections
+  2.4 and 2.5.
+- **A compact tool list for agents other than Claude Code.** Every tool's
+  description reaches the agent at the start of every session; Claude Code
+  loads them on demand, but other agents pay for all of them every time
+  (about 9k tokens for Core's default modules, about 24k with every Pro
+  module on). Settings > Unity ops > "Tool list mode" (Auto by default:
+  Full for Claude Code, Compact for everything else) makes the connection
+  list only the core module's tools and reach every other enabled tool
+  through `uap_tools` (search by name / module / one-line summary) and
+  `uap_call` (run one by name). A tool reached through `uap_call` behaves
+  exactly like a direct call -- module switches, permission card,
+  auto-approval by its own read-only / undo flags, destructive confirm,
+  Undo -- because the server unwraps it before anything else looks at it.
+  New `uap_help` returns any tool's full description and schema by name.
+  Section 2.8.
+- **Unity operation tools for ACP agents that only speak stdio MCP.** The
+  tools are offered as an HTTP MCP server; an agent that does not
+  advertise HTTP support used to get nothing, with only a log line to say
+  so. The panel now builds a small stdio-to-HTTP relay with the .NET
+  runtime and compiler that ship inside the Unity Editor (once, cached in
+  `Library/`; built in the background at connect so the connection never
+  waits on it for more than a few seconds) and hands that to the agent.
+  When neither works, one note in the transcript says so. Section 2.7.
+- **`uap_game_watch`: how a value changed, in one call.** Reads one or
+  more fields or properties of a component (`uap_object_inspect`'s
+  addressing; dotted paths such as `velocity.y` reach into a struct) every
+  `interval` for up to 6 s and returns the time series -- by default only
+  the samples where something changed, plus the first and last. `until`
+  (`changed`, or `==` / `!=` / `<` / `<=` / `>` / `>=` against the first
+  member) ends the watch at the frame the value gets there, so "did the
+  health reach 0" no longer needs `uap_object_inspect` in a loop. Reads by
+  reflection, so runtime-only values such as `Rigidbody.velocity` work.
+  Read-only. `docs/design-notes/2026-09-23-uloop-phase2.md` section 3.2.
+- **`uap_record_video`: a video of the Game or Scene view.** `start`
+  returns at once and frames are captured in the background at wall-clock
+  pace, so other tools keep working while it records; `stop` finalises the
+  file and `status` reports frames, duration and dropped frames. mp4
+  (H.264) on Windows and macOS, webm (VP8) on Linux, through the Editor's
+  own `MediaEncoder` (nothing to install). Up to 300 s (60 s by default),
+  the same `view` / `capture` choices as `uap_editor_screenshot`, the
+  newest 10 recordings kept. The reply says why a recording ended
+  (`stop`, `duration`, `play-mode-exit`, `assembly-reload`, `error`); a
+  domain reload ends it rather than being worked around, so start
+  recording after entering Play Mode. Section 3.1 of the same note.
+- **`uap_input_record` / `uap_input_replay`: capture a play session's
+  input once, replay it on demand.** Recording samples keyboard and mouse
+  state every tick in Play Mode and keeps the changes, with timestamps, in
+  a JSON file under `Library/UnityAgentPanel/InputRecordings/`; replay
+  feeds them back at the recorded times (0.25x to 4x) through the same
+  Input System injection as `uap_game_key` / `uap_game_mouse`, keeps every
+  press visible to the game for at least one input update, and releases
+  everything it pressed when it stops, finishes, fails or Play Mode ends.
+  Needs the Input System. Section 3.4 of the same note.
+
+- **`uap_execute_code`: C# for what no typed tool can do.** uLoop's
+  execute-dynamic-code, built in and gated more tightly. The agent sends
+  the body of a method returning `object`; it is compiled in the
+  background with the same `AssemblyBuilder` path as `uap_scripts_commit`
+  (the Editor never stalls on the compile), against the project's own
+  assemblies, and run on the main thread. Compile errors come back with
+  line numbers in the agent's code, the return value as JSON, and
+  `Debug.Log` output from the run alongside it. The permission card always
+  shows the whole snippet -- also when called through `uap_call` -- and no
+  auto-approve level ever skips it. A static scan flags processes, network,
+  file and asset deletion, reflection by name, native interop, sleeps and
+  unconditional loops; a flagged snippet only previews what was found until
+  the call is repeated with `confirm:true`. The scan is a mitigation, not a
+  sandbox, and the tool says so. Each run gets its own Undo group, and the
+  reply says whether it left anything Ctrl+Z can revert. A loaded snippet
+  stays in memory until the next domain reload: every reply counts them,
+  and past 32 it points at `action:"reset"`. New "code" module, on by
+  default and switchable off by itself in Settings.
+  `docs/design-notes/2026-09-28-uloop-phase3.md`.
+- New "patching" module toggle in Settings for Agent Panel Pro's
+  `uap_hot_reload` (rewrites a changed static method's body in the running
+  Editor without a domain reload) and `uap_pause_point` (pauses at a
+  file:line with locals captured), each behind Harmony. Default OFF like
+  "fx"/"mesh" -- and Pro-provided the same way, so with Core alone the row
+  is disabled with the usual "buy Pro" tooltip -- and additionally
+  requires the Mono scripting runtime (Unity 6.8+ CoreCLR Editor is not
+  supported, and the row's tooltip says so). Neither tool is ever
+  auto-approved. `docs/design-notes/2026-09-28-uloop-phase4.md`.
+- **Playbooks: `uap_help topic:"<id>"` serves multi-tool procedures on
+  demand.** A tool's own description already reaches the agent; what no
+  single description can carry is the order several tools are used in, the
+  decision points between them and what to do when a step fails. Six
+  playbooks cover the ones that cost real sessions turns:
+  `verify-gameplay` (run the game and drive it yourself), `ui-click` (find a
+  uGUI element and press it by hierarchy path), `script-change` (stage and
+  commit, or compile, without looping on one error), `reproduce-input`
+  (record and replay input), `execute-code` (when a snippet is justified and
+  how the confirm flow works) and `compact-mode` (`uap_tools` / `uap_call`).
+  A playbook is offered only while every tool it names is registered and in
+  an enabled module, so a body can never send the agent to a missing tool; an
+  unknown or unavailable topic answers with the list of available ones
+  instead of failing. The steering text carries one line with the available
+  ids. Add-on packages contribute their own through the new
+  `IUapPlaybookProvider` (discovered like `IUapToolProvider`; a duplicate id
+  is rejected with a log, Core wins). It works the same for every agent
+  (Claude Code, Codex, Gemini, any ACP agent) and writes nothing into the
+  project. `docs/design-notes/2026-10-02-uap-help-playbooks.md`.
+- **Sketch shapes, view navigation while sketching, and named areas (design
+  note `docs/design-notes/2026-10-09-sketch-shapes-navigation-regions.md`).**
+  The Scene-view sketch has five shapes -- freehand, line, click-by-click
+  polyline, rectangle and ellipse -- picked from a dropdown on the Agent
+  Tools toolbar, the Sketch menu's "Shape" submenu or the 1-5 keys; a
+  rectangle is stored as its four corners, an ellipse as 48 points, and in
+  surface mode shapes are draped onto the mesh. The mouse wheel, right /
+  middle drag and Alt keep moving the view while sketching (plane depth is
+  now Ctrl+wheel or `[` `]`), and a polyline can be zoomed, orbited and
+  panned between clicks. A closed sketch is an area: it is tinted in its
+  own colour, can be named (click its label, the chip's "Name..." or N),
+  and `uap_stroke_list` reports its `name`, `shape`, `area`, `centroid` and
+  the objects inside it (`contains`, with `contents` / `max_objects`).
+
+- **Select, copy and ask about conversation text (design note
+  `docs/design-notes/2026-10-01-transcript-text-selection.md`).** The
+  transcript's text -- responses, your messages, thinking, notes, errors
+  and tool input/output -- can be selected with the mouse and copied with
+  Ctrl/Cmd+C. A message's right-click menu offers *Copy* (the selection),
+  *Copy message* (the message's markdown source) and *Ask about
+  selection*, which quotes the selected text into the composer so the
+  follow-up question can be typed under it.
+
+- **Scene tools from the first modeling field test (design note
+  `docs/design-notes/2026-09-30-field-test-fixes.md`).** `uap_scene_duplicate`
+  copies an object `count` times with a per-copy `offset`, under an
+  optional `parentPath`, keeping a prefab instance's link.
+  `uap_property_set` and `uap_object_inspect` accept `componentType:
+  "GameObject"` for `m_IsActive`, `m_Layer` (number or name),
+  `m_TagString` and `m_StaticEditorFlags`, and a Material's
+  `m_SavedProperties` path is refused with a pointer to `uap_material_set`.
+  `uap_editor_screenshot` renders any `camera` (hierarchy path, `width` /
+  `height`, offscreen -- no open view needed) and moves the Scene view
+  first with `sceneView` (`pivot`, `rotation`, `size`, `orthographic`,
+  `lookAt`). Hierarchy paths address same-named siblings with `Name[i]`
+  and any object with `#<id>`; `uap_query_hierarchy` and every tool reply
+  print the index when a sibling shares the name.
+
+- **"Install bundled agent skills into this project" (design note
+  `docs/design-notes/2026-09-30-bundled-modeling-skill.md`).** A switch in
+  the Extension profiles card (`PanelSettings.bundledSkillsEnabled`,
+  default on) that lets an installed provider package copy the skills it
+  ships into `.claude/skills/` and `.agents/skills/` under the project.
+  Core holds only the switch; the install lives in the package that ships
+  the skills. Not reconnect-relevant: the agent reads the files itself.
+
+### Changed
+
+- **Extension profiles can be gated on uap_* modules (`requiresUapModules`,
+  design note `docs/design-notes/2026-10-02-session-context-cost.md`).** An
+  optional profile field, `"requiresUapModules": ["mesh"]`: the profile is
+  injected only while Unity Ops is on and every listed module is enabled,
+  so a long profile that steers toward the tools of a module that is off by
+  default no longer costs prompt tokens in every session. Detection is
+  unchanged, and a profile without the field behaves exactly as before.
+  `AgentHub` passes the enabled module list to
+  `ExtensionProfileService.ComposeAppendSection`; a module edit already
+  needed a reconnect, so nothing new is reconnect-relevant.
+
+- **The always-loaded steering text is shorter.** The step-by-step Play
+  Mode loop (start, wait for `uap_ping`, drive input, read the Console,
+  stop) and the hot-reload fallback rules moved into playbooks; the steering
+  text keeps the capability summaries and every safety statement
+  (`uap_execute_code` is never auto-approved, prefer the typed tools, never
+  leave the project in Play Mode) plus a pointer to `verify-gameplay`.
+  `docs/design-notes/2026-10-02-uap-help-playbooks.md`.
+- **CI runs the optional-package half of the reflection code.** The
+  Core-only host project now installs uGUI and the Input System, so the
+  "package present" path of `uap_game_pointer` / `uap_game_key` (and the
+  new tools) is exercised on every push, while the Core+Pro host keeps
+  covering the "package absent" path. Section 2.6.
+- **ACP agents that sign in from a terminal get told the command (design
+  note `docs/design-notes/2026-10-07-acp-other-agents.md` section 3).**
+  When every sign-in method an agent offers is marked as a terminal one
+  (Qwen Code, GitHub Copilot CLI, Kimi Code), the panel no longer sends an
+  `authenticate` that can only fail and no longer says "complete it in the
+  browser"; the connection error now reads "run `copilot login` once, then
+  press Reconnect", with the exact command the agent published. Browser and
+  device-code methods behave as before, and a mix of the two still tries
+  the browser one first.
+- **A sign-in link printed to the agent's standard output is shown in the
+  chat too.** Gemini CLI prints its Google sign-in URL (and the "Enter the
+  authorization code" prompt) to stdout when it cannot open a browser; the
+  panel now treats such non-protocol lines like stderr, so the "open this
+  link" note appears and the lines are kept in Settings > Connection > CLI
+  output.
+- **`uap_scene_create_object`'s `primitiveType` says what primitives are
+  for** (blockouts, colliders, placeholders) and that a prop is never a set
+  of them, so an agent with a modeling module installed builds a Model
+  instead (design note `docs/design-notes/2026-09-30-bundled-modeling-skill.md`).
+- **The uLoop card in Settings only appears in a project that has uLoop, and
+  is down to a note, the agent switch and Remove.** Phases 1-4 of the
+  native roadmap made the panel's own `uap_*` tools cover what uLoop did,
+  so the card no longer pitches it: without the package, Settings says
+  nothing about uLoop. With it, the card is one line (uLoop is installed,
+  this panel's tools cover it, removing it is recommended unless you use
+  it outside the panel -- it keeps its own editor server and tick pump
+  running and adds skill descriptions to every agent session), the
+  "Let the agent run uloop commands" switch, and the Remove button with its
+  confirmation card (unchanged). The Install button and its progress line,
+  the "Allow uloop commands" permission preset, the "Insert guidance
+  snippet" button and the long cost explanation are gone, along with the
+  code behind them. Without uLoop in the project, the agent's instructions
+  no longer mention uloop at all.
+  `docs/design-notes/2026-10-02-uloop-card-final.md`.
+- **"Let the agent run uloop commands" now defaults to off for a new
+  settings file.** The steering text then tells the agent uloop is refused
+  and the spawn carries the deny patterns, so a project that never opted in
+  no longer sees uloop offered as the fallback. A value you already saved
+  is kept as it is -- nothing is migrated, so a project that relies on
+  uloop keeps working until you change it yourself.
+- **Every `uap_*` tool is always registered, whether or not uLoop is in the
+  project.** The capability table that could skip a tool "covered by uLoop"
+  had been empty since it was added and is removed; `ToolRegistry.CreateDefault`
+  no longer takes a uLoop flag.
+
+- **The compact tool list carries lean schemas.** A client that does not
+  defer tool schemas (Codex, Gemini, any ACP agent behind the stdio relay)
+  reads every listed schema at session start, and field descriptions are
+  most of that text. In the compact `tools/list` the core tools and the two
+  gateway tools now carry a lean `inputSchema`: every `type`, `enum`,
+  `items`, `properties`, `required`, `default`, bound and
+  `additionalProperties` kept as is, each field description cut to its
+  first sentence (at most 100 characters; a bare label such as
+  "start only." keeps the sentence after it, and a cut never lands inside
+  an open bracket or quote), `examples` and other annotations dropped.
+  The compact list shrinks from 35,681 to 29,738 characters (-16.7%).
+  Tool descriptions are not touched, the full list
+  (Claude Code, or "Full" in settings) is unchanged, and
+  `uap_help names:[...]` / `uap_tools names:[...]` still return the full
+  schema; the compact steering sentence and the `uap_tools` / `uap_call` /
+  `uap_help` descriptions say so in one clause.
+  `docs/design-notes/2026-10-02-session-context-cost.md`.
+
+### Fixed
+
+- **`uap_execute_code` rows no longer wear a warning icon.** The activity
+  row (and the permission card's summary row) used the Console's warning
+  sign for every run, which read as "the code failed" before it had even
+  run; it now shows the C# script icon like any other code the agent
+  touches. The risk-flag count in the summary is unchanged.
+- **`uap_execute_code`'s description fits Claude Code's 2,048-character cut
+  (design note `docs/design-notes/2026-10-02-session-context-cost.md`).**
+  Claude Code truncates every MCP tool description at 2,048 characters; this
+  one ran to 2,381, so its tail was never read. It is now about 1,700
+  characters, keeps every safety statement (never auto-approved, the scan is
+  a mitigation and not a sandbox, `confirm:true` previews first, Undo
+  honesty) and points at `uap_help topic:"execute-code"` for the procedure.
+  A new EditMode test checks every registered tool's description against
+  the limit.
+- **With Core alone, the steering text no longer names Pro-only tools.** The
+  "prefab" module is on by default, so Core's steering still advertised
+  prefab overrides and `uap_prefab_apply_overrides`' destructive-call rule
+  although only Agent Panel Pro registers those tools. Every steering
+  sentence that names a tool now needs that tool registered, not just its
+  module enabled (the prefab, anim and patching families, the lightmap
+  clause of the editor family, the destructive-tool sentence). With Pro
+  installed the text is byte-for-byte unchanged.
+- **ACP sign-in notes after a domain reload.** The "sign in in your
+  browser" and "open this link" notes (and the sign-in state behind
+  Settings > Account) are delivered through a main-thread queue that was
+  only started by the Claude sign-in helpers, so with an ACP agent they
+  could stay queued forever after a script reload. The queue now starts
+  when the agent is spawned (design note
+  `docs/design-notes/2026-10-07-acp-other-agents.md` section 5).
+- **No reconnect loop when an ACP agent cannot be signed in from the
+  panel.** An agent whose only sign-in methods are terminal ones, or that
+  offers none at all (Auggie), made the panel retry the handshake four
+  times with the same error before giving up; it now stops after the
+  first, like a failed browser sign-in does, and the "not retried" note
+  names the agent's own login command instead of the agent's name. The
+  duplicate "sign-in failed" note is no longer posted when no sign-in was
+  attempted.
+
+- **Switching back to the panel's tab no longer stalls for seconds on a
+  long conversation** (design note
+  `docs/design-notes/2026-09-30-transcript-virtualization.md`). Unity
+  detaches and re-attaches the whole window tree when a docked tab is
+  re-shown, and every rendered message row was re-styled and re-measured
+  then. The transcript is now virtualized: only the messages near the
+  viewport are live elements, rows are built as you scroll towards them
+  and released once far away, with what you are reading kept in place.
+  Every message is reachable by scrolling (the previous "newest 300"
+  cap and its hidden-messages note are gone), and the scroll position
+  survives a domain reload by message rather than by pixel.
 
 ## [0.60.1] - 2026-09-30
 

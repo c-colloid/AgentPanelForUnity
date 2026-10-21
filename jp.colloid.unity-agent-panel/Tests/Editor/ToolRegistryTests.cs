@@ -16,9 +16,11 @@ namespace Colloid.AgentPanel.Tests
         public string Module { get; set; } = "core";
         public bool Undoable { get; set; }
         public bool ReadOnly { get; set; }
+        /// <summary>Optional schema to serve; null keeps the minimal {"type":"object"}.</summary>
+        public JsonNode Schema { get; set; }
         public JsonNode InputSchema
         {
-            get { return JsonNode.NewObject().Set("type", "object"); }
+            get { return Schema ?? JsonNode.NewObject().Set("type", "object"); }
         }
 
         public int ExecuteCallCount;
@@ -160,6 +162,35 @@ namespace Colloid.AgentPanel.Tests
             Assert.AreEqual(2, registry.Count);
         }
 
+        /// <summary>
+        /// 2026-10-02 (docs/design-notes/2026-10-02-uloop-card-final.md): every
+        /// uap_* tool is always registered, whether or not uLoop is in the
+        /// project. The capability matrix that could skip a "uLoop-covered"
+        /// tool (empty for good) is gone, so the registry no longer takes a
+        /// uLoop flag at all and the set is the same in every project.
+        /// </summary>
+        [Test]
+        public void CreateDefault_RegistersEveryUloopPhaseTool_WithNoUloopInput()
+        {
+            ToolRegistry registry = ToolRegistry.CreateDefault();
+            string[] names =
+            {
+                "uap_play_mode", "uap_console_logs", "uap_compile", "uap_editor_screenshot",
+                "uap_game_pointer", "uap_game_key", "uap_game_mouse", "uap_project_info",
+                "uap_editor_focus", "uap_record_video", "uap_game_watch", "uap_input_record",
+                "uap_input_replay", "uap_execute_code", "uap_help", "uap_object_inspect",
+                "uap_scripts_commit",
+            };
+            foreach (string name in names)
+            {
+                Assert.IsNotNull(registry.Find(name), name + " must always be registered");
+            }
+            Assert.IsNull(typeof(ToolRegistry).GetMethod("CreateDefault", new[] { typeof(bool) }),
+                "the registry takes no uLoop flag: coverage-based skipping is gone");
+            Assert.IsNull(typeof(ToolRegistry).Assembly.GetType("Colloid.AgentPanel.Ops.UloopCapabilityMatrix"),
+                "the capability matrix was deleted; do not bring it back");
+        }
+
         /// <summary>Test/production seam for provider discovery (2026-09-11 core/pro split, design note "seam 1") -- an explicit provider list, no TypeCache involved.</summary>
         private sealed class StubToolProvider : IUapToolProvider
         {
@@ -174,7 +205,7 @@ namespace Colloid.AgentPanel.Tests
             var providerA = new StubToolProvider { Tools = new IUapTool[] { new StubUapTool { Name = "pro_a", Module = "prefab" } } };
             var providerB = new StubToolProvider { Tools = new IUapTool[] { new StubUapTool { Name = "pro_b", Module = "anim" } } };
 
-            ToolRegistry.RegisterProviderTools(registry, new IUapToolProvider[] { providerA, providerB }, false);
+            ToolRegistry.RegisterProviderTools(registry, new IUapToolProvider[] { providerA, providerB });
 
             Assert.IsNotNull(registry.Find("pro_a"));
             Assert.IsNotNull(registry.Find("pro_b"));
@@ -190,7 +221,7 @@ namespace Colloid.AgentPanel.Tests
 
             Assert.Throws<InvalidOperationException>(delegate
             {
-                ToolRegistry.RegisterProviderTools(registry, new IUapToolProvider[] { provider }, false);
+                ToolRegistry.RegisterProviderTools(registry, new IUapToolProvider[] { provider });
             });
         }
 
@@ -206,7 +237,7 @@ namespace Colloid.AgentPanel.Tests
             LogAssert.Expect(LogType.Error,
                 new System.Text.RegularExpressions.Regex("ThrowingToolProvider' threw while creating tools"));
 
-            ToolRegistry.RegisterProviderTools(registry, new IUapToolProvider[] { throwing, ok }, false);
+            ToolRegistry.RegisterProviderTools(registry, new IUapToolProvider[] { throwing, ok });
 
             Assert.IsNotNull(registry.Find("pro_ok"));
             Assert.AreEqual(1, registry.Count);

@@ -227,14 +227,16 @@ namespace Colloid.AgentPanel.Tests
         }
 
         /// <summary>
-        /// The default is ON: installing this panel must not silently take
-        /// uloop away from a project that relies on it (same design note,
-        /// section 5 -- the switch exists to be opt-in, not a migration).
+        /// The default is OFF since 2026-10-02 (docs/design-notes/2026-10-02-
+        /// uloop-card-final.md): the panel's own uap_* tools cover what uLoop
+        /// did, so a new settings file no longer offers uloop to the agent.
+        /// Existing users are NOT migrated -- see
+        /// PanelSettingsTests.UloopAgentUse_SavedValueIsKeptAndNotMigrated.
         /// </summary>
         [Test]
-        public void UloopAgentUse_DefaultsToOn()
+        public void UloopAgentUse_DefaultsToOff()
         {
-            Assert.IsTrue(new PanelSettings().uloopAgentUseEnabled);
+            Assert.IsFalse(new PanelSettings().uloopAgentUseEnabled);
         }
 
         // -- uapOpsModules (2026-08-02 review fix, Stream C1 regression):

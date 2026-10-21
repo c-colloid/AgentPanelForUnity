@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
+using Colloid.AgentPanel.Core.Json;
 using UnityEditor;
 using UnityEngine;
 
@@ -26,6 +26,7 @@ namespace Colloid.AgentPanel.Ops
         private static UapOpsHttpServer _server;
         private static UapMainThreadDispatcher _dispatcher;
         private static ToolRegistry _registry;
+        private static UapPlaybookCatalog _playbooks;
         private static string _token;
         private static List<string> _enabledModules = new List<string> { "core" };
         private static bool _pumpHooked;
@@ -55,17 +56,70 @@ namespace Colloid.AgentPanel.Ops
             {
                 if (_registry == null)
                 {
-                    bool uloopDetected = UloopDetector.DetectInProject(GetProjectRoot());
-                    _registry = ToolRegistry.CreateDefault(uloopDetected);
+                    _registry = ToolRegistry.CreateDefault();
                 }
                 return _registry;
             }
         }
 
-        /// <summary>The Unity project root (parent of Application.dataPath), for uLoop detection (design section 7.2).</summary>
-        private static string GetProjectRoot()
+        /// <summary>
+        /// The playbook catalog uap_help and the steering text read (design
+        /// note docs/design-notes/2026-10-02-uap-help-playbooks.md): Core's
+        /// built-ins plus whatever <see cref="IUapPlaybookProvider"/>s
+        /// contribute. Lazy like <see cref="Registry"/>; a domain reload
+        /// rebuilds it.
+        /// </summary>
+        public static UapPlaybookCatalog Playbooks
         {
-            return Directory.GetParent(Application.dataPath).FullName;
+            get
+            {
+                if (_playbooks == null)
+                {
+                    _playbooks = UapPlaybookCatalog.Create(UapPlaybookProviderDiscovery.Discover(),
+                        delegate(string message) { Debug.LogError("[UapPlaybooks] " + message); });
+                }
+                return _playbooks;
+            }
+        }
+
+        // SessionState (not a plain static) so the answer survives the domain
+        // reloads Play Mode and compiles cause while the agent's connection
+        // lives on; it is the same editor-session lifetime as the spawn.
+        private const string CompactToolListSessionKey = "UnityAgentPanel.UapOps.CompactToolList";
+
+        /// <summary>
+        /// True when the agent connection AgentHub last spawned uses the
+        /// compact tool list (uap_tools/uap_call). uap_help cannot see which
+        /// endpoint called it, so it reads this to decide whether the
+        /// compact-mode playbook (which needs the two gateway tools) is on
+        /// offer. False until the first spawn.
+        /// </summary>
+        public static bool CompactToolList
+        {
+            get
+            {
+                try
+                {
+                    return SessionState.GetBool(CompactToolListSessionKey, false);
+                }
+                catch (Exception)
+                {
+                    return false;
+                }
+            }
+        }
+
+        /// <summary>Records the resolved tool-list mode of the connection AgentHub is spawning (see <see cref="CompactToolList"/>).</summary>
+        public static void SetCompactToolList(bool compact)
+        {
+            try
+            {
+                SessionState.SetBool(CompactToolListSessionKey, compact);
+            }
+            catch (Exception)
+            {
+                // SessionState can be unavailable during early editor start-up; the flag then stays false.
+            }
         }
 
         /// <summary>
@@ -82,6 +136,52 @@ namespace Colloid.AgentPanel.Ops
         {
             string bareName = UapOpsMcpConfig.StripToolNamePrefix(wireToolName);
             return bareName == null ? null : Registry.Find(bareName);
+        }
+
+        /// <summary>
+        /// Like <see cref="FindByWireName"/>, but transparent to uap_call
+        /// (design note docs/design-notes/2026-09-22-uloop-phase1.md
+        /// section 2.8 item 4): a decision or display that depends on
+        /// WHICH tool actually runs must resolve through this, not
+        /// FindByWireName, once uap_call exists -- calling uap_call with
+        /// name:"uap_scene_create_object" must auto-approve/badge/attribute
+        /// exactly like a direct call to uap_scene_create_object, not like
+        /// a call to an unregistered "uap_call". Every call site that used
+        /// to read FindByWireName for that purpose (AgentHub's
+        /// TrackNonUndoableToolIfNeeded / TryTrackScriptsCommitAttribution /
+        /// TryAutoApproveUapOpsTool, PermissionCard's undo badge) now reads
+        /// this instead.
+        ///
+        /// <paramref name="input"/> is the request's own arguments (e.g.
+        /// CanUseToolRequest.Input / ContentBlock.Input) -- for a plain
+        /// (non-uap_call) wire name it passes straight through untouched
+        /// via <paramref name="effectiveInput"/>; for uap_call it is
+        /// parsed the SAME way UapOpsRequestHandler.HandleToolsCall parses
+        /// it (UapToolGateway.TryUnwrapCall), so a permission card and the
+        /// tool that actually executes always agree on what "the
+        /// arguments" are. A malformed uap_call (no 'name') resolves to
+        /// null, exactly like an unknown tool name -- never throws.
+        /// </summary>
+        public static IUapTool ResolveEffectiveTool(string wireToolName, JsonNode input, out JsonNode effectiveInput)
+        {
+            effectiveInput = input;
+            string bareName = UapOpsMcpConfig.StripToolNamePrefix(wireToolName);
+            if (bareName == null)
+            {
+                return null;
+            }
+            if (string.Equals(bareName, UapToolGateway.CallToolName, StringComparison.Ordinal))
+            {
+                string innerName;
+                JsonNode innerArguments;
+                if (!UapToolGateway.TryUnwrapCall(input, out innerName, out innerArguments))
+                {
+                    return null;
+                }
+                effectiveInput = innerArguments;
+                return Registry.Find(innerName);
+            }
+            return Registry.Find(bareName);
         }
 
         /// <summary>
@@ -279,6 +379,8 @@ namespace Colloid.AgentPanel.Ops
         {
             Stop();
             _registry = null;
+            _playbooks = null;
+            SetCompactToolList(false);
             _token = null;
             _enabledModules = new List<string> { "core" };
         }

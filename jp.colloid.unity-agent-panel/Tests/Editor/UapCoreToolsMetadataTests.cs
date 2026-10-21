@@ -22,6 +22,7 @@ namespace Colloid.AgentPanel.Tests
         [TestCase("uap_scene_destroy_object", true)]
         [TestCase("uap_scene_reparent", true)]
         [TestCase("uap_scene_rename", true)]
+        [TestCase("uap_scene_duplicate", true)]
         [TestCase("uap_scene_place_asset", true)]
         [TestCase("uap_component_add", true)]
         [TestCase("uap_component_remove", true)]
@@ -37,6 +38,9 @@ namespace Colloid.AgentPanel.Tests
         [TestCase("uap_asset_find", false)]
         [TestCase("uap_search", false)]
         [TestCase("uap_scripts_commit", false)]
+        [TestCase("uap_compile", false)]
+        [TestCase("uap_help", false)]
+        [TestCase("uap_game_watch", false)]
         public void Tool_HasExpectedUndoableFlag(string toolName, bool expectedUndoable)
         {
             IUapTool tool = Registry().Find(toolName);
@@ -49,6 +53,7 @@ namespace Colloid.AgentPanel.Tests
         [TestCase("uap_scene_destroy_object")]
         [TestCase("uap_scene_reparent")]
         [TestCase("uap_scene_rename")]
+        [TestCase("uap_scene_duplicate")]
         [TestCase("uap_scene_place_asset")]
         [TestCase("uap_component_add")]
         [TestCase("uap_component_remove")]
@@ -64,6 +69,9 @@ namespace Colloid.AgentPanel.Tests
         [TestCase("uap_asset_find")]
         [TestCase("uap_search")]
         [TestCase("uap_scripts_commit")]
+        [TestCase("uap_compile")]
+        [TestCase("uap_help")]
+        [TestCase("uap_game_watch")]
         public void Tool_IsInCoreModule(string toolName)
         {
             IUapTool tool = Registry().Find(toolName);
@@ -75,6 +83,7 @@ namespace Colloid.AgentPanel.Tests
         [TestCase("uap_scene_destroy_object")]
         [TestCase("uap_scene_reparent")]
         [TestCase("uap_scene_rename")]
+        [TestCase("uap_scene_duplicate")]
         [TestCase("uap_scene_place_asset")]
         [TestCase("uap_component_add")]
         [TestCase("uap_component_remove")]
@@ -90,6 +99,9 @@ namespace Colloid.AgentPanel.Tests
         [TestCase("uap_asset_find")]
         [TestCase("uap_search")]
         [TestCase("uap_scripts_commit")]
+        [TestCase("uap_compile")]
+        [TestCase("uap_help")]
+        [TestCase("uap_game_watch")]
         public void Tool_InputSchema_IsAnObjectSchema(string toolName)
         {
             IUapTool tool = Registry().Find(toolName);
@@ -103,6 +115,7 @@ namespace Colloid.AgentPanel.Tests
         [TestCase("uap_scene_destroy_object")]
         [TestCase("uap_scene_reparent")]
         [TestCase("uap_scene_rename")]
+        [TestCase("uap_scene_duplicate")]
         [TestCase("uap_scene_place_asset")]
         [TestCase("uap_component_add")]
         [TestCase("uap_component_remove")]
@@ -115,6 +128,9 @@ namespace Colloid.AgentPanel.Tests
         [TestCase("uap_asset_delete")]
         [TestCase("uap_asset_find")]
         [TestCase("uap_search")]
+        [TestCase("uap_compile")]
+        [TestCase("uap_help")]
+        [TestCase("uap_game_watch")]
         public void Tool_Description_IsNonEmpty(string toolName)
         {
             IUapTool tool = Registry().Find(toolName);

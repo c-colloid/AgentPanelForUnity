@@ -443,6 +443,14 @@ namespace Colloid.AgentPanel.UI
                 delegate { SceneStrokeSketch.Arm(SceneStrokeMode.Plane); });
             menu.AddItem(new GUIContent(L10n.S.CtxSketchMenuSurface), SceneStrokeSketch.IsArmedIn(SceneStrokeMode.Surface),
                 delegate { SceneStrokeSketch.Arm(SceneStrokeMode.Surface); });
+            // Shapes (design note 2026-10-09-sketch-shapes-navigation-
+            // regions.md): a submenu mirroring the toolbar dropdown.
+            for (int i = 0; i < SceneStroke.ShapeCount; i++)
+            {
+                var shape = (SceneStrokeShape)i;
+                menu.AddItem(new GUIContent(L10n.S.CtxSketchMenuShapePrefix + SceneStrokeSketch.ShapeLabel(shape)),
+                    SceneStrokeSketch.Shape == shape, delegate { SceneStrokeSketch.Shape = shape; });
+            }
             if (SceneStrokeSketch.Armed)
             {
                 menu.AddSeparator(string.Empty);
@@ -507,8 +515,20 @@ namespace Colloid.AgentPanel.UI
             for (int i = 0; i < strokes.Length; i++)
             {
                 SceneStroke stroke = strokes[i];
-                if (stroke.Id <= 0 || FindStrokeChip(stroke.Id) != null)
+                if (stroke.Id <= 0)
                 {
+                    continue;
+                }
+                Chip existing = FindStrokeChip(stroke.Id);
+                if (existing != null)
+                {
+                    // A rename rebuilds the payload and the label in place
+                    // (design note 2026-10-09, decision T4).
+                    if (existing.Payload != stroke.Note)
+                    {
+                        existing.Payload = stroke.Note;
+                        SetChipLabel(existing, StrokeChipLabel(stroke));
+                    }
                     continue;
                 }
                 if (_chips.Count >= MaxChips)
@@ -516,8 +536,39 @@ namespace Colloid.AgentPanel.UI
                     break;
                 }
                 int number = stroke.Number > 0 ? stroke.Number : stroke.Id;
-                AddChip(ChipKind.Stroke, L10n.F(L10n.S.CtxSketchChipLabelFmt, number),
+                AddChip(ChipKind.Stroke, StrokeChipLabel(stroke),
                     L10n.F(L10n.S.CtxSketchChipTitleFmt, number), stroke.Note, null, null, stroke.Id);
+                Chip added = FindStrokeChip(stroke.Id);
+                if (added != null && added.Element != null)
+                {
+                    int strokeId = stroke.Id;
+                    added.Element.AddManipulator(new ContextualMenuManipulator(delegate(ContextualMenuPopulateEvent evt)
+                    {
+                        evt.menu.AppendAction(L10n.S.CtxSketchChipMenuName,
+                            delegate { SceneStrokeNameWindow.Open(strokeId); });
+                    }));
+                }
+            }
+        }
+
+        private static string StrokeChipLabel(SceneStroke stroke)
+        {
+            int number = stroke.Number > 0 ? stroke.Number : stroke.Id;
+            return string.IsNullOrEmpty(stroke.Name)
+                ? L10n.F(L10n.S.CtxSketchChipLabelFmt, number)
+                : L10n.F(L10n.S.CtxSketchChipLabelNamedFmt, number, stroke.Name);
+        }
+
+        private static void SetChipLabel(Chip chip, string label)
+        {
+            if (chip.Element == null)
+            {
+                return;
+            }
+            Label text = chip.Element.Q<Label>(null, "uap-ctx-chip-label");
+            if (text != null)
+            {
+                text.text = label;
             }
         }
 

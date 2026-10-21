@@ -179,5 +179,33 @@ namespace Colloid.AgentPanel.Tests
             }
             return null;
         }
+
+        [Test]
+        public void ComposeAppendSection_RequiresUapModules_FollowsTheEnabledModuleList()
+        {
+            WriteUserProfile("fake-sdk.json",
+                "{ \"id\": \"fake-sdk\", \"displayName\": \"Fake SDK\","
+                + " \"detection\": { \"typeNames\": [\"Transform\"] },"
+                + " \"requiresUapModules\": [\"mesh\"],"
+                + " \"instructionLines\": [\"fake instruction\"] }");
+            string hash = FindById(ExtensionProfileService.BuildStatuses(_projectRoot, new List<string>()), "fake-sdk").ContentHashHex;
+            var approved = new List<string>
+            {
+                ExtensionProfileTrust.ComputeApprovalToken("service-test-salt", hash)
+            };
+
+            string off = ExtensionProfileService.ComposeAppendSection(
+                _projectRoot, true, approved, null, new[] { "core", "prefab" }, true);
+            string on = ExtensionProfileService.ComposeAppendSection(
+                _projectRoot, true, approved, null, new[] { "core", "mesh" }, true);
+            string uapOpsOff = ExtensionProfileService.ComposeAppendSection(
+                _projectRoot, true, approved, null, new[] { "core", "mesh" }, false);
+            string noInfo = ExtensionProfileService.ComposeAppendSection(_projectRoot, true, approved);
+
+            StringAssert.DoesNotContain("Fake SDK", off);
+            StringAssert.Contains("## Fake SDK", on);
+            StringAssert.DoesNotContain("Fake SDK", uapOpsOff);
+            StringAssert.Contains("## Fake SDK", noInfo, "no module information means no gating");
+        }
     }
 }

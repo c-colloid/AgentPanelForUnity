@@ -295,6 +295,36 @@ namespace Colloid.AgentPanel.Tests
         }
 
         [Test]
+        public void ComposeUapOpsSteeringSection_WithoutUloopInstalled_NeverNamesUloop()
+        {
+            // docs/design-notes/2026-10-02-uloop-card-final.md: the agent-use
+            // switch defaults off now, and a project with no uLoop must not
+            // pay for (or be confused by) a line about a tool it lacks.
+            var modules = new[] { "core", "prefab", "editor", "markers" };
+            foreach (bool agentUse in new[] { true, false })
+            {
+                string text = AgentHub.ComposeUapOpsSteeringSection(true, modules, true, agentUse,
+                    uloopInstalled: false);
+                StringAssert.DoesNotContain("uloop", text.ToLowerInvariant(), "agentUse=" + agentUse);
+            }
+            string installedOff = AgentHub.ComposeUapOpsSteeringSection(true, modules, true, false,
+                uloopInstalled: true);
+            StringAssert.Contains("Do NOT call uloop", installedOff);
+        }
+
+        [Test]
+        public void SteeringSection_CompactToolList_SaysWhereTheUnlistedModulesAre()
+        {
+            // 2026-09-22 (docs/design-notes/2026-09-22-uloop-phase1.md
+            // section 2.8): on the compact list only core is listed, so the
+            // text must point at the gateway -- and only in that mode.
+            string compact = AgentHub.ComposeUapOpsSteeringSection(true, new[] { "core", "editor" }, false, true, true);
+            string full = AgentHub.ComposeUapOpsSteeringSection(true, new[] { "core", "editor" }, false, true, false);
+            StringAssert.Contains(UapToolListModePolicy.SteeringSentence(), compact);
+            StringAssert.DoesNotContain("uap_call", full);
+        }
+
+        [Test]
         public void SteeringSection_OnlyCoreEnabled_MentionsOnlyCoreFamily_NotOthers()
         {
             string section = AgentHub.ComposeUapOpsSteeringSection(true, new[] { "core" });
@@ -340,6 +370,10 @@ namespace Colloid.AgentPanel.Tests
             StringAssert.Contains("uap_console_logs", withEditor);
             StringAssert.Contains("uap_ping", withEditor,
                 "the reply arrives before the Editor has switched, so the wait must be named");
+            // 2026-10-02: the step-by-step loop moved into the verify-gameplay
+            // playbook; the steering text keeps a pointer to it and the index.
+            StringAssert.Contains("playbook verify-gameplay", withEditor);
+            StringAssert.Contains("Playbooks (uap_help topic:\"<id>\"): verify-gameplay", withEditor);
             StringAssert.DoesNotContain("uap_play_mode", coreOnly);
             StringAssert.DoesNotContain("uap_console_logs", coreOnly);
         }
@@ -361,8 +395,11 @@ namespace Colloid.AgentPanel.Tests
         [Test]
         public void SteeringSection_AllModulesEnabled_MentionsAllFourFamilies_InDesignOrder()
         {
+            // The prefab / anim families need their (Pro) tools registered: stand-ins here, so the test
+            // reads the same with and without Agent Panel Pro installed.
             string section = AgentHub.ComposeUapOpsSteeringSection(true,
-                new[] { "core", "prefab", "anim", "editor" });
+                new[] { "core", "prefab", "anim", "editor" },
+                registry: AgentHubSteeringToolAvailabilityTests.CoreAndProRegistry());
 
             int core = section.IndexOf("scene objects/components/properties/assets", System.StringComparison.Ordinal);
             int prefab = section.IndexOf("prefab overrides", System.StringComparison.Ordinal);
@@ -432,17 +469,20 @@ namespace Colloid.AgentPanel.Tests
         }
 
         [Test]
-        public void SteeringSection_StaysWithinTenLines()
+        public void SteeringSection_StaysWithinElevenLines()
         {
             // 2026-09-08: the core-module addendum (deferred-loading,
             // uap_transform_set-vs-uap_property_set, main-thread-timeout
             // guidance) added three lines on top of the original six-line
             // budget when "core" is enabled, so the cap moved from six to
             // ten to keep some headroom rather than pinning the exact count.
+            // 2026-10-02: the playbook index line (uap_help topic) is one
+            // more line, so the cap is eleven (docs/design-notes/
+            // 2026-10-02-uap-help-playbooks.md).
             string section = AgentHub.ComposeUapOpsSteeringSection(true,
                 new[] { "core", "prefab", "anim", "editor" });
             int lineCount = section.Split('\n').Length;
-            Assert.LessOrEqual(lineCount, 10);
+            Assert.LessOrEqual(lineCount, 11);
         }
 
         [Test]

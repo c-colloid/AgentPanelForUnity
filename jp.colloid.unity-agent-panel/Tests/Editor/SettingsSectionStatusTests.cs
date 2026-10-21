@@ -167,6 +167,31 @@ namespace Colloid.AgentPanel.Tests
             }
         }
 
+        /// <summary>
+        /// 2026-10-02 (docs/design-notes/2026-10-02-uloop-card-final.md): the
+        /// uLoop card is on screen only while UloopDetector finds uLoop in the
+        /// project; without it Settings says nothing about uLoop.
+        /// </summary>
+        [Test]
+        public void UloopCard_IsShownOnlyWhenUloopIsDetectedInTheProject()
+        {
+            bool detected = Colloid.AgentPanel.Ops.UloopDetector.DetectInProject(
+                Colloid.AgentPanel.Integration.AgentHub.ProjectRoot);
+            var window = ScriptableObject.CreateInstance<UI.AgentPanelWindow>();
+            try
+            {
+                window.CreateGUI();
+                VisualElement root = window.rootVisualElement.Q(className: "uap-settings");
+                VisualElement card = root.Q("uap-card-" + SettingsView.UloopCardId);
+                Assert.IsNotNull(card, "the card is built either way; its display carries the rule");
+                Assert.AreEqual(detected ? DisplayStyle.Flex : DisplayStyle.None, card.style.display.value);
+            }
+            finally
+            {
+                Object.DestroyImmediate(window);
+            }
+        }
+
         [Test]
         public void OverviewReconnectRow_MirrorsTheBanner()
         {

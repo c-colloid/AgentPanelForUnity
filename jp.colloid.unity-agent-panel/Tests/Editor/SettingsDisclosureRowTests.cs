@@ -93,11 +93,11 @@ namespace Colloid.AgentPanel.Tests
                 Assert.IsFalse(row.value);
                 Assert.AreEqual(L10n.S.SettingsModulesFoldout, row.text);
                 var switches = row.contentContainer.Query<Toggle>(className: "uap-settings-field--child").ToList();
-                Assert.AreEqual(13, switches.Count, "every module switch is inside the row");
+                Assert.AreEqual(15, switches.Count, "every module switch is inside the row");
                 Label pill = row.Q<Label>(className: "uap-settings-disclosure-pill");
                 Assert.IsNotNull(pill);
                 Assert.AreEqual(DisplayStyle.Flex, pill.style.display.value);
-                StringAssert.Contains("13", pill.text);
+                StringAssert.Contains("15", pill.text);
                 // The master switch stays outside the row.
                 VisualElement card = root.Q("uap-card-" + SettingsView.UapOpsCardId);
                 Assert.AreEqual(0, row.contentContainer.Query<Toggle>().Where(t => t.label == L10n.S.SettingsUapOpsEnabledLabel).ToList().Count);

@@ -21,6 +21,7 @@ namespace Colloid.AgentPanel.Model
         private const string KeyPendingSends = Prefix + "PendingSends";
         private const string KeyInputDraft = Prefix + "InputDraft";
         private const string KeyScrollPosition = Prefix + "ScrollPosition";
+        private const string KeyScrollAnchorFromEnd = Prefix + "ScrollAnchorFromEnd";
         private const string KeyCliVersion = Prefix + "CliVersion";
         private const string KeyHandoverPendingFrom = Prefix + "HandoverPendingFrom";
         private const string KeyCliBinaryVersion = Prefix + "CliBinaryVersion";
@@ -31,8 +32,6 @@ namespace Colloid.AgentPanel.Model
         private const string KeyAutoContinuePendingSendUnconfirmed = Prefix + "AutoContinuePendingSendUnconfirmed";
         private const string KeyLastCompileHadErrors = Prefix + "LastCompileHadErrors";
         private const string KeyLastCompileErrorDigest = Prefix + "LastCompileErrorDigest";
-        private const string KeyUloopInstallInFlight = Prefix + "UloopInstallInFlight";
-        private const string KeyUloopInstallStartedAtUtcTicks = Prefix + "UloopInstallStartedAtUtcTicks";
         private const string KeyUloopRemoveInFlight = Prefix + "UloopRemoveInFlight";
         private const string KeyUloopRemoveStartedAtUtcTicks = Prefix + "UloopRemoveStartedAtUtcTicks";
         private const string KeyUnityPluginInstallInFlight = Prefix + "UnityPluginInstallInFlight";
@@ -160,11 +159,32 @@ namespace Colloid.AgentPanel.Model
             set { SessionState.SetString(KeyInputDraft, value ?? string.Empty); }
         }
 
-        /// <summary>Message list scroll position preserved across reloads.</summary>
+        /// <summary>
+        /// Message list scroll position preserved across reloads: -1 =
+        /// following the bottom; otherwise the pixel offset of the
+        /// viewport top below the top of the message named by
+        /// <see cref="ScrollAnchorFromEnd"/> (or from the top of the list
+        /// when that is 0). The transcript is virtualized
+        /// (docs/design-notes/2026-09-30-transcript-virtualization.md), so
+        /// an absolute pixel offset alone would not name the same row
+        /// after a rebuild: the rows outside the live window are estimates.
+        /// </summary>
         public static float ScrollPosition
         {
             get { return SessionState.GetFloat(KeyScrollPosition, -1f); }
             set { SessionState.SetFloat(KeyScrollPosition, value); }
+        }
+
+        /// <summary>
+        /// The message <see cref="ScrollPosition"/> is measured from,
+        /// counted from the end of the transcript (1 = newest); 0 = none.
+        /// Counted from the end so a reload that truncates the head still
+        /// resolves the same message.
+        /// </summary>
+        public static int ScrollAnchorFromEnd
+        {
+            get { return SessionState.GetInt(KeyScrollAnchorFromEnd, 0); }
+            set { SessionState.SetInt(KeyScrollAnchorFromEnd, value); }
         }
 
         /// <summary>Clears the process bookkeeping after a clean shutdown.</summary>
@@ -354,45 +374,24 @@ namespace Colloid.AgentPanel.Model
             LastCompileErrorDigest = string.Empty;
         }
 
-        // -- uLoop install progress (docs/design-notes/2026-08-12-uloop-
-        // install-progress.md section 2a) -- the in-flight marker pair
-        // SettingsView writes on a successful Apply and UloopInstallProgress
-        // evaluates on every refresh. SessionState-backed for the same
-        // reason as the auto-continue flags above: the event these exist to
-        // survive IS a domain reload (a successful package resolve imports
-        // the package, recompiles, and reloads, destroying the AddRequest
-        // object mid-install), so a plain static would silently revert the
-        // section to "Not installed" at the exact moment the install is
-        // landing. ------------------------------------------------------
+        // -- uLoop removal progress (docs/design-notes/2026-09-22-uloop-
+        // remove-from-panel.md) -- the in-flight marker pair SettingsView
+        // writes on a successful Apply and UloopInstallProgress.EvaluateRemoval
+        // evaluates on every refresh. SessionState-backed because the event
+        // it exists to survive IS a domain reload (removing the package
+        // recompiles and reloads, destroying the RemoveRequest object
+        // mid-removal), so a plain static would silently revert the section
+        // at the exact moment the removal is landing. ----------------------
 
         /// <summary>
-        /// True from the moment SettingsView's Apply handler confirms
-        /// UloopInstaller.Apply dispatched Client.Add, until the install
-        /// progress machine reaches a terminal state (installed detected /
-        /// resolve failed / stale) and orders the flag cleared
-        /// (UloopInstallProgressResult.ShouldClearFlag). While the live
-        /// AddRequest exists this flag is redundant; after the reload
-        /// destroys that object, this flag plus
-        /// <see cref="UloopInstallStartedAtUtcTicks"/> is the ONLY evidence
-        /// an install is still in flight.
-        /// </summary>
-        public static bool UloopInstallInFlight
-        {
-            get { return SessionState.GetBool(KeyUloopInstallInFlight, false); }
-            set { SessionState.SetBool(KeyUloopInstallInFlight, value); }
-        }
-
-        /// <summary>
-        /// The removal's own in-flight pair, deliberately NOT sharing the
-        /// install pair above (docs/design-notes/2026-09-22-uloop-remove-
-        /// from-panel.md). Only one of the two can be in flight at a time --
-        /// the section shows Install or Remove, never both -- but after the
-        /// domain reload destroys the request object, a SHARED flag would
-        /// leave the panel unable to say which operation it is still
-        /// waiting on, and it would render "Installing..." over a removal.
-        /// The flag is also what tells the panel to run the registry
-        /// cleanup (phase two) exactly once, on the evaluation that first
-        /// observes the dependency gone.
+        /// True from the moment a removal was dispatched until the progress
+        /// machine reaches a terminal state and orders the flag cleared.
+        /// While the live RemoveRequest exists this flag is redundant; after
+        /// the reload destroys that object, this flag plus
+        /// <see cref="UloopRemoveStartedAtUtcTicks"/> is the ONLY evidence a
+        /// removal is still in flight. It is also what tells the panel to run
+        /// the registry cleanup (phase two) exactly once, on the evaluation
+        /// that first observes the dependency gone.
         /// </summary>
         public static bool UloopRemoveInFlight
         {
@@ -400,7 +399,7 @@ namespace Colloid.AgentPanel.Model
             set { SessionState.SetBool(KeyUloopRemoveInFlight, value); }
         }
 
-        /// <summary>UTC DateTime.Ticks captured when <see cref="UloopRemoveInFlight"/> was set; 0 means never. Same string storage and staleness role as the install pair.</summary>
+        /// <summary>UTC DateTime.Ticks captured when <see cref="UloopRemoveInFlight"/> was set; 0 means never. Stored as a string (SessionState has no 64-bit accessor); its age gates "removing" against "stalled".</summary>
         public static long UloopRemoveStartedAtUtcTicks
         {
             get
@@ -413,34 +412,6 @@ namespace Colloid.AgentPanel.Model
             set
             {
                 SessionState.SetString(KeyUloopRemoveStartedAtUtcTicks,
-                    value.ToString(CultureInfo.InvariantCulture));
-            }
-        }
-
-        /// <summary>
-        /// UTC DateTime.Ticks captured when <see cref="UloopInstallInFlight"/>
-        /// was set. A bare bool is not enough for the same reason
-        /// <see cref="AutoContinuePendingArmedAtUtcTicks"/> exists: if the
-        /// resolve dies without a reload ever consuming the flag (editor
-        /// crash, resolve failure during the reload window), a flag with no
-        /// age would render "Installing..." forever on every future editor
-        /// session's refresh. The age gates Installing vs Stalled against
-        /// UloopInstallProgress.StaleThresholdSeconds. Stored as a string,
-        /// same pattern as ProcessStartTicks above (SessionState has no
-        /// native 64-bit integer accessor). 0 means "never set".
-        /// </summary>
-        public static long UloopInstallStartedAtUtcTicks
-        {
-            get
-            {
-                string raw = SessionState.GetString(KeyUloopInstallStartedAtUtcTicks, "0");
-                long value;
-                return long.TryParse(raw, NumberStyles.Integer,
-                    CultureInfo.InvariantCulture, out value) ? value : 0L;
-            }
-            set
-            {
-                SessionState.SetString(KeyUloopInstallStartedAtUtcTicks,
                     value.ToString(CultureInfo.InvariantCulture));
             }
         }
