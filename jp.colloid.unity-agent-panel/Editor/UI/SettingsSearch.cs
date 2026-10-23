@@ -96,6 +96,15 @@ namespace Colloid.AgentPanel.UI
     {
         public string TabLabel;
         public string Title;
+
+        /// <summary>
+        /// Optional gate for a card that is only sometimes on the page (the
+        /// uLoop card exists only for a project that has uLoop): while it
+        /// returns false the filter keeps the card hidden whatever the query
+        /// matches. Null = always available.
+        /// </summary>
+        public System.Func<bool> IsAvailable;
+
         public VisualElement Card;
         public VisualElement Body;
         /// <summary>The "Tab > Card" line shown at the top of the card while a search is on; null until the filter creates it.</summary>
@@ -143,6 +152,12 @@ namespace Colloid.AgentPanel.UI
             int visibleRows = 0;
             foreach (SettingsSearchCard card in _cards)
             {
+                if (card.IsAvailable != null && !card.IsAvailable())
+                {
+                    Remember(card.Card);
+                    card.Card.style.display = DisplayStyle.None;
+                    continue;
+                }
                 EnsureCrumb(card);
                 Remember(card.Card);
                 bool titleMatch = SettingsSearch.Matches(card.Title, query);

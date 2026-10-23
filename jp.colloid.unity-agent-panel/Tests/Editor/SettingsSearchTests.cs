@@ -118,6 +118,32 @@ namespace Colloid.AgentPanel.Tests
         }
 
         [Test]
+        public void Filter_UnavailableCard_StaysHiddenWhateverTheQueryMatches_AndRestoresAfterClear()
+        {
+            // The uLoop card exists only for a project that has uLoop: a query that
+            // happens to match its text must not reveal it.
+            bool available = false;
+            SettingsSearchCard uloop = MakeCard("Unity", "uLoop integration", Row("Remove uLoop"));
+            uloop.IsAvailable = () => available;
+            uloop.Card.style.display = DisplayStyle.None;
+            SettingsSearchCard other = MakeCard("Unity", "Other", Row("Remove something"));
+            var filter = new SettingsSearchFilter(new List<SettingsSearchCard> { uloop, other });
+
+            Assert.AreEqual(1, filter.Apply("remove"), "only the available card's row counts");
+            Assert.AreEqual(DisplayStyle.None, uloop.Card.style.display.value);
+            Assert.AreEqual(DisplayStyle.Flex, other.Card.style.display.value);
+
+            filter.Clear();
+            Assert.AreEqual(DisplayStyle.None, uloop.Card.style.display.value,
+                "the hidden card comes back hidden");
+
+            available = true;
+            uloop.Card.style.display = StyleKeyword.Null;
+            Assert.AreEqual(2, filter.Apply("remove"), "once available it is searched like any card");
+            Assert.AreEqual(DisplayStyle.Flex, uloop.Card.style.display.value);
+        }
+
+        [Test]
         public void Filter_TitleMatch_ShowsTheWholeCard_AndNoMatchReturnsZero()
         {
             SettingsSearchCard model = MakeCard("Agent", "Model", Row("Default model"), Row("Subagent cost policy"));

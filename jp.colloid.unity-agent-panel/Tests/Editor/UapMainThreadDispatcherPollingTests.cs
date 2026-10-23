@@ -194,6 +194,58 @@ namespace Colloid.AgentPanel.Tests
         }
 
         [Test]
+        public void StartedThenAbandonedPollable_IsToldOnce_SoItCanReleaseWhatItHolds()
+        {
+            // 2026-09-22 (docs/design-notes/2026-09-22-uloop-phase1.md
+            // section 3): an input tool mid-hold (uap_game_key press,
+            // uap_game_mouse long_press) is abandoned when its wait runs out;
+            // without this hook the key / button stayed pressed in the game.
+            // 500 ms, not 50: the first Pump below must reach the item before
+            // the waiter gives up, or it is dropped unstarted (the other test).
+            var dispatcher = new UapMainThreadDispatcher { DefaultTimeoutMillis = 500 };
+            var tool = new AbandonablePollableTool();
+
+            Task<JsonNode> call = Task.Run(() => dispatcher.Execute(tool, JsonNode.NewObject()));
+            SpinWaitUntil(() => dispatcher.PendingCount == 1, 2000);
+            dispatcher.Pump(); // first Poll: the call has started and "holds" something
+            Assert.AreEqual(1, tool.PollCallCount);
+
+            AggregateException aggregate = Assert.Throws<AggregateException>(delegate
+            {
+                JsonNode unused = call.Result;
+            });
+            Assert.IsInstanceOf<TimeoutException>(aggregate.InnerException);
+
+            for (int i = 0; i < 4; i++)
+            {
+                dispatcher.Pump();
+            }
+            Assert.AreEqual(1, tool.AbandonedCount, "the abandoned call must be told exactly once");
+            Assert.AreSame(tool.LastState, tool.AbandonedState, "with the state its own Poll wrote");
+            Assert.AreEqual(1, tool.PollCallCount, "and never polled again");
+        }
+
+        [Test]
+        public void NeverStartedCancelledPollable_IsNotToldToRelease()
+        {
+            // Nothing ran, so there is nothing to release.
+            var dispatcher = new UapMainThreadDispatcher { DefaultTimeoutMillis = 50 };
+            var tool = new AbandonablePollableTool();
+
+            Task<JsonNode> call = Task.Run(() => dispatcher.Execute(tool, JsonNode.NewObject()));
+            SpinWaitUntil(() => dispatcher.PendingCount == 1, 2000);
+            Assert.Throws<AggregateException>(delegate
+            {
+                JsonNode unused = call.Result;
+            });
+            for (int i = 0; i < 3; i++)
+            {
+                dispatcher.Pump();
+            }
+            Assert.AreEqual(0, tool.AbandonedCount);
+        }
+
+        [Test]
         public void NonTimedOutPollable_StillCommitsItsTerminalSideEffect()
         {
             var dispatcher = new UapMainThreadDispatcher();
@@ -207,6 +259,45 @@ namespace Colloid.AgentPanel.Tests
 
             Assert.IsTrue(call.Wait(2000));
             Assert.IsTrue(tool.Committed, "the ordinary completion path is unchanged");
+        }
+
+        /// <summary>Pollable that never finishes on its own and records IUapAbandonableTool calls.</summary>
+        private sealed class AbandonablePollableTool : IUapPollableTool, IUapAbandonableTool
+        {
+            public string Name { get { return "abandonable_pollable"; } }
+            public string Description { get { return "test stub"; } }
+            public string Module { get { return "core"; } }
+            public bool Undoable { get { return false; } }
+            public bool ReadOnly { get { return false; } }
+            public JsonNode InputSchema { get { return JsonNode.NewObject().Set("type", "object"); } }
+
+            public int PollCallCount;
+            public int AbandonedCount;
+            public object LastState;
+            public object AbandonedState;
+
+            public JsonNode Execute(JsonNode input)
+            {
+                throw new InvalidOperationException("pollable path only");
+            }
+
+            public bool Poll(JsonNode input, ref object state, out JsonNode result)
+            {
+                PollCallCount++;
+                if (state == null)
+                {
+                    state = new object();
+                }
+                LastState = state;
+                result = null;
+                return false;
+            }
+
+            public void OnAbandoned(object pollState)
+            {
+                AbandonedCount++;
+                AbandonedState = pollState;
+            }
         }
 
         /// <summary>Pollable whose TERMINAL tick flips a flag -- models

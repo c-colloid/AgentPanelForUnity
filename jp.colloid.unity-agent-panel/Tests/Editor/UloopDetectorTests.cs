@@ -60,8 +60,8 @@ namespace Colloid.AgentPanel.Tests
             // IsPresentInManifest_QuotedAnywhereInText_Matches and it
             // approvingly pinned a plain substring scan as intended
             // behaviour. Running the one-click install end to end for the
-            // first time (2026-08-04) showed what that costs: UloopInstaller
-            // writes this exact quoted id into scopedRegistries[].scopes, so
+            // first time (2026-08-04) showed what that costs: the install button
+            // (since removed) wrote this exact quoted id into scopedRegistries[].scopes, so
             // the detector reported uLoop present in a project where the
             // install had only just started -- and would keep reporting it
             // even if OpenUPM resolution never succeeded. The bug was
@@ -94,7 +94,7 @@ namespace Colloid.AgentPanel.Tests
         [Test]
         public void IsPresentInManifest_RealInstallerOutputFormatting_ScopesEntryAloneDoesNotMatch()
         {
-            // Byte-for-byte the shape UloopInstaller actually writes, copied
+            // Byte-for-byte the shape the (since removed) install button wrote, copied
             // out of the 2026-08-04 end-to-end run. The scopes entry sits on
             // its own line, so what follows the closing quote is a newline
             // and six spaces before the "]" -- not the "]" the single-line

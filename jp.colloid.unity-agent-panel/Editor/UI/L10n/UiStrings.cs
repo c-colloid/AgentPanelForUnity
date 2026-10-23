@@ -151,6 +151,16 @@ namespace Colloid.AgentPanel.UI
         /// </summary>
         public readonly string PermOtherFieldCaption = "Your answer";
         public readonly string PermDenyFieldCaption = "Tell {agent} what to do instead (optional)";
+
+        // 2026-09-28 uap_execute_code permission card detail (design note
+        // docs/design-notes/2026-09-28-uloop-phase3.md, roadmap section 4.3).
+
+        /// <summary>{0} = action name (status/reset) when the call carries no code to show.</summary>
+        public readonly string PermExecuteCodeActionFmt = "action: {0}";
+        /// <summary>{0} = comma-joined extra `usings` the call adds to the default set.</summary>
+        public readonly string PermExecuteCodeUsingsFmt = "Extra usings: {0}";
+        /// <summary>Heading above the list of risk flags the static scan found; each flag is its own following line.</summary>
+        public readonly string PermExecuteCodeFlagsHeading = "Risk flags found by the static scan:";
         public readonly string PermSubmitButton = "Submit";
         public readonly string PermSkipButton = "Skip";
         public readonly string PermSkipTooltip = "Continue without answering";
@@ -574,38 +584,14 @@ namespace Colloid.AgentPanel.UI
             + " conversation itself is unaffected -- the agent still has its full context.";
 
         public readonly string SettingsUloopSectionTitle = "uLoop integration";
-        public readonly string SettingsUloopStatusInstalled = "Installed";
         public readonly string SettingsUloopStatusMissing = "Not installed";
-        public readonly string SettingsUloopInstallButton = "Install uLoop";
-        public readonly string SettingsUloopInstallConfirmTitle =
-            "Install uLoop? Review the change first.";
-        public readonly string SettingsUloopInstallApply = "Install";
-        public readonly string SettingsUloopInstallCancel = "Cancel";
+        public readonly string SettingsUloopRemoveCancel = "Cancel";
 
-        /// <summary>{0} = the Git URL that would be added.</summary>
-        public readonly string SettingsUloopInstallViaGitFmt =
-            "Adds the package via the Package Manager API: {0}. Your manifest.json is not hand-edited.";
 
-        /// <summary>
-        /// One line, no paths -- the measured card carried two full file
-        /// paths inline (2026-08-12 note section 1) and the paths moved to
-        /// SettingsUloopInstallPathsTooltipFmt on the card's own tooltip.
-        /// </summary>
-        public readonly string SettingsUloopInstallViaManifest =
-            "Adds an OpenUPM scoped registry to manifest.json, then asks Package Manager for the package.";
         /// <summary>{0} = manifest path, {1} = backup path (hover detail).</summary>
-        public readonly string SettingsUloopInstallPathsTooltipFmt =
+        public readonly string SettingsUloopRemovePathsTooltipFmt =
             "Edits {0}. A copy of the current file is saved to {1} first.";
-        public readonly string SettingsUloopInstallDiffFoldout = "Show changes";
-        /// <summary>{0} = elapsed whole seconds since Apply.</summary>
-        public readonly string SettingsUloopInstallingFmt =
-            "Installing... {0}s (Package Manager is resolving from OpenUPM; measured around 30s)";
-        /// <summary>{0} = Package Manager's own error message.</summary>
-        public readonly string SettingsUloopInstallAsyncFailedFmt =
-            "Package Manager could not resolve the package: {0}. The registry entry in manifest.json is"
-            + " harmless to keep; fix the connection or retry from the Package Manager window.";
-        public readonly string SettingsUloopInstallStalled =
-            "Still not resolved after several minutes -- check the Package Manager window for the reason.";
+        public readonly string SettingsUloopRemoveDiffFoldout = "Show changes";
 
         // -- Unity official plugin (design note 2026-09-10 section 2) ------------
         public readonly string SettingsUnityPluginSectionTitle = "Unity official plugin";
@@ -655,47 +641,22 @@ namespace Colloid.AgentPanel.UI
             "Adds a short note to the system prompt: route UI, package and search work through the /unity: skills,"
             + " keep Editor control on the panel's own tools, and skip Unity 6-only guidance on older versions."
             + " Applies from the next chat.";
+        public readonly string SettingsBundledSkillsEnabledLabel = "Install bundled agent skills into this project";
+        public readonly string SettingsBundledSkillsEnabledTooltip =
+            "A package that ships skills (Agent Panel Pro: the modeling workflow) copies them into"
+            + " .claude/skills/ and .agents/skills/ under the project, so Claude Code and the agents"
+            + " that read the open Agent Skills layout (Codex, Gemini CLI, ...) load the full procedure"
+            + " when the task matches. A copy you edit is never overwritten; delete it to get the"
+            + " bundled version back. Takes effect at the next skill lookup, no reconnect needed.";
 
         public readonly string SettingsUloopCaveatVcc =
             "This project is managed by VCC/VPM (vpm-manifest.json found). Package changes made"
             + " here can be reverted or overwritten by VCC -- prefer installing through VCC.";
-        public readonly string SettingsUloopCaveatOffline =
-            "No network connection was detected. Installing needs to reach the package registry.";
         public readonly string SettingsUloopCaveatManifestUnreadable =
             "manifest.json could not be read or parsed, so the change cannot be previewed safely.";
-        public readonly string SettingsUloopCaveatRegistryConflict =
-            "A scoped registry with the same name already exists with different settings."
-            + " Resolve it by hand rather than letting this overwrite it.";
-        public readonly string SettingsUloopInstallFailed =
-            "The install could not be applied. Nothing was changed (any backup taken was restored).";
 
-        /// <summary>
-        /// Shown ONLY for the two failure codes where the manifest write
-        /// failed AND the restore that should have undone it also failed --
-        /// the one case where the file's state is genuinely unknown. It used
-        /// to render SettingsUloopInstallFailed, which tells the user
-        /// "nothing was changed" at exactly the moment that is least true,
-        /// and the CRITICAL log naming the backup went nowhere because the
-        /// caller passed no logger.
-        /// </summary>
-        public readonly string SettingsUloopInstallFailedManifestUnknownFmt =
-            "The install failed AND the automatic undo failed. Packages/manifest.json may be incomplete"
-            + " -- do not let Unity resolve packages before you check it. A copy of the original is at"
-            + " {0}. Details: {1}";
 
-        public readonly string SettingsUloopPresetButton = "Allow uloop commands";
-        public readonly string SettingsUloopPresetHelp =
-            "Allows compile, get-logs, list and run-tests without asking. Everything else still asks first.";
-        public readonly string SettingsUloopPresetTooltip =
-            "Adds a short allowlist of safe uloop subcommands. Everything absent from it still asks first -- including execute-dynamic-code, which compiles and runs arbitrary C# in the editor. The three commands that have frozen this editor before (update, sync, launch) are additionally blocked outright, and any broad Bash(uloop *) already in your allowed tools is removed.";
-        public readonly string SettingsUloopPresetApplied = "Preset added to allowed tools.";
 
-        public readonly string SettingsUloopSnippetButton = "Insert guidance snippet";
-        public readonly string SettingsUloopSnippetHelp =
-            "Appends an instruction preferring this panel's Unity tools over uloop execute-dynamic-code.";
-        public readonly string SettingsUloopSnippetTooltip =
-            "Appends a short instruction to your custom instructions: prefer this panel's own Unity tools, reach for uloop execute-dynamic-code only when they cannot express the operation, and treat writing and compiling code as the last resort.";
-        public readonly string SettingsUloopSnippetApplied = "Snippet appended to custom instructions.";
 
         public readonly string SettingsAutoContinueLabel = "Continue automatically after a compile";
         public readonly string SettingsAutoContinueHelp =
@@ -765,6 +726,13 @@ namespace Colloid.AgentPanel.UI
         public readonly string ChatRoleUser = "You";
         public readonly string ChatRoleAssistant = "{agent}";
         public readonly string ChatDefaultAttachTitle = "Attached context";
+
+        /// <summary>Message context menu (TranscriptSelection): copy the
+        /// selected text / the whole message, quote the selection into the
+        /// composer.</summary>
+        public readonly string ChatMenuCopySelection = "Copy";
+        public readonly string ChatMenuCopyMessage = "Copy message";
+        public readonly string ChatMenuAskAboutSelection = "Ask about selection";
         public readonly string ChatThinkingStreaming = "Thinking...";
         public readonly string ChatThinkingDone = "Thinking";
 
@@ -789,9 +757,6 @@ namespace Colloid.AgentPanel.UI
         // ==================================================================
         // MessageListController.cs
         // ==================================================================
-
-        /// <summary>{0} = number of hidden earlier messages.</summary>
-        public readonly string ChatPruneNoteFmt = "{0} earlier messages are hidden";
 
         public readonly string ChatJumpToLatestButton = "Latest";
 
@@ -1828,6 +1793,14 @@ namespace Colloid.AgentPanel.UI
         public readonly string SettingsUapOpsModuleWebHint =
             "Lets the agent fetch a URL (uap_web_fetch): images inline, PDFs and files saved under Library, pages as text.";
 
+        // 2026-09-28 "code" UapOps module toggle (uap_execute_code, design
+        // note docs/design-notes/2026-09-28-uloop-phase3.md); default ON.
+        public readonly string SettingsUapOpsModuleCodeLabel = "Dynamic code";
+
+        /// <summary>Kept under the 110-char settings-hint cap (L10nTests); the USER-GUIDE row carries the detail.</summary>
+        public readonly string SettingsUapOpsModuleCodeHint =
+            "Lets the agent compile and run a C# snippet (uap_execute_code) when no typed tool fits. Never auto-approved.";
+
         public readonly string SettingsWebFetchAllowedHostsLabel = "Allowed hosts";
 
         public readonly string SettingsWebFetchAllowedHostsHint =
@@ -1856,6 +1829,17 @@ namespace Colloid.AgentPanel.UI
 
         public readonly string CtxMarkersClearTooltip = "Remove every marker and pin from the Scene view";
 
+        // -- Overlay visibility (design note 2026-10-01-scene-overlay-visibility.md) --
+        /// <summary>Chip label suffix while the overlays are hidden: "{0} scene markers (hidden)".</summary>
+        public readonly string CtxMarkersChipHiddenSuffix = " (hidden)";
+        public readonly string CtxMarkersHideTooltip = "Hide markers, pins and sketches in the Scene view (they stay; show again any time)";
+        public readonly string CtxMarkersShowTooltip = "Show markers, pins and sketches in the Scene view again";
+        public readonly string CtxMarkersVisibilityToolbarLabel = "Show";
+        public readonly string CtxMarkersVisibilityTooltip =
+            "Show agent overlays: markers, pins, sketches and Model labels. Off hides them without removing them (like the Gizmos button).";
+        public readonly string CtxProSlotTooltip =
+            "Agent Panel Pro adds its Model tools here: evaluate, bake, open the source prefab, revert an avatar edit.";
+
         // -- User pins (design note 2026-09-07 section 1.3.4) --
         public readonly string CtxPinButton = "Pin";
         public readonly string CtxPinButtonArmed = "Click in Scene view...";
@@ -1883,16 +1867,18 @@ namespace Colloid.AgentPanel.UI
         public readonly string CtxSketchButtonArmedSurface = "Sketching on surface...";
         public readonly string CtxSketchTooltip =
             "Draw a stroke in the Scene view and hand it to the agent as points. Plane mode draws at a chosen depth"
-            + " (wheel / [ ] change depth, F snaps to the surface under the cursor, X/Y/Z lock an axis plane, C faces"
-            + " the camera, Shift for a straight line); surface mode draws on the mesh under the cursor. Esc leaves the mode.";
+            + " (Ctrl+wheel / [ ] change depth, F snaps to the surface under the cursor, X/Y/Z lock an axis plane, C faces"
+            + " the camera); surface mode draws on the mesh under the cursor. Shapes: freehand, line, polyline, rectangle,"
+            + " ellipse (1-5). The plain wheel, right / middle drag and Alt still move the view. Esc cancels the stroke, then"
+            + " leaves the mode.";
         public readonly string CtxSketchMenuPlane = "Sketch on a plane (choose depth)";
         public readonly string CtxSketchMenuSurface = "Sketch on mesh surfaces";
         public readonly string CtxSketchMenuStop = "Stop sketching";
         public readonly string CtxSketchPlaneToolbarLabel = "Plane";
         public readonly string CtxSketchPlaneTooltip =
-            "Agent sketch: draw on a plane at a chosen depth (wheel / [ ]: depth, F: snap to surface, X/Y/Z/C: plane, Esc: exit)";
+            "Agent sketch: draw on a plane at a chosen depth (Ctrl+wheel / [ ]: depth, F: snap to surface, X/Y/Z/C: plane, 1-5: shape, Esc: exit)";
         public readonly string CtxSketchSurfaceToolbarLabel = "Surface";
-        public readonly string CtxSketchSurfaceTooltip = "Agent sketch: draw on the mesh surface under the cursor (Esc: exit)";
+        public readonly string CtxSketchSurfaceTooltip = "Agent sketch: draw on the mesh surface under the cursor (1-5: shape, Esc: exit)";
         public readonly string CtxSketchChipLabelFmt = "Sketch S{0}";
         public readonly string CtxSketchChipTitleFmt = "Scene sketch S{0}";
         /// <summary>Scene-view readout: {0} = depth in metres (F2), {1} = plane axis name.</summary>
@@ -1902,7 +1888,34 @@ namespace Colloid.AgentPanel.UI
         /// <summary>{0} = distance in metres (F2).</summary>
         public readonly string CtxSketchSurfaceBehindFmt = "surface under cursor: {0} m behind the plane";
         public readonly string CtxSketchSurfaceInFrontFmt = "surface under cursor: {0} m in front of the plane";
-        public readonly string CtxSketchKeyHints = "wheel / [ ]: depth   F: snap to surface   X Y Z / C: plane   Shift: straight   Esc: exit";
+        public readonly string CtxSketchKeyHints = "Ctrl+wheel / [ ]: depth   F: snap to surface   X Y Z / C: plane   1-5: shape   Shift: straight / square   N: name newest   Esc: exit";
+        // Shapes, navigation and regions (design note 2026-10-09-sketch-shapes-navigation-regions.md).
+        public readonly string CtxSketchSurfaceKeyHints = "1-5: shape   Shift: straight / square   N: name newest   Esc: exit";
+        public readonly string CtxSketchPolylineHints = "click: add a point   click the first point: close   Enter / double-click: finish   Backspace: undo a point   Esc: cancel";
+        /// <summary>{0} = shape name.</summary>
+        public readonly string CtxSketchSurfaceReadoutFmt = "sketch on surface: shape {0}";
+        /// <summary>{0} = shape name (appended to the plane readout).</summary>
+        public readonly string CtxSketchShapeReadoutFmt = "shape: {0}";
+        public readonly string CtxSketchShapeFreehand = "Freehand";
+        public readonly string CtxSketchShapeLine = "Line";
+        public readonly string CtxSketchShapePolyline = "Polyline";
+        public readonly string CtxSketchShapeRectangle = "Rectangle";
+        public readonly string CtxSketchShapeEllipse = "Ellipse";
+        /// <summary>GenericMenu submenu prefix; the shape name follows.</summary>
+        public readonly string CtxSketchMenuShapePrefix = "Shape/";
+        public readonly string CtxSketchShapeDropdownTooltip =
+            "Sketch shape: freehand, line, polyline (click the points; click the first one to close), rectangle or ellipse (1-5 in the Scene view)";
+        /// <summary>{0} = "S3".</summary>
+        public readonly string CtxSketchNameWindowTitleFmt = "Name sketch {0}";
+        public readonly string CtxSketchNameFieldLabel = "Name";
+        public readonly string CtxSketchNameApplyButton = "Apply";
+        public readonly string CtxSketchChipMenuName = "Name...";
+        /// <summary>{0} = S number, {1} = name.</summary>
+        public readonly string CtxSketchChipLabelNamedFmt = "Sketch S{0}: {1}";
+        public readonly string CtxStrokePayloadNameFmt = "name: {0}";
+        public readonly string CtxStrokePayloadShapeFmt = "shape: {0}";
+        /// <summary>{0} = area (F2), {1} = stroke id.</summary>
+        public readonly string CtxStrokePayloadAreaFmt = "area: {0} m^2 (closed region; uap_stroke_list id={1} lists the objects inside it)";
         public readonly string CtxStrokePayloadHeaderFmt = "Scene sketch S{0} (user-drawn stroke in the Scene view)";
         public readonly string CtxStrokePayloadModeFmt = "mode: {0}";
         /// <summary>{0} = point count, {1} = length in metres (F2), {2} = closed yes/no.</summary>
@@ -2052,7 +2065,7 @@ namespace Colloid.AgentPanel.UI
 
         public readonly string SettingsAcpCommandHintCustom =
             "The command that starts the agent in ACP mode (for example"
-            + " `qwen --experimental-acp`). Required.";
+            + " `opencode acp`, `qwen --acp`). Required.";
 
         public readonly string SettingsAcpAuthMethodHint =
             "The ACP authenticate method id. Empty = the first sign-in method the agent offers.";
@@ -2174,6 +2187,12 @@ namespace Colloid.AgentPanel.UI
             + " outside Windows the pre-tool hook is not installed, and \"skip all permission"
             + " prompts\" stops the CLI from asking at all. Direct writes to Assets/**/*.cs are"
             + " NOT being stopped. Turn off \"skip all permission prompts\" to restore the gate.";
+
+        /// <summary>{0} = backend display name. Section 2.7 (docs/design-notes/2026-09-22-uloop-phase1.md): UapOps could reach the agent neither over http nor over the stdio relay -- shown once per spawn, where before this only a log line said so.</summary>
+        public readonly string HubUapOpsUnavailableForAgentNoteFmt =
+            "{0} has no way to receive Unity operation tools this session: it does not support"
+            + " HTTP MCP servers, and the stdio relay could not start. Only its own built-in"
+            + " tools are available here.";
 
         // ==================================================================
         // v0.40.0: API key auth passthrough (docs/design-notes/2026-09-10-
@@ -2461,6 +2480,20 @@ namespace Colloid.AgentPanel.UI
             + " triangles, open edges (uap_mesh_validate / uap_mesh_repair); and a scene-wide z-fighting"
             + " scan for coplanar overlapping faces (uap_scene_zfight_scan).";
 
+        // 2026-09-28 "patching" module (docs/design-notes/
+        // 2026-09-28-uloop-phase4.md).
+        public readonly string SettingsUapOpsModulePatchingLabel = "Hot reload / pause points (Pro)";
+
+        // Same 110-char-cap split as "mesh" above: the inline line stays
+        // short, the tool-by-tool detail is the row's hover tooltip.
+        public readonly string SettingsUapOpsModulePatchingHint =
+            "Rewrites method bodies and inserts pause points in the running Editor via Harmony. Default OFF.";
+
+        public readonly string SettingsUapOpsModulePatchingTooltip =
+            "Hot-reloads changed static method bodies without a domain reload (uap_hot_reload) and pauses"
+            + " at a file:line with locals captured (uap_pause_point). Mono scripting runtime only --"
+            + " Unity 6.8+ CoreCLR Editor is not supported. Every call is never auto-approved.";
+
         // 2026-09-15 profile-gap affordance (docs/design-notes/
         // 2026-09-15-profile-gaps-and-skill-scaffold.md): shown only when
         // Agent Panel Pro's authoring tools are present to act on it.
@@ -2506,41 +2539,21 @@ namespace Colloid.AgentPanel.UI
 
 
         // ==================================================================
-        // 2026-09-21 -- uLoop standing cost (docs/design-notes/2026-09-21-
-        // uloop-always-loaded-cost.md section 5, option 0). The panel's own
-        // install button is what puts a project into that state, so the
-        // facts belong next to the button rather than only in a note.
-        // Appended here (end of the field list) per this file's
-        // merge-safety convention.
+        // 2026-10-02 -- the one note on the uLoop card, shown only while uLoop
+        // is detected (docs/design-notes/2026-10-02-uloop-card-final.md).
+        // Appended here per this file's merge-safety convention.
         // ==================================================================
 
-        /// <summary>Inline line above the "Install uLoop" button: what installing leaves running.</summary>
-        public readonly string SettingsUloopStandingCostHint =
-            "Installing leaves an editor server and a 60Hz tick pump running, plus about 2k tokens of skills per session.";
+        /// <summary>Inline line at the top of the uLoop card: uLoop is installed, the panel's tools cover it, removal is recommended.</summary>
+        public readonly string SettingsUloopNoteHint =
+            "uLoop is installed. This panel's own tools cover it; removing it is recommended unless you use it elsewhere.";
 
-        /// <summary>The same in full, on hover: measured numbers and the fact that none of it is switchable from here.</summary>
-        public readonly string SettingsUloopStandingCostTooltip =
-            "Measured on 2026-09-21 against uLoop 3.6.3. Installing it leaves three things running for as long as the"
-            + " project has the package: its editor server, started again on every Editor launch; a 16 ms SignalTick"
-            + " pump that keeps the Editor ticking even while it is unfocused and idle, so it no longer parks in the"
-            + " background; and about 21 agent skills whose descriptions (roughly 5.7 KB, 1.5-2k tokens) ride in every"
-            + " agent session whether or not uloop is ever called. None of the three can be switched off from this"
-            + " panel -- they belong to that package. This panel's own uap_* tools already cover Play Mode, the"
-            + " Console, screenshots, script commits and tests. See docs/design-notes/2026-09-21-uloop-always-loaded-cost.md.";
-
-        /// <summary>Inline line shown once uLoop is installed: where its own controls are.</summary>
-        public readonly string SettingsUloopTurnDownHint =
-            "This panel cannot stop uLoop's server or tick pump; use Window > Unity CLI Loop to turn them down.";
-
-        /// <summary>The same in full, on hover: exactly which uLoop control does what, and what each one leaves behind.</summary>
-        public readonly string SettingsUloopTurnDownTooltip =
-            "Window > Unity CLI Loop > Server stops its IPC server for THIS Editor session only: the 16 ms tick pump"
-            + " keeps running regardless, and the server starts again on the next Editor launch (that package keeps the"
-            + " stop flag in SessionState). Window > Unity CLI Loop > Settings disables individual uLoop tools, which"
-            + " also drops each disabled tool's skill file and the tokens it costs every agent session. Removing the"
-            + " package in the Package Manager is the only complete off. Details and measurements:"
-            + " docs/design-notes/2026-09-21-uloop-always-loaded-cost.md.";
-
+        /// <summary>The same in full, on hover: what the panel covers and what uLoop keeps running.</summary>
+        public readonly string SettingsUloopNoteTooltip =
+            "uLoop is installed. This panel's own Unity tools (uap_*) cover what it does: Play Mode, input,"
+            + " logs, compile, screenshots and video, dynamic code. uLoop keeps its own editor server and a"
+            + " 16 ms tick pump running and adds its skill descriptions to every agent session. Removing it is"
+            + " recommended unless you rely on it outside this panel.";
 
         // ==================================================================
         // 2026-09-21 -- option A of the same note: the agent-facing uloop
@@ -2552,18 +2565,18 @@ namespace Colloid.AgentPanel.UI
 
         /// <summary>Inline line under the toggle: what turning it off does, and what it deliberately does not.</summary>
         public readonly string SettingsUloopAgentUseHint =
-            "Off refuses uloop from the agent. It does not stop uLoop itself -- see the line above.";
+            "Off (the default) refuses uloop from the agent. It does not stop uLoop itself.";
 
         /// <summary>The same in full, on hover: the three layers, and what stays running either way.</summary>
         public readonly string SettingsUloopAgentUseTooltip =
-            "On (the default) keeps uloop as the sanctioned fallback for what this panel's uap_* tools"
-            + " cannot express. Off tells the agent in its instructions that uloop commands are refused,"
-            + " adds deny patterns for every shell tool to the next spawn, and refuses any uloop command"
-            + " that still arrives -- three layers, because a --disallowedTools pattern has been measured"
-            + " to be accepted and then ignored by the CLI. It changes nothing about uLoop itself: that"
-            + " package's editor server, its 16 ms tick pump and its skills keep running, and its skills"
-            + " keep costing tokens in every session. Takes effect on the next connection, like the"
-            + " allowed / disallowed tool lists.";
+            "Off (the default for new settings) tells the agent in its instructions that uloop commands are"
+            + " refused, adds deny patterns for every shell tool to the next spawn, and refuses any uloop"
+            + " command that still arrives -- three layers, because a --disallowedTools pattern has been"
+            + " measured to be accepted and then ignored by the CLI. On keeps uloop as the sanctioned"
+            + " fallback for what this panel's uap_* tools cannot express. Either way it changes nothing"
+            + " about uLoop itself: its editor server, its 16 ms tick pump and its skills keep running, and"
+            + " its skills keep costing tokens in every session. Takes effect on the next connection, like"
+            + " the allowed / disallowed tool lists.";
 
         /// <summary>{0} = the refused command (one line, truncated); transcript note for an auto-denied uloop call.</summary>
         public readonly string HubUloopAgentUseDeniedFmt =
@@ -2576,7 +2589,7 @@ namespace Colloid.AgentPanel.UI
         // Appended here per this file's merge-safety convention.
         // ==================================================================
 
-        /// <summary>Removal button label. The mirror of the install button, shown only while uLoop is installed.</summary>
+        /// <summary>Removal button label.</summary>
         public readonly string SettingsUloopRemoveButton = "Remove uLoop";
 
         /// <summary>Hover text on the removal button: what removal actually buys, and who changes what.</summary>
@@ -2586,10 +2599,10 @@ namespace Colloid.AgentPanel.UI
                 + " this panel then tidies the OpenUPM entry it added to Packages/manifest.json,"
                 + " showing you the change first.";
 
-        /// <summary>Shared confirmation card title while it is showing a removal.</summary>
+        /// <summary>Confirmation card title.</summary>
         public readonly string SettingsUloopRemoveConfirmTitle = "Remove uLoop from this project?";
 
-        /// <summary>Shared confirmation card's Apply label while it is showing a removal.</summary>
+        /// <summary>Confirmation card's Apply label.</summary>
         public readonly string SettingsUloopRemoveApply = "Remove";
 
         /// <summary>Route sentence: the whole scopedRegistries entry goes.</summary>
@@ -2646,6 +2659,31 @@ namespace Colloid.AgentPanel.UI
 
         /// <summary>Non-blocking: a mirror or VPM feed the project pointed there deliberately is not ours to edit.</summary>
         public readonly string SettingsUloopCaveatForeignRegistryKept = "Another scoped registry lists uLoop; it is left untouched.";
+
+        // ==================================================================
+        // SettingsView.cs -- tools/list mode (design note docs/design-notes/
+        // 2026-09-22-uloop-phase1.md section 2.8 B). Appended here (end of
+        // the field list) per this file's merge-safety convention.
+        // ==================================================================
+
+        public readonly string SettingsUapOpsToolListModeLabel = "Tool list mode";
+
+        /// <summary>Shown under the popup -- the short, always-visible line.</summary>
+        public readonly string SettingsUapOpsToolListModeHint =
+            "Controls how many tool descriptions the agent's connection loads up front.";
+
+        public readonly string SettingsUapOpsToolListModeTooltip =
+            "Full lists every enabled tool with its full description, same as before this setting"
+            + " existed. Compact lists only the core module directly and reaches every other enabled"
+            + " module's tools through a small search-and-run pair (uap_tools / uap_call), which keeps"
+            + " the connection's tool list short at the cost of an extra lookup step. Auto (default)"
+            + " picks Full for Claude Code, which already defers loading a tool's full schema on its"
+            + " own, and Compact for every other backend. Changing this needs a reconnect to take"
+            + " effect, like the module switches above.";
+
+        public readonly string SettingsUapOpsToolListModeOptionAuto = "Auto (recommended)";
+        public readonly string SettingsUapOpsToolListModeOptionFull = "Full";
+        public readonly string SettingsUapOpsToolListModeOptionCompact = "Compact";
 
         /// <summary>English catalog (the default/fallback) -- every field above already carries its English value via its own field initializer.</summary>
         public UiStrings()
@@ -2889,19 +2927,10 @@ namespace Colloid.AgentPanel.UI
             string hubReloadDroppedPermissionFmt,
             string hubSessionCacheUnreadable,
             string settingsUloopSectionTitle,
-            string settingsUloopStatusInstalled,
             string settingsUloopStatusMissing,
-            string settingsUloopInstallButton,
-            string settingsUloopInstallConfirmTitle,
-            string settingsUloopInstallApply,
-            string settingsUloopInstallCancel,
-            string settingsUloopInstallViaGitFmt,
-            string settingsUloopInstallViaManifest,
-            string settingsUloopInstallPathsTooltipFmt,
-            string settingsUloopInstallDiffFoldout,
-            string settingsUloopInstallingFmt,
-            string settingsUloopInstallAsyncFailedFmt,
-            string settingsUloopInstallStalled,
+            string settingsUloopRemoveCancel,
+            string settingsUloopRemovePathsTooltipFmt,
+            string settingsUloopRemoveDiffFoldout,
             string settingsUnityPluginSectionTitle,
             string settingsUnityPluginStatusCliUnavailable,
             string settingsUnityPluginStatusNotInstalled,
@@ -2927,20 +2956,10 @@ namespace Colloid.AgentPanel.UI
             string settingsUnityPluginRepoLabel,
             string settingsUnityPluginSteeringLabel,
             string settingsUnityPluginSteeringTooltip,
+            string settingsBundledSkillsEnabledLabel,
+            string settingsBundledSkillsEnabledTooltip,
             string settingsUloopCaveatVcc,
-            string settingsUloopCaveatOffline,
             string settingsUloopCaveatManifestUnreadable,
-            string settingsUloopCaveatRegistryConflict,
-            string settingsUloopInstallFailed,
-            string settingsUloopInstallFailedManifestUnknownFmt,
-            string settingsUloopPresetButton,
-            string settingsUloopPresetHelp,
-            string settingsUloopPresetTooltip,
-            string settingsUloopPresetApplied,
-            string settingsUloopSnippetButton,
-            string settingsUloopSnippetHelp,
-            string settingsUloopSnippetTooltip,
-            string settingsUloopSnippetApplied,
             string settingsAutoContinueLabel,
             string settingsAutoContinueHelp,
             string settingsAutoContinueTooltip,
@@ -2968,13 +2987,15 @@ namespace Colloid.AgentPanel.UI
             string chatRoleUser,
             string chatRoleAssistant,
             string chatDefaultAttachTitle,
+            string chatMenuCopySelection,
+            string chatMenuCopyMessage,
+            string chatMenuAskAboutSelection,
             string chatThinkingStreaming,
             string chatThinkingDone,
             string chatThinkingIndicatorStreaming,
             string chatThinkingIndicatorStreamingTokensFmt,
             string chatThinkingIndicatorDone,
             string chatThinkingIndicatorDoneTokensFmt,
-            string chatPruneNoteFmt,
             string chatJumpToLatestButton,
             string chatCompactingIndicator,
             string statusDisconnected,
@@ -3267,6 +3288,12 @@ namespace Colloid.AgentPanel.UI
             string ctxMarkersChipSingle,
             string ctxMarkersChipPluralFmt,
             string ctxMarkersClearTooltip,
+            string ctxMarkersChipHiddenSuffix,
+            string ctxMarkersHideTooltip,
+            string ctxMarkersShowTooltip,
+            string ctxMarkersVisibilityToolbarLabel,
+            string ctxMarkersVisibilityTooltip,
+            string ctxProSlotTooltip,
             string ctxPinButton,
             string ctxPinButtonArmed,
             string ctxPinToolbarLabel,
@@ -3311,6 +3338,25 @@ namespace Colloid.AgentPanel.UI
             string ctxStrokePayloadPointsFmt,
             string ctxStrokePayloadMorePointsFmt,
             string ctxStrokePayloadAllPointsFmt,
+            string ctxSketchSurfaceKeyHints,
+            string ctxSketchPolylineHints,
+            string ctxSketchSurfaceReadoutFmt,
+            string ctxSketchShapeReadoutFmt,
+            string ctxSketchShapeFreehand,
+            string ctxSketchShapeLine,
+            string ctxSketchShapePolyline,
+            string ctxSketchShapeRectangle,
+            string ctxSketchShapeEllipse,
+            string ctxSketchMenuShapePrefix,
+            string ctxSketchShapeDropdownTooltip,
+            string ctxSketchNameWindowTitleFmt,
+            string ctxSketchNameFieldLabel,
+            string ctxSketchNameApplyButton,
+            string ctxSketchChipMenuName,
+            string ctxSketchChipLabelNamedFmt,
+            string ctxStrokePayloadNameFmt,
+            string ctxStrokePayloadShapeFmt,
+            string ctxStrokePayloadAreaFmt,
             string settingsSectionExtensionProfiles,
             string settingsExtensionProfilesHint,
             string settingsExtensionProfilesTooltip,
@@ -3418,6 +3464,9 @@ namespace Colloid.AgentPanel.UI
             string settingsUapOpsModuleMeshLabel = null,
             string settingsUapOpsModuleMeshHint = null,
             string settingsUapOpsModuleMeshTooltip = null,
+            string settingsUapOpsModulePatchingLabel = null,
+            string settingsUapOpsModulePatchingHint = null,
+            string settingsUapOpsModulePatchingTooltip = null,
             string settingsUapOpsTestFrameworkAbsentHintFmt = null,
             string settingsUapOpsTestFrameworkAbsentTooltip = null,
             string settingsSectionProUpdates = null,
@@ -3482,6 +3531,11 @@ namespace Colloid.AgentPanel.UI
             string settingsOverviewDangerArmed = null,
             string settingsUapOpsModuleWebLabel = null,
             string settingsUapOpsModuleWebHint = null,
+            string settingsUapOpsModuleCodeLabel = null,
+            string settingsUapOpsModuleCodeHint = null,
+            string permExecuteCodeActionFmt = null,
+            string permExecuteCodeUsingsFmt = null,
+            string permExecuteCodeFlagsHeading = null,
             string settingsWebFetchAllowedHostsLabel = null,
             string settingsWebFetchAllowedHostsHint = null,
             string settingsWebFetchBlockedHostsLabel = null,
@@ -3518,10 +3572,8 @@ namespace Colloid.AgentPanel.UI
             string settingsModulesPillFmt = null,
             string settingsOverviewSignedInFmt = null,
             string settingsOverviewReconnectLabel = null,
-            string settingsUloopStandingCostHint = null,
-            string settingsUloopStandingCostTooltip = null,
-            string settingsUloopTurnDownHint = null,
-            string settingsUloopTurnDownTooltip = null,
+            string settingsUloopNoteHint = null,
+            string settingsUloopNoteTooltip = null,
             string settingsUloopAgentUseLabel = null,
             string settingsUloopAgentUseHint = null,
             string settingsUloopAgentUseTooltip = null,
@@ -3545,6 +3597,13 @@ namespace Colloid.AgentPanel.UI
             string settingsUloopCaveatPanelSettingsKept = null,
             string settingsUloopCaveatRegistryScopeKept = null,
             string settingsUloopCaveatForeignRegistryKept = null,
+            string settingsUapOpsToolListModeLabel = null,
+            string settingsUapOpsToolListModeHint = null,
+            string settingsUapOpsToolListModeTooltip = null,
+            string settingsUapOpsToolListModeOptionAuto = null,
+            string settingsUapOpsToolListModeOptionFull = null,
+            string settingsUapOpsToolListModeOptionCompact = null,
+            string hubUapOpsUnavailableForAgentNoteFmt = null,
             string settingsProVersionFmt = null,
             string settingsCliUpdateCheckButton = null,
             string settingsCliUpdateButton = null,
@@ -3790,19 +3849,10 @@ namespace Colloid.AgentPanel.UI
             HubReloadDroppedPermissionFmt = hubReloadDroppedPermissionFmt;
             HubSessionCacheUnreadable = hubSessionCacheUnreadable;
             SettingsUloopSectionTitle = settingsUloopSectionTitle;
-            SettingsUloopStatusInstalled = settingsUloopStatusInstalled;
             SettingsUloopStatusMissing = settingsUloopStatusMissing;
-            SettingsUloopInstallButton = settingsUloopInstallButton;
-            SettingsUloopInstallConfirmTitle = settingsUloopInstallConfirmTitle;
-            SettingsUloopInstallApply = settingsUloopInstallApply;
-            SettingsUloopInstallCancel = settingsUloopInstallCancel;
-            SettingsUloopInstallViaGitFmt = settingsUloopInstallViaGitFmt;
-            SettingsUloopInstallViaManifest = settingsUloopInstallViaManifest;
-            SettingsUloopInstallPathsTooltipFmt = settingsUloopInstallPathsTooltipFmt;
-            SettingsUloopInstallDiffFoldout = settingsUloopInstallDiffFoldout;
-            SettingsUloopInstallingFmt = settingsUloopInstallingFmt;
-            SettingsUloopInstallAsyncFailedFmt = settingsUloopInstallAsyncFailedFmt;
-            SettingsUloopInstallStalled = settingsUloopInstallStalled;
+            SettingsUloopRemoveCancel = settingsUloopRemoveCancel;
+            SettingsUloopRemovePathsTooltipFmt = settingsUloopRemovePathsTooltipFmt;
+            SettingsUloopRemoveDiffFoldout = settingsUloopRemoveDiffFoldout;
             SettingsUnityPluginSectionTitle = settingsUnityPluginSectionTitle;
             SettingsUnityPluginStatusCliUnavailable = settingsUnityPluginStatusCliUnavailable;
             SettingsUnityPluginStatusNotInstalled = settingsUnityPluginStatusNotInstalled;
@@ -3828,20 +3878,10 @@ namespace Colloid.AgentPanel.UI
             SettingsUnityPluginRepoLabel = settingsUnityPluginRepoLabel;
             SettingsUnityPluginSteeringLabel = settingsUnityPluginSteeringLabel;
             SettingsUnityPluginSteeringTooltip = settingsUnityPluginSteeringTooltip;
+            SettingsBundledSkillsEnabledLabel = settingsBundledSkillsEnabledLabel;
+            SettingsBundledSkillsEnabledTooltip = settingsBundledSkillsEnabledTooltip;
             SettingsUloopCaveatVcc = settingsUloopCaveatVcc;
-            SettingsUloopCaveatOffline = settingsUloopCaveatOffline;
             SettingsUloopCaveatManifestUnreadable = settingsUloopCaveatManifestUnreadable;
-            SettingsUloopCaveatRegistryConflict = settingsUloopCaveatRegistryConflict;
-            SettingsUloopInstallFailed = settingsUloopInstallFailed;
-            SettingsUloopInstallFailedManifestUnknownFmt = settingsUloopInstallFailedManifestUnknownFmt;
-            SettingsUloopPresetButton = settingsUloopPresetButton;
-            SettingsUloopPresetHelp = settingsUloopPresetHelp;
-            SettingsUloopPresetTooltip = settingsUloopPresetTooltip;
-            SettingsUloopPresetApplied = settingsUloopPresetApplied;
-            SettingsUloopSnippetButton = settingsUloopSnippetButton;
-            SettingsUloopSnippetHelp = settingsUloopSnippetHelp;
-            SettingsUloopSnippetTooltip = settingsUloopSnippetTooltip;
-            SettingsUloopSnippetApplied = settingsUloopSnippetApplied;
             SettingsAutoContinueLabel = settingsAutoContinueLabel;
             SettingsAutoContinueHelp = settingsAutoContinueHelp;
             SettingsAutoContinueTooltip = settingsAutoContinueTooltip;
@@ -3869,13 +3909,15 @@ namespace Colloid.AgentPanel.UI
             ChatRoleUser = chatRoleUser;
             ChatRoleAssistant = chatRoleAssistant;
             ChatDefaultAttachTitle = chatDefaultAttachTitle;
+            ChatMenuCopySelection = chatMenuCopySelection;
+            ChatMenuCopyMessage = chatMenuCopyMessage;
+            ChatMenuAskAboutSelection = chatMenuAskAboutSelection;
             ChatThinkingStreaming = chatThinkingStreaming;
             ChatThinkingDone = chatThinkingDone;
             ChatThinkingIndicatorStreaming = chatThinkingIndicatorStreaming;
             ChatThinkingIndicatorStreamingTokensFmt = chatThinkingIndicatorStreamingTokensFmt;
             ChatThinkingIndicatorDone = chatThinkingIndicatorDone;
             ChatThinkingIndicatorDoneTokensFmt = chatThinkingIndicatorDoneTokensFmt;
-            ChatPruneNoteFmt = chatPruneNoteFmt;
             ChatJumpToLatestButton = chatJumpToLatestButton;
             ChatCompactingIndicator = chatCompactingIndicator;
             StatusDisconnected = statusDisconnected;
@@ -4168,6 +4210,12 @@ namespace Colloid.AgentPanel.UI
             CtxMarkersChipSingle = ctxMarkersChipSingle;
             CtxMarkersChipPluralFmt = ctxMarkersChipPluralFmt;
             CtxMarkersClearTooltip = ctxMarkersClearTooltip;
+            CtxMarkersChipHiddenSuffix = ctxMarkersChipHiddenSuffix;
+            CtxMarkersHideTooltip = ctxMarkersHideTooltip;
+            CtxMarkersShowTooltip = ctxMarkersShowTooltip;
+            CtxMarkersVisibilityToolbarLabel = ctxMarkersVisibilityToolbarLabel;
+            CtxMarkersVisibilityTooltip = ctxMarkersVisibilityTooltip;
+            CtxProSlotTooltip = ctxProSlotTooltip;
             CtxPinButton = ctxPinButton;
             CtxPinButtonArmed = ctxPinButtonArmed;
             CtxPinToolbarLabel = ctxPinToolbarLabel;
@@ -4212,6 +4260,25 @@ namespace Colloid.AgentPanel.UI
             CtxStrokePayloadPointsFmt = ctxStrokePayloadPointsFmt;
             CtxStrokePayloadMorePointsFmt = ctxStrokePayloadMorePointsFmt;
             CtxStrokePayloadAllPointsFmt = ctxStrokePayloadAllPointsFmt;
+            CtxSketchSurfaceKeyHints = ctxSketchSurfaceKeyHints;
+            CtxSketchPolylineHints = ctxSketchPolylineHints;
+            CtxSketchSurfaceReadoutFmt = ctxSketchSurfaceReadoutFmt;
+            CtxSketchShapeReadoutFmt = ctxSketchShapeReadoutFmt;
+            CtxSketchShapeFreehand = ctxSketchShapeFreehand;
+            CtxSketchShapeLine = ctxSketchShapeLine;
+            CtxSketchShapePolyline = ctxSketchShapePolyline;
+            CtxSketchShapeRectangle = ctxSketchShapeRectangle;
+            CtxSketchShapeEllipse = ctxSketchShapeEllipse;
+            CtxSketchMenuShapePrefix = ctxSketchMenuShapePrefix;
+            CtxSketchShapeDropdownTooltip = ctxSketchShapeDropdownTooltip;
+            CtxSketchNameWindowTitleFmt = ctxSketchNameWindowTitleFmt;
+            CtxSketchNameFieldLabel = ctxSketchNameFieldLabel;
+            CtxSketchNameApplyButton = ctxSketchNameApplyButton;
+            CtxSketchChipMenuName = ctxSketchChipMenuName;
+            CtxSketchChipLabelNamedFmt = ctxSketchChipLabelNamedFmt;
+            CtxStrokePayloadNameFmt = ctxStrokePayloadNameFmt;
+            CtxStrokePayloadShapeFmt = ctxStrokePayloadShapeFmt;
+            CtxStrokePayloadAreaFmt = ctxStrokePayloadAreaFmt;
             SettingsSectionExtensionProfiles = settingsSectionExtensionProfiles;
             SettingsExtensionProfilesHint = settingsExtensionProfilesHint;
             SettingsExtensionProfilesTooltip = settingsExtensionProfilesTooltip;
@@ -4454,6 +4521,18 @@ namespace Colloid.AgentPanel.UI
             {
                 SettingsUapOpsModuleMeshTooltip = settingsUapOpsModuleMeshTooltip;
             }
+            if (settingsUapOpsModulePatchingLabel != null)
+            {
+                SettingsUapOpsModulePatchingLabel = settingsUapOpsModulePatchingLabel;
+            }
+            if (settingsUapOpsModulePatchingHint != null)
+            {
+                SettingsUapOpsModulePatchingHint = settingsUapOpsModulePatchingHint;
+            }
+            if (settingsUapOpsModulePatchingTooltip != null)
+            {
+                SettingsUapOpsModulePatchingTooltip = settingsUapOpsModulePatchingTooltip;
+            }
             if (settingsUapOpsTestFrameworkAbsentHintFmt != null)
             {
                 SettingsUapOpsTestFrameworkAbsentHintFmt = settingsUapOpsTestFrameworkAbsentHintFmt;
@@ -4617,6 +4696,26 @@ namespace Colloid.AgentPanel.UI
             if (settingsUapOpsModuleWebHint != null)
             {
                 SettingsUapOpsModuleWebHint = settingsUapOpsModuleWebHint;
+            }
+            if (settingsUapOpsModuleCodeLabel != null)
+            {
+                SettingsUapOpsModuleCodeLabel = settingsUapOpsModuleCodeLabel;
+            }
+            if (settingsUapOpsModuleCodeHint != null)
+            {
+                SettingsUapOpsModuleCodeHint = settingsUapOpsModuleCodeHint;
+            }
+            if (permExecuteCodeActionFmt != null)
+            {
+                PermExecuteCodeActionFmt = permExecuteCodeActionFmt;
+            }
+            if (permExecuteCodeUsingsFmt != null)
+            {
+                PermExecuteCodeUsingsFmt = permExecuteCodeUsingsFmt;
+            }
+            if (permExecuteCodeFlagsHeading != null)
+            {
+                PermExecuteCodeFlagsHeading = permExecuteCodeFlagsHeading;
             }
             if (settingsWebFetchAllowedHostsLabel != null)
             {
@@ -4854,21 +4953,13 @@ namespace Colloid.AgentPanel.UI
             {
                 SettingsOverviewReconnectLabel = settingsOverviewReconnectLabel;
             }
-            if (settingsUloopStandingCostHint != null)
+            if (settingsUloopNoteHint != null)
             {
-                SettingsUloopStandingCostHint = settingsUloopStandingCostHint;
+                SettingsUloopNoteHint = settingsUloopNoteHint;
             }
-            if (settingsUloopStandingCostTooltip != null)
+            if (settingsUloopNoteTooltip != null)
             {
-                SettingsUloopStandingCostTooltip = settingsUloopStandingCostTooltip;
-            }
-            if (settingsUloopTurnDownHint != null)
-            {
-                SettingsUloopTurnDownHint = settingsUloopTurnDownHint;
-            }
-            if (settingsUloopTurnDownTooltip != null)
-            {
-                SettingsUloopTurnDownTooltip = settingsUloopTurnDownTooltip;
+                SettingsUloopNoteTooltip = settingsUloopNoteTooltip;
             }
             if (settingsUloopAgentUseLabel != null)
             {
@@ -4961,6 +5052,34 @@ namespace Colloid.AgentPanel.UI
             if (settingsUloopCaveatForeignRegistryKept != null)
             {
                 SettingsUloopCaveatForeignRegistryKept = settingsUloopCaveatForeignRegistryKept;
+            }
+            if (settingsUapOpsToolListModeLabel != null)
+            {
+                SettingsUapOpsToolListModeLabel = settingsUapOpsToolListModeLabel;
+            }
+            if (settingsUapOpsToolListModeHint != null)
+            {
+                SettingsUapOpsToolListModeHint = settingsUapOpsToolListModeHint;
+            }
+            if (settingsUapOpsToolListModeTooltip != null)
+            {
+                SettingsUapOpsToolListModeTooltip = settingsUapOpsToolListModeTooltip;
+            }
+            if (settingsUapOpsToolListModeOptionAuto != null)
+            {
+                SettingsUapOpsToolListModeOptionAuto = settingsUapOpsToolListModeOptionAuto;
+            }
+            if (settingsUapOpsToolListModeOptionFull != null)
+            {
+                SettingsUapOpsToolListModeOptionFull = settingsUapOpsToolListModeOptionFull;
+            }
+            if (settingsUapOpsToolListModeOptionCompact != null)
+            {
+                SettingsUapOpsToolListModeOptionCompact = settingsUapOpsToolListModeOptionCompact;
+            }
+            if (hubUapOpsUnavailableForAgentNoteFmt != null)
+            {
+                HubUapOpsUnavailableForAgentNoteFmt = hubUapOpsUnavailableForAgentNoteFmt;
             }
             if (settingsProVersionFmt != null)
             {

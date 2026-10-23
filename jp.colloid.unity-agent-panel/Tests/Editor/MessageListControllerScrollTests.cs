@@ -109,67 +109,19 @@ namespace Colloid.AgentPanel.Tests
                 "must clamp to zero rather than propagate a negative highValue");
         }
 
-        // ------------------------------------------------------------------
-        // UICODE-3: the prune anchor holds within max + slack (appends past
-        // the cap stay incremental) and re-anchors only when the slack is
-        // exhausted (the caller then prunes head rows in O(drop)).
-        // ------------------------------------------------------------------
-
-        private const int Max = 300;
-        private const int Slack = 50;
-
         [Test]
-        public void PruneAnchor_NothingRenderedYet_AnchorsToNewestMax()
-        {
-            Assert.AreEqual(0, MessageListController.ComputePruneAnchor(120, -1, Max, Slack));
-            Assert.AreEqual(100, MessageListController.ComputePruneAnchor(400, -1, Max, Slack));
-        }
-
-        [Test]
-        public void PruneAnchor_WithinSlack_HoldsTheCurrentAnchor()
-        {
-            // 300 rendered from 0, message 301 arrives: the old anchor
-            // math moved to 1 and full-rebuilt all 300 rows; the slack
-            // keeps the anchor (incremental append of row 301).
-            Assert.AreEqual(0, MessageListController.ComputePruneAnchor(301, 0, Max, Slack));
-            // Right at the edge: max + slack rendered is still held.
-            Assert.AreEqual(0, MessageListController.ComputePruneAnchor(Max + Slack, 0, Max, Slack));
-            Assert.AreEqual(100, MessageListController.ComputePruneAnchor(
-                100 + Max + Slack, 100, Max, Slack));
-        }
-
-        [Test]
-        public void PruneAnchor_SlackExhausted_ReanchorsToNewestMax()
-        {
-            Assert.AreEqual(51, MessageListController.ComputePruneAnchor(
-                Max + Slack + 1, 0, Max, Slack));
-            Assert.AreEqual(151, MessageListController.ComputePruneAnchor(
-                100 + Max + Slack + 1, 100, Max, Slack));
-        }
-
-        [Test]
-        public void PruneAnchor_TranscriptShrankBelowTheAnchor_ReanchorsCleanly()
-        {
-            // Session switch/clear: the old anchor is beyond the new
-            // count; the anchor must land back inside the transcript, and
-            // never leave a negative window.
-            Assert.AreEqual(0, MessageListController.ComputePruneAnchor(10, 200, Max, Slack));
-            Assert.AreEqual(0, MessageListController.ComputePruneAnchor(0, 200, Max, Slack));
-        }
-
-        [Test]
-        public void SourceScan_FullRebuild_RestoresScrollIntent()
+        public void SourceScan_Rebuild_RestoresScrollIntent()
         {
             string text = System.IO.File.ReadAllText(System.IO.Path.GetFullPath(
                 "Packages/jp.colloid.unity-agent-panel/Editor/UI/MessageListController.cs"));
-            int start = text.IndexOf("private void FullRebuild", System.StringComparison.Ordinal);
+            int start = text.IndexOf("private void Rebuild(", System.StringComparison.Ordinal);
             Assert.GreaterOrEqual(start, 0);
             int end = text.IndexOf("\n        private ", start + 1, System.StringComparison.Ordinal);
             string body = end > start ? text.Substring(start, end - start) : text.Substring(start);
             StringAssert.Contains("wasSticking", body,
-                "FullRebuild must capture scroll intent like the incremental path");
+                "Rebuild must capture scroll intent like the incremental path");
             StringAssert.Contains("ComputeRestoredScrollValue", body,
-                "FullRebuild must restore through the shared pure decision");
+                "Rebuild must restore through the shared pure decision");
         }
     }
 }

@@ -52,7 +52,7 @@ namespace Colloid.AgentPanel.Tests
         [Test]
         public void Metadata_ModuleAndFlags()
         {
-            ToolRegistry registry = ToolRegistry.CreateDefault(false);
+            ToolRegistry registry = ToolRegistry.CreateDefault();
             IUapTool add = registry.Find("uap_marker_add");
             IUapTool list = registry.Find("uap_marker_list");
             IUapTool clear = registry.Find("uap_marker_clear");

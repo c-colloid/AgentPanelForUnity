@@ -123,6 +123,18 @@ namespace Colloid.AgentPanel.Tests
         private static JsonNode InitializeResult(bool loadSession = false, bool image = true, bool http = true,
             params string[] authMethodIds)
         {
+            return InitializeResult(loadSession, image, http, true, authMethodIds);
+        }
+
+        /// <summary>
+        /// <paramref name="stdio"/> (section 2.7): defaults to true so
+        /// every existing caller above keeps exercising the stdio-relay
+        /// fallback exactly as before this capability gate existed; only
+        /// the gate-specific test below passes it explicitly false.
+        /// </summary>
+        private static JsonNode InitializeResult(bool loadSession, bool image, bool http, bool stdio,
+            params string[] authMethodIds)
+        {
             JsonNode auth = JsonNode.NewArray();
             for (int i = 0; i < authMethodIds.Length; i++)
             {
@@ -133,7 +145,7 @@ namespace Colloid.AgentPanel.Tests
                 .Set("agentCapabilities", JsonNode.NewObject()
                     .Set("loadSession", loadSession)
                     .Set("promptCapabilities", JsonNode.NewObject().Set("image", image))
-                    .Set("mcpCapabilities", JsonNode.NewObject().Set("http", http)))
+                    .Set("mcpCapabilities", JsonNode.NewObject().Set("http", http).Set("stdio", stdio)))
                 .Set("agentInfo", JsonNode.NewObject().Set("name", "gemini-cli").Set("version", "0.9.0"))
                 .Set("authMethods", auth);
         }
@@ -233,6 +245,108 @@ namespace Colloid.AgentPanel.Tests
             Respond(AgentLine("session/new"), NewSessionResult());
             SystemInitMessage init = LastPanel<SystemInitMessage>();
             Assert.AreEqual("failed", init.McpServers[0].Status);
+        }
+
+        [Test]
+        public void Handshake_AgentWithoutHttpMcp_UsesStdioRelayWhenFactoryProvided()
+        {
+            // Section 2.7 (docs/design-notes/2026-09-22-uloop-phase1.md):
+            // an agent with no http MCP support still gets UapOps when
+            // AgentHub wired a stdio relay factory.
+            _spec.McpServerName = "unity-ops";
+            _spec.McpUrl = "http://127.0.0.1:4321/mcp";
+            _spec.McpBearerToken = "tok";
+            _spec.McpStdioRelayFactory = delegate
+            {
+                return new AcpStdioServer
+                {
+                    Command = "/opt/unity/Data/NetCoreRuntime/dotnet",
+                    Args = new List<string> { "exec", "/tmp/relay/relay.dll", "http://127.0.0.1:4321/mcp" }
+                };
+            };
+            _bridge.OnPanelLine(OutboundMessages.Initialize("req_1"));
+            Respond(AgentLine("initialize"), InitializeResult(false, true, false));
+            JsonNode server = AgentLine("session/new").Params["mcpServers"][0];
+            Assert.AreEqual("stdio", server["type"].AsString());
+            Assert.AreEqual("unity-ops", server["name"].AsString());
+            Assert.AreEqual("/opt/unity/Data/NetCoreRuntime/dotnet", server["command"].AsString());
+            Assert.AreEqual(3, server["args"].Count);
+            Assert.AreEqual("exec", server["args"][0].AsString());
+            Assert.AreEqual("http://127.0.0.1:4321/mcp", server["args"][2].AsString());
+            Assert.AreEqual("UAP_MCP_TOKEN", server["env"][0]["name"].AsString());
+            Assert.AreEqual("tok", server["env"][0]["value"].AsString());
+        }
+
+        [Test]
+        public void Handshake_AgentWithoutHttpMcpAndNoRelay_RaisesMcpUnavailableOnce()
+        {
+            _spec.McpServerName = "unity-ops";
+            _spec.McpUrl = "http://127.0.0.1:4321/mcp";
+            // No McpStdioRelayFactory: same "omit the server" shape as
+            // before section 2.7, but the bridge must ALSO raise
+            // McpUnavailable exactly once so AgentHub can show a transcript
+            // note instead of only a log line.
+            int raised = 0;
+            _bridge.McpUnavailable += delegate { raised++; };
+            _bridge.OnPanelLine(OutboundMessages.Initialize("req_1"));
+            Respond(AgentLine("initialize"), InitializeResult(false, true, false));
+            Assert.AreEqual(0, AgentLine("session/new").Params["mcpServers"].Count);
+            Assert.AreEqual(1, raised);
+        }
+
+        [Test]
+        public void Handshake_AgentAdvertisesNeitherHttpNorStdio_NeverUsesRelayEvenWithFactory()
+        {
+            // Section 2.7: McpServer::Stdio is its own opt-in capability
+            // (agent-client-protocol-schema McpCapabilities.stdio), separate
+            // from http. A relay factory being wired by AgentHub must NOT
+            // be enough to send a stdio mcpServers entry to an agent that
+            // never declared mcpCapabilities.stdio -- that would hand the
+            // agent a server shape it does not support.
+            _spec.McpServerName = "unity-ops";
+            _spec.McpUrl = "http://127.0.0.1:4321/mcp";
+            bool factoryCalled = false;
+            _spec.McpStdioRelayFactory = delegate
+            {
+                factoryCalled = true;
+                return new AcpStdioServer { Command = "/opt/unity/Data/NetCoreRuntime/dotnet" };
+            };
+            int raised = 0;
+            _bridge.McpUnavailable += delegate { raised++; };
+            _bridge.OnPanelLine(OutboundMessages.Initialize("req_1"));
+            Respond(AgentLine("initialize"), InitializeResult(false, true, false, false));
+            Assert.AreEqual(0, AgentLine("session/new").Params["mcpServers"].Count);
+            Assert.IsFalse(factoryCalled, "the relay must not even be built for an agent that never opted into stdio");
+            Assert.AreEqual(1, raised);
+        }
+
+        [Test]
+        public void Handshake_UapOpsDisabled_NeverRaisesMcpUnavailable()
+        {
+            // McpServerName/McpUrl both empty (the master toggle is off):
+            // BuildMcpServers returns before ever consulting _capMcpHttp,
+            // so this must NOT look like "unavailable for this agent" --
+            // there is nothing to be unavailable.
+            int raised = 0;
+            _bridge.McpUnavailable += delegate { raised++; };
+            CompleteHandshake(InitializeResult(false, true, false));
+            Assert.AreEqual(0, raised);
+        }
+
+        [Test]
+        public void Handshake_AgentWithoutHttpMcp_RelayFactoryThrows_TreatedAsUnavailable()
+        {
+            // AcpProtocolBridge is Unity-free and must never let an
+            // exception from the (Unity-coupled) factory escape it.
+            _spec.McpServerName = "unity-ops";
+            _spec.McpUrl = "http://127.0.0.1:4321/mcp";
+            _spec.McpStdioRelayFactory = delegate { throw new System.InvalidOperationException("boom"); };
+            int raised = 0;
+            _bridge.McpUnavailable += delegate { raised++; };
+            _bridge.OnPanelLine(OutboundMessages.Initialize("req_1"));
+            Respond(AgentLine("initialize"), InitializeResult(false, true, false));
+            Assert.AreEqual(0, AgentLine("session/new").Params["mcpServers"].Count);
+            Assert.AreEqual(1, raised);
         }
 
         [Test]
@@ -384,6 +498,128 @@ namespace Colloid.AgentPanel.Tests
             StringAssert.Contains("browser closed", failed);
             StringAssert.Contains("no key", failed);
             Assert.AreEqual(1, finished);
+        }
+
+        // -- Terminal-only auth methods (design note 2026-10-07-acp-other-
+        // agents.md section 3): Qwen Code / Copilot CLI / Kimi Code mark the
+        // method as something to run in a terminal; `authenticate` can only
+        // fail, so the bridge skips it and names the command instead.
+
+        private static JsonNode TerminalMethod(string id, string name, string command, params string[] args)
+        {
+            JsonNode argList = JsonNode.NewArray();
+            foreach (string a in args) { argList.Add(a); }
+            return JsonNode.NewObject().Set("id", id).Set("name", name)
+                .Set("_meta", JsonNode.NewObject().Set("terminal-auth", JsonNode.NewObject()
+                    .Set("command", command).Set("args", argList)));
+        }
+
+        [Test]
+        public void TerminalAuthCommand_ReadsTerminalAuthMeta_AndTypeTerminalWithArgs()
+        {
+            Assert.AreEqual("copilot login", AcpProtocolBridge.TerminalAuthCommand(
+                TerminalMethod("copilot-login", "Log in with Copilot CLI", "/opt/copilot-linux-x64/copilot", "login"), "copilot"));
+            Assert.AreEqual("kimi login", AcpProtocolBridge.TerminalAuthCommand(
+                TerminalMethod("login", "Login with Kimi account", "C:\\Users\\me\\kimi.exe", "login"), string.Empty));
+            // Qwen Code: type on _meta, args on _meta, no command -> the agent's own executable.
+            JsonNode qwen = JsonNode.NewObject().Set("id", "openai").Set("name", "Use OpenAI API key")
+                .Set("_meta", JsonNode.NewObject().Set("type", "terminal").Set("args", JsonNode.NewArray().Add("--auth-type=openai")));
+            Assert.AreEqual("qwen --auth-type=openai", AcpProtocolBridge.TerminalAuthCommand(qwen, "/usr/local/bin/qwen"));
+            // type at the method level (Kimi Code's shape) with args there too.
+            JsonNode kimi = JsonNode.NewObject().Set("id", "login").Set("type", "terminal")
+                .Set("args", JsonNode.NewArray().Add("--login"));
+            Assert.AreEqual("kimi --login", AcpProtocolBridge.TerminalAuthCommand(kimi, "kimi"));
+            // Ordinary methods (browser OAuth, env_var) are not terminal.
+            Assert.IsNull(AcpProtocolBridge.TerminalAuthCommand(JsonNode.NewObject().Set("id", "oauth-personal"), "gemini"));
+            Assert.IsNull(AcpProtocolBridge.TerminalAuthCommand(JsonNode.NewObject().Set("id", "codex-api-key").Set("type", "env_var"), "codex-acp"));
+            // Terminal flag without any command to name -> null (falls back to authenticate).
+            Assert.IsNull(AcpProtocolBridge.TerminalAuthCommand(JsonNode.NewObject().Set("id", "x").Set("type", "terminal"), string.Empty));
+        }
+
+        [Test]
+        public void TerminalSignInReason_NamesTheCommands_AndKeepsTheOldWordingWithoutThem()
+        {
+            string onlyTerminal = AcpProtocolBridge.TerminalSignInReason(new List<string> { "copilot login" }, string.Empty, null);
+            StringAssert.Contains("run `copilot login` once", onlyTerminal);
+            StringAssert.DoesNotContain("failed", onlyTerminal);
+            string mixed = AcpProtocolBridge.TerminalSignInReason(new List<string> { "kimi login", "kimi --login" }, "Browser: closed", null);
+            StringAssert.Contains("sign-in failed for every method the agent offers (Browser: closed)", mixed);
+            StringAssert.Contains("run `kimi login` or `kimi --login` once", mixed);
+            string legacy = AcpProtocolBridge.TerminalSignInReason(new List<string>(), "ChatGPT: cancelled", "codex login");
+            StringAssert.Contains("(codex login)", legacy);
+            StringAssert.Contains("Sign in or Reconnect", legacy);
+        }
+
+        [Test]
+        public void Handshake_TerminalOnlyAuthMethod_SkipsAuthenticateAndNamesTheCommand()
+        {
+            var started = new List<string>();
+            int finished = 0;
+            string failed = null;
+            _bridge.AuthenticationStarted += delegate(string id, string name) { started.Add(id); };
+            _bridge.AuthenticationFinished += delegate(bool ok, string error) { finished++; };
+            _bridge.HandshakeFailed += delegate(string reason) { failed = reason; };
+            _bridge.AgentCommand = "/usr/local/bin/copilot";
+            _bridge.OnPanelLine(OutboundMessages.Initialize("req_1"));
+            JsonNode init = InitializeResult(false, true, true);
+            init["authMethods"].Add(TerminalMethod("copilot-login", "Log in with Copilot CLI", "/opt/copilot-linux-x64/copilot", "login"));
+            Respond(AgentLine("initialize"), init);
+            RespondError(AgentLine("session/new"), AcpJsonRpc.AuthRequired, "Authentication required");
+            Assert.AreEqual("session/new", LastAgentLine().Method, "no authenticate request may be sent");
+            Assert.AreEqual(0, started.Count, "no 'complete it in the browser' note for a terminal method");
+            Assert.AreEqual(1, finished, "Finished(false) still fires: AgentHub's no-reconnect decision depends on it");
+            Assert.IsNotNull(failed);
+            StringAssert.Contains("run `copilot login` once", failed);
+            Assert.IsTrue(LastPanel<ResultMessage>().IsError);
+            StringAssert.Contains("copilot login", LastPanel<ControlResponseMessage>().Error);
+        }
+
+        [Test]
+        public void Handshake_AuthRequiredWithNoMethods_FailsOnceAsASignInFailure()
+        {
+            int finished = 0;
+            string failed = null;
+            _bridge.AuthenticationFinished += delegate(bool ok, string error) { finished++; Assert.IsFalse(ok); };
+            _bridge.HandshakeFailed += delegate(string reason) { failed = reason; };
+            _bridge.OnPanelLine(OutboundMessages.Initialize("req_1"));
+            Respond(AgentLine("initialize"), InitializeResult(false, true, true));
+            RespondError(AgentLine("session/new"), AcpJsonRpc.AuthRequired,
+                "Authentication required: Auggie does not currently support authenticating over ACP. Please run `auggie login` from your terminal then try again.");
+            Assert.AreEqual("session/new", LastAgentLine().Method, "nothing to authenticate with");
+            Assert.AreEqual(1, finished, "a sign-in failure, so the hub does not retry the handshake");
+            StringAssert.Contains("no sign-in method over ACP", failed);
+            StringAssert.Contains("`auggie login`", failed);
+            Assert.IsTrue(LastPanel<ResultMessage>().IsError);
+        }
+
+        [Test]
+        public void Handshake_MixedAuthMethods_TriesTheBrowserOne_ThenNamesTheTerminalOne()
+        {
+            string failed = null;
+            _bridge.HandshakeFailed += delegate(string reason) { failed = reason; };
+            _bridge.AgentCommand = "kimi";
+            _bridge.OnPanelLine(OutboundMessages.Initialize("req_1"));
+            JsonNode init = InitializeResult(false, true, true, "browser-oauth");
+            init["authMethods"].Add(TerminalMethod("login", "Login with Kimi account", "kimi", "login"));
+            Respond(AgentLine("initialize"), init);
+            RespondError(AgentLine("session/new"), AcpJsonRpc.AuthRequired, "Authentication required");
+            AcpInbound auth = AgentLine("authenticate");
+            Assert.AreEqual("browser-oauth", auth.Params["methodId"].AsString());
+            RespondError(auth, -32603, "browser closed");
+            Assert.AreEqual("authenticate", LastAgentLine().Method, "the terminal method is never sent");
+            StringAssert.Contains("browser closed", failed);
+            StringAssert.Contains("run `kimi login` once", failed);
+        }
+
+        [Test]
+        public void LooksLikeJsonRpc_OnlyBraceLinesCountAsProtocol()
+        {
+            Assert.IsTrue(AcpBridgeTransport.LooksLikeJsonRpc("{\"jsonrpc\":\"2.0\"}"));
+            Assert.IsTrue(AcpBridgeTransport.LooksLikeJsonRpc("  {\"id\":1}"));
+            Assert.IsFalse(AcpBridgeTransport.LooksLikeJsonRpc("Please visit the following URL to authorize the application:"));
+            Assert.IsFalse(AcpBridgeTransport.LooksLikeJsonRpc("\u001b[2J\u001b[Hhttps://accounts.google.com/o/oauth2/v2/auth?x=1"));
+            Assert.IsFalse(AcpBridgeTransport.LooksLikeJsonRpc(string.Empty));
+            Assert.IsFalse(AcpBridgeTransport.LooksLikeJsonRpc(null));
         }
 
         [Test]

@@ -45,10 +45,12 @@ namespace Colloid.AgentPanel.Tests
         [Test]
         public void UloopAgentUseEnabled_SurvivesTheClone_SoThePendingPillCanClear()
         {
-            var settings = new PanelSettings { uloopAgentUseEnabled = false };
+            // true, because false is the field's default now: only a non-default
+            // value can show the clone dropping it.
+            var settings = new PanelSettings { uloopAgentUseEnabled = true };
             PanelSettings snapshot = AgentHub.CloneNextSpawnOnlyFields(settings);
 
-            Assert.IsFalse(snapshot.uloopAgentUseEnabled,
+            Assert.IsTrue(snapshot.uloopAgentUseEnabled,
                 "the spawn snapshot kept the field's default instead of what was spawned");
             Assert.IsFalse(SettingsChangeDetector.RequiresReconnect(snapshot, settings),
                 "a reconnect that just happened must leave nothing pending");

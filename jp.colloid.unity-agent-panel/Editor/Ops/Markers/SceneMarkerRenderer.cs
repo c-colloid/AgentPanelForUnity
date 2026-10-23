@@ -83,6 +83,10 @@ namespace Colloid.AgentPanel.Ops.Markers
 
         private static void OnSceneGui(SceneView sceneView)
         {
+            if (!SceneMarkerVisibility.Visible)
+            {
+                return;   // hidden, not removed: the store is untouched (SceneMarkerVisibility)
+            }
             SceneMarker[] markers = SceneMarkerStore.Snapshot();
             if (markers.Length == 0)
             {
@@ -229,7 +233,7 @@ namespace Colloid.AgentPanel.Ops.Markers
 
         private static void OnPreCull(Camera camera)
         {
-            if (camera == null || camera.cameraType != CameraType.SceneView)
+            if (camera == null || camera.cameraType != CameraType.SceneView || !SceneMarkerVisibility.Visible)
             {
                 return;
             }

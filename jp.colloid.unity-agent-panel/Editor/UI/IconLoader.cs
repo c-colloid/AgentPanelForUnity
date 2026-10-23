@@ -62,6 +62,10 @@ namespace Colloid.AgentPanel.UI
         public static readonly string GlyphOpenWindow = char.ConvertFromUtf32(0x2197);
         /// <summary>Multiplication sign (U+00D7): chip remove button.</summary>
         public static readonly string GlyphX = char.ConvertFromUtf32(0x00D7);
+        /// <summary>Fisheye (U+25C9): overlays-shown fallback for the markers chip's eye button.</summary>
+        public static readonly string GlyphEyeOpen = char.ConvertFromUtf32(0x25C9);
+        /// <summary>Dotted circle (U+25CC): overlays-hidden fallback for the markers chip's eye button.</summary>
+        public static readonly string GlyphEyeClosed = char.ConvertFromUtf32(0x25CC);
         /// <summary>Warning sign (U+26A0, WITHOUT the U+FE0F emoji selector).</summary>
         public static readonly string GlyphWarn = char.ConvertFromUtf32(0x26A0);
         /// <summary>Identical-to (U+2261): file tool fallback.</summary>
@@ -110,6 +114,8 @@ namespace Colloid.AgentPanel.UI
             0x2261, // IDENTICAL TO
             0x25B8, // BLACK RIGHT-POINTING SMALL TRIANGLE
             0x25BE, // BLACK DOWN-POINTING SMALL TRIANGLE
+            0x25C9, // FISHEYE (overlays shown, markers chip eye fallback)
+            0x25CC, // DOTTED CIRCLE (overlays hidden, markers chip eye fallback)
             0x25CE, // BULLSEYE
             0x25E6, // WHITE BULLET
             0x258D, // LEFT SEVEN EIGHTHS BLOCK (streaming caret)

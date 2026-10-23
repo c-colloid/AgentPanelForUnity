@@ -5,9 +5,10 @@ namespace Colloid.AgentPanel.Ops
 {
     /// <summary>
     /// Detects whether the uLoop / unity-cli-loop package is present in
-    /// this project (design section 7.2's capability matrix precondition:
-    /// "detect uLoop, then never register UapOps tools it already
-    /// covers"). Package-presence detection via a plain string scan of
+    /// this project. Since 2026-10-02 the one consumer that shapes UI is the
+    /// Settings uLoop card, which is shown only when this says yes
+    /// (docs/design-notes/2026-10-02-uloop-card-final.md); the tool registry
+    /// no longer asks. Package-presence detection via a plain string scan of
     /// Packages/manifest.json -- pure and testable without touching
     /// PackageManager.Client (design line: "package presence via Client.List
     /// cache or Packages/manifest.json string scan, pure-testable").
@@ -45,7 +46,7 @@ namespace Colloid.AgentPanel.Ops
         /// alone were "good enough to avoid false positives". MEASURED
         /// 2026-08-04 by running the one-click install end to end for the
         /// first time: they are not, and the false positive is self-inflicted.
-        /// UloopInstaller writes the very same quoted id into
+        /// The one-click install (since removed) wrote the very same quoted id into
         /// scopedRegistries[].scopes, so the instant the install began -- and
         /// permanently afterwards, even if OpenUPM resolution never
         /// succeeded -- this method reported uLoop present in a project that

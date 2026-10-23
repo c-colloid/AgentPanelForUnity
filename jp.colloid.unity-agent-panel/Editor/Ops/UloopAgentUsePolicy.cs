@@ -6,7 +6,8 @@ namespace Colloid.AgentPanel.Ops
     /// <summary>
     /// The rules behind the "let the agent use uloop" switch
     /// (docs/design-notes/2026-09-21-uloop-always-loaded-cost.md section 5,
-    /// option A). Unity-free, so the same rules run in the license-free
+    /// option A; default OFF since docs/design-notes/2026-10-02-uloop-card-
+    /// final.md). Unity-free, so the same rules run in the license-free
     /// smoke gate as well as under the Editor.
     ///
     /// What the switch is, and what it deliberately is NOT. OFF stops the
@@ -39,8 +40,9 @@ namespace Colloid.AgentPanel.Ops
         /// </summary>
         public const string DenyMessage =
             "uloop commands are turned off for the agent in this project (Unity Agent Panel > Settings >"
-            + " uLoop integration). Use the uap_* tools instead: uap_play_mode to run the scene,"
-            + " uap_console_logs for Console output, uap_scripts_commit for C# changes, and the scene /"
+            + " uLoop integration, shown while uLoop is installed). Use the uap_* tools instead: uap_play_mode to run the scene,"
+            + " uap_console_logs for Console output, uap_game_pointer / uap_game_key to click the game's UI or"
+            + " press keys while it runs, uap_scripts_commit for C# changes, and the scene /"
             + " component / property / asset tools for edits. If something genuinely needs uloop, say so"
             + " and let the user decide -- do not work around this with another shell.";
 
@@ -104,8 +106,7 @@ namespace Colloid.AgentPanel.Ops
         /// Pure: the deny entries added to `--disallowedTools` while the
         /// switch is off -- an exact form and a wildcard form per shell tool
         /// (Bash / PowerShell / Shell, single-sourced from ScriptGate). Both
-        /// forms ship because the wildcard grammar is unmeasured, the same
-        /// reason the uloop ALLOW preset writes both.
+        /// forms ship because the wildcard grammar is unmeasured.
         /// </summary>
         public static List<string> BuildDisallowedPatterns()
         {

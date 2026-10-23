@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using Colloid.AgentPanel.Core.Json;
+using Colloid.AgentPanel.Ops;
 
 namespace Colloid.AgentPanel.UI
 {
@@ -25,6 +27,9 @@ namespace Colloid.AgentPanel.UI
         private const int SummaryMaxChars = 60;
         private const int ArgHintMaxChars = 40;
 
+        /// <summary>Recursion cap for the uap_call display branch below -- see its private Describe overload's doc comment.</summary>
+        private const int MaxUapCallDepth = 4;
+
         // Non-ASCII glyphs come from IconLoader -- the single guarded
         // registry of runtime-constructed UI glyphs (GlyphAuditTests).
         private static readonly string GlyphFile = IconLoader.GlyphFile;
@@ -36,6 +41,10 @@ namespace Colloid.AgentPanel.UI
         private static readonly string GlyphQuestion = "?";
         private static readonly string GlyphSkill = IconLoader.GlyphSpark;
         private static readonly string GlyphMcp = IconLoader.GlyphGear;
+        // uap_execute_code rows: the C# script icon, NOT the console warning
+        // icon the row used to carry -- a warning sign on every run read as
+        // "the code failed" even when it had not run yet.
+        private static readonly string GlyphCode = "{}";
 
         /// <summary>Builds the icon + summary for one tool_use record.</summary>
         public static Description Describe(string toolName, string inputJson)
@@ -51,6 +60,23 @@ namespace Colloid.AgentPanel.UI
         /// string overload.
         /// </summary>
         public static Description Describe(string toolName, JsonNode inputNode)
+        {
+            return Describe(toolName, inputNode, 0);
+        }
+
+        /// <summary>
+        /// Depth-bounded core behind the public overloads. The bound
+        /// exists solely for the uap_call branch below, which recurses
+        /// into the INNER tool's own name/arguments -- a maliciously (or
+        /// just very oddly) nested chain of uap_call-calling-uap_call
+        /// arguments could otherwise recurse once per nesting level with
+        /// no cap. <see cref="MaxUapCallDepth"/> nestings is already far
+        /// more than any legitimate call needs (uap_call is a gateway, not
+        /// meant to call itself at all -- see UapOpsRequestHandler's own
+        /// "falls through to Unknown tool" comment); beyond it, this just
+        /// falls back to the generic MCP row rather than recursing again.
+        /// </summary>
+        private static Description Describe(string toolName, JsonNode inputNode, int depth)
         {
             string name = toolName ?? string.Empty;
             JsonNode input = inputNode ?? JsonNode.Null;
@@ -117,6 +143,45 @@ namespace Colloid.AgentPanel.UI
                 return Make("d_Search Icon", GlyphWeb, query != null ? Truncate(query.Trim(), ArgHintMaxChars) : ShortenToolDisplayName(name));
             }
 
+            // uap_execute_code (docs/design-notes/2026-09-28-uloop-phase3.md):
+            // the collapsed-row summary names what the call actually does --
+            // how many lines of code, and how many risk flags the static
+            // scan found (0 is worth saying explicitly: it is why a run
+            // with no flags never needed confirm:true) -- rather than
+            // echoing "uap_execute_code" or dumping the code itself, which
+            // is what the FULL detail below (BuildExecuteCodeDetail, used
+            // by PermissionCard's dedicated rendering) is for.
+            if (name.EndsWith("uap_execute_code", System.StringComparison.OrdinalIgnoreCase))
+            {
+                return DescribeExecuteCode(input, name);
+            }
+
+            // uap_call (design note docs/design-notes/2026-09-22-uloop-
+            // phase1.md section 2.8 item 4): the card must show the INNER
+            // tool and summarize ITS arguments, not echo "uap_call" with a
+            // {"name":...,"arguments":{...}} blob -- recurse with a
+            // synthesized wire name for the inner tool so every table
+            // above (including this same uap_call branch, for a malformed
+            // nested call) and the generic MCP fallback below apply to it
+            // exactly as they would to a direct call. Pure string work, no
+            // registry lookup: this class stays Unity-API-free. Rebuilds
+            // the "mcp__<server>__" prefix (when the outer name had one)
+            // rather than dropping it, so IsMcpName/the gear icon below
+            // still recognize the inner call as an MCP tool.
+            if (name.EndsWith("uap_call", System.StringComparison.OrdinalIgnoreCase) && depth < MaxUapCallDepth)
+            {
+                string innerName = FirstString(input, "name");
+                if (!string.IsNullOrEmpty(innerName))
+                {
+                    string server;
+                    string outerTool;
+                    string innerWireName = TryParseMcpName(name, out server, out outerTool)
+                        ? McpPrefix + server + Separator + innerName
+                        : innerName;
+                    return Describe(innerWireName, input["arguments"], depth + 1);
+                }
+            }
+
             // Unknown / MCP tools: generic row with whatever key is useful.
             // The name echo uses the SAME shortened form ToolActivityCard
             // puts in its header label (ShortenToolDisplayName): before,
@@ -155,6 +220,80 @@ namespace Colloid.AgentPanel.UI
                 ? skill.Trim()
                 : skill.Trim() + " " + Truncate(args.Trim(), ArgHintMaxChars);
             return Make("d_Preset.Context", GlyphSkill, summary);
+        }
+
+        private static Description DescribeExecuteCode(JsonNode input, string name)
+        {
+            string code = input != null && input.IsObject ? input["code"].AsString(string.Empty) : string.Empty;
+            if (string.IsNullOrEmpty(code))
+            {
+                // action:status / action:reset carry no code -- name the action instead.
+                string action = input != null && input.IsObject ? input["action"].AsString("run") : "run";
+                return Make("d_cs Script Icon", GlyphCode, "action:" + action);
+            }
+            int lineCount = 1;
+            for (int i = 0; i < code.Length; i++)
+            {
+                if (code[i] == '\n')
+                {
+                    lineCount++;
+                }
+            }
+            List<UapExecuteRiskFlag> flags = UapExecuteCodePolicy.ScanForRiskFlags(code);
+            string summary = lineCount.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                + (lineCount == 1 ? " line" : " lines") + ", "
+                + flags.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                + (flags.Count == 1 ? " risk flag" : " risk flags");
+            return Make("d_cs Script Icon", GlyphCode, summary);
+        }
+
+        /// <summary>
+        /// The FULL detail for a uap_execute_code permission card (roadmap
+        /// section 4.3: "the permission card must show the FULL snippet ...
+        /// with a dedicated rendering... the code in a monospace block, the
+        /// usings, and any risk flags"), decoupled from any UI toolkit type
+        /// so this class stays testable without one. PermissionCard renders
+        /// <see cref="Code"/> in its own monospace label instead of routing
+        /// it through the generic per-field preview (which caps EVERY
+        /// field's combined text at a small shared line/char budget) --
+        /// the whole point here is that the code must not silently lose
+        /// lines the way that budget would cut it.
+        /// </summary>
+        public struct ExecuteCodeDetail
+        {
+            public string Code;
+            public string UsingsLine;
+            public List<UapExecuteRiskFlag> Flags;
+            public string Action;
+        }
+
+        public static ExecuteCodeDetail BuildExecuteCodeDetail(JsonNode input)
+        {
+            if (input == null || !input.IsObject)
+            {
+                input = JsonNode.NewObject();
+            }
+            string code = input["code"].AsString(string.Empty);
+            var usings = new List<string>();
+            JsonNode usingsNode = input["usings"];
+            if (usingsNode.IsArray)
+            {
+                foreach (JsonNode item in usingsNode.Items)
+                {
+                    string value = item.AsString(string.Empty);
+                    if (!string.IsNullOrEmpty(value))
+                    {
+                        usings.Add(value);
+                    }
+                }
+            }
+            return new ExecuteCodeDetail
+            {
+                Code = code,
+                UsingsLine = usings.Count > 0 ? string.Join(", ", usings.ToArray()) : string.Empty,
+                Flags = string.IsNullOrEmpty(code) ? new List<UapExecuteRiskFlag>() : UapExecuteCodePolicy.ScanForRiskFlags(code),
+                Action = input["action"].AsString("run"),
+            };
         }
 
         // -- Summary helpers ----------------------------------------------------
