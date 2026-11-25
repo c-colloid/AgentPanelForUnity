@@ -56,6 +56,11 @@
    (`[Unreleased]` は `(nothing yet)` で残す)。`X.Y.Z` はベータ系列のラベルを外した値。
 2. `jp.colloid.unity-agent-panel/package.json` の `version` を同じ値に上げる。
 3. 検証用サンドボックスプロジェクト(CONTRIBUTING.md 参照)でコンパイル+EditModeテストが全緑であることを確認する。
+   CI では、安定版を切る PR は Unity 4 系統(2022.3 / 6000.0 / 6000.3 / 6000.5)の
+   EditMode Tests が自動で走る(`docs/design-notes/2026-11-25-unity6-ci-guards.md`)。
+   **4 系統すべてが緑になるまでマージしない。** 切る前に、イシュー
+   「Weekly EditMode Tests are failing on main」が開いていないことも確認する
+   (開いていれば、週次の Unity 6 系統が main で落ちている。先に直す)。
 4. コミット(例: `Release v0.3.0`)。「次の安定版に含める作業」を表の 1 行にまとめて空にする。
 5. タグ付け: **`.github/workflows/tag-release.yml` が自動で行う。**
    `jp.colloid.unity-agent-panel/package.json` の変更が main に入ると、
