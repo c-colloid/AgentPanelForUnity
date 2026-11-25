@@ -135,7 +135,7 @@ namespace Colloid.AgentPanel.Ops
                 return null;
             }
 #if UNITY_6000_3_OR_NEWER
-            foreach (GameObject go in Resources.FindObjectsOfTypeAll<GameObject>())
+            foreach (UnityEngine.GameObject go in UnityEngine.Resources.FindObjectsOfTypeAll<UnityEngine.GameObject>())
             {
                 if (TextOf(go) == text) return go;
             }

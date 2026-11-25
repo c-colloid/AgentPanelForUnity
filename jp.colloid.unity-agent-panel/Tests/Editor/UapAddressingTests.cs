@@ -276,9 +276,32 @@ namespace Colloid.AgentPanel.Tests
             GameObject go = Create("UapAddrIdTarget");
             string error;
 
-            GameObject found = UapAddressing.ResolveInScene(go.scene, "#" + go.GetInstanceID(), out error);
+            GameObject found = UapAddressing.ResolveInScene(go.scene, "#" + UnityObjectId.TextOf(go), out error);
 
             Assert.AreSame(go, found);
+            Assert.IsNull(error);
+        }
+
+        [Test]
+        public void IdTextOfPath_IsTheTextAfterTheHash_OrNull()
+        {
+            Assert.AreEqual("12345", UapAddressing.IdTextOfPath("#12345"));
+            Assert.AreEqual("-42", UapAddressing.IdTextOfPath(" #-42 "));
+            Assert.AreEqual("18446744073709551615", UapAddressing.IdTextOfPath("#18446744073709551615"));
+            Assert.IsNull(UapAddressing.IdTextOfPath("#"));
+            Assert.IsNull(UapAddressing.IdTextOfPath("Root/#12"));
+            Assert.IsNull(UapAddressing.IdTextOfPath("#12/Child"));
+            Assert.IsNull(UapAddressing.IdTextOfPath("Name"));
+            Assert.IsNull(UapAddressing.IdTextOfPath(null));
+        }
+
+        [Test]
+        public void ResolveInScene_HashNameThatIsNoId_StaysAnObjectName()
+        {
+            GameObject go = Create("#UapAddrHashName");
+            string error;
+
+            Assert.AreSame(go, UapAddressing.ResolveInScene(go.scene, "#UapAddrHashName", out error));
             Assert.IsNull(error);
         }
 

@@ -105,6 +105,25 @@ namespace Colloid.AgentPanel.Ops
                 System.Globalization.CultureInfo.InvariantCulture, out instanceId);
         }
 
+        /// <summary>
+        /// Pure: the text after the '#' of a whole-path "#&lt;id&gt;" form,
+        /// or null when the path does not start with '#' or has nothing
+        /// (or a path separator) after it.
+        /// </summary>
+        public static string IdTextOfPath(string path)
+        {
+            if (string.IsNullOrEmpty(path))
+            {
+                return null;
+            }
+            string trimmed = path.Trim();
+            if (trimmed.Length < 2 || trimmed[0] != '#' || trimmed.IndexOf('/') >= 0)
+            {
+                return null;
+            }
+            return trimmed.Substring(1);
+        }
+
         private static Transform FindSibling(IList<Transform> siblings, string segment)
         {
             for (int i = 0; i < siblings.Count; i++)
@@ -216,16 +235,30 @@ namespace Colloid.AgentPanel.Ops
                 error = "The target scene is not valid (not loaded).";
                 return null;
             }
-            int instanceId;
-            if (TryParseInstanceIdPath(path, out instanceId))
+            // "#<id>" carries UnityObjectId.TextOf's text back. That text is
+            // an int up to Unity 6.3 and whatever EntityId prints from 6.5
+            // (not an int there), so the lookup goes by the text itself; only
+            // a "#<int>" that matches nothing is reported as a dead id, and
+            // any other "#..." stays an ordinary object name.
+            string idText = IdTextOfPath(path);
+            if (idText != null)
             {
-                GameObject byId = UnityObjectId.FromText(instanceId.ToString()) as GameObject;
-                if (byId == null)
+                int instanceId;
+                bool numeric = TryParseInstanceIdPath(path, out instanceId);
+                GameObject byId = UnityObjectId.FromText(idText) as GameObject;
+                if (byId == null && numeric)
+                {
+                    byId = UnityObjectId.FromText(instanceId.ToString()) as GameObject;
+                }
+                if (byId != null)
+                {
+                    return byId;
+                }
+                if (numeric)
                 {
                     error = "No GameObject with instance id " + instanceId + " (it may have been destroyed).";
                     return null;
                 }
-                return byId;
             }
             string[] segments = SplitHierarchyPath(path);
             if (segments.Length == 0)

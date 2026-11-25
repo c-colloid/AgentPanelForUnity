@@ -7,7 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-(nothing yet)
+### Fixed
+
+- **The package compiles again on Unity 6.3 and newer.** 0.61.0 (and every
+  0.61.0 beta) failed there with CS0103 / CS0246 in `UnityObjectCompat.cs`,
+  so the panel did not open: the branch of `UnityObjectId.FromText` that
+  only Unity 6000.3+ compiles named `GameObject` and `Resources` without
+  the `UnityEngine.` qualifier, in a file that has no `using` for it.
+  Unity 2022.3 and 6000.0 were not affected. The id-addressing test also
+  called `GetInstanceID()`, an error on Unity 6.5; it now goes through
+  `UnityObjectId`. Design note
+  `docs/design-notes/2026-09-11-unity-6-support.md`.
+- **A hierarchy path `#<id>` resolves on Unity 6.5.** The id a tool reply
+  carries (`uap_query_hierarchy`, `uap_scene_duplicate`) is an EntityId's
+  text from Unity 6.3 on, and on 6.5 that text is no longer an int, so
+  `#<id>` was read as an object name and found nothing. The lookup now
+  goes by the text itself; a `#<int>` that matches nothing is still
+  reported as a dead id, and any other `#...` stays an ordinary name.
 
 ## [0.61.0] - 2026-11-25
 
