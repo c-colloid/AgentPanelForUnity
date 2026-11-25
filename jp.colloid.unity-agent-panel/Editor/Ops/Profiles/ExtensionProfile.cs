@@ -17,9 +17,16 @@ namespace Colloid.AgentPanel.Ops.Profiles
     ///   "id": "vrchat-sdk3",
     ///   "displayName": "VRChat SDK3 (Avatars)",
     ///   "detection": { "packageIds": [...], "typeNames": [...] },
+    ///   "requiresUapModules": ["mesh"],
     ///   "instructionLines": ["...", "..."]
     /// }
     /// </code>
+    /// <c>requiresUapModules</c> is optional: a profile that steers the
+    /// agent toward tools of a uap_* module (one that is OFF by default)
+    /// lists the module ids here and is injected only while UapOps is on
+    /// and EVERY listed module is enabled -- otherwise its lines would
+    /// describe tools the agent cannot call
+    /// (docs/design-notes/2026-10-02-session-context-cost.md).
     ///
     /// Pure C# (no Unity dependency beyond the shared JSON DOM), so parsing
     /// is unit-tested directly against both hand-built JSON strings and the
@@ -35,6 +42,11 @@ namespace Colloid.AgentPanel.Ops.Profiles
 
         /// <summary>Compiled Component/ScriptableObject type names (short or fully-qualified) that indicate this SDK is present even without a package id (e.g. an Assets/-installed Asset Store package like FinalIK).</summary>
         public List<string> TypeNames = new List<string>();
+
+        /// <summary>
+        /// Optional gate: uap_* module ids (e.g. "mesh") that must ALL be enabled, with UapOps itself on, for this profile to be injected. Empty = no gate (every profile written before the field existed). Detection is unchanged; this only decides whether a detected, trusted profile is worth its prompt tokens.
+        /// </summary>
+        public List<string> RequiresUapModules = new List<string>();
 
         /// <summary>Lines appended verbatim under a "## DisplayName" heading when this profile is detected and trusted (ExtensionProfileInjector).</summary>
         public List<string> InstructionLines = new List<string>();
@@ -81,6 +93,7 @@ namespace Colloid.AgentPanel.Ops.Profiles
             JsonNode detection = root["detection"];
             AppendStrings(detection["packageIds"], profile.PackageIds);
             AppendStrings(detection["typeNames"], profile.TypeNames);
+            AppendStrings(root["requiresUapModules"], profile.RequiresUapModules);
             AppendStrings(root["instructionLines"], profile.InstructionLines);
             return profile;
         }

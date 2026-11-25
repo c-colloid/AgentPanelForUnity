@@ -144,7 +144,7 @@ namespace Colloid.AgentPanel.Tests
             Assert.AreEqual("core", tool.Module);
             Assert.IsFalse(tool.Undoable);
             Assert.IsFalse(tool.ReadOnly);
-            Assert.IsNotNull(ToolRegistry.CreateDefault(false).Find("uap_scene_save"));
+            Assert.IsNotNull(ToolRegistry.CreateDefault().Find("uap_scene_save"));
         }
     }
 }

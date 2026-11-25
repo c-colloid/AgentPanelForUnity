@@ -16,6 +16,27 @@ namespace Colloid.AgentPanel.Ops.Markers
     }
 
     /// <summary>
+    /// How the points of a stroke were produced (design note
+    /// 2026-10-09-sketch-shapes-navigation-regions.md, decision T1). The
+    /// points are always a plain polyline; the shape tells the agent that
+    /// a rectangle's four points are corners, an ellipse's samples lie on
+    /// a curve, and so on.
+    /// </summary>
+    public enum SceneStrokeShape
+    {
+        /// <summary>A left drag, sampled as the mouse moves.</summary>
+        Freehand,
+        /// <summary>Two points: press and release.</summary>
+        Line,
+        /// <summary>Click-placed vertices; closed by clicking the first one again.</summary>
+        Polyline,
+        /// <summary>Four corners from a corner-to-corner drag (always closed).</summary>
+        Rectangle,
+        /// <summary>Sampled ellipse inscribed in a corner-to-corner drag (always closed).</summary>
+        Ellipse
+    }
+
+    /// <summary>
     /// One user-drawn stroke in the Scene view (docs/design-notes/
     /// 2026-09-17-scene-sketch-strokes.md, decision S1): a world-space
     /// polyline plus, per point, the surface normal and the object it was
@@ -34,6 +55,14 @@ namespace Colloid.AgentPanel.Ops.Markers
         /// <summary>The "S&lt;n&gt;" the user sees: lowest free number, reused after removal (like pin numbers).</summary>
         public int Number;
         public SceneStrokeMode Mode = SceneStrokeMode.Surface;
+        /// <summary>Which tool produced the points (2026-10-09 note, T1).</summary>
+        public SceneStrokeShape Shape = SceneStrokeShape.Freehand;
+        /// <summary>
+        /// Optional user-given name ("plaza", "spawn area"), shown in the
+        /// Scene-view label and the chip and reported by uap_stroke_list
+        /// (2026-10-09 note, decision T4). Empty when unnamed.
+        /// </summary>
+        public string Name = string.Empty;
         /// <summary>World-space points, in drawing order.</summary>
         public List<Vector3> Points = new List<Vector3>();
         /// <summary>Surface mode: normal per point (same count as Points). Plane mode: empty (see PlaneNormal).</summary>
@@ -58,6 +87,18 @@ namespace Colloid.AgentPanel.Ops.Markers
         public string DisplayNumber
         {
             get { return "S" + (Number > 0 ? Number : Id).ToString(CultureInfo.InvariantCulture); }
+        }
+
+        /// <summary>"S3 plaza" when named, else "S3" -- the Scene-view label.</summary>
+        public string DisplayLabel
+        {
+            get { return string.IsNullOrEmpty(Name) ? DisplayNumber : DisplayNumber + " " + Name; }
+        }
+
+        /// <summary>True for a closed polyline with at least three points: the stroke bounds an area (a region).</summary>
+        public bool IsRegion
+        {
+            get { return Closed && Points.Count >= 3; }
         }
 
         /// <summary>Total polyline length in world units.</summary>
@@ -104,6 +145,47 @@ namespace Colloid.AgentPanel.Ops.Markers
             return mode == SceneStrokeMode.Plane ? "plane" : "surface";
         }
 
+        /// <summary>The wire name of a shape ("freehand", "line", "polyline", "rectangle", "ellipse").</summary>
+        public static string ShapeName(SceneStrokeShape shape)
+        {
+            switch (shape)
+            {
+                case SceneStrokeShape.Line: return "line";
+                case SceneStrokeShape.Polyline: return "polyline";
+                case SceneStrokeShape.Rectangle: return "rectangle";
+                case SceneStrokeShape.Ellipse: return "ellipse";
+                default: return "freehand";
+            }
+        }
+
+        /// <summary>Number of shapes in <see cref="SceneStrokeShape"/> (the 1..N shape keys).</summary>
+        public const int ShapeCount = 5;
+
+        /// <summary>
+        /// The ink for the stroke with the given S number: eight distinct
+        /// hues cycled by number, so neighbouring regions of an area split
+        /// read apart (2026-10-09 note, decision T5). Number 1 keeps the
+        /// yellow every stroke used to have.
+        /// </summary>
+        public static Color PaletteColor(int number)
+        {
+            Color[] palette = Palette;
+            int index = number <= 0 ? 0 : (number - 1) % palette.Length;
+            return palette[index];
+        }
+
+        private static readonly Color[] Palette =
+        {
+            new Color(1f, 0.85f, 0.1f),
+            new Color(0.35f, 0.85f, 1f),
+            new Color(0.55f, 1f, 0.45f),
+            new Color(1f, 0.5f, 0.35f),
+            new Color(0.85f, 0.55f, 1f),
+            new Color(1f, 0.65f, 0.85f),
+            new Color(0.45f, 1f, 0.85f),
+            new Color(1f, 0.95f, 0.6f)
+        };
+
         // -- JSON (SessionState sidecar) ----------------------------------------------
 
         public JsonNode ToJson()
@@ -112,6 +194,8 @@ namespace Colloid.AgentPanel.Ops.Markers
                 .Set("id", Id)
                 .Set("number", Number)
                 .Set("mode", (int)Mode)
+                .Set("shape", (int)Shape)
+                .Set("name", Name ?? string.Empty)
                 .Set("p", FlattenVectors(Points))
                 .Set("n", FlattenVectors(Normals))
                 .Set("hi", FlattenInts(HitIndices))
@@ -142,6 +226,8 @@ namespace Colloid.AgentPanel.Ops.Markers
                 Id = node["id"].AsInt(0),
                 Number = node["number"].AsInt(0),
                 Mode = node["mode"].AsInt(1) == 0 ? SceneStrokeMode.Plane : SceneStrokeMode.Surface,
+                Shape = ParseShape(node["shape"].AsInt(0)),
+                Name = node["name"].AsString(string.Empty),
                 Points = UnflattenVectors(node["p"]),
                 Normals = UnflattenVectors(node["n"]),
                 HitIndices = UnflattenInts(node["hi"]),
@@ -154,6 +240,11 @@ namespace Colloid.AgentPanel.Ops.Markers
                 Note = node["note"].AsString(string.Empty)
             };
             return stroke.Points.Count == 0 ? null : stroke;
+        }
+
+        private static SceneStrokeShape ParseShape(int value)
+        {
+            return value >= 0 && value < ShapeCount ? (SceneStrokeShape)value : SceneStrokeShape.Freehand;
         }
 
         private static JsonNode FlattenVectors(IList<Vector3> vectors)

@@ -194,5 +194,76 @@ namespace Colloid.AgentPanel.Tests
                 approvedHashes: new List<string>());
             Assert.AreEqual(string.Empty, result);
         }
+
+        // -- requiresUapModules gate (docs/design-notes/2026-10-02-session-context-cost.md) --
+
+        private static List<ExtensionProfileStatus> GatedAndPlain()
+        {
+            ExtensionProfile gated = MakeProfile("Modeling", "model it");
+            gated.RequiresUapModules.Add("mesh");
+            return new List<ExtensionProfileStatus>
+            {
+                new ExtensionProfileStatus { Profile = gated, Detected = true, Trusted = true, IsBundled = true },
+                new ExtensionProfileStatus { Profile = MakeProfile("Plain", "plain line"), Detected = true, Trusted = true, IsBundled = true }
+            };
+        }
+
+        [Test]
+        public void ComposeProfilesSection_RequiredModuleDisabled_SkipsOnlyTheGatedProfile()
+        {
+            string result = ExtensionProfileInjector.ComposeProfilesSection(
+                GatedAndPlain(), new[] { "core", "prefab", "editor" });
+            Assert.AreEqual("## Plain\nplain line", result);
+        }
+
+        [Test]
+        public void ComposeProfilesSection_RequiredModuleEnabled_IncludesBoth()
+        {
+            string result = ExtensionProfileInjector.ComposeProfilesSection(
+                GatedAndPlain(), new[] { "core", "mesh" });
+            Assert.AreEqual("## Modeling\nmodel it\n\n## Plain\nplain line", result);
+        }
+
+        [Test]
+        public void ComposeProfilesSection_UapOpsOff_SkipsTheGatedProfileEvenWithTheModuleListed()
+        {
+            string result = ExtensionProfileInjector.ComposeProfilesSection(
+                GatedAndPlain(), new[] { "core", "mesh" }, false);
+            Assert.AreEqual("## Plain\nplain line", result);
+        }
+
+        [Test]
+        public void ComposeProfilesSection_NoModuleInformation_GatesNothing()
+        {
+            // The pre-field behaviour: a caller that passes no module list gets every detected profile.
+            string result = ExtensionProfileInjector.ComposeProfilesSection(GatedAndPlain());
+            Assert.AreEqual("## Modeling\nmodel it\n\n## Plain\nplain line", result);
+        }
+
+        [Test]
+        public void ComposeProfilesSection_ProfileWithoutTheField_IsUnchangedByAnyModuleList()
+        {
+            var statuses = new List<ExtensionProfileStatus>
+            {
+                new ExtensionProfileStatus { Profile = MakeProfile("Plain", "plain line"), Detected = true, Trusted = true, IsBundled = true }
+            };
+            Assert.AreEqual("## Plain\nplain line",
+                ExtensionProfileInjector.ComposeProfilesSection(statuses, new string[0], false));
+        }
+
+        [Test]
+        public void ComposeProfilesSection_ModuleIdsAreCaseSensitive_AndEveryListedModuleIsRequired()
+        {
+            ExtensionProfile two = MakeProfile("Two", "x");
+            two.RequiresUapModules.Add("mesh");
+            two.RequiresUapModules.Add("patching");
+            var statuses = new List<ExtensionProfileStatus>
+            {
+                new ExtensionProfileStatus { Profile = two, Detected = true, Trusted = true, IsBundled = true }
+            };
+            Assert.AreEqual(string.Empty, ExtensionProfileInjector.ComposeProfilesSection(statuses, new[] { "mesh" }));
+            Assert.AreEqual(string.Empty, ExtensionProfileInjector.ComposeProfilesSection(statuses, new[] { "Mesh", "Patching" }));
+            Assert.AreEqual("## Two\nx", ExtensionProfileInjector.ComposeProfilesSection(statuses, new[] { "mesh", "patching" }));
+        }
     }
 }

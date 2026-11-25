@@ -478,6 +478,7 @@ namespace Colloid.AgentPanel.UI
                 var pre = new Label(IconLoader.SanitizeForDisplay(chunks[i]));
                 pre.enableRichText = false;
                 pre.AddToClassList("uap-toolcard-pre");
+                TranscriptSelection.MakeSelectable(pre);
                 if (i > 0)
                 {
                     pre.AddToClassList("uap-toolcard-pre--cont");

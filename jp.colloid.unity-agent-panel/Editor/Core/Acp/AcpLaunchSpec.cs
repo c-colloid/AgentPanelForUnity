@@ -1,3 +1,5 @@
+using System;
+
 namespace Colloid.AgentPanel.Core.Acp
 {
     /// <summary>
@@ -51,6 +53,30 @@ namespace Colloid.AgentPanel.Core.Acp
 
         /// <summary>Bearer token for the UapOps endpoint; sent as an Authorization header in session/new.</summary>
         public string McpBearerToken;
+
+        /// <summary>
+        /// Section 2.7's fallback for an ACP agent that does not advertise
+        /// mcpCapabilities.http: builds the stdio relay launch spec on
+        /// demand. Called at most once per <c>BuildMcpServers</c> (never
+        /// during session/load's replay, and never when the agent DOES
+        /// speak http -- the bridge only reaches for this after
+        /// OnInitializeResult found <c>!_capMcpHttp</c>), from whichever
+        /// thread the bridge runs OpenSession/OpenNewSession on -- per
+        /// AcpProtocolBridge's own class doc, that is the ACP reader
+        /// thread, not the Unity main thread, so a slow first-time compile
+        /// inside this delegate never freezes the editor. AgentHub sets it
+        /// (from UapStdioRelayBuilder, AFTER capturing Unity's toolchain
+        /// paths on the main thread -- see that class's doc comment for
+        /// why) only when McpUrl above is also set; leaving it null keeps
+        /// today's http-only behavior (no stdio fallback offered).
+        /// MUST NOT throw -- AcpProtocolBridge wraps every call in a
+        /// try/catch regardless, but a well-behaved factory never lets an
+        /// exception reach it. Null return = no relay available this spawn
+        /// (unresolved toolchain, compile failure, or UapOps disabled);
+        /// the bridge then reports the agent as unable to reach UapOps at
+        /// all, same as before this factory existed.
+        /// </summary>
+        public Func<AcpStdioServer> McpStdioRelayFactory;
 
         /// <summary>
         /// Preferred `authenticate` method id when the agent reports that

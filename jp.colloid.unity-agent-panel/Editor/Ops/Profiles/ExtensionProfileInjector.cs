@@ -41,12 +41,21 @@ namespace Colloid.AgentPanel.Ops.Profiles
     /// </summary>
     public static class ExtensionProfileInjector
     {
-        public static string ComposeProfilesSection(IEnumerable<ExtensionProfileStatus> statuses)
+        /// <summary>
+        /// <paramref name="enabledUapModules"/> null means "the caller has no
+        /// module information": no profile is gated (the behaviour before
+        /// <c>requiresUapModules</c> existed). Given a list, a profile that
+        /// names required modules is skipped unless UapOps is on and every
+        /// one of them is in the list (<see cref="IsGatedOut"/>).
+        /// </summary>
+        public static string ComposeProfilesSection(IEnumerable<ExtensionProfileStatus> statuses,
+            IEnumerable<string> enabledUapModules = null, bool uapOpsEnabled = true)
         {
             if (statuses == null)
             {
                 return string.Empty;
             }
+            HashSet<string> enabledSet = enabledUapModules == null ? null : ToSet(enabledUapModules);
             var blocks = new List<string>();
             foreach (ExtensionProfileStatus status in statuses)
             {
@@ -58,9 +67,53 @@ namespace Colloid.AgentPanel.Ops.Profiles
                 {
                     continue;
                 }
+                if (IsGatedOut(status.Profile, enabledSet, uapOpsEnabled))
+                {
+                    continue;
+                }
                 blocks.Add(BuildBlock(status.Profile));
             }
             return blocks.Count == 0 ? string.Empty : string.Join("\n\n", blocks.ToArray());
+        }
+
+        /// <summary>
+        /// True when <paramref name="profile"/> lists required uap_* modules
+        /// and UapOps is off or any of them is not in
+        /// <paramref name="enabledModules"/>. A null set (no module
+        /// information) or a profile without the field is never gated.
+        /// </summary>
+        public static bool IsGatedOut(ExtensionProfile profile, HashSet<string> enabledModules, bool uapOpsEnabled)
+        {
+            if (profile == null || enabledModules == null
+                || profile.RequiresUapModules == null || profile.RequiresUapModules.Count == 0)
+            {
+                return false;
+            }
+            if (!uapOpsEnabled)
+            {
+                return true;
+            }
+            for (int i = 0; i < profile.RequiresUapModules.Count; i++)
+            {
+                if (!enabledModules.Contains(profile.RequiresUapModules[i]))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private static HashSet<string> ToSet(IEnumerable<string> modules)
+        {
+            var set = new HashSet<string>(System.StringComparer.Ordinal);
+            foreach (string module in modules)
+            {
+                if (!string.IsNullOrEmpty(module))
+                {
+                    set.Add(module);
+                }
+            }
+            return set;
         }
 
         private static string BuildBlock(ExtensionProfile profile)

@@ -54,7 +54,9 @@ namespace Colloid.AgentPanel.Ops
                         .Set("name", JsonNode.NewObject().Set("type", "string")
                             .Set("description", "Name for the new GameObject (required)."))
                         .Set("primitiveType", JsonNode.NewObject().Set("type", "string")
-                            .Set("description", "Cube/Sphere/Capsule/Cylinder/Plane/Quad. Omit for an empty GameObject."))
+                            .Set("description", "Cube/Sphere/Capsule/Cylinder/Plane/Quad. Omit for an empty GameObject."
+                                + " Primitives are for blockouts, colliders and placeholders only: a prop or its parts are"
+                                + " never a set of primitives (when a modeling module is installed, build a Model and bake it)."))
                         .Set("parentPath", JsonNode.NewObject().Set("type", "string")
                             .Set("description", "Hierarchy path of the parent, e.g. 'Root/Container'. Omit for a scene root object."))
                         .Set("scene", JsonNode.NewObject().Set("type", "string")

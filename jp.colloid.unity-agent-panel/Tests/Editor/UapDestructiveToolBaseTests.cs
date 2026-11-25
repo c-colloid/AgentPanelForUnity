@@ -155,28 +155,55 @@ namespace Colloid.AgentPanel.Tests
             // Panel Pro (pinned by Pro's test assembly), and CI runs this
             // suite both with and without Pro installed.
             var expected = new HashSet<string> { "uap_asset_delete" };
-            ToolRegistry registry = ToolRegistry.CreateDefault(false);
+            // uap_execute_code (docs/design-notes/2026-09-28-uloop-phase3.md)
+            // is a DELIBERATE exception, pinned separately: it implements
+            // IUapDestructiveTool directly (not via UapDestructiveToolBase)
+            // because whether confirm:true is required depends on a
+            // per-call static risk scan, not "this tool is always
+            // destructive" -- see its own class doc comment for why the
+            // base class's always-refuse-without-confirm dispatch does not
+            // fit. Identified here by IUapNeverAutoApproveTool (the marker
+            // this deliberate exception also carries) rather than by name,
+            // so this test still catches an ALWAYS-destructive tool that
+            // copies uap_execute_code's shape to dodge the base-class check
+            // without opting into the same never-auto-approved posture.
+            var expectedConditional = new HashSet<string> { "uap_execute_code" };
+            ToolRegistry registry = ToolRegistry.CreateDefault();
             var actual = new HashSet<string>();
+            var actualConditional = new HashSet<string>();
             foreach (IUapTool tool in registry.ListEnabled(AllModules(registry)))
             {
                 if (tool.GetType().Assembly != typeof(ToolRegistry).Assembly)
                 {
                     continue;
                 }
-                if (tool is IUapDestructiveTool)
+                if (!(tool is IUapDestructiveTool))
                 {
-                    actual.Add(tool.Name);
-                    Assert.IsInstanceOf<UapDestructiveToolBase>(tool, tool.Name + " must use the shared gate");
-                    Assert.IsTrue(tool.InputSchema["properties"].HasKey("confirm"), tool.Name + " must advertise confirm");
-                    Assert.IsTrue(tool.InputSchema["properties"].HasKey("dry_run"), tool.Name + " must advertise dry_run");
+                    continue;
                 }
+                if (tool is IUapNeverAutoApproveTool)
+                {
+                    actualConditional.Add(tool.Name);
+                    Assert.IsTrue(tool.InputSchema["properties"].HasKey("confirm"), tool.Name + " must advertise confirm");
+                    continue;
+                }
+                actual.Add(tool.Name);
+                Assert.IsInstanceOf<UapDestructiveToolBase>(tool, tool.Name + " must use the shared gate");
+                Assert.IsTrue(tool.InputSchema["properties"].HasKey("confirm"), tool.Name + " must advertise confirm");
+                Assert.IsTrue(tool.InputSchema["properties"].HasKey("dry_run"), tool.Name + " must advertise dry_run");
             }
             CollectionAssert.AreEquivalent(expected, actual);
+            CollectionAssert.AreEquivalent(expectedConditional, actualConditional);
         }
 
         private static List<string> AllModules(ToolRegistry registry)
         {
-            return new List<string> { "core", "prefab", "editor", "anim", "ui", "markers" };
+            // "code" added 2026-09-28 (docs/design-notes/2026-09-28-uloop-
+            // phase3.md) so Registry_DestructiveTools_MatchThePinnedSet
+            // above actually enumerates uap_execute_code instead of
+            // silently skipping the module that introduced this test's
+            // first IUapDestructiveTool exception.
+            return new List<string> { "core", "prefab", "editor", "anim", "ui", "markers", "code" };
         }
     }
 }

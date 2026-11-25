@@ -609,7 +609,23 @@ namespace Colloid.AgentPanel.UI
             // Design section 8.2 B2(b): resolve the wire tool_use name back
             // to the registered UapOps tool (null for every non-UapOps tool
             // -- Write/Edit/Bash/etc. -- which correctly never badges).
-            IUapTool resolvedTool = UapOpsServer.FindByWireName(_request.ToolName);
+            // ResolveEffectiveTool, not the plain FindByWireName lookup
+            // (design note docs/design-notes/2026-09-22-uloop-phase1.md
+            // section 2.8 item 4): a uap_call card badges by its INNER
+            // tool's Undoable, exactly like a direct call to that tool
+            // would -- uap_call itself is never registered, so
+            // FindByWireName alone would always resolve null for it.
+            // effectiveInput captured (not discarded): when this card is a
+            // uap_call wrapping uap_execute_code, _request.Input is the
+            // OUTER {"name":...,"arguments":{...}} envelope, which has no
+            // top-level "code" of its own -- BuildExecuteCodeDetail below
+            // needs the INNER "arguments" node (docs/design-notes/2026-09-
+            // 28-uloop-phase3.md: a card that resolves the tool through
+            // uap_call but then reads the outer envelope for its code would
+            // show "action: run" and nothing else, silently hiding the
+            // snippet that is actually about to run).
+            JsonNode effectiveInput;
+            IUapTool resolvedTool = UapOpsServer.ResolveEffectiveTool(_request.ToolName, _request.Input, out effectiveInput);
             _undoBadge.style.display = resolvedTool != null && !resolvedTool.Undoable
                 ? DisplayStyle.Flex : DisplayStyle.None;
 
@@ -649,11 +665,27 @@ namespace Colloid.AgentPanel.UI
             // approver reads the CHANGE, not two walls of text. Anything
             // whose input lacks the edit shape falls back to the generic
             // key: value preview -- never a wrong diff.
+            // docs/design-notes/2026-09-28-uloop-phase3.md (roadmap section
+            // 4.3): uap_execute_code gets its OWN details rendering instead
+            // of the generic per-field preview below -- that preview caps
+            // every field's COMBINED text at PreviewMaxLines/PreviewMaxChars
+            // (BuildInputPreview/TruncateBlock), which is fine for a path or
+            // a short command but would silently cut a multi-line snippet
+            // and bury the usings/risk flags among the other fields. This
+            // is resolved by tool identity (resolvedTool), not by wire name,
+            // so it applies through uap_call exactly like a direct call
+            // would (same reasoning as the undo badge just above).
+            bool isExecuteCode = resolvedTool != null
+                && string.Equals(resolvedTool.Name, UapExecuteCodeTool.ToolName, StringComparison.Ordinal);
             List<PermissionEditPreview.DiffLine> diff =
-                PermissionEditPreview.IsEditTool(_request.ToolName)
+                !isExecuteCode && PermissionEditPreview.IsEditTool(_request.ToolName)
                     ? PermissionEditPreview.BuildEditDiff(_request.Input)
                     : null;
-            if (diff != null && diff.Count > 0)
+            if (isExecuteCode)
+            {
+                BuildExecuteCodeDetails(_details, effectiveInput);
+            }
+            else if (diff != null && diff.Count > 0)
             {
                 var diffHost = new VisualElement();
                 diffHost.AddToClassList("uap-perm-diff");
@@ -693,6 +725,42 @@ namespace Colloid.AgentPanel.UI
             }
 
             _details.Add(PlainLabel(L10n.A(L10n.S.PermKeyboardHint), "uap-perm-hint"));
+        }
+
+        /// <summary>
+        /// uap_execute_code's dedicated details (roadmap section 4.3):
+        /// usings line, the FULL code in a monospace block (never routed
+        /// through TruncateBlock/PreviewMaxChars -- the whole point is that
+        /// the approver sees everything that would run), then every risk
+        /// flag the static scan found, each its own line so none of them
+        /// can be missed among the code. Absent/empty code (action:status /
+        /// action:reset carry none) renders neither the usings nor the code
+        /// block, only the action.
+        /// </summary>
+        private static void BuildExecuteCodeDetails(VisualElement details, JsonNode input)
+        {
+            ToolCardDescriber.ExecuteCodeDetail detail = ToolCardDescriber.BuildExecuteCodeDetail(input);
+            if (string.IsNullOrEmpty(detail.Code))
+            {
+                details.Add(PlainLabel(L10n.F(L10n.S.PermExecuteCodeActionFmt, detail.Action), "uap-perm-desc"));
+                return;
+            }
+            if (!string.IsNullOrEmpty(detail.UsingsLine))
+            {
+                details.Add(PlainLabel(L10n.F(L10n.S.PermExecuteCodeUsingsFmt, detail.UsingsLine), "uap-perm-desc"));
+            }
+            Label codeLabel = PlainLabel(detail.Code, "uap-perm-preview");
+            MessageBlockFactory.ApplyMonoFont(codeLabel);
+            details.Add(codeLabel);
+            if (detail.Flags != null && detail.Flags.Count > 0)
+            {
+                var sb = new StringBuilder(L10n.A(L10n.S.PermExecuteCodeFlagsHeading));
+                for (int i = 0; i < detail.Flags.Count; i++)
+                {
+                    sb.Append("\n- ").Append(detail.Flags[i].Message);
+                }
+                details.Add(PlainLabel(sb.ToString(), "uap-perm-desc"));
+            }
         }
 
         private List<JsonNode> CollectSuggestions()

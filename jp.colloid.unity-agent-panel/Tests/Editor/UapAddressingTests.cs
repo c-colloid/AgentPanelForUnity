@@ -221,5 +221,89 @@ namespace Colloid.AgentPanel.Tests
             Assert.IsNull(asset);
             StringAssert.Contains("not found", error);
         }
+
+        // -- Index suffix / instance id (D6) --------------------------------
+
+        [TestCase("Cube[2]", true, "Cube", 2)]
+        [TestCase("Cube[0]", true, "Cube", 0)]
+        [TestCase("A[b][12]", true, "A[b]", 12)]
+        [TestCase("Cube", false, null, 0)]
+        [TestCase("Cube[]", false, null, 0)]
+        [TestCase("Cube[x]", false, null, 0)]
+        [TestCase("[1]", false, null, 0)]
+        [TestCase("Cube[-1]", false, null, 0)]
+        public void TryParseIndexedSegment_Cases(string segment, bool expected, string expectedName, int expectedIndex)
+        {
+            string name;
+            int index;
+            Assert.AreEqual(expected, UapAddressing.TryParseIndexedSegment(segment, out name, out index));
+            if (expected)
+            {
+                Assert.AreEqual(expectedName, name);
+                Assert.AreEqual(expectedIndex, index);
+            }
+        }
+
+        [Test]
+        public void ResolveInScene_IndexSuffix_PicksTheNthSameNamedSibling()
+        {
+            GameObject root = Create("UapAddrIdxRoot");
+            GameObject first = Create("UapAddrCube", root.transform);
+            GameObject second = Create("UapAddrCube", root.transform);
+            string error;
+
+            Assert.AreSame(first, UapAddressing.ResolveInScene(root.scene, "UapAddrIdxRoot/UapAddrCube", out error));
+            Assert.AreSame(first, UapAddressing.ResolveInScene(root.scene, "UapAddrIdxRoot/UapAddrCube[0]", out error));
+            Assert.AreSame(second, UapAddressing.ResolveInScene(root.scene, "UapAddrIdxRoot/UapAddrCube[1]", out error));
+            Assert.IsNull(UapAddressing.ResolveInScene(root.scene, "UapAddrIdxRoot/UapAddrCube[2]", out error));
+            Assert.IsNotNull(error);
+        }
+
+        [Test]
+        public void ResolveInScene_LiteralNameWithBrackets_WinsOverIndexInterpretation()
+        {
+            GameObject root = Create("UapAddrBrRoot");
+            Create("UapAddrFoo", root.transform);
+            GameObject literal = Create("UapAddrFoo[0]", root.transform);
+            string error;
+
+            Assert.AreSame(literal, UapAddressing.ResolveInScene(root.scene, "UapAddrBrRoot/UapAddrFoo[0]", out error));
+        }
+
+        [Test]
+        public void ResolveInScene_InstanceIdForm_ResolvesTheGameObject()
+        {
+            GameObject go = Create("UapAddrIdTarget");
+            string error;
+
+            GameObject found = UapAddressing.ResolveInScene(go.scene, "#" + go.GetInstanceID(), out error);
+
+            Assert.AreSame(go, found);
+            Assert.IsNull(error);
+        }
+
+        [Test]
+        public void ResolveInScene_InstanceIdForm_UnknownId_ReturnsError()
+        {
+            string error;
+            Assert.IsNull(UapAddressing.ResolveInScene(
+                UnityEngine.SceneManagement.SceneManager.GetActiveScene(), "#2000000000", out error));
+            Assert.IsNotNull(error);
+        }
+
+        [Test]
+        public void DescribeHierarchyPath_SameNamedSiblings_GetIndexSuffix_AndRoundTrip()
+        {
+            GameObject root = Create("UapAddrDescRoot");
+            Create("UapAddrTwin", root.transform);
+            GameObject second = Create("UapAddrTwin", root.transform);
+            GameObject only = Create("UapAddrSolo", root.transform);
+
+            string secondPath = UapAddressing.DescribeHierarchyPath(second.transform);
+            Assert.AreEqual("UapAddrDescRoot/UapAddrTwin[1]", secondPath);
+            Assert.AreEqual("UapAddrDescRoot/UapAddrSolo", UapAddressing.DescribeHierarchyPath(only.transform));
+            string error;
+            Assert.AreSame(second, UapAddressing.ResolveInScene(root.scene, secondPath, out error));
+        }
     }
 }

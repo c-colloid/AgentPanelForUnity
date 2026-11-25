@@ -30,7 +30,17 @@ namespace Colloid.AgentPanel.Ops
         public const string ServerInfoName = "unity-uap-ops";
         public const string ServerInfoVersion = "0.12.0";
 
-        private const string McpPath = "/mcp";
+        // The two endpoint paths themselves are UapToolListModePolicy's
+        // (single source of truth also read by AgentHub when it builds the
+        // URL a spawn connects to) -- see that class's own doc comment.
+        // Compact-mode tools/list differs from full only in what
+        // HandleToolsList returns; tools/call is UNCHANGED by which path a
+        // client connects on: a direct call of any enabled tool by its own
+        // name keeps working on either path, and uap_call/uap_tools (see
+        // HandleToolsCall) are recognized by NAME regardless of path, so a
+        // full-mode client that somehow learns the gateway names (they are
+        // simply never advertised to it) could use them too -- there is no
+        // separate code path to keep in sync.
 
         private readonly ToolRegistry _registry;
         private readonly Func<string> _tokenProvider;
@@ -97,7 +107,16 @@ namespace Colloid.AgentPanel.Ops
         private UapOpsHttpResponse HandleCore(UapOpsHttpRequest request)
         {
             string path = NormalizePath(request.Path);
-            if (!string.Equals(path, McpPath, StringComparison.Ordinal))
+            bool compact;
+            if (string.Equals(path, UapToolListModePolicy.McpPath, StringComparison.Ordinal))
+            {
+                compact = false;
+            }
+            else if (string.Equals(path, UapToolListModePolicy.McpCompactPath, StringComparison.Ordinal))
+            {
+                compact = true;
+            }
+            else
             {
                 return UapOpsHttpResponse.StatusOnly(404);
             }
@@ -137,7 +156,7 @@ namespace Colloid.AgentPanel.Ops
                 case "notifications/initialized":
                     return UapOpsHttpResponse.StatusOnly(202);
                 case "tools/list":
-                    return HandleToolsList(id);
+                    return HandleToolsList(id, compact);
                 case "tools/call":
                     return HandleToolsCall(id, root["params"]);
                 default:
@@ -167,19 +186,58 @@ namespace Colloid.AgentPanel.Ops
             return response;
         }
 
-        private UapOpsHttpResponse HandleToolsList(JsonNode id)
+        /// <summary>
+        /// Full mode: every enabled tool, unchanged since before compact
+        /// mode existed. Compact mode (design note docs/design-notes/
+        /// 2026-09-22-uloop-phase1.md section 2.8 B): only the enabled
+        /// tools of <see cref="UapToolGateway.DirectlyListedModule"/>
+        /// ("core") are listed with full descriptions, plus the two
+        /// gateway entries -- NEVER the other way around, so a full-mode
+        /// tools/list can never show uap_tools/uap_call (they are added
+        /// only inside the `compact` branch below). Compact entries carry
+        /// the LEAN schema (<see cref="UapLeanSchema"/>: one-line field
+        /// descriptions, every structural keyword intact; design note
+        /// 2026-10-02-session-context-cost.md section 4); full mode and the
+        /// uap_help / uap_tools "names" detail keep the tool's schema as is,
+        /// and descriptions are never trimmed in either mode.
+        /// </summary>
+        private UapOpsHttpResponse HandleToolsList(JsonNode id, bool compact)
         {
             JsonNode toolsArray = JsonNode.NewArray();
-            List<IUapTool> enabled = _registry.ListEnabled(_enabledModulesProvider());
-            for (int i = 0; i < enabled.Count; i++)
+            IEnumerable<string> enabledModules = _enabledModulesProvider();
+            List<IUapTool> listed = _registry.ListEnabled(compact ? DirectlyListedModules(enabledModules) : enabledModules);
+            for (int i = 0; i < listed.Count; i++)
             {
-                IUapTool tool = enabled[i];
+                IUapTool tool = listed[i];
                 toolsArray.Add(JsonNode.NewObject()
                     .Set("name", tool.Name)
                     .Set("description", tool.Description)
-                    .Set("inputSchema", tool.InputSchema));
+                    .Set("inputSchema", compact ? UapLeanSchema.Lean(tool.InputSchema) : tool.InputSchema));
+            }
+            if (compact)
+            {
+                toolsArray.Add(UapToolGateway.ToolsListingEntry());
+                toolsArray.Add(UapToolGateway.CallListingEntry());
             }
             return JsonResponse(200, JsonRpcResult(id, JsonNode.NewObject().Set("tools", toolsArray)));
+        }
+
+        /// <summary><see cref="UapToolGateway.DirectlyListedModule"/> alone, when it is actually enabled -- else empty (nothing listed directly, everything through the gateway).</summary>
+        private static List<string> DirectlyListedModules(IEnumerable<string> enabledModules)
+        {
+            var result = new List<string>();
+            if (enabledModules != null)
+            {
+                foreach (string module in enabledModules)
+                {
+                    if (string.Equals(module, UapToolGateway.DirectlyListedModule, StringComparison.Ordinal))
+                    {
+                        result.Add(module);
+                        break;
+                    }
+                }
+            }
+            return result;
         }
 
         private UapOpsHttpResponse HandleToolsCall(JsonNode id, JsonNode paramsNode)
@@ -189,6 +247,49 @@ namespace Colloid.AgentPanel.Ops
             if (input == null || input.IsNull)
             {
                 input = JsonNode.NewObject();
+            }
+
+            // uap_tools runs right here -- it only reads the registry (pure
+            // C#, no Unity API), so there is nothing for the main-thread
+            // dispatcher to marshal. Wrapped through the SAME success/
+            // notice/error path as every other tool below (SuccessResult),
+            // just fed from UapToolGateway instead of _executor.Execute.
+            if (string.Equals(toolName, UapToolGateway.ToolsToolName, StringComparison.Ordinal))
+            {
+                try
+                {
+                    return SuccessResult(id, UapToolGateway.ExecuteTools(_registry, _enabledModulesProvider(), input));
+                }
+                catch (Exception ex)
+                {
+                    return JsonResponse(200, JsonRpcResult(id, ToolErrorResult(ex.Message)));
+                }
+            }
+
+            // uap_call: unwrapped HERE, before both the module-enabled
+            // check and the executor dispatch below, so the INNER tool
+            // runs exactly as if the client had called it directly by name
+            // -- a pollable/off-thread tool reached through uap_call still
+            // goes through _executor.Execute itself rather than nesting
+            // inside another tool's Execute, which would deadlock a
+            // pollable like uap_scripts_commit (the dispatcher can only
+            // service one tool invocation's ticks at a time). Neither
+            // "uap_call" nor "uap_tools" is ever registered in _registry
+            // (see UapToolGateway's class doc comment), so an inner name of
+            // "uap_call" (a self-call) or "uap_tools" falls straight
+            // through to the ordinary "Unknown tool" branch just below
+            // instead of ever recursing.
+            if (string.Equals(toolName, UapToolGateway.CallToolName, StringComparison.Ordinal))
+            {
+                string innerName;
+                JsonNode innerArguments;
+                if (!UapToolGateway.TryUnwrapCall(input, out innerName, out innerArguments))
+                {
+                    return JsonResponse(200, JsonRpcResult(id, ToolErrorResult(
+                        "uap_call requires 'name' (the target tool's wire name) and optionally 'arguments'.")));
+                }
+                toolName = innerName;
+                input = innerArguments;
             }
 
             IUapTool tool = _registry.Find(toolName);
@@ -219,27 +320,40 @@ namespace Colloid.AgentPanel.Ops
 
             try
             {
-                JsonNode content = _executor.Execute(tool, input);
-                if (content == null)
-                {
-                    content = JsonNode.NewArray();
-                }
-                string notice = ReadNotice();
-                if (notice != null && content.IsArray)
-                {
-                    content.Add(JsonNode.NewObject()
-                        .Set("type", "text")
-                        .Set("text", "Warning: " + notice));
-                }
-                JsonNode successResult = JsonNode.NewObject()
-                    .Set("content", content)
-                    .Set("isError", false);
-                return JsonResponse(200, JsonRpcResult(id, successResult));
+                return SuccessResult(id, _executor.Execute(tool, input));
             }
             catch (Exception ex)
             {
                 return JsonResponse(200, JsonRpcResult(id, ToolErrorResult(ex.Message)));
             }
+        }
+
+        /// <summary>
+        /// Shared success-wrapping tail for a tools/call result content
+        /// array, whichever of the two producers built it (a registered
+        /// tool via <see cref="IUapToolExecutor.Execute"/>, or
+        /// UapToolGateway.ExecuteTools for uap_tools) -- both get the same
+        /// null-content normalization and the same stall/throttle notice
+        /// appended to a SUCCESSFUL result (see the constructor's
+        /// noticeProvider doc comment).
+        /// </summary>
+        private UapOpsHttpResponse SuccessResult(JsonNode id, JsonNode content)
+        {
+            if (content == null)
+            {
+                content = JsonNode.NewArray();
+            }
+            string notice = ReadNotice();
+            if (notice != null && content.IsArray)
+            {
+                content.Add(JsonNode.NewObject()
+                    .Set("type", "text")
+                    .Set("text", "Warning: " + notice));
+            }
+            JsonNode successResult = JsonNode.NewObject()
+                .Set("content", content)
+                .Set("isError", false);
+            return JsonResponse(200, JsonRpcResult(id, successResult));
         }
 
         /// <summary>Trims one trailing '/' (e.g. "/mcp/" -&gt; "/mcp"); empty/null normalizes to "/". Defensive -- the CLI itself never sends a trailing slash for the configured URL, but callers building requests by hand (tests, any future transport) should not have to worry about it.</summary>

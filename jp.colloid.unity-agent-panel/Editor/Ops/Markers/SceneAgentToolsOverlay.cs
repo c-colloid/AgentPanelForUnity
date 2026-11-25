@@ -27,6 +27,12 @@ namespace Colloid.AgentPanel.Ops.Markers
     /// section 4): a pushpin-like pivot handle for the pin, a flat grid
     /// for the plane sketch and the terrain "raise" brush for the surface
     /// sketch; the earlier "d_Grid.Default" drew as a plain cursor arrow.
+    /// A fifth element, the shape dropdown (freehand / line / polyline /
+    /// rectangle / ellipse), drives <see cref="SceneStrokeSketch.Shape"/>
+    /// (design note 2026-10-09-sketch-shapes-navigation-regions.md). The
+    /// last element is the extension slot (<see cref="SceneAgentModelSlot"/>)
+    /// another package fills (design note 2026-10-13-agent-tools-extension-
+    /// slot.md).
     /// </summary>
     [Overlay(typeof(SceneView), OverlayId, "Agent Tools", true)]
     public sealed class SceneAgentToolsOverlay : ToolbarOverlay
@@ -34,7 +40,10 @@ namespace Colloid.AgentPanel.Ops.Markers
         public const string OverlayId = "uap-agent-tools";
 
         public SceneAgentToolsOverlay()
-            : base(SceneMarkerPinToggle.ElementId, SceneStrokePlaneToggle.ElementId, SceneStrokeSurfaceToggle.ElementId)
+            : base(SceneMarkerPinToggle.ElementId, SceneStrokePlaneToggle.ElementId, SceneStrokeSurfaceToggle.ElementId,
+                SceneMarkerVisibilityToggle.ElementId,
+                SceneStrokeShapeDropdown.ElementId,
+                SceneAgentModelSlot.ElementId)
         {
         }
     }
@@ -43,13 +52,25 @@ namespace Colloid.AgentPanel.Ops.Markers
     internal abstract class SceneAgentToolToggle : EditorToolbarToggle
     {
         protected SceneAgentToolToggle(string iconName, string label, string tip)
+            : this(new[] { iconName }, label, tip)
+        {
+        }
+
+        /// <summary>The first icon name that resolves is used; none resolving falls back to the text label.</summary>
+        protected SceneAgentToolToggle(string[] iconNames, string label, string tip)
         {
             // Icon-only like Unity's own toolbar toggles (a text toggle
             // renders as an oversized, misaligned button in the toolbar).
-            var content = EditorGUIUtility.IconContent(iconName);
-            if (content != null && content.image is Texture2D)
+            // IconLoader.Find is silent on a missing name (IconContent
+            // warns), so a fallback chain costs nothing in the Console.
+            Texture2D found = null;
+            for (int i = 0; i < iconNames.Length && found == null; i++)
             {
-                icon = (Texture2D)content.image;
+                found = Colloid.AgentPanel.UI.IconLoader.Find(iconNames[i]);
+            }
+            if (found != null)
+            {
+                icon = found;
             }
             else
             {
@@ -169,6 +190,83 @@ namespace Colloid.AgentPanel.Ops.Markers
         public SceneStrokeSurfaceToggle()
             : base(SceneStrokeMode.Surface, "d_TerrainInspector.TerrainToolRaise", L10n.S.CtxSketchSurfaceToolbarLabel, L10n.S.CtxSketchSurfaceTooltip)
         {
+        }
+    }
+
+    /// <summary>
+    /// The visibility toggle (design note 2026-10-01-scene-overlay-
+    /// visibility.md): lit while the agent overlays draw, like the Scene
+    /// view's own Gizmos button. Off hides markers, pins, strokes and
+    /// Pro's Model labels without removing anything; the stores and the
+    /// agent's tools keep working. Not one of the mutually exclusive
+    /// modes: it never disarms the pin or a sketch, and they never flip it.
+    /// </summary>
+    [EditorToolbarElement(ElementId, typeof(SceneView))]
+    internal sealed class SceneMarkerVisibilityToggle : SceneAgentToolToggle
+    {
+        public const string ElementId = "uap/agent-overlays-visible";
+
+        public SceneMarkerVisibilityToggle()
+            : base(new[] { "d_scenevis_visible_hover", "d_animationvisibilitytoggleon" },
+                L10n.S.CtxMarkersVisibilityToolbarLabel, L10n.S.CtxMarkersVisibilityTooltip)
+        {
+        }
+
+        protected override bool IsArmed()
+        {
+            return SceneMarkerVisibility.Visible;
+        }
+
+        protected override void SetArmed(bool armed)
+        {
+            SceneMarkerVisibility.Visible = armed;
+        }
+
+        protected override void Subscribe(System.Action sync)
+        {
+            SceneMarkerVisibility.Changed += sync;
+        }
+
+        protected override void Unsubscribe(System.Action sync)
+        {
+            SceneMarkerVisibility.Changed -= sync;
+        }
+    }
+
+    /// <summary>
+    /// The shape dropdown: shows the current shape's name, opens a menu of
+    /// the five shapes, and follows <see cref="SceneStrokeSketch.Shape"/>
+    /// when the 1-5 keys or the context bar change it.
+    /// </summary>
+    [EditorToolbarElement(ElementId, typeof(SceneView))]
+    internal sealed class SceneStrokeShapeDropdown : EditorToolbarDropdown
+    {
+        public const string ElementId = "uap/agent-sketch-shape";
+
+        public SceneStrokeShapeDropdown()
+        {
+            tooltip = L10n.S.CtxSketchShapeDropdownTooltip;
+            clicked += ShowMenu;
+            Sync();
+            RegisterCallback<AttachToPanelEvent>(delegate { SceneStrokeSketch.ArmedChanged += Sync; Sync(); });
+            RegisterCallback<DetachFromPanelEvent>(delegate { SceneStrokeSketch.ArmedChanged -= Sync; });
+        }
+
+        private void Sync()
+        {
+            text = SceneStrokeSketch.ShapeLabel(SceneStrokeSketch.Shape);
+        }
+
+        private void ShowMenu()
+        {
+            var menu = new GenericMenu();
+            for (int i = 0; i < SceneStroke.ShapeCount; i++)
+            {
+                var shape = (SceneStrokeShape)i;
+                menu.AddItem(new GUIContent(SceneStrokeSketch.ShapeLabel(shape)), SceneStrokeSketch.Shape == shape,
+                    delegate { SceneStrokeSketch.Shape = shape; });
+            }
+            menu.DropDown(worldBound);
         }
     }
 }

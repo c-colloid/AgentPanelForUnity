@@ -154,5 +154,31 @@ namespace Colloid.AgentPanel.Tests
             Assert.IsNull(UapOpsMcpConfig.EnsureConfigFileWritten(null, 1, "t"));
             Assert.IsNull(UapOpsMcpConfig.EnsureConfigFileWritten(string.Empty, 1, "t"));
         }
+
+        // -- Compact-mode URL (design note docs/design-notes/2026-09-22-
+        // uloop-phase1.md section 2.8 B) -------------------------------
+
+        [Test]
+        public void BuildConfigJson_3Arg_CompactFalse_MatchesThe2ArgOverload()
+        {
+            Assert.AreEqual(UapOpsMcpConfig.BuildConfigJson(54321, "tok-abc"),
+                UapOpsMcpConfig.BuildConfigJson(54321, "tok-abc", false));
+        }
+
+        [Test]
+        public void BuildConfigJson_3Arg_CompactTrue_UsesTheCompactPath()
+        {
+            string json = UapOpsMcpConfig.BuildConfigJson(54321, "tok-abc", true);
+            JsonNode root = JsonParser.Parse(json);
+            Assert.AreEqual("http://127.0.0.1:54321/mcp/compact",
+                root["mcpServers"][UapOpsMcpConfig.ServerName]["url"].AsString());
+        }
+
+        [Test]
+        public void EnsureConfigFileWritten_Compact_WritesTheCompactUrl()
+        {
+            string path = UapOpsMcpConfig.EnsureConfigFileWritten(_tempRoot, 1, "t", true);
+            StringAssert.Contains("/mcp/compact", File.ReadAllText(path));
+        }
     }
 }

@@ -63,6 +63,11 @@ namespace Colloid.AgentPanel.Ops
             }
             var sb = new StringBuilder(128);
             sb.Append("Scene view markers (").Append(markers.Length).Append("):");
+            if (!SceneMarkerVisibility.Visible)
+            {
+                sb.Append("\n  Note: the user has hidden the agent overlays in the Scene view (the \"Show\" toggle in"
+                    + " the Agent Tools toolbar), so none of these are drawn or captured until they show them again.");
+            }
             for (int i = 0; i < markers.Length; i++)
             {
                 SceneMarker marker = markers[i];

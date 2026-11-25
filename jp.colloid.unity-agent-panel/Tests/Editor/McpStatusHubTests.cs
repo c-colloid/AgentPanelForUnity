@@ -157,8 +157,8 @@ namespace Colloid.AgentPanel.Tests
                 "and offers to open one");
             Assert.AreEqual(1, card.Query<Button>(className: "uap-mcpcard-add").ToList().Count,
                 "the header offers to add a server");
-            // The registry may leave a tool out when uloop covers it
-            // (ToolRegistry.RegisterUnlessCovered), so count what it holds.
+            // Count what the registry holds rather than assuming every
+            // advertised name resolves.
             int registered = 0;
             for (int i = 0; i < block.mcpServers[0].tools.Count; i++)
             {

@@ -319,12 +319,16 @@ namespace Colloid.AgentPanel.Model
         /// Module-default generation this build ships. 1 = the Phase 5b
         /// default-on set {core, prefab, editor}; 2 = "markers" (2026-09-07
         /// Scene-view 3D markers) joined the default-on set; 3 = "web"
-        /// (2026-09-17 uap_web_fetch) joined it. Increment (and extend
-        /// <see cref="EnsureUapOpsModuleDefaults"/>) only when a module is
-        /// added to the DEFAULT-ON set; adding a default-OFF module (like
-        /// "anim") needs no migration.
+        /// (2026-09-17 uap_web_fetch) joined it; 4 = "code" (2026-09-28
+        /// uap_execute_code, docs/design-notes/2026-09-28-uloop-phase3.md)
+        /// joined it -- Core as the escape hatch, per confirm:true on every
+        /// risky call and a permission card that is never auto-approved, so
+        /// default-ON does not weaken the safety model. Increment (and
+        /// extend <see cref="EnsureUapOpsModuleDefaults"/>) only when a
+        /// module is added to the DEFAULT-ON set; adding a default-OFF
+        /// module (like "anim") needs no migration.
         /// </summary>
-        public const int CurrentModuleDefaultsGeneration = 3;
+        public const int CurrentModuleDefaultsGeneration = 4;
 
         /// <summary>
         /// Adds modules that became default-ON after this asset was last
@@ -373,6 +377,15 @@ namespace Colloid.AgentPanel.Model
             if (uapOpsModuleDefaultsGeneration < 3 && !uapOpsModules.Contains("web"))
             {
                 uapOpsModules.Add("web");
+            }
+            // Generation 4: uap_execute_code (2026-09-28, design note
+            // docs/design-notes/2026-09-28-uloop-phase3.md). Default ON
+            // because every call still shows a permission card with the
+            // full snippet and is never auto-approved (IUapNeverAutoApproveTool);
+            // a user who switches it off after this stays off.
+            if (uapOpsModuleDefaultsGeneration < 4 && !uapOpsModules.Contains("code"))
+            {
+                uapOpsModules.Add("code");
             }
             uapOpsModuleDefaultsGeneration = CurrentModuleDefaultsGeneration;
             // Unconditionally true past the generation gate above, even when
@@ -616,9 +629,14 @@ namespace Colloid.AgentPanel.Model
         /// 2026-09-15-profile-authoring-tools.md), "avatar", "batch",
         /// "tests" (uap_test_run, docs/design-notes/
         /// 2026-09-15-test-run.md), "fx" (uap_particle_set,
-        /// docs/design-notes/2026-09-15-particle-set.md) and "mesh"
+        /// docs/design-notes/2026-09-15-particle-set.md), "mesh"
         /// (uap_mesh_create, docs/design-notes/2026-09-15-mesh-create.md)
-        /// default off for the same reason. Every module that defaults off ships its tools in Agent
+        /// and 2026-09-28's "patching" (uap_hot_reload/uap_pause_point,
+        /// docs/design-notes/2026-09-28-uloop-phase4.md) default off for
+        /// the same reason -- "patching" doubly so, since unlike the others
+        /// it rewrites the running Editor's method bodies via Harmony
+        /// rather than merely writing scene/asset data, and is Mono-runtime
+        /// only. Every module that defaults off ships its tools in Agent
         /// Panel Pro, so with Core alone its toggle row is disabled rather
         /// than merely unchecked. "tests" is additionally absent -- not just
         /// disabled -- in a project without com.unity.test-framework: the
@@ -652,7 +670,7 @@ namespace Colloid.AgentPanel.Model
         /// too) eventually converges the steering text via a full respawn,
         /// exactly like any other spawn-argument field.
         /// </summary>
-        public List<string> uapOpsModules = new List<string> { "core", "prefab", "editor", "markers", "web" };
+        public List<string> uapOpsModules = new List<string> { "core", "prefab", "editor", "markers", "web", "code" };
 
         /// <summary>
         /// Extra MCP servers the user added in Settings (design note
@@ -892,8 +910,14 @@ namespace Colloid.AgentPanel.Model
         /// <summary>
         /// Whether the AGENT may run `uloop` commands (docs/design-notes/
         /// 2026-09-21-uloop-always-loaded-cost.md section 5, option A).
-        /// Default true: uLoop stays the sanctioned escape hatch it has
-        /// been since the 2026-08-02 steering note.
+        /// Default false since 2026-10-02 (docs/design-notes/2026-10-02-uloop-
+        /// card-final.md): the panel's own uap_* tools cover what uLoop did,
+        /// so a NEW settings file no longer offers uloop as the fallback.
+        /// The initializer only applies to a settings file that does not
+        /// carry the field; a value an existing user already saved (true was
+        /// the default before) is read back unchanged and deliberately not
+        /// migrated -- flipping it silently would take a working workflow
+        /// away from someone who relies on uloop.
         ///
         /// What turning it OFF does and does NOT do matters, and the UI
         /// says both: it stops the agent from REACHING for uloop (the
@@ -905,7 +929,25 @@ namespace Colloid.AgentPanel.Model
         /// like allowedTools/disallowedTools, so SettingsChangeDetector
         /// treats a change as reconnect-pending.
         /// </summary>
-        public bool uloopAgentUseEnabled = true;
+        public bool uloopAgentUseEnabled = false;
+
+        /// <summary>
+        /// Which shape tools/list serves for a spawned agent (design note
+        /// docs/design-notes/2026-09-22-uloop-phase1.md section 2.8 B):
+        /// Full (every enabled tool, unchanged behavior), Compact (only
+        /// the "core" module listed directly, everything else through the
+        /// uap_tools/uap_call gateway) or Auto (Full for Claude Code,
+        /// Compact for every other backend -- see
+        /// UapToolListModePolicy.ResolveCompact). Default Auto.
+        ///
+        /// Next-spawn-only, exactly like uapOpsEnabled/uapOpsModules
+        /// above: it decides which URL path AgentHub.StartClient puts in
+        /// --mcp-config / acpSpec.McpUrl for THIS spawn, so
+        /// SettingsChangeDetector.RequiresReconnect compares it and
+        /// SettingsView's handler commits through the usual
+        /// CommitSettingsChange() chokepoint.
+        /// </summary>
+        public UapToolListMode uapToolListMode = UapToolListMode.Auto;
 
         // -- Extension Profiles (Phase 5b stream C, docs/design-notes/
         // 2026-08-01-phase5-unity-ops-design.md section 3b / 8.2 B3) --------
@@ -933,6 +975,18 @@ namespace Colloid.AgentPanel.Model
         /// control). Default ON. Next-spawn-only like extensionProfilesEnabled.
         /// </summary>
         public bool unityPluginSteeringEnabled = true;
+
+        /// <summary>
+        /// docs/design-notes/2026-09-30-bundled-modeling-skill.md: let an
+        /// installed provider package (Agent Panel Pro) copy the skills it
+        /// ships into this project's `.claude/skills/` and `.agents/skills/`
+        /// so every agent that reads Agent Skills from disk sees them. The
+        /// files are read by the agent at its own pace, so this is NOT
+        /// reconnect-relevant: nothing in the spawn changes. Default ON.
+        /// Core only holds the switch; the install itself lives in the
+        /// package that ships the skills.
+        /// </summary>
+        public bool bundledSkillsEnabled = true;
 
         /// <summary>
         /// Origin of the Agent Panel Pro update registry the Settings card

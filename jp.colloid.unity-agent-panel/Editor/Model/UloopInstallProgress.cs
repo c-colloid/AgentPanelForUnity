@@ -1,10 +1,16 @@
 namespace Colloid.AgentPanel.Model
 {
     /// <summary>
-    /// What the uLoop section should render about an install that may be in
-    /// flight. One value per evaluation of <see cref="UloopInstallProgress.Evaluate"/>;
+    /// What the uLoop section should render about a package operation that may
+    /// be in flight. One value per evaluation of <see cref="UloopInstallProgress"/>;
     /// the UI maps these to L10n strings and never invents a state of its own
     /// (docs/design-notes/2026-08-12-uloop-install-progress.md section 2a).
+    /// Since 2026-10-02 the only operation is the REMOVAL
+    /// (<see cref="UloopInstallProgress.EvaluateRemoval"/>): the install
+    /// button is gone (docs/design-notes/2026-10-02-uloop-card-final.md), so
+    /// "Installing" below reads as "in flight" and "Succeeded" as "the
+    /// removal landed". The names stay because the precedence table tests
+    /// pin them.
     /// </summary>
     public enum UloopInstallProgressState
     {
@@ -28,8 +34,7 @@ namespace Colloid.AgentPanel.Model
         /// <summary>
         /// The live AddRequest reported failure -- the first time an async
         /// resolve failure is visible inside the panel at all (before this,
-        /// it surfaced only in Unity's own Package Manager UI; see
-        /// UloopInstaller.ApplyManifestRoute's doc comment).
+        /// it surfaced only in Unity's own Package Manager UI).
         /// </summary>
         FailedAsync,
 

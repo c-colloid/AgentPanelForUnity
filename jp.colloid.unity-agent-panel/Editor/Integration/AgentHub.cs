@@ -385,6 +385,7 @@ namespace Colloid.AgentPanel.Integration
             // Arbitrary thread (the bridge raises from the reader thread):
             // set flags, defer the UI work to the main thread.
             string name = AcpProtocolBridge.DescribeAuthMethod(methodId, methodName);
+            _acpSignInStartedThisProcess = true;
             AuthCli.EnqueueCallback(delegate
             {
                 AcpSignInPending = true;
@@ -409,13 +410,89 @@ namespace Colloid.AgentPanel.Integration
         /// </summary>
         private static volatile bool _acpSignInFailedThisProcess;
 
+        /// <summary>
+        /// True once the bridge actually sent `authenticate` this process
+        /// (AuthenticationStarted). When it never did -- terminal-only
+        /// methods, or no method at all -- the failure is already the error
+        /// block the handshake emits, so the "sign-in failed" note would
+        /// only repeat it (2026-10-08 captures of Qwen Code and Auggie).
+        /// </summary>
+        private static volatile bool _acpSignInStartedThisProcess;
+
+        /// <summary>The bridge's reason for that failure, stored synchronously for the same race (null until a failure).</summary>
+        private static volatile string _acpSignInFailReasonThisProcess;
+
+        /// <summary>
+        /// Pure: the first backtick-quoted command in a bridge sign-in
+        /// failure ("... run `copilot login` once, then press Reconnect"),
+        /// or null. The custom-command preset has no LoginCommand of its
+        /// own, so the not-retried note names the command the agent
+        /// published instead of the backend's display name (design note
+        /// 2026-10-07-acp-other-agents.md section 3).
+        /// </summary>
+        internal static string ExtractLoginCommandHint(string reason)
+        {
+            if (string.IsNullOrEmpty(reason))
+            {
+                return null;
+            }
+            int start = reason.IndexOf('`');
+            if (start < 0)
+            {
+                return null;
+            }
+            int end = reason.IndexOf('`', start + 1);
+            if (end <= start + 1)
+            {
+                return null;
+            }
+            string command = reason.Substring(start + 1, end - start - 1).Trim();
+            return command.Length > 0 ? command : null;
+        }
+
         /// <summary>True once the current process reached Ready (the handshake completed).</summary>
         private static bool _reachedReadyThisProcess;
+
+        /// <summary>
+        /// Section 2.7 item 5: one "UapOps is unavailable for this agent"
+        /// transcript note per spawn, reset in TearDownClient alongside
+        /// _scriptGateInertWarned -- the next StartClient re-evaluates
+        /// (mcpCapabilities.http and the stdio-relay toolchain can both
+        /// change between spawns, e.g. after fixing the Unity install).
+        /// </summary>
+        private static bool _mcpUnavailableWarned;
+
+        /// <summary>
+        /// AcpProtocolBridge.McpUnavailable (section 2.7): UapOps was on
+        /// for this spawn but the agent can reach it NEITHER over http NOR
+        /// over the stdio relay. Raised from whichever thread built
+        /// mcpServers (AcpProtocolBridge's class doc) -- defer to the main
+        /// thread before touching Session/L10n, same as
+        /// OnAcpAuthenticationStarted above.
+        /// </summary>
+        private static void OnAcpMcpUnavailable()
+        {
+            AuthCli.EnqueueCallback(delegate
+            {
+                if (_mcpUnavailableWarned)
+                {
+                    return;
+                }
+                _mcpUnavailableWarned = true;
+                string text = L10n.F(L10n.S.HubUapOpsUnavailableForAgentNoteFmt,
+                    AgentBackends.DisplayName(CurrentBackend));
+                Log(text);
+                AppendSystemNote(text, true);
+                SaveSessionCache();
+                RaiseChanged();
+            });
+        }
 
         private static void OnAcpAuthenticationFinished(AgentBackend raisedBy, bool success, string error)
         {
             if (!success)
             {
+                _acpSignInFailReasonThisProcess = error;
                 _acpSignInFailedThisProcess = true;
             }
             AuthCli.EnqueueCallback(delegate
@@ -428,7 +505,7 @@ namespace Colloid.AgentPanel.Integration
                     AcpAuthMethodName = _acpAuthMethodNameInFlight;
                     AppendAcpApiKeyAuthNoteIfNeeded();
                 }
-                else
+                else if (_acpSignInStartedThisProcess)
                 {
                     AppendSystemNote(L10n.F(L10n.S.HubAcpSignInFailedNoteFmt,
                         AgentBackends.DisplayName(raisedBy), error ?? string.Empty), true);
@@ -4175,10 +4252,43 @@ namespace Colloid.AgentPanel.Integration
                     AuthMethodId = settings.GetAcpAuthMethod(backend),
                     ClientVersion = PackageVersionForClientInfo()
                 };
+                // Section 2.7 (docs/design-notes/2026-09-22-uloop-phase1.md):
+                // CapturePaths touches EditorApplication/PackageManager APIs
+                // and MUST run here, on the main thread -- the factory
+                // below is invoked later from the ACP bridge's background
+                // reader thread (AcpProtocolBridge's class doc), which is
+                // exactly why the paths are captured now and only PLAIN
+                // DATA crosses into the closure. acpSpec.McpUrl is read at
+                // CALL time (below, after it is filled in further down this
+                // method when UapOps is enabled), not at closure-creation
+                // time, so the assignment order here does not matter.
+                // Only when UapOps is on: with it off there is nothing to relay,
+                // and the first-time build would spend a compiler run for nothing.
+                if (settings.uapOpsEnabled)
+                {
+                    RelayToolchainPaths stdioRelayPaths = UapStdioRelayBuilder.CapturePaths();
+                    // Start the (once per content hash, cached on disk) build now,
+                    // in the background: the factory below runs on the ACP reader
+                    // thread under the bridge lock and only waits a few seconds
+                    // for it (UapStdioRelayBuilder.FactoryWaitMillis).
+                    UapStdioRelayBuilder.Warm(stdioRelayPaths, Log);
+                    acpSpec.McpStdioRelayFactory = delegate
+                    {
+                        return UapStdioRelayBuilder.TryGetOrBuild(stdioRelayPaths, acpSpec.McpUrl, Log);
+                    };
+                }
                 var acpTransport = new AcpBridgeTransport(acpSpec, killer, Log);
                 // Bound to this spawn's backend: the notes name the agent
                 // that asked, even after the picker has moved on.
                 AgentBackend spawnedBackend = backend;
+                // The sign-in handlers below defer their UI work through
+                // AuthCli's main-thread pump, which is only subscribed to
+                // EditorApplication.update once something asks for it. On
+                // an ACP backend nothing else does after a domain reload,
+                // so the "sign in in your browser" and link notes sat in
+                // the queue forever (2026-10-08 capture of Cline). Hook it
+                // here, on the main thread, before the first event can fire.
+                AuthCli.EnsurePumpHooked();
                 acpTransport.AuthenticationStarted += delegate(string methodId, string methodName)
                 {
                     OnAcpAuthenticationStarted(spawnedBackend, methodId, methodName);
@@ -4187,6 +4297,7 @@ namespace Colloid.AgentPanel.Integration
                 {
                     OnAcpAuthenticationFinished(spawnedBackend, success, error);
                 };
+                acpTransport.McpUnavailable += OnAcpMcpUnavailable;
                 transport = acpTransport;
             }
             else
@@ -4200,6 +4311,8 @@ namespace Colloid.AgentPanel.Integration
             _acpAuthMethodIdInFlight = null;
             _acpAuthMethodNameInFlight = null;
             _acpSignInFailedThisProcess = false;
+            _acpSignInStartedThisProcess = false;
+            _acpSignInFailReasonThisProcess = null;
             _reachedReadyThisProcess = false;
             var client = new AgentClient(transport, Log);
             client.StateChanged += OnStateChanged;
@@ -4252,10 +4365,25 @@ namespace Colloid.AgentPanel.Integration
             // an explicitly disabled feature must not leave a loopback
             // socket open.
             string mcpConfigValue = null;
+            // Tool-list mode (design note docs/design-notes/2026-09-22-
+            // uloop-phase1.md section 2.8 B): resolved once per spawn, from
+            // the SAME isAcp this method already computed for --mcp-config
+            // vs session/new above -- Claude Code is the only non-ACP
+            // backend, and Auto stays Full there / goes Compact everywhere
+            // else (UapToolListModePolicy.ResolveCompact's own doc
+            // comment). Picks which endpoint path (below) this spawn's
+            // UapOps connection uses, and is passed to
+            // ComposeUapOpsSteeringSection further down so the steering text
+            // says where the unlisted modules' tools went.
+            bool uapToolListCompact = UapToolListModePolicy.ResolveCompact(settings.uapToolListMode, isAcp);
             if (settings.uapOpsEnabled)
             {
                 UapOpsServer.EnsureStarted(Log);
                 UapOpsServer.SetEnabledModules(settings.uapOpsModules);
+                // uap_help cannot see which endpoint called it; it reads this to
+                // decide whether the compact-mode playbook is on offer
+                // (docs/design-notes/2026-10-02-uap-help-playbooks.md).
+                UapOpsServer.SetCompactToolList(uapToolListCompact);
                 if (isAcp)
                 {
                     // ACP agents take the MCP endpoint in session/new, not
@@ -4263,13 +4391,14 @@ namespace Colloid.AgentPanel.Integration
                     // the JSON-RPC params over the child's private stdin
                     // (never the command line), so SEC-2 holds here too.
                     acpSpec.McpServerName = UapOpsMcpConfig.ServerName;
-                    acpSpec.McpUrl = "http://127.0.0.1:" + UapOpsServer.Port + "/mcp";
+                    acpSpec.McpUrl = "http://127.0.0.1:" + UapOpsServer.Port
+                        + UapToolListModePolicy.EndpointPath(uapToolListCompact);
                     acpSpec.McpBearerToken = UapOpsServer.Token;
                 }
                 else
                 {
                     mcpConfigValue = ComputeMcpConfigValue(
-                        true, projectRoot, UapOpsServer.Port, UapOpsServer.Token, settings.mcpServers, Log);
+                        true, projectRoot, UapOpsServer.Port, UapOpsServer.Token, settings.mcpServers, Log, uapToolListCompact);
                 }
             }
             else
@@ -4309,7 +4438,12 @@ namespace Colloid.AgentPanel.Integration
             // master toggle/approved-hash list can change between spawns
             // without a domain reload, so this call itself is never cached.
             string profilesSection = ExtensionProfileService.ComposeAppendSection(
-                projectRoot, settings.extensionProfilesEnabled, settings.approvedProfileHashes, Log);
+                projectRoot, settings.extensionProfilesEnabled, settings.approvedProfileHashes, Log,
+                // A profile that lists requiresUapModules (the modeling
+                // profile: "mesh", off by default) is injected only while
+                // UapOps and those modules are on
+                // (docs/design-notes/2026-10-02-session-context-cost.md).
+                settings.uapOpsModules, settings.uapOpsEnabled);
             // Stream C1 (2026-08-02 design note section 3): steer toward
             // the typed uap_* tools instead of the general-purpose uloop
             // escape hatch, injected between the cost-policy line and the
@@ -4327,7 +4461,15 @@ namespace Colloid.AgentPanel.Integration
                 // commands are refused instead of offering them as the
                 // fallback -- an agent that learns that from a denial has
                 // already burned a turn.
-                settings.uloopAgentUseEnabled);
+                settings.uloopAgentUseEnabled,
+                // Section 2.8 (docs/design-notes/2026-09-22-uloop-phase1.md):
+                // tell a compact-list agent where the unlisted modules went.
+                uapToolListCompact,
+                // docs/design-notes/2026-10-02-uloop-card-final.md: with the
+                // agent-use switch now off by default, a project without
+                // uLoop must not get a "do not call uloop" line about a tool
+                // it does not have -- uloop is mentioned only when installed.
+                uloopInstalled: UloopDetector.DetectInProject(projectRoot));
             // Stream C (docs/design-notes/2026-09-10-unity-official-plugin-
             // integration.md section 3): when Unity's official plugin is
             // installed in the CLI's user config, steer toward its /unity:*
@@ -4592,11 +4734,17 @@ namespace Colloid.AgentPanel.Integration
         /// attacker who already has user rights). This method never
         /// starts/stops the server (StartClient does that before calling
         /// here), so a test can call it without a real HttpListener.
+        ///
+        /// <paramref name="compact"/> (design section 2.8 B, added after
+        /// this method's original 5-arg shape): defaults to false so every
+        /// existing caller keeps writing the full-mode "/mcp" URL exactly
+        /// as before -- StartClient is the only caller that passes the
+        /// resolved <c>uapToolListCompact</c> explicitly.
         /// </summary>
         internal static string ComputeMcpConfigValue(
-            bool uapOpsEnabled, string projectRoot, int port, string token, Action<string> log)
+            bool uapOpsEnabled, string projectRoot, int port, string token, Action<string> log, bool compact = false)
         {
-            return ComputeMcpConfigValue(uapOpsEnabled, projectRoot, port, token, null, log);
+            return ComputeMcpConfigValue(uapOpsEnabled, projectRoot, port, token, null, log, compact);
         }
 
         /// <summary>
@@ -4609,7 +4757,7 @@ namespace Colloid.AgentPanel.Integration
         /// path for OpenTerminalForMcp.
         /// </summary>
         internal static string ComputeMcpConfigValue(bool uapOpsEnabled, string projectRoot, int port,
-            string token, List<McpServerConfig> extraServers, Action<string> log)
+            string token, List<McpServerConfig> extraServers, Action<string> log, bool compact = false)
         {
             if (!uapOpsEnabled && !UapOpsMcpConfig.HasUsableServer(extraServers))
             {
@@ -4617,9 +4765,9 @@ namespace Colloid.AgentPanel.Integration
                 return null;
             }
             string path = UapOpsMcpConfig.EnsureConfigFileWritten(
-                projectRoot, uapOpsEnabled, port, token, extraServers, log);
+                projectRoot, uapOpsEnabled, port, token, extraServers, log, compact);
             _lastMcpConfigPath = path;
-            return path != null ? path : UapOpsMcpConfig.BuildConfigJson(uapOpsEnabled, port, token, extraServers);
+            return path != null ? path : UapOpsMcpConfig.BuildConfigJson(uapOpsEnabled, port, token, extraServers, compact);
         }
 
         /// <summary>The config file the last spawn was pointed at (null when it had none).</summary>
@@ -5001,18 +5149,83 @@ namespace Colloid.AgentPanel.Integration
         /// prefab overrides, anim/animator/material, screenshot/menu).
         /// Used only by <see cref="ComposeUapOpsSteeringSection"/> so the
         /// injected text can list ONLY the families whose module is
-        /// actually enabled.
+        /// actually enabled. Capability summaries and safety rules live
+        /// here; multi-step procedures live in UapPlaybook bodies served by
+        /// uap_help (2026-10-02, docs/design-notes/2026-10-02-uap-help-
+        /// playbooks.md).
         /// </summary>
         private static readonly string[][] UapOpsModuleFamilies =
         {
-            new[] { "core", "scene objects/components/properties/assets/search" },
-            new[] { "prefab", "prefab overrides (including revert)" },
-            new[] { "anim", "animation clips/animator/material" },
-            new[] { "editor", "screenshots, menu execution, running the scene (uap_play_mode), the Unity"
-                + " Console (uap_console_logs) and asynchronous lightmap bakes (Unity or Bakery)" },
+            new[] { "core", "scene objects/components/properties/assets/search, and recompiling the project to read its"
+                + " current compiler errors (uap_compile)" },
+            // Elements after [1] are tools the family's text depends on:
+            // the family is named only when EVERY one of them is
+            // registered (2026-10-02 session-context-cost note). The
+            // prefab / anim / patching tools ship in Agent Panel Pro, and
+            // the "prefab" module is on by default, so with Core alone a
+            // module-only test named tools that do not exist.
+            new[] { "prefab", "prefab overrides (including revert)", "uap_prefab_apply_overrides" },
+            new[] { "anim", "animation clips/animator/material", "uap_animator_edit" },
+            // The editor family is built by EditorFamilyText: its lightmap
+            // clause is Pro-only and rides lightmapToolsAvailable.
+            new[] { "editor", string.Empty },
             new[] { "markers", "Scene-view 3D markers (uap_marker_add/list/clear) to point at places and objects, and the user's sketch strokes (uap_stroke_list)" },
-            new[] { "web", "fetching a URL as an image, saved file, extracted PDF text or page text (uap_web_fetch; your own web fetch returns text only) and, when the user configured a key, web search (uap_web_search)" }
+            new[] { "web", "fetching a URL as an image, saved file, extracted PDF text or page text (uap_web_fetch; your own web fetch returns text only) and, when the user configured a key, web search (uap_web_search)" },
+            // 2026-09-28 (docs/design-notes/2026-09-28-uloop-phase3.md,
+            // roadmap section 4.2 item 4): the wording below is deliberate
+            // and load-bearing, not decorative -- a 2026-08-02 measurement
+            // found that, left unsteered, an agent routes edits it COULD do
+            // with a typed tool through dynamic code instead, because
+            // dynamic code is always "available" and a typed tool might be
+            // behind ToolSearch. The escape-hatch framing here is the
+            // steering-side half of that fix; the tool's own description
+            // repeats the same "prefer typed tools" sentence for a reader
+            // who only sees uap_help/uap_tools output, never this text.
+            new[] { "code", "compiling and running a snippet of C# (uap_execute_code) -- prefer the typed"
+                + " uap_* tools; use uap_execute_code only when no typed tool can do it. It always shows a"
+                + " permission card with the full snippet and is never auto-approved" },
+            // 2026-09-28 (docs/design-notes/2026-09-28-uloop-phase4.md):
+            // Pro's patching module, steered the same way "code" is above --
+            // named explicitly so the agent reaches for the typed tool
+            // instead of uloop/dynamic code for the specific jobs it covers.
+            // 2026-10-02: its limits and the fallbacks (uap_game_watch for
+            // time series, uap_scripts_commit / uap_compile for what hot
+            // reload refuses) moved to the hot-reload / pause-point
+            // playbooks (docs/design-notes/2026-10-02-uap-help-playbooks.md).
+            new[] { "patching", "hot-reloading changed static method bodies without a domain reload"
+                + " (uap_hot_reload) and pausing at a file:line with locals captured (uap_pause_point) --"
+                + " Mono runtime only", "uap_hot_reload", "uap_pause_point" }
         };
+
+        /// <summary>
+        /// The "editor" family's text. The lightmap clause names asynchronous
+        /// lightmap bakes, tools only Agent Panel Pro registers, so with
+        /// Core alone the family ends at the project facts; with Pro the
+        /// text is exactly what it always was.
+        /// </summary>
+        private static string EditorFamilyText(bool lightmapToolsAvailable)
+        {
+            const string head = "screenshots, menu execution, running the scene (uap_play_mode), the Unity"
+                + " Console (uap_console_logs), driving the running game (uap_game_pointer for uGUI"
+                + " buttons/sliders, uap_game_key for keys, uap_game_mouse for game code that reads Mouse.current),";
+            const string facts = " project facts such as Active Input Handling and installed packages (uap_project_info)";
+            return lightmapToolsAvailable
+                ? head + facts + " and asynchronous lightmap bakes (Unity or Bakery)"
+                : head + facts;
+        }
+
+        /// <summary>True when every tool a family row depends on (its elements from index 2) is registered.</summary>
+        private static bool AllToolsRegistered(ToolRegistry tools, string[] family)
+        {
+            for (int i = 2; i < family.Length; i++)
+            {
+                if (tools == null || tools.Find(family[i]) == null)
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
 
         /// <summary>
         /// Pure composition of the L2 steering snippet (2026-08-02 design
@@ -5027,9 +5240,11 @@ namespace Colloid.AgentPanel.Integration
         /// Never mentions a family whose module is not in
         /// <paramref name="enabledModules"/> -- a disabled anim module, for
         /// example, is never advertised, so the text can never promise a
-        /// tool the agent will then find missing. Never forbids uloop; it
-        /// is named explicitly as the sanctioned, slower fallback -- see
-        /// the design note's "Deliberately NOT done" closing line.
+        /// tool the agent will then find missing. Whether uloop is named at
+        /// all follows <c>uloopAgentUseEnabled</c> only (default off since
+        /// 2026-10-02): allowed, it is the sanctioned, slower fallback --
+        /// see the design note's "Deliberately NOT done" closing line --
+        /// and off, the text says plainly that it is refused.
         ///
         /// 2026-09-08 addendum, right after the family-list line, gated on
         /// the "core" module: a real transcript from that same day shows
@@ -5048,8 +5263,13 @@ namespace Colloid.AgentPanel.Integration
         /// </summary>
         internal static string ComposeUapOpsSteeringSection(bool uapOpsEnabled,
             IEnumerable<string> enabledModules, bool lightmapToolsAvailable = true,
-            bool uloopAgentUseEnabled = true)
+            bool uloopAgentUseEnabled = true, bool compactToolList = false,
+            UapPlaybookCatalog playbooks = null, ToolRegistry registry = null,
+            bool uloopInstalled = true)
         {
+            // uloop is only ever named when it is in the project; the
+            // switch decides HOW it is named (fallback vs refused).
+            bool uloopOffered = uloopInstalled && uloopAgentUseEnabled;
             if (!uapOpsEnabled)
             {
                 return string.Empty;
@@ -5065,13 +5285,20 @@ namespace Colloid.AgentPanel.Integration
                     }
                 }
             }
+            // A sentence that names a tool needs the tool REGISTERED, not
+            // just its module enabled (Core alone registers none of the
+            // prefab / anim / patching tools). Same registry the playbook
+            // index line below reads.
+            ToolRegistry tools = registry ?? UapOpsServer.Registry;
             var families = new List<string>();
             for (int i = 0; i < UapOpsModuleFamilies.Length; i++)
             {
-                if (enabledSet.Contains(UapOpsModuleFamilies[i][0]))
+                string[] family = UapOpsModuleFamilies[i];
+                if (!enabledSet.Contains(family[0]) || !AllToolsRegistered(tools, family))
                 {
-                    families.Add(UapOpsModuleFamilies[i][1]);
+                    continue;
                 }
+                families.Add(family[0] == "editor" ? EditorFamilyText(lightmapToolsAvailable) : family[1]);
             }
             if (families.Count == 0)
             {
@@ -5079,6 +5306,11 @@ namespace Colloid.AgentPanel.Integration
             }
             return "Unity edits should go through the uap_* tools when one fits: "
                 + string.Join(", ", families.ToArray()) + ".\n"
+                // 2026-09-22 (docs/design-notes/2026-09-22-uloop-phase1.md
+                // section 2.8): on the compact tool list only the core
+                // module's tools are listed; without this line an agent
+                // assumes the families named above do not exist.
+                + (compactToolList ? UapToolListModePolicy.SteeringSentence() + "\n" : string.Empty)
                 + (enabledSet.Contains("core")
                     ? "The uap_* tools are MCP tools of server \"unity-ops\" and are loaded on demand --"
                       + " before first use load them with ToolSearch, e.g."
@@ -5102,7 +5334,8 @@ namespace Colloid.AgentPanel.Integration
                       + " uap_scene_open, never with the \"File/Save\" / \"File/Open Scene\" menus: a menu item"
                       + " that opens a native dialog blocks the Editor until"
                       + " a person closes it, and uap_editor_execute_menu refuses the known ones.\n"
-                      + "uap_asset_delete" + (enabledSet.Contains("prefab") ? " and uap_prefab_apply_overrides are" : " is")
+                      + "uap_asset_delete" + (enabledSet.Contains("prefab") && tools.Find("uap_prefab_apply_overrides") != null
+                          ? " and uap_prefab_apply_overrides are" : " is")
                       + " destructive: a call without confirm:true is refused and only reports what would"
                       + " change; pass dry_run:true to preview, then confirm:true to apply.\n"
                     : string.Empty)
@@ -5114,17 +5347,14 @@ namespace Colloid.AgentPanel.Integration
                 // 2026-08-02 measurement caught for edits.
                 + (enabledSet.Contains("editor")
                     ? "To check a change at runtime, drive the game yourself instead of asking the user to"
-                      + " press Play: uap_play_mode action:start runs the scene, uap_console_logs reads what"
-                      + " it logged (pass the previous reply's lastId as since_id to poll for new lines only),"
-                      + " and uap_play_mode action:stop ends the run -- never leave the project in Play Mode"
-                      + " when you finish. start/stop return BEFORE the Editor has switched, because the"
-                      + " transition reloads the domain: wait for uap_ping to answer, then confirm with"
-                      + " uap_play_mode action:status.\n"
+                      + " press Play (playbook verify-gameplay), and never leave the project in Play Mode"
+                      + " when you finish. uap_play_mode start/stop return BEFORE the Editor has switched:"
+                      + " wait for uap_ping to answer, then confirm with action:status.\n"
                     : string.Empty)
-                + UloopAgentUsePolicy.SteeringLine(uloopAgentUseEnabled)
+                + (uloopInstalled ? UloopAgentUsePolicy.SteeringLine(uloopAgentUseEnabled) : string.Empty)
                 + (lightmapToolsAvailable
                     ? "Never run Lightmapping.Bake() (synchronous) through "
-                + (uloopAgentUseEnabled ? "uloop or dynamic code" : "dynamic code") + ": it"
+                + (uloopOffered ? "uloop or dynamic code" : "dynamic code") + ": it"
                 + " blocks the Unity main thread for the whole bake, the Editor shows \"Hold on\","
                 + " and every tool call stalls until it ends. Use uap_lightmap_bake (start, then poll"
                 + " status) when that tool is available; its start runs a memory preflight and, by"
@@ -5151,11 +5381,32 @@ namespace Colloid.AgentPanel.Integration
                       + " in the Scene view to mean \"here\"; it is also listed by uap_marker_list as user-pin.\n"
                     : string.Empty)
                 + "uap_ping is the authoritative liveness check for the Unity Editor"
-                + (uloopAgentUseEnabled
+                + (uloopOffered
                     ? ": a uloop focus-window reply of \"No running Unity process found\" is a"
                       + " detection failure whenever uap_ping still answers, never a reason to"
                       + " relaunch the Editor."
-                    : ": while it answers, the Editor is alive, whatever any other probe says.");
+                    : ": while it answers, the Editor is alive, whatever any other probe says.")
+                + ComposePlaybookIndexLine(enabledSet, compactToolList, playbooks, registry);
+        }
+
+        /// <summary>
+        /// The one steering line naming the playbooks uap_help can serve
+        /// right now (design note docs/design-notes/2026-10-02-uap-help-
+        /// playbooks.md): "\n" plus the index, or empty when none is
+        /// available. Availability is the catalog's own rule -- every
+        /// required tool registered and in an enabled module, the two
+        /// gateway tools only on a compact connection -- so the line can
+        /// never name a procedure whose tools are missing. The catalog and
+        /// registry default to the editor's; tests pass their own.
+        /// </summary>
+        private static string ComposePlaybookIndexLine(HashSet<string> enabledSet, bool compactToolList,
+            UapPlaybookCatalog playbooks, ToolRegistry registry)
+        {
+            UapPlaybookCatalog catalog = playbooks ?? UapOpsServer.Playbooks;
+            ToolRegistry tools = registry ?? UapOpsServer.Registry;
+            string index = UapPlaybookCatalog.FormatIndex(
+                catalog.Filter(UapPlaybookCatalog.AvailabilityFor(enabledSet, tools.ModuleOf, compactToolList)));
+            return index.Length == 0 ? string.Empty : "\n" + index;
         }
 
         /// <summary>
@@ -5221,6 +5472,7 @@ namespace Colloid.AgentPanel.Integration
             // StartClient re-evaluates and may need to warn again (settings
             // can change between spawns).
             _scriptGateInertWarned = false;
+            _mcpUnavailableWarned = false;
             _apiKeyAuthNoted = false;
             // A switch held for a handshake this client will never finish
             // dies with the client; the next spawn reads the settings.
@@ -5536,7 +5788,7 @@ namespace Colloid.AgentPanel.Integration
             }
             ToolCallRecord record = BuildToolCallRecord(block);
             _openToolCalls[block.Id] = record;
-            TrackNonUndoableToolIfNeeded(block.Name);
+            TrackNonUndoableToolIfNeeded(block.Name, block.Input);
 
             SubagentRecord parentSubagent = null;
             if (!string.IsNullOrEmpty(parentToolUseId))
@@ -5597,10 +5849,16 @@ namespace Colloid.AgentPanel.Integration
         /// v0.14.0 work set out to remove (see
         /// docs/design-notes/2026-08-02-noise-permissions-and-uloop-
         /// preference.md section 2).
+        /// Resolves through <see cref="UapOpsServer.ResolveEffectiveTool"/>
+        /// (design note docs/design-notes/2026-09-22-uloop-phase1.md
+        /// section 2.8 item 4), not the plain FindByWireName lookup this
+        /// used before uap_call existed: a uap_call whose inner tool is
+        /// non-undoable must warn exactly like a direct call to that same
+        /// tool would.
         /// </summary>
-        private static void TrackNonUndoableToolIfNeeded(string wireToolName)
+        private static void TrackNonUndoableToolIfNeeded(string wireToolName, JsonNode input)
         {
-            IUapTool tool = UapOpsServer.FindByWireName(wireToolName);
+            IUapTool tool = UapOpsServer.ResolveEffectiveTool(wireToolName, input, out _);
             if (tool != null && !tool.Undoable && !tool.ReadOnly)
             {
                 _currentTurnNonUndoableTools.Add(tool.Name);
@@ -5614,8 +5872,8 @@ namespace Colloid.AgentPanel.Integration
         /// UapScriptsCommitTool AND its tool_result reports moved files
         /// (AutoContinueAfterCompilePolicy.ScriptCommitMovedFiles). Reuses
         /// the SAME wire-name resolution TrackNonUndoableToolIfNeeded just
-        /// above already uses (UapOpsServer.FindByWireName) rather than
-        /// inventing a second tool-name-matching path -- this is the "use
+        /// above already uses (UapOpsServer.ResolveEffectiveTool) rather
+        /// than inventing a second tool-name-matching path -- this is the "use
         /// that signal rather than a heuristic" instruction from the design
         /// applied literally.
         ///
@@ -5635,7 +5893,10 @@ namespace Colloid.AgentPanel.Integration
             {
                 return;
             }
-            IUapTool tool = UapOpsServer.FindByWireName(wireToolName);
+            // ResolveEffectiveTool (design section 2.8 item 4), not
+            // FindByWireName: uap_scripts_commit reached through uap_call
+            // must attribute a reload exactly like a direct call would.
+            IUapTool tool = UapOpsServer.ResolveEffectiveTool(wireToolName, block.Input, out _);
             if (tool == null
                 || !string.Equals(tool.Name, AutoContinueAfterCompilePolicy.ScriptsCommitToolName, StringComparison.Ordinal))
             {
@@ -6037,8 +6298,8 @@ namespace Colloid.AgentPanel.Integration
         /// duplicated.
         ///
         /// Resolution mirrors the permission card's own undo-badge lookup
-        /// (UapOpsServer.FindByWireName): a null resolution means "not a
-        /// UapOps tool" (isUapOpsTool:false), which AutoApprovePolicy always
+        /// (UapOpsServer.ResolveEffectiveTool, design section 2.8 item 4):
+        /// a null resolution means "not a UapOps tool" (isUapOpsTool:false), which AutoApprovePolicy always
         /// refuses at every level below AllTools -- Bash/Write/Edit/
         /// MultiEdit and any other CLI-native tool only auto-approve at
         /// UapAutoApproveLevel.AllTools (design note 2026-09-10-auto-
@@ -6061,16 +6322,30 @@ namespace Colloid.AgentPanel.Integration
             {
                 return false;
             }
-            IUapTool resolved = UapOpsServer.FindByWireName(tool.ToolName);
+            // ResolveEffectiveTool, not FindByWireName (design note
+            // docs/design-notes/2026-09-22-uloop-phase1.md section 2.8 item
+            // 4): a can_use_tool for uap_call must auto-approve/deny by the
+            // INNER tool's ReadOnly/Undoable, exactly as a direct call to
+            // that inner tool would -- never by uap_call's own (there is
+            // no registered "uap_call" tool to read those flags from in
+            // the first place).
+            IUapTool resolved = UapOpsServer.ResolveEffectiveTool(tool.ToolName, tool.Input, out _);
             bool isUapOpsTool = resolved != null;
             bool readOnly = isUapOpsTool && resolved.ReadOnly;
             bool undoable = isUapOpsTool && resolved.Undoable;
-            // 5-argument overload (design note 2026-09-10-auto-approve-all-
-            // tools): AllTools approves CLI-native tools too, but a
+            // docs/design-notes/2026-09-28-uloop-phase3.md: a tool that
+            // implements IUapNeverAutoApproveTool (uap_execute_code) is
+            // excepted from every level, including AllUnityOps/AllTools --
+            // see AutoApprovePolicy's 6-argument overload for why this
+            // needs its own parameter rather than folding into readOnly/
+            // undoable.
+            bool neverAutoApprove = isUapOpsTool && resolved is IUapNeverAutoApproveTool;
+            // 5/6-argument overload (design note 2026-09-10-auto-approve-
+            // all-tools): AllTools approves CLI-native tools too, but a
             // requires_user_interaction request (AskUserQuestion) is a
             // question for the human and never auto-answers at any level.
             if (!AutoApprovePolicy.ShouldAutoApprove(
-                GetAutoApproveLevel(), isUapOpsTool, readOnly, undoable, tool.RequiresUserInteraction))
+                GetAutoApproveLevel(), isUapOpsTool, readOnly, undoable, tool.RequiresUserInteraction, neverAutoApprove))
             {
                 return false;
             }
@@ -6967,6 +7242,10 @@ namespace Colloid.AgentPanel.Integration
                 var signInNote = new ChatMessage { role = ChatMessage.RoleSystem };
                 AgentBackend deadBackend = ResolveNoteBackend(_lastSpawnedSettingsSnapshot, CurrentBackend);
                 string login = AgentBackends.LoginCommand(deadBackend);
+                if (string.IsNullOrEmpty(login))
+                {
+                    login = ExtractLoginCommandHint(_acpSignInFailReasonThisProcess ?? AcpSignInError);
+                }
                 string loginOrName = string.IsNullOrEmpty(login) ? AgentBackends.DisplayName(deadBackend) : login;
                 bool signInFailed = _acpSignInFailedThisProcess || AcpSignInError != null;
                 // Sign-in failed means every method the agent offers was
@@ -7404,6 +7683,7 @@ namespace Colloid.AgentPanel.Integration
                 uapOpsEnabled = source.uapOpsEnabled,
                 uapScriptGateEnabled = source.uapScriptGateEnabled,
                 uloopAgentUseEnabled = source.uloopAgentUseEnabled,
+                uapToolListMode = source.uapToolListMode,
                 allowedTools = source.allowedTools != null
                     ? new List<string>(source.allowedTools) : new List<string>(),
                 disallowedTools = source.disallowedTools != null
@@ -7412,6 +7692,7 @@ namespace Colloid.AgentPanel.Integration
                     ? new List<string>(source.uapOpsModules) : new List<string>(),
                 extensionProfilesEnabled = source.extensionProfilesEnabled,
                 unityPluginSteeringEnabled = source.unityPluginSteeringEnabled,
+                bundledSkillsEnabled = source.bundledSkillsEnabled,
                 approvedProfileHashes = source.approvedProfileHashes != null
                     ? new List<string>(source.approvedProfileHashes) : new List<string>(),
                 agentModelOverrides = CloneAgentModelOverrides(source.agentModelOverrides),

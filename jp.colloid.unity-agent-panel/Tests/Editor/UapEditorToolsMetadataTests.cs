@@ -8,7 +8,10 @@ namespace Colloid.AgentPanel.Tests
     /// Per-tool pure metadata seams for the Phase 5b stream A "editor"
     /// module (uap_editor_screenshot / uap_editor_execute_menu /
     /// uap_editor_select, and since 2026-09-21 uap_play_mode /
-    /// uap_console_logs / uap_console_clear / uap_game_view_size) -- no
+    /// uap_console_logs / uap_console_clear / uap_game_view_size, and since
+    /// 2026-09-22 uap_game_pointer / uap_game_key / uap_game_mouse /
+    /// uap_project_info / uap_editor_focus; 2026-09-23 uap_record_video /
+    /// uap_input_record / uap_input_replay) -- no
     /// HTTP/editor-mutation involved, just Name/Module/Undoable/InputSchema
     /// shape (mirrors UapCoreToolsMetadataTests/UapPrefabToolsMetadataTests).
     ///
@@ -32,6 +35,14 @@ namespace Colloid.AgentPanel.Tests
         [TestCase("uap_console_logs")]
         [TestCase("uap_console_clear")]
         [TestCase("uap_game_view_size")]
+        [TestCase("uap_game_pointer")]
+        [TestCase("uap_game_key")]
+        [TestCase("uap_game_mouse")]
+        [TestCase("uap_project_info")]
+        [TestCase("uap_editor_focus")]
+        [TestCase("uap_record_video")]
+        [TestCase("uap_input_record")]
+        [TestCase("uap_input_replay")]
         public void Tool_IsNotUndoable(string toolName)
         {
             IUapTool tool = Registry().Find(toolName);
@@ -46,6 +57,14 @@ namespace Colloid.AgentPanel.Tests
         [TestCase("uap_console_logs")]
         [TestCase("uap_console_clear")]
         [TestCase("uap_game_view_size")]
+        [TestCase("uap_game_pointer")]
+        [TestCase("uap_game_key")]
+        [TestCase("uap_game_mouse")]
+        [TestCase("uap_project_info")]
+        [TestCase("uap_editor_focus")]
+        [TestCase("uap_record_video")]
+        [TestCase("uap_input_record")]
+        [TestCase("uap_input_replay")]
         public void Tool_IsInEditorModule(string toolName)
         {
             IUapTool tool = Registry().Find(toolName);
@@ -60,6 +79,14 @@ namespace Colloid.AgentPanel.Tests
         [TestCase("uap_console_logs")]
         [TestCase("uap_console_clear")]
         [TestCase("uap_game_view_size")]
+        [TestCase("uap_game_pointer")]
+        [TestCase("uap_game_key")]
+        [TestCase("uap_game_mouse")]
+        [TestCase("uap_project_info")]
+        [TestCase("uap_editor_focus")]
+        [TestCase("uap_record_video")]
+        [TestCase("uap_input_record")]
+        [TestCase("uap_input_replay")]
         public void Tool_InputSchema_IsAnObjectSchema(string toolName)
         {
             IUapTool tool = Registry().Find(toolName);
@@ -76,6 +103,14 @@ namespace Colloid.AgentPanel.Tests
         [TestCase("uap_console_logs")]
         [TestCase("uap_console_clear")]
         [TestCase("uap_game_view_size")]
+        [TestCase("uap_game_pointer")]
+        [TestCase("uap_game_key")]
+        [TestCase("uap_game_mouse")]
+        [TestCase("uap_project_info")]
+        [TestCase("uap_editor_focus")]
+        [TestCase("uap_record_video")]
+        [TestCase("uap_input_record")]
+        [TestCase("uap_input_replay")]
         public void Tool_Description_IsNonEmpty(string toolName)
         {
             IUapTool tool = Registry().Find(toolName);

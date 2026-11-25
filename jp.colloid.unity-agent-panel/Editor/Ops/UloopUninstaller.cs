@@ -23,9 +23,7 @@ namespace Colloid.AgentPanel.Ops
 
         /// <summary>
         /// The in-flight request Client.Remove returned, kept alive for the
-        /// UI's progress poller exactly as the install path keeps its
-        /// AddRequest (see UloopInstallApplyResult.ClientAddRequest). Null
-        /// on every failure path.
+        /// UI's progress poller. Null on every failure path.
         /// </summary>
         public RemoveRequest ClientRemoveRequest;
     }
@@ -53,8 +51,7 @@ namespace Colloid.AgentPanel.Ops
     }
 
     /// <summary>
-    /// One-click uLoop REMOVAL -- the counterpart to
-    /// <see cref="UloopInstaller"/> (docs/design-notes/2026-09-22-uloop-
+    /// One-click uLoop REMOVAL (docs/design-notes/2026-09-22-uloop-
     /// remove-from-panel.md; option B of docs/design-notes/2026-09-21-uloop-
     /// always-loaded-cost.md section 5). Removing the package is the ONLY
     /// thing that actually stops uLoop's editor server, its 16 ms tick pump
@@ -143,9 +140,8 @@ namespace Colloid.AgentPanel.Ops
         /// manifest.json no longer matches the text <see cref="Plan"/>
         /// captured (the user edited a dependency while the card sat open, a
         /// git pull landed, the file became unreadable). Same guard, and the
-        /// same byte-for-byte compare, as the install path's
-        /// <see cref="UloopInstaller.ApplyFailureManifestChangedSincePlan"/>:
-        /// a plan describing a project that no longer exists must be
+        /// same byte-for-byte compare the (since removed) install path
+        /// made: a plan describing a project that no longer exists must be
         /// recomputed, not applied. Nothing is dispatched.
         /// </summary>
         public const string ApplyFailureManifestChangedSincePlan = "manifest-changed-since-plan";
@@ -202,16 +198,16 @@ namespace Colloid.AgentPanel.Ops
             var plan = new UloopUninstallPlan();
             if (string.IsNullOrEmpty(projectRoot))
             {
-                plan.Caveats.Add(UloopInstaller.NewCaveat(UloopInstaller.CaveatCodeManifestUnreadable,
+                plan.Caveats.Add(UloopManifestSupport.NewCaveat(UloopManifestSupport.CaveatCodeManifestUnreadable,
                     blocking: true, detail: "projectRoot was null or empty"));
                 return plan;
             }
 
             string manifestPath = Path.Combine(projectRoot, "Packages", "manifest.json");
             string manifestText;
-            if (!UloopInstaller.TryReadManifestText(manifestPath, out manifestText))
+            if (!UloopManifestSupport.TryReadManifestText(manifestPath, out manifestText))
             {
-                plan.Caveats.Add(UloopInstaller.NewCaveat(UloopInstaller.CaveatCodeManifestUnreadable,
+                plan.Caveats.Add(UloopManifestSupport.NewCaveat(UloopManifestSupport.CaveatCodeManifestUnreadable,
                     blocking: true, detail: manifestPath));
                 return plan;
             }
@@ -220,33 +216,33 @@ namespace Colloid.AgentPanel.Ops
             string parseError;
             if (!JsonParser.TryParse(manifestText, out root, out parseError) || !root.IsObject)
             {
-                plan.Caveats.Add(UloopInstaller.NewCaveat(UloopInstaller.CaveatCodeManifestUnreadable,
+                plan.Caveats.Add(UloopManifestSupport.NewCaveat(UloopManifestSupport.CaveatCodeManifestUnreadable,
                     blocking: true, detail: parseError ?? "manifest.json root is not a JSON object"));
                 return plan;
             }
 
             plan.ManifestPath = manifestPath;
-            plan.BackupPath = manifestPath + UloopInstaller.BackupFileSuffix;
+            plan.BackupPath = manifestPath + UloopManifestSupport.BackupFileSuffix;
             plan.ManifestBefore = manifestText;
 
             plan.PackageId = FindInstalledPackageId(root);
             plan.Installed = !string.IsNullOrEmpty(plan.PackageId);
             if (!plan.Installed)
             {
-                plan.Caveats.Add(UloopInstaller.NewCaveat(CaveatCodeNotInstalled, blocking: true, detail: string.Empty));
+                plan.Caveats.Add(UloopManifestSupport.NewCaveat(CaveatCodeNotInstalled, blocking: true, detail: string.Empty));
                 return plan;
             }
 
-            // Same advisory-not-blocking treatment as the install path: a
+            // Advisory, not blocking: a
             // VPM-managed project's own resolve can revert a manual
             // manifest.json edit, but it neither happens silently nor
             // without a recovery path, so the user is warned and the button
-            // still works (UloopInstaller.AddVccAndOfflineCaveats' comment).
+            // still works.
             // No offline caveat: removal contacts no registry.
-            string vpmManifestPath = UloopInstaller.VpmManifestPath(projectRoot);
-            if (UloopInstaller.SafeFileExists(vpmManifestPath))
+            string vpmManifestPath = UloopManifestSupport.VpmManifestPath(projectRoot);
+            if (UloopManifestSupport.SafeFileExists(vpmManifestPath))
             {
-                plan.Caveats.Add(UloopInstaller.NewCaveat(UloopInstaller.CaveatCodeVccProject,
+                plan.Caveats.Add(UloopManifestSupport.NewCaveat(UloopManifestSupport.CaveatCodeVccProject,
                     blocking: false, detail: vpmManifestPath));
             }
 
@@ -254,9 +250,9 @@ namespace Colloid.AgentPanel.Ops
 
             // Always raised, last, so it reads as the closing "and this is
             // what stays" rather than a warning about the removal itself.
-            plan.Caveats.Add(UloopInstaller.NewCaveat(CaveatCodePanelSettingsKept, blocking: false, detail: string.Empty));
+            plan.Caveats.Add(UloopManifestSupport.NewCaveat(CaveatCodePanelSettingsKept, blocking: false, detail: string.Empty));
 
-            plan.ManifestAfterProjected = UloopInstaller.MatchLineEndings(
+            plan.ManifestAfterProjected = UloopManifestSupport.MatchLineEndings(
                 BuildProjectedManifest(root, plan), manifestText);
             return plan;
         }
@@ -264,8 +260,7 @@ namespace Colloid.AgentPanel.Ops
         /// <summary>
         /// The uLoop package id this project actually declares as a
         /// dependency, or empty. Reads the "dependencies" KEYS rather than
-        /// scanning the whole file, for the same reason
-        /// UloopInstaller.IsAlreadyInstalled does: a scopes array can carry
+        /// scanning the whole file, because a scopes array can carry
         /// the id without the package being a dependency at all.
         /// </summary>
         internal static string FindInstalledPackageId(JsonNode root)
@@ -298,7 +293,7 @@ namespace Colloid.AgentPanel.Ops
         ///
         /// <list type="number">
         /// <item><b>Only the OpenUPM entry is ours to edit.</b> Matched by
-        /// normalized URL via <see cref="UloopInstaller.FindMatchingScopedRegistry"/>,
+        /// normalized URL via <see cref="UloopManifestSupport.FindMatchingScopedRegistry"/>,
         /// the same predicate the install used to find where to merge. Any
         /// OTHER registry that lists a uLoop id -- a company mirror, a VPM
         /// feed -- is something the project pointed there deliberately, so it
@@ -321,12 +316,12 @@ namespace Colloid.AgentPanel.Ops
         /// </summary>
         internal static void PlanRegistryCleanup(JsonNode root, UloopUninstallPlan plan)
         {
-            JsonNode ours = UloopInstaller.FindMatchingScopedRegistry(root, UloopInstaller.OpenUpmRegistryUrl);
+            JsonNode ours = UloopManifestSupport.FindMatchingScopedRegistry(root, UloopManifestSupport.OpenUpmRegistryUrl);
 
-            JsonNode foreign = UloopInstaller.FindForeignRegistryClaimingOurScope(root, ours);
+            JsonNode foreign = UloopManifestSupport.FindForeignRegistryClaimingOurScope(root, ours);
             if (foreign != null)
             {
-                plan.Caveats.Add(UloopInstaller.NewCaveat(CaveatCodeForeignRegistryKept,
+                plan.Caveats.Add(UloopManifestSupport.NewCaveat(CaveatCodeForeignRegistryKept,
                     blocking: false, detail: foreign["url"].AsString("?")));
             }
 
@@ -364,7 +359,7 @@ namespace Colloid.AgentPanel.Ops
             if (holders.Count > 0)
             {
                 plan.ScopeHolders.AddRange(holders);
-                plan.Caveats.Add(UloopInstaller.NewCaveat(CaveatCodeRegistryScopeKept,
+                plan.Caveats.Add(UloopManifestSupport.NewCaveat(CaveatCodeRegistryScopeKept,
                     blocking: false, detail: string.Join(", ", holders.ToArray())));
             }
             if (!dropsAnything)
@@ -431,7 +426,7 @@ namespace Colloid.AgentPanel.Ops
         {
             JsonNode projected = RebuildWithoutDependency(root, plan.PackageId);
             projected = ApplyRegistryCleanup(projected, plan.RegistryCleanup);
-            return UloopInstaller.PrettyPrintManifest(projected);
+            return UloopManifestSupport.PrettyPrintManifest(projected);
         }
 
         /// <summary>
@@ -480,7 +475,7 @@ namespace Colloid.AgentPanel.Ops
             {
                 return root;
             }
-            JsonNode ours = UloopInstaller.FindMatchingScopedRegistry(root, UloopInstaller.OpenUpmRegistryUrl);
+            JsonNode ours = UloopManifestSupport.FindMatchingScopedRegistry(root, UloopManifestSupport.OpenUpmRegistryUrl);
             if (ours == null)
             {
                 return root;
@@ -655,9 +650,9 @@ namespace Colloid.AgentPanel.Ops
                 return new UloopRegistryCleanupResult { Success = true, Wrote = false, Cleanup = UloopRegistryCleanup.None };
             }
 
-            string backupPath = manifestPath + UloopInstaller.BackupFileSuffix;
-            string after = UloopInstaller.MatchLineEndings(
-                UloopInstaller.PrettyPrintManifest(ApplyRegistryCleanup(root, probe.RegistryCleanup)), manifestText);
+            string backupPath = manifestPath + UloopManifestSupport.BackupFileSuffix;
+            string after = UloopManifestSupport.MatchLineEndings(
+                UloopManifestSupport.PrettyPrintManifest(ApplyRegistryCleanup(root, probe.RegistryCleanup)), manifestText);
 
             try
             {
@@ -683,8 +678,7 @@ namespace Colloid.AgentPanel.Ops
                 catch (Exception restoreEx)
                 {
                     // The one message that must never depend on the caller
-                    // having passed a logger -- same rule, and the same
-                    // reasoning, as UloopInstaller.TryRestoreBackup's.
+                    // having passed a logger.
                     LogCritical(log, "CRITICAL: failed to restore manifest.json after a failed write: "
                         + restoreEx.Message + " -- recover manually from '" + backupPath + "'.");
                     UloopRegistryCleanupResult worst = CleanupFailure(

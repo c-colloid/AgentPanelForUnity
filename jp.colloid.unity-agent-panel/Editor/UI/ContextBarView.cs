@@ -74,6 +74,7 @@ namespace Colloid.AgentPanel.UI
         /// </summary>
         private readonly VisualElement _markersChip;
         private readonly Label _markersLabel;
+        private readonly Button _markersVisibility;
         /// <summary>Panel-side pin button: the fallback/twin of the Scene-view toolbar toggle.</summary>
         private readonly Button _pinButton;
         /// <summary>Panel-side sketch menu: the twin of the Scene-view toolbar's two sketch toggles.</summary>
@@ -197,6 +198,14 @@ namespace Colloid.AgentPanel.UI
             _markersLabel.enableRichText = false;
             _markersLabel.AddToClassList("uap-ctx-chip-label");
             _markersChip.Add(_markersLabel);
+            // Hide (keep) before remove: the same split as the Scene view's
+            // Gizmos button versus deleting -- design note
+            // 2026-10-01-scene-overlay-visibility.md. The icon follows the
+            // state so the chip itself says whether the overlays are shown.
+            _markersVisibility = new Button(delegate { SceneMarkerVisibility.Toggle(); });
+            _markersVisibility.AddToClassList("uap-ctx-chip-x");
+            _markersVisibility.AddToClassList("uap-ctx-chip-eye-btn");
+            _markersChip.Add(_markersVisibility);
             Button markersClear = MakeRemoveButton(OnMarkersChipClearClicked);
             markersClear.tooltip = L10n.S.CtxMarkersClearTooltip;
             _markersChip.Add(markersClear);
@@ -239,6 +248,7 @@ namespace Colloid.AgentPanel.UI
             SceneStrokeStore.Changed += OnMarkersChanged;
             SceneMarkerPin.ArmedChanged += UpdatePinButton;
             SceneStrokeSketch.ArmedChanged += UpdateSketchButton;
+            SceneMarkerVisibility.Changed += UpdateMarkersChip;
             UpdateAttachButton();
             UpdateErrorChip();
             OnMarkersChanged();
@@ -259,6 +269,7 @@ namespace Colloid.AgentPanel.UI
             SceneStrokeStore.Changed -= OnMarkersChanged;
             SceneMarkerPin.ArmedChanged -= UpdatePinButton;
             SceneStrokeSketch.ArmedChanged -= UpdateSketchButton;
+            SceneMarkerVisibility.Changed -= UpdateMarkersChip;
             // The undo notice is meaningful only in the moment it appeared;
             // a view switch ends that moment (and parks the timer).
             HideIgnoreNotice();
@@ -443,6 +454,14 @@ namespace Colloid.AgentPanel.UI
                 delegate { SceneStrokeSketch.Arm(SceneStrokeMode.Plane); });
             menu.AddItem(new GUIContent(L10n.S.CtxSketchMenuSurface), SceneStrokeSketch.IsArmedIn(SceneStrokeMode.Surface),
                 delegate { SceneStrokeSketch.Arm(SceneStrokeMode.Surface); });
+            // Shapes (design note 2026-10-09-sketch-shapes-navigation-
+            // regions.md): a submenu mirroring the toolbar dropdown.
+            for (int i = 0; i < SceneStroke.ShapeCount; i++)
+            {
+                var shape = (SceneStrokeShape)i;
+                menu.AddItem(new GUIContent(L10n.S.CtxSketchMenuShapePrefix + SceneStrokeSketch.ShapeLabel(shape)),
+                    SceneStrokeSketch.Shape == shape, delegate { SceneStrokeSketch.Shape = shape; });
+            }
             if (SceneStrokeSketch.Armed)
             {
                 menu.AddSeparator(string.Empty);
@@ -507,8 +526,20 @@ namespace Colloid.AgentPanel.UI
             for (int i = 0; i < strokes.Length; i++)
             {
                 SceneStroke stroke = strokes[i];
-                if (stroke.Id <= 0 || FindStrokeChip(stroke.Id) != null)
+                if (stroke.Id <= 0)
                 {
+                    continue;
+                }
+                Chip existing = FindStrokeChip(stroke.Id);
+                if (existing != null)
+                {
+                    // A rename rebuilds the payload and the label in place
+                    // (design note 2026-10-09, decision T4).
+                    if (existing.Payload != stroke.Note)
+                    {
+                        existing.Payload = stroke.Note;
+                        SetChipLabel(existing, StrokeChipLabel(stroke));
+                    }
                     continue;
                 }
                 if (_chips.Count >= MaxChips)
@@ -516,8 +547,39 @@ namespace Colloid.AgentPanel.UI
                     break;
                 }
                 int number = stroke.Number > 0 ? stroke.Number : stroke.Id;
-                AddChip(ChipKind.Stroke, L10n.F(L10n.S.CtxSketchChipLabelFmt, number),
+                AddChip(ChipKind.Stroke, StrokeChipLabel(stroke),
                     L10n.F(L10n.S.CtxSketchChipTitleFmt, number), stroke.Note, null, null, stroke.Id);
+                Chip added = FindStrokeChip(stroke.Id);
+                if (added != null && added.Element != null)
+                {
+                    int strokeId = stroke.Id;
+                    added.Element.AddManipulator(new ContextualMenuManipulator(delegate(ContextualMenuPopulateEvent evt)
+                    {
+                        evt.menu.AppendAction(L10n.S.CtxSketchChipMenuName,
+                            delegate { SceneStrokeNameWindow.Open(strokeId); });
+                    }));
+                }
+            }
+        }
+
+        private static string StrokeChipLabel(SceneStroke stroke)
+        {
+            int number = stroke.Number > 0 ? stroke.Number : stroke.Id;
+            return string.IsNullOrEmpty(stroke.Name)
+                ? L10n.F(L10n.S.CtxSketchChipLabelFmt, number)
+                : L10n.F(L10n.S.CtxSketchChipLabelNamedFmt, number, stroke.Name);
+        }
+
+        private static void SetChipLabel(Chip chip, string label)
+        {
+            if (chip.Element == null)
+            {
+                return;
+            }
+            Label text = chip.Element.Q<Label>(null, "uap-ctx-chip-label");
+            if (text != null)
+            {
+                text.text = label;
             }
         }
 
@@ -561,11 +623,22 @@ namespace Colloid.AgentPanel.UI
             }
             int count = SceneMarkerStore.Count + SceneStrokeStore.Count;
             _markersChip.style.display = count > 0 ? DisplayStyle.Flex : DisplayStyle.None;
+            bool visible = SceneMarkerVisibility.Visible;
             if (count > 0)
             {
-                _markersLabel.text = count == 1
-                    ? L10n.S.CtxMarkersChipSingle : L10n.F(L10n.S.CtxMarkersChipPluralFmt, count);
+                _markersLabel.text = (count == 1
+                    ? L10n.S.CtxMarkersChipSingle : L10n.F(L10n.S.CtxMarkersChipPluralFmt, count))
+                    + (visible ? string.Empty : L10n.S.CtxMarkersChipHiddenSuffix);
             }
+            // Eye open while shown, struck through while hidden; the glyphs
+            // are the Hierarchy's scene-visibility icons, so the meaning is
+            // one the user already knows.
+            _markersVisibility.Clear();
+            _markersVisibility.Add(IconLoader.CreateIcon(
+                visible ? "d_scenevis_visible_hover" : "d_scenevis_hidden_hover",
+                visible ? IconLoader.GlyphEyeOpen : IconLoader.GlyphEyeClosed,
+                "uap-ctx-chip-eye", "uap-ctx-chip-eye-glyph"));
+            _markersVisibility.tooltip = visible ? L10n.S.CtxMarkersHideTooltip : L10n.S.CtxMarkersShowTooltip;
         }
 
         private void OnErrorChipDismissed()

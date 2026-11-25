@@ -298,6 +298,10 @@ namespace Colloid.AgentPanel.UI
             cont.AddToClassList(ContinuationClass);
             cont.enableRichText = false;
             cont.parseEscapeSequences = false;
+            if (primary.selection.isSelectable)
+            {
+                TranscriptSelection.MakeSelectable(cont);
+            }
             return cont;
         }
 

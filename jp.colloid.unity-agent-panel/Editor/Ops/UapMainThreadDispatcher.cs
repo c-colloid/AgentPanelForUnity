@@ -151,6 +151,9 @@ namespace Colloid.AgentPanel.Ops
             public List<string> ScopedErrors;
             /// <summary>Opaque per-invocation state for IUapPollableTool.Poll (see its doc comment). Unused for a plain IUapTool.</summary>
             public object PollState;
+
+            /// <summary>Set once IUapAbandonableTool.OnAbandoned has run for this item, so a cancelled item that is seen again never releases twice.</summary>
+            public bool AbandonNotified;
             /// <summary>
             /// The job record every item carries from enqueue. Started/
             /// completed by the main thread in ProcessOnce; registered in
@@ -449,6 +452,23 @@ namespace Colloid.AgentPanel.Ops
                 // SEC-7: the Execute waiter timed out and already threw --
                 // discard silently (no poll, no re-enqueue). Done is set
                 // for hygiene; nobody can be waiting on it.
+                // A pollable that already started may be holding something
+                // for the game (a key, a button, an open drag); let it go
+                // now, since no later Poll will (IUapAbandonableTool).
+                var abandonable = item.Tool as IUapAbandonableTool;
+                if (abandonable != null && !firstTick && !item.AbandonNotified)
+                {
+                    item.AbandonNotified = true;
+                    try
+                    {
+                        abandonable.OnAbandoned(item.PollState);
+                    }
+                    catch (Exception)
+                    {
+                        // Best effort: a failing release must not take the
+                        // dispatcher's pump down with it.
+                    }
+                }
                 item.Done.Set();
                 return;
             }

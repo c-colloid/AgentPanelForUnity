@@ -3,6 +3,28 @@ using System.Collections.Generic;
 namespace Colloid.AgentPanel.Ops
 {
     /// <summary>
+    /// A reason the removal must not proceed, or must proceed with a
+    /// warning. Separating the two matters: a blocker disables the button,
+    /// a warning only annotates the confirmation card.
+    /// </summary>
+    public sealed class UloopCaveat
+    {
+        /// <summary>True = refuse to proceed; false = proceed but say this first.</summary>
+        public bool Blocking;
+
+        /// <summary>
+        /// Stable identifier for the condition (e.g. "vcc-project",
+        /// "manifest-unreadable"). The UI maps this to localized text; the
+        /// planner never produces display strings, so the same plan reads
+        /// correctly in either language.
+        /// </summary>
+        public string Code = string.Empty;
+
+        /// <summary>Extra context for the message (a path, a registry name); may be empty.</summary>
+        public string Detail = string.Empty;
+    }
+
+    /// <summary>
     /// What the second phase of a removal would do to manifest.json's
     /// "scopedRegistries" (docs/design-notes/2026-09-22-uloop-remove-from-
     /// panel.md section 3). Three outcomes, because "remove the registry"
@@ -32,19 +54,15 @@ namespace Colloid.AgentPanel.Ops
 
     /// <summary>
     /// The complete, inspectable answer to "what would pressing Remove
-    /// do?", computed BEFORE anything is written -- the mirror of
-    /// <see cref="UloopInstallPlan"/> and, for the same reason it exists:
+    /// do?", computed BEFORE anything is written. It exists because
     /// manifest.json is the user's asset (ARCHITECTURE risk #12), so a
     /// one-click edit of it is only defensible when the exact diff can be
     /// shown first, which means the plan has to be computable with no side
     /// effects.
     ///
-    /// <para>Caveats deliberately reuse <see cref="UloopInstallCaveat"/>
-    /// rather than growing a parallel type of the same shape: the UI's
-    /// SettingsView.DescribeUloopCaveat already maps a code + detail to
-    /// localized text, and a removal caveat wants exactly that rendering.
-    /// The type's name says "Install" only because it was introduced by the
-    /// install path first.</para>
+    /// <para>Caveats are <see cref="UloopCaveat"/> values: the UI's
+    /// SettingsView.DescribeUloopCaveat maps a code + detail to localized
+    /// text.</para>
     /// </summary>
     public sealed class UloopUninstallPlan
     {
@@ -53,7 +71,7 @@ namespace Colloid.AgentPanel.Ops
 
         /// <summary>
         /// The package id actually found in "dependencies" --
-        /// <see cref="UloopInstaller.UloopPackageId"/> in practice, but read
+        /// <see cref="UloopManifestSupport.UloopPackageId"/> in practice, but read
         /// from the manifest rather than assumed, because UloopDetector
         /// knows a second (renamed) id and removing the one that is NOT
         /// there would silently do nothing.
@@ -61,7 +79,7 @@ namespace Colloid.AgentPanel.Ops
         public string PackageId = string.Empty;
 
         /// <summary>Blockers and warnings, in the order they should be shown.</summary>
-        public readonly List<UloopInstallCaveat> Caveats = new List<UloopInstallCaveat>();
+        public readonly List<UloopCaveat> Caveats = new List<UloopCaveat>();
 
         /// <summary>What phase two would do to scopedRegistries. See <see cref="UloopRegistryCleanup"/>.</summary>
         public UloopRegistryCleanup RegistryCleanup = UloopRegistryCleanup.None;

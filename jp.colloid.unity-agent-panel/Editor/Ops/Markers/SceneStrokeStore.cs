@@ -103,6 +103,32 @@ namespace Colloid.AgentPanel.Ops.Markers
             return true;
         }
 
+        /// <summary>
+        /// Gives a stroke its user name (design note 2026-10-09-sketch-
+        /// shapes-navigation-regions.md, decision T4): trims it, rebuilds
+        /// the chip payload so the name reaches the agent, persists and
+        /// raises Changed. False when no stroke has the id. The same name
+        /// again is a no-op.
+        /// </summary>
+        public static bool Rename(int id, string name)
+        {
+            SceneStroke stroke = Find(id);
+            if (stroke == null)
+            {
+                return false;
+            }
+            string trimmed = (name ?? string.Empty).Trim();
+            if (trimmed == (stroke.Name ?? string.Empty))
+            {
+                return true;
+            }
+            stroke.Name = trimmed;
+            stroke.Note = SceneStrokeSketch.FormatPayload(stroke.Number > 0 ? stroke.Number : stroke.Id, stroke, stroke.Id);
+            Persist();
+            RaiseChanged();
+            return true;
+        }
+
         /// <summary>Removes every stroke. Returns how many went.</summary>
         public static int Clear()
         {

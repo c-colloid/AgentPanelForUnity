@@ -37,7 +37,12 @@ namespace Colloid.AgentPanel.Ops
                     + " m_HorizontalAlignment / m_VerticalAlignment / m_fontStyle / m_enableAutoSizing."
                     + " Use uap_object_inspect to list every path with its current value. Object"
                     + " references take an asset path, or 'path#subAssetName' for a sub-asset; enums take"
-                    + " the value name; LayerMask takes an int, a layer name, or an array of names.";
+                    + " the value name; LayerMask takes an int, a layer name, or an array of names."
+                    + " componentType \"GameObject\" addresses the GameObject itself for m_IsActive (bool),"
+                    + " m_Layer (int or layer name), m_TagString (string) and m_StaticEditorFlags (int or a"
+                    + " comma-separated list of StaticEditorFlags names)."
+                    + " For Material shader values (_Color, _Fluo, ...) do not use m_SavedProperties paths;"
+                    + " use uap_material_set.";
             }
         }
 
@@ -68,7 +73,7 @@ namespace Colloid.AgentPanel.Ops
                         .Set("scene", JsonNode.NewObject().Set("type", "string")
                             .Set("description", "Scene name or path, used with 'path'. Omit to use the active scene (or the open prefab stage)."))
                         .Set("componentType", JsonNode.NewObject().Set("type", "string")
-                            .Set("description", "Component type on the GameObject named by 'path' (required when 'path' is given)."))
+                            .Set("description", "Component type on the GameObject named by 'path' (required when 'path' is given). Pass \"GameObject\" to edit the GameObject itself: m_IsActive, m_Layer, m_TagString, m_StaticEditorFlags."))
                         .Set("componentIndex", JsonNode.NewObject().Set("type", "integer")
                             .Set("description", "Which component when several of the same type exist (default 0). This is the PER-TYPE ordinal -- uap_component_list reports it as typeIndex; do not pass that tool's all-components index."))
                         .Set("assetPath", JsonNode.NewObject().Set("type", "string")
@@ -124,6 +129,10 @@ namespace Colloid.AgentPanel.Ops
                 {
                     throw new ArgumentException("'componentType' is required when 'path' is given.");
                 }
+                if (string.Equals(componentTypeName, "GameObject", StringComparison.OrdinalIgnoreCase))
+                {
+                    return SetGameObjectProperty(go, hierarchyPath, propertyPath, input["value"]);
+                }
                 Type type = UapComponentTypeResolver.ResolveComponentType(componentTypeName, out error);
                 if (type == null)
                 {
@@ -147,6 +156,12 @@ namespace Colloid.AgentPanel.Ops
                     throw new InvalidOperationException(error);
                 }
                 targetDescription = assetPath;
+            }
+
+            if (target is Material && propertyPath.StartsWith("m_SavedProperties", StringComparison.Ordinal))
+            {
+                throw new ArgumentException("Do not use m_SavedProperties paths for Material shader values;"
+                    + " use uap_material_set instead.");
             }
 
             var so = new SerializedObject(target);
@@ -176,6 +191,121 @@ namespace Colloid.AgentPanel.Ops
             }
 
             return UapToolResults.Text("Set " + propertyPath + " on " + targetDescription + ".");
+        }
+
+        private static readonly string[] GameObjectPaths =
+        {
+            "m_IsActive", "m_Layer", "m_TagString", "m_StaticEditorFlags"
+        };
+
+        /// <summary>
+        /// componentType "GameObject": edits the GameObject's own serialized
+        /// fields. m_IsActive and static flags are additionally applied
+        /// through the Unity API so the hierarchy refreshes immediately.
+        /// </summary>
+        private static JsonNode SetGameObjectProperty(GameObject go, string hierarchyPath, string propertyPath,
+            JsonNode value)
+        {
+            if (Array.IndexOf(GameObjectPaths, propertyPath) < 0)
+            {
+                throw new InvalidOperationException("Property not found: '" + propertyPath
+                    + "' on the GameObject itself. Supported: " + string.Join(", ", GameObjectPaths) + ".");
+            }
+            if (value == null || value.IsNull)
+            {
+                throw new ArgumentException("'value' is required.");
+            }
+            switch (propertyPath)
+            {
+                case "m_IsActive":
+                {
+                    bool active = value.AsBool(go.activeSelf);
+                    Undo.RecordObject(go, "Set active");
+                    go.SetActive(active);
+                    break;
+                }
+                case "m_Layer":
+                {
+                    int layer;
+                    string layerName = value.AsString(null);
+                    int parsed;
+                    if (!string.IsNullOrEmpty(layerName)
+                        && !int.TryParse(layerName, System.Globalization.NumberStyles.Integer,
+                            System.Globalization.CultureInfo.InvariantCulture, out parsed))
+                    {
+                        layer = LayerMask.NameToLayer(layerName);
+                        if (layer < 0)
+                        {
+                            throw new ArgumentException("Unknown layer name: " + layerName);
+                        }
+                    }
+                    else
+                    {
+                        layer = value.AsInt(go.layer);
+                    }
+                    if (layer < 0 || layer > 31)
+                    {
+                        throw new ArgumentException("Layer must be 0..31 (or a layer name).");
+                    }
+                    Undo.RecordObject(go, "Set layer");
+                    go.layer = layer;
+                    break;
+                }
+                case "m_TagString":
+                {
+                    string tag = value.AsString(null);
+                    if (string.IsNullOrEmpty(tag))
+                    {
+                        throw new ArgumentException("'value' must be a tag name.");
+                    }
+                    Undo.RecordObject(go, "Set tag");
+                    go.tag = tag;
+                    break;
+                }
+                default:
+                {
+                    StaticEditorFlags flags = ParseStaticFlags(value);
+                    Undo.RecordObject(go, "Set static flags");
+                    GameObjectUtility.SetStaticEditorFlags(go, flags);
+                    break;
+                }
+            }
+            EditorUtility.SetDirty(go);
+            UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(go.scene);
+            return UapToolResults.Text("Set " + propertyPath + " on " + hierarchyPath + " [GameObject].");
+        }
+
+        private static StaticEditorFlags ParseStaticFlags(JsonNode value)
+        {
+            string text = value.AsString(null);
+            int number;
+            if (string.IsNullOrEmpty(text)
+                || int.TryParse(text, System.Globalization.NumberStyles.Integer,
+                    System.Globalization.CultureInfo.InvariantCulture, out number))
+            {
+                return (StaticEditorFlags)value.AsInt(0);
+            }
+            int combined = 0;
+            string[] parts = text.Split(',');
+            for (int i = 0; i < parts.Length; i++)
+            {
+                string part = parts[i].Trim();
+                if (part.Length == 0)
+                {
+                    continue;
+                }
+                object parsedFlag;
+                try
+                {
+                    parsedFlag = Enum.Parse(typeof(StaticEditorFlags), part, true);
+                }
+                catch (ArgumentException)
+                {
+                    throw new ArgumentException("Unknown StaticEditorFlags name: " + part);
+                }
+                combined |= (int)parsedFlag;
+            }
+            return (StaticEditorFlags)combined;
         }
     }
 }

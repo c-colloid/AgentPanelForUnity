@@ -773,30 +773,15 @@ namespace Colloid.AgentPanel.Tests
         [Test]
         public void DescribeUloopCaveat_VccCode_MapsToVccText()
         {
-            var caveat = new UloopInstallCaveat { Code = UloopInstaller.CaveatCodeVccProject };
+            var caveat = new UloopCaveat { Code = UloopManifestSupport.CaveatCodeVccProject };
             Assert.AreEqual(L10n.S.SettingsUloopCaveatVcc, SettingsView.DescribeUloopCaveat(caveat));
-        }
-
-        [Test]
-        public void DescribeUloopCaveat_OfflineCode_MapsToOfflineText()
-        {
-            var caveat = new UloopInstallCaveat { Code = UloopInstaller.CaveatCodeOffline };
-            Assert.AreEqual(L10n.S.SettingsUloopCaveatOffline, SettingsView.DescribeUloopCaveat(caveat));
         }
 
         [Test]
         public void DescribeUloopCaveat_ManifestUnreadableCode_MapsToManifestUnreadableText()
         {
-            var caveat = new UloopInstallCaveat { Code = UloopInstaller.CaveatCodeManifestUnreadable };
+            var caveat = new UloopCaveat { Code = UloopManifestSupport.CaveatCodeManifestUnreadable };
             Assert.AreEqual(L10n.S.SettingsUloopCaveatManifestUnreadable,
-                SettingsView.DescribeUloopCaveat(caveat));
-        }
-
-        [Test]
-        public void DescribeUloopCaveat_ScopedRegistryConflictCode_MapsToRegistryConflictText()
-        {
-            var caveat = new UloopInstallCaveat { Code = UloopInstaller.CaveatCodeScopedRegistryConflict };
-            Assert.AreEqual(L10n.S.SettingsUloopCaveatRegistryConflict,
                 SettingsView.DescribeUloopCaveat(caveat));
         }
 
@@ -804,26 +789,26 @@ namespace Colloid.AgentPanel.Tests
         public void DescribeUloopCaveat_UnknownCode_FallsBackToTheRawCode()
         {
             // "An UNKNOWN code must still render something honest rather
-            // than an empty row" -- task spec. A future UloopInstaller
+            // than an empty row" -- task spec. A future caveat
             // caveat this switch has not been updated for must stay
             // visible, not vanish.
-            var caveat = new UloopInstallCaveat { Code = "some-future-caveat-code" };
+            var caveat = new UloopCaveat { Code = "some-future-caveat-code" };
             Assert.AreEqual("some-future-caveat-code", SettingsView.DescribeUloopCaveat(caveat));
         }
 
         [Test]
         public void DescribeUloopCaveat_EmptyCode_FallsBackToEmptyString()
         {
-            var caveat = new UloopInstallCaveat { Code = string.Empty };
+            var caveat = new UloopCaveat { Code = string.Empty };
             Assert.AreEqual(string.Empty, SettingsView.DescribeUloopCaveat(caveat));
         }
 
         [Test]
         public void DescribeUloopCaveat_DetailPresent_IsAppendedInParentheses()
         {
-            var caveat = new UloopInstallCaveat
+            var caveat = new UloopCaveat
             {
-                Code = UloopInstaller.CaveatCodeManifestUnreadable,
+                Code = UloopManifestSupport.CaveatCodeManifestUnreadable,
                 Detail = "C:/proj/Packages/manifest.json"
             };
             string result = SettingsView.DescribeUloopCaveat(caveat);
@@ -834,260 +819,12 @@ namespace Colloid.AgentPanel.Tests
         [Test]
         public void DescribeUloopCaveat_DetailEmpty_NoParenthesesAppended()
         {
-            var caveat = new UloopInstallCaveat
+            var caveat = new UloopCaveat
             {
-                Code = UloopInstaller.CaveatCodeOffline,
+                Code = UloopManifestSupport.CaveatCodeVccProject,
                 Detail = string.Empty
             };
-            Assert.AreEqual(L10n.S.SettingsUloopCaveatOffline, SettingsView.DescribeUloopCaveat(caveat));
-        }
-
-        // -- BuildUloopAllowedPatterns / BuildUloopDisallowedPatterns (Phase 5c
-        // task item 3: the exact allow/disallow pattern strings the preset
-        // button writes -- "getting this wrong re-enables a command that has
-        // frozen this editor before") ------------------------------------------
-
-        [Test]
-        public void BuildUloopAllowedPatterns_ContainsBothFormsForEachSafeSubcommand()
-        {
-            List<string> patterns = SettingsView.BuildUloopAllowedPatterns();
-            CollectionAssert.Contains(patterns, "Bash(uloop compile)");
-            CollectionAssert.Contains(patterns, "Bash(uloop compile *)");
-            CollectionAssert.Contains(patterns, "Bash(uloop get-logs)");
-            CollectionAssert.Contains(patterns, "Bash(uloop get-logs *)");
-            CollectionAssert.Contains(patterns, "Bash(uloop list)");
-            CollectionAssert.Contains(patterns, "Bash(uloop list *)");
-            CollectionAssert.Contains(patterns, "Bash(uloop run-tests)");
-            CollectionAssert.Contains(patterns, "Bash(uloop run-tests *)");
-            Assert.AreEqual(8, patterns.Count);
-        }
-
-        [Test]
-        public void BuildUloopAllowedPatterns_NeverContainsABareWildcard()
-        {
-            // The preset used to write a single "Bash(uloop *)" and rely on
-            // disallowedTools to carve the dangerous subcommands back out.
-            // That makes safety depend on an unmeasured pattern grammar, and
-            // fails OPEN when the grammar disagrees. An allowlist fails closed
-            // (an unmatched pattern is merely a permission card), which is why
-            // the wildcard must never come back.
-            CollectionAssert.DoesNotContain(SettingsView.BuildUloopAllowedPatterns(), "Bash(uloop *)");
-        }
-
-        [Test]
-        public void StripBroadUloopAllowEntries_RemovesTheWildcardTheOldPresetWrote()
-        {
-            // The upgrade path that made the allowlist rewrite worthless.
-            // MergeToolListAdditions only appends, so without the strip the
-            // eight narrow patterns land next to a surviving Bash(uloop *)
-            // and change nothing -- execute-dynamic-code stays auto-allowed
-            // (measured, design note section 9.2) while the button's help
-            // text promises it always asks.
-            var existing = new List<string> { "Read", "Bash(uloop *)", "Edit" };
-            List<string> stripped = SettingsView.StripBroadUloopAllowEntries(existing);
-            CollectionAssert.AreEqual(new[] { "Read", "Edit" }, stripped);
-        }
-
-        [Test]
-        public void StripBroadUloopAllowEntries_RemovesSpacingAndCasingVariants()
-        {
-            var existing = new List<string>
-            {
-                "Bash(uloop*)", "bash(ULOOP  *)", "  Bash(uloop **)  ",
-            };
-            CollectionAssert.IsEmpty(SettingsView.StripBroadUloopAllowEntries(existing));
-        }
-
-        [Test]
-        public void StripBroadUloopAllowEntries_KeepsNarrowAndUnrelatedEntries()
-        {
-            // Only a wildcard over the WHOLE uloop command is broad. The
-            // preset's own entries must survive being re-applied, and a
-            // deliberate narrow entry is the user's to keep.
-            var existing = new List<string>
-            {
-                "Bash(uloop compile)", "Bash(uloop compile *)", "Bash(uloop update)",
-                "Bash(git *)", "Read", "Bash(uloopx *)",
-            };
-            CollectionAssert.AreEqual(existing, SettingsView.StripBroadUloopAllowEntries(existing));
-        }
-
-        [Test]
-        public void StripBroadUloopAllowEntries_NullExisting_ReturnsEmpty()
-        {
-            CollectionAssert.IsEmpty(SettingsView.StripBroadUloopAllowEntries(null));
-        }
-
-        [Test]
-        public void PresetAppliedOverAPreExistingWildcard_LeavesNoWildcardBehind()
-        {
-            // End-to-end over the two pure halves the button actually calls,
-            // in the same order. This is the assertion whose absence let the
-            // regression ship: the existing coverage either inspected a
-            // freshly built list or merged onto an empty one, and both stay
-            // green with the wildcard present.
-            var before = new List<string> { "Bash(uloop *)" };
-            List<string> after = SettingsView.MergeToolListAdditions(
-                SettingsView.StripBroadUloopAllowEntries(before),
-                SettingsView.BuildUloopAllowedPatterns());
-
-            CollectionAssert.DoesNotContain(after, "Bash(uloop *)");
-            CollectionAssert.Contains(after, "Bash(uloop compile)");
-            foreach (string entry in after)
-            {
-                StringAssert.DoesNotContain("execute-dynamic-code", entry);
-            }
-        }
-
-        [Test]
-        public void BuildUloopAllowedPatterns_NeverAllowsADangerousOrArbitraryCodeSubcommand()
-        {
-            // The load-bearing assertion of the whole preset: nothing that can
-            // freeze this editor, and nothing that runs arbitrary code, may be
-            // reachable without a permission card.
-            string[] mustNeverBeAllowed = { "update", "sync", "launch", "execute-dynamic-code" };
-            foreach (string pattern in SettingsView.BuildUloopAllowedPatterns())
-            {
-                foreach (string forbidden in mustNeverBeAllowed)
-                {
-                    StringAssert.DoesNotContain(forbidden, pattern);
-                }
-            }
-        }
-
-        [Test]
-        public void BuildUloopDisallowedPatterns_ContainsBothFormsForEachDangerousSubcommand()
-        {
-            List<string> patterns = SettingsView.BuildUloopDisallowedPatterns();
-            CollectionAssert.Contains(patterns, "Bash(uloop update)");
-            CollectionAssert.Contains(patterns, "Bash(uloop update *)");
-            CollectionAssert.Contains(patterns, "Bash(uloop sync)");
-            CollectionAssert.Contains(patterns, "Bash(uloop sync *)");
-            CollectionAssert.Contains(patterns, "Bash(uloop launch)");
-            CollectionAssert.Contains(patterns, "Bash(uloop launch *)");
-            Assert.AreEqual(6, patterns.Count);
-        }
-
-        [Test]
-        public void BuildUloopDisallowedPatterns_NeverMentionsExecuteDynamicCode()
-        {
-            // execute-dynamic-code must always ASK, not be blocked outright --
-            // it must be absent from disallowedTools entirely (see
-            // BuildUloopDisallowedPatterns' own doc comment for why keeping
-            // it out of BOTH lists is what makes it "always ask").
-            List<string> patterns = SettingsView.BuildUloopDisallowedPatterns();
-            foreach (string pattern in patterns)
-            {
-                StringAssert.DoesNotContain("execute-dynamic-code", pattern);
-            }
-        }
-
-        // -- MergeToolListAdditions (Phase 5c task item 3: idempotent
-        // allowedTools/disallowedTools append -- "pressing twice must not
-        // duplicate entries") ---------------------------------------------------
-
-        [Test]
-        public void MergeToolListAdditions_NullExisting_ReturnsJustTheAdditions()
-        {
-            List<string> result = SettingsView.MergeToolListAdditions(null, new[] { "Bash(uloop *)" });
-            CollectionAssert.AreEqual(new[] { "Bash(uloop *)" }, result);
-        }
-
-        [Test]
-        public void MergeToolListAdditions_NullToAdd_ReturnsACopyOfExistingUnchanged()
-        {
-            var existing = new List<string> { "Read", "Edit" };
-            List<string> result = SettingsView.MergeToolListAdditions(existing, null);
-            CollectionAssert.AreEqual(new[] { "Read", "Edit" }, result);
-            Assert.AreNotSame(existing, result, "must return a copy, never the same list instance");
-        }
-
-        [Test]
-        public void MergeToolListAdditions_NewEntries_AreAppendedAfterExisting()
-        {
-            var existing = new List<string> { "Read" };
-            List<string> result = SettingsView.MergeToolListAdditions(existing, new[] { "Bash(uloop *)" });
-            CollectionAssert.AreEqual(new[] { "Read", "Bash(uloop *)" }, result);
-        }
-
-        [Test]
-        public void MergeToolListAdditions_PressedTwice_DoesNotDuplicateEntries()
-        {
-            List<string> firstPass = SettingsView.MergeToolListAdditions(
-                new List<string>(), SettingsView.BuildUloopDisallowedPatterns());
-            List<string> secondPass = SettingsView.MergeToolListAdditions(
-                firstPass, SettingsView.BuildUloopDisallowedPatterns());
-            CollectionAssert.AreEqual(firstPass, secondPass);
-            Assert.AreEqual(6, secondPass.Count);
-        }
-
-        [Test]
-        public void MergeToolListAdditions_DoesNotMutateTheOriginalExistingList()
-        {
-            var existing = new List<string> { "Read" };
-            SettingsView.MergeToolListAdditions(existing, new[] { "Edit" });
-            CollectionAssert.AreEqual(new[] { "Read" }, existing);
-        }
-
-        [Test]
-        public void MergeToolListAdditions_NullOrEmptyCandidates_AreSkipped()
-        {
-            List<string> result = SettingsView.MergeToolListAdditions(
-                new List<string> { "Read" }, new[] { string.Empty, null, "Edit" });
-            CollectionAssert.AreEqual(new[] { "Read", "Edit" }, result);
-        }
-
-        // -- AppendUloopGuidanceSnippet (Phase 5c task item 4: idempotent
-        // custom-instructions append -- "never duplicate the snippet, never
-        // clobber what the user wrote") -----------------------------------------
-
-        [Test]
-        public void AppendUloopGuidanceSnippet_EmptyExisting_ReturnsJustTheSnippet()
-        {
-            Assert.AreEqual(SettingsView.UloopGuidanceSnippet, SettingsView.AppendUloopGuidanceSnippet(string.Empty));
-        }
-
-        [Test]
-        public void AppendUloopGuidanceSnippet_NullExisting_ReturnsJustTheSnippet()
-        {
-            Assert.AreEqual(SettingsView.UloopGuidanceSnippet, SettingsView.AppendUloopGuidanceSnippet(null));
-        }
-
-        [Test]
-        public void AppendUloopGuidanceSnippet_ExistingTextWithNoSnippet_AppendsAfterOneBlankLine()
-        {
-            string result = SettingsView.AppendUloopGuidanceSnippet("My own custom instructions.");
-            Assert.AreEqual("My own custom instructions.\n\n" + SettingsView.UloopGuidanceSnippet, result);
-        }
-
-        [Test]
-        public void AppendUloopGuidanceSnippet_ExistingTextWithTrailingWhitespace_StillExactlyOneBlankLine()
-        {
-            string result = SettingsView.AppendUloopGuidanceSnippet("My own custom instructions.\n\n\n   ");
-            Assert.AreEqual("My own custom instructions.\n\n" + SettingsView.UloopGuidanceSnippet, result);
-        }
-
-        [Test]
-        public void AppendUloopGuidanceSnippet_AlreadyPresent_IsLeftCompletelyUnchanged()
-        {
-            string alreadyApplied = "My own custom instructions.\n\n" + SettingsView.UloopGuidanceSnippet;
-            Assert.AreEqual(alreadyApplied, SettingsView.AppendUloopGuidanceSnippet(alreadyApplied));
-        }
-
-        [Test]
-        public void AppendUloopGuidanceSnippet_PressedTwice_DoesNotDuplicate()
-        {
-            string once = SettingsView.AppendUloopGuidanceSnippet("Existing text.");
-            string twice = SettingsView.AppendUloopGuidanceSnippet(once);
-            Assert.AreEqual(once, twice);
-        }
-
-        [Test]
-        public void AppendUloopGuidanceSnippet_NeverClobbersExistingText()
-        {
-            string existing = "The user's own hand-written notes, verbatim.";
-            string result = SettingsView.AppendUloopGuidanceSnippet(existing);
-            StringAssert.Contains(existing, result);
+            Assert.AreEqual(L10n.S.SettingsUloopCaveatVcc, SettingsView.DescribeUloopCaveat(caveat));
         }
 
         // -- BuildManifestDiffText (Phase 5c task item 2: "the diff is the
@@ -1526,37 +1263,40 @@ namespace Colloid.AgentPanel.Tests
             Assert.AreEqual(expected, SettingsView.ResolveModuleToggleEnabled(master, hasTools));
         }
 
-        // -- uLoop standing cost (docs/design-notes/2026-09-21-uloop-always-
-        // loaded-cost.md section 5, option 0) --------------------------------
+        // -- uLoop card visibility (docs/design-notes/2026-10-02-uloop-card-final.md) --
+        //
+        // The card exists only for a project that has uLoop. The pure rule is
+        // pinned here; the built card's display is pinned in
+        // SettingsSectionStatusTests / SettingsViewTabTests-style window tests.
 
-        [Test]
-        public void UloopCostHint_SwitchesFromWhatItCostsToHowToTurnItDown()
+        [TestCase(true, false, false, true)]
+        [TestCase(false, false, false, false)]
+        [TestCase(false, true, false, true)]
+        [TestCase(false, false, true, true)]
+        [TestCase(true, true, true, true)]
+        public void ShouldShowUloopCard_OnlyWhenDetectedOrReportingARemoval(
+            bool detected, bool removalInFlight, bool resultShown, bool expected)
         {
-            Assert.AreEqual(L10n.S.SettingsUloopStandingCostHint, SettingsView.UloopCostHint(false));
-            Assert.AreEqual(L10n.S.SettingsUloopTurnDownHint, SettingsView.UloopCostHint(true));
-            Assert.AreNotEqual(SettingsView.UloopCostHint(false), SettingsView.UloopCostHint(true),
-                "the two states must not say the same thing -- before installing the useful fact is the"
-                + " cost, afterwards it is where that package's own controls are");
+            Assert.AreEqual(expected, SettingsView.ShouldShowUloopCard(detected, removalInFlight, resultShown));
         }
 
         [Test]
-        public void UloopCostTooltip_CarriesTheDetailForBothStates()
+        public void UloopNote_SaysUloopIsInstalledAndRecommendsRemoval_InBothLanguages()
         {
-            Assert.AreEqual(L10n.S.SettingsUloopStandingCostTooltip, SettingsView.UloopCostTooltip(false));
-            Assert.AreEqual(L10n.S.SettingsUloopTurnDownTooltip, SettingsView.UloopCostTooltip(true));
-        }
-
-        /// <summary>
-        /// The installed-state wording exists to give a way out, so it must
-        /// keep naming the menu that has the controls this panel does not.
-        /// </summary>
-        [Test]
-        public void UloopCostWording_WhenInstalled_NamesULoopsOwnMenu()
-        {
-            StringAssert.Contains("Unity CLI Loop", SettingsView.UloopCostHint(true));
-            StringAssert.Contains("Unity CLI Loop", SettingsView.UloopCostTooltip(true));
-            StringAssert.Contains("Package Manager", SettingsView.UloopCostTooltip(true),
-                "removing the package is the only complete off, so the tooltip must say so");
+            try
+            {
+                L10n.OverrideForTests(PanelLanguage.English);
+                StringAssert.Contains("uLoop is installed", L10n.S.SettingsUloopNoteHint);
+                StringAssert.Contains("removing it is recommended", L10n.S.SettingsUloopNoteHint);
+                StringAssert.Contains("tick pump", L10n.S.SettingsUloopNoteTooltip);
+                L10n.OverrideForTests(PanelLanguage.Japanese);
+                StringAssert.Contains("削除", L10n.S.SettingsUloopNoteHint);
+                StringAssert.Contains("ティックポンプ", L10n.S.SettingsUloopNoteTooltip);
+            }
+            finally
+            {
+                L10n.OverrideForTests(null);
+            }
         }
 
         /// <summary>

@@ -182,7 +182,6 @@ namespace Colloid.AgentPanel.Ops.Markers
         private static void DrawReadout(Camera camera, Plane plane, Vector3 anchor, SceneStrokePlaneAxis axis,
             Vector3? hoverPoint, Vector3? hoverSurfacePoint)
         {
-            EnsureLabelStyle();
             float depth = Vector3.Dot(anchor - camera.transform.position, camera.transform.forward);
             string axisName;
             switch (axis)
@@ -193,6 +192,7 @@ namespace Colloid.AgentPanel.Ops.Markers
                 default: axisName = L10n.S.CtxSketchAxisCamera; break;
             }
             string line1 = L10n.F(L10n.S.CtxSketchDepthReadoutFmt, depth.ToString("F2", CultureInfo.InvariantCulture), axisName)
+                + "   " + L10n.F(L10n.S.CtxSketchShapeReadoutFmt, SceneStrokeSketch.ShapeLabel(SceneStrokeSketch.Shape))
                 + (_partial ? " " + L10n.S.CtxSketchContourPartial : string.Empty);
             string line2 = null;
             if (hoverPoint.HasValue && hoverSurfacePoint.HasValue)
@@ -203,14 +203,28 @@ namespace Colloid.AgentPanel.Ops.Markers
                     ? L10n.F(L10n.S.CtxSketchSurfaceBehindFmt, amount)
                     : L10n.F(L10n.S.CtxSketchSurfaceInFrontFmt, amount);
             }
-            string text = line2 != null ? line1 + "\n" + line2 + "\n" + L10n.S.CtxSketchKeyHints : line1 + "\n" + L10n.S.CtxSketchKeyHints;
+            string hints = SceneStrokeSketch.KeyHints();
+            DrawReadout(camera, line2 != null ? line1 + "\n" + line2 + "\n" + hints : line1 + "\n" + hints);
+        }
+
+        /// <summary>
+        /// The readout label, centred under the Scene view's top edge
+        /// (both sketch modes use it; surface mode shows the shape and the
+        /// key hints there). The top-left corner is where Unity docks its
+        /// Tools overlay by default, which hid the readout on 2022.3
+        /// (2026-09-18 capture, design note 2026-09-18-agent-tools-overlay.md
+        /// section 4).
+        /// </summary>
+        public static void DrawReadout(Camera camera, string text)
+        {
+            if (camera == null || string.IsNullOrEmpty(text))
+            {
+                return;
+            }
+            EnsureLabelStyle();
             Handles.BeginGUI();
             var content = new GUIContent(text);
             Vector2 size = _labelStyle.CalcSize(content);
-            // Centred under the top edge: the top-left corner is where
-            // Unity docks its Tools overlay by default, which hid the
-            // readout on 2022.3 (2026-09-18 capture, design note
-            // 2026-09-18-agent-tools-overlay.md section 4).
             float width = camera.pixelRect.width / EditorGUIUtility.pixelsPerPoint;
             GUI.Label(new Rect(Mathf.Max(12f, (width - size.x) * 0.5f), 12f, size.x, size.y), content, _labelStyle);
             Handles.EndGUI();

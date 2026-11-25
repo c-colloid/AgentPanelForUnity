@@ -8,8 +8,7 @@ using UnityEditor.PackageManager.Requests;
 namespace Colloid.AgentPanel.Tests
 {
     /// <summary>
-    /// The removal counterpart to UloopInstallerTests, and it exists for the
-    /// same reason that fixture does: this code edits manifest.json, which is
+    /// Tests for the removal path, which exists as a fixture because this code edits manifest.json, which is
     /// the user's asset. Plan() is pure and runs over fake project
     /// directories under a temp root; both write paths run through their
     /// seams, so no test ever issues a real Client.Remove or risks a real
@@ -53,7 +52,7 @@ namespace Colloid.AgentPanel.Tests
             File.WriteAllText(ManifestPath, json);
         }
 
-        /// <summary>uLoop installed exactly the way UloopInstaller leaves a project: one OpenUPM entry whose only scope is the uLoop id.</summary>
+        /// <summary>uLoop installed the way the (since removed) install button left a project: one OpenUPM entry whose only scope is the uLoop id.</summary>
         private const string InstalledAloneJson = @"{
   ""dependencies"": {
     ""com.unity.ide.rider"": ""3.0.24"",
@@ -227,12 +226,12 @@ namespace Colloid.AgentPanel.Tests
         {
             UloopUninstallPlan missing = UloopUninstaller.Plan(_root);
             Assert.IsFalse(missing.CanProceed());
-            Assert.IsTrue(HasCaveat(missing, UloopInstaller.CaveatCodeManifestUnreadable));
+            Assert.IsTrue(HasCaveat(missing, UloopManifestSupport.CaveatCodeManifestUnreadable));
 
             WriteManifest("{ not json");
             UloopUninstallPlan malformed = UloopUninstaller.Plan(_root);
             Assert.IsFalse(malformed.CanProceed());
-            Assert.IsTrue(HasCaveat(malformed, UloopInstaller.CaveatCodeManifestUnreadable));
+            Assert.IsTrue(HasCaveat(malformed, UloopManifestSupport.CaveatCodeManifestUnreadable));
 
             Assert.IsFalse(UloopUninstaller.Plan(null).CanProceed());
         }
@@ -245,7 +244,7 @@ namespace Colloid.AgentPanel.Tests
             UloopUninstallPlan plan = UloopUninstaller.Plan(_root);
 
             Assert.IsTrue(plan.CanProceed());
-            Assert.IsTrue(HasCaveat(plan, UloopInstaller.CaveatCodeVccProject));
+            Assert.IsTrue(HasCaveat(plan, UloopManifestSupport.CaveatCodeVccProject));
         }
 
         // -- Apply (phase one): dispatch only, writes nothing ----------------------
@@ -337,7 +336,7 @@ namespace Colloid.AgentPanel.Tests
             Assert.IsTrue(result.Success, result.FailureCode);
             Assert.IsTrue(result.Wrote);
             Assert.AreEqual(UloopRegistryCleanup.DropRegistry, result.Cleanup);
-            Assert.AreEqual(AfterRemovalJson, written[ManifestPath + UloopInstaller.BackupFileSuffix],
+            Assert.AreEqual(AfterRemovalJson, written[ManifestPath + UloopManifestSupport.BackupFileSuffix],
                 "the backup must hold the text as it was, not the text about to be written");
             StringAssert.DoesNotContain("io.github.hatayama.uloopmcp", written[ManifestPath]);
             StringAssert.Contains("com.unity.ide.rider", written[ManifestPath]);
@@ -398,7 +397,7 @@ namespace Colloid.AgentPanel.Tests
             Assert.IsFalse(result.Success);
             Assert.AreEqual(UloopUninstaller.CleanupFailureBackupWriteFailed, result.FailureCode);
             Assert.AreEqual(1, written.Count, "the manifest write must not be attempted after the backup failed");
-            Assert.AreEqual(ManifestPath + UloopInstaller.BackupFileSuffix, written[0]);
+            Assert.AreEqual(ManifestPath + UloopManifestSupport.BackupFileSuffix, written[0]);
         }
 
         [Test]

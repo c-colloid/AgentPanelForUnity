@@ -45,6 +45,17 @@ namespace Colloid.AgentPanel.Tests
             // uap_object_inspect (design note docs/design-notes/
             // 2026-09-21-play-mode-and-console-log-tools.md).
             "uap_console_logs",
+            // 2026-09-22 (docs/design-notes/2026-09-22-uloop-phase1.md):
+            // uap_help returns registry metadata (description, schema,
+            // flags) and touches nothing; uap_project_info reads Unity
+            // version, player/editor settings and the package manifest and
+            // writes nothing.
+            "uap_help",
+            "uap_project_info",
+            // 2026-09-23 (docs/design-notes/2026-09-23-uloop-phase2.md): uap_game_watch
+            // resolves a path/component and reads field/property values by
+            // reflection, the same reads uap_object_inspect does; it writes nothing.
+            "uap_game_watch",
         };
 
         /// <summary>
@@ -62,6 +73,7 @@ namespace Colloid.AgentPanel.Tests
             "uap_scene_destroy_object",
             "uap_scene_reparent",
             "uap_scene_rename",
+            "uap_scene_duplicate",
             "uap_scene_save",
             "uap_scene_open",
             "uap_scene_place_asset",
@@ -111,14 +123,40 @@ namespace Colloid.AgentPanel.Tests
             // only, but ReadOnly is per tool, not per argument, so the tool
             // stays out of the auto-approved set.
             "uap_play_mode",
+            // 2026-09-22: both inject input into the running game -- a
+            // click can start a purchase flow or delete a save, a key can
+            // fire a weapon. Nothing in the project changes, but what the
+            // game does with the input is the game's business, so the
+            // permission card stays.
+            "uap_game_pointer",
+            "uap_game_key",
+            // 2026-09-22 Phase 1: the same holds for the mouse device.
+            "uap_game_mouse",
+            // 2026-09-22: requests a script recompile -- a domain reload
+            // that drops Play Mode state and reloads every assembly.
+            "uap_compile",
+            // 2026-09-22: takes OS-level focus away from whatever the user
+            // is doing in another application.
+            "uap_editor_focus",
+            // 2026-09-23 Phase 2: uap_record_video keeps an encoder and a
+            // video file open across ticks; uap_input_record writes a
+            // recording file; uap_input_replay injects input like
+            // uap_game_key / uap_game_mouse.
+            "uap_record_video",
+            "uap_input_record",
+            "uap_input_replay",
+            // 2026-09-28 (docs/design-notes/2026-09-28-uloop-phase3.md): compiles and
+            // runs arbitrary C#. Never ReadOnly, never auto-approved at any level
+            // (IUapNeverAutoApproveTool) -- the strongest case in this whole list for
+            // staying off the auto-approved set.
+            "uap_execute_code",
         };
 
         private static ToolRegistry CreateFullRegistry()
         {
-            // uloopDetected:false -- the ReadOnly/mutating classification is
-            // metadata on the tool objects themselves, independent of which
-            // subset uLoop coverage happens to filter out at registration.
-            return ToolRegistry.CreateDefault(false);
+            // The ReadOnly/mutating classification is metadata on the tool
+            // objects themselves; every tool is always registered.
+            return ToolRegistry.CreateDefault();
         }
 
         /// <summary>
@@ -190,7 +228,7 @@ namespace Colloid.AgentPanel.Tests
         /// <summary>Every module any tool in the default registry declares, so ListEnabled returns everything.</summary>
         private static List<string> AllModules(ToolRegistry registry)
         {
-            return new List<string> { "core", "prefab", "editor", "anim", "ui", "markers", "web" };
+            return new List<string> { "core", "prefab", "editor", "anim", "ui", "markers", "web", "code" };
         }
     }
 }

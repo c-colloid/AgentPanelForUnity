@@ -346,11 +346,11 @@ namespace Colloid.AgentPanel.Integration
         /// Returns the manifest text with a scopedRegistries entry for
         /// <paramref name="registryUrl"/> scoping <see cref="ProPackageId"/>:
         /// an entry already at that URL (trailing-slash / case-insensitive
-        /// host match, via UloopInstaller's rule) just gains the scope, a
+        /// host match, via UloopManifestSupport's rule) just gains the scope, a
         /// missing one is appended. Fails without touching the text when a
         /// DIFFERENT registry already claims the Pro scope -- two registries
         /// for one package is a resolution the user must make, not this
-        /// class. Formatting follows UloopInstaller's manifest printer and
+        /// class. Formatting follows UloopManifestSupport's manifest printer and
         /// keeps the file's line endings.
         /// </summary>
         internal static bool TryUpsertManifest(string manifestText, string registryUrl,
@@ -369,7 +369,7 @@ namespace Colloid.AgentPanel.Integration
                 return false;
             }
 
-            JsonNode ours = UloopInstaller.FindMatchingScopedRegistry(root, registryUrl);
+            JsonNode ours = UloopManifestSupport.FindMatchingScopedRegistry(root, registryUrl);
             JsonNode registries = root["scopedRegistries"];
             if (registries.IsArray)
             {
@@ -379,7 +379,7 @@ namespace Colloid.AgentPanel.Integration
                     {
                         continue;
                     }
-                    if (UloopInstaller.ScopesContain(entry["scopes"], ProPackageId))
+                    if (UloopManifestSupport.ScopesContain(entry["scopes"], ProPackageId))
                     {
                         error = ProRegistryApplyError.ForeignRegistry;
                         detail = entry["name"].AsString(entry["url"].AsString(string.Empty));
@@ -410,7 +410,7 @@ namespace Colloid.AgentPanel.Integration
                     scopes = JsonNode.NewArray();
                     ours.Set("scopes", scopes);
                 }
-                changed = !UloopInstaller.ScopesContain(scopes, ProPackageId);
+                changed = !UloopManifestSupport.ScopesContain(scopes, ProPackageId);
                 if (changed)
                 {
                     scopes.Add(ProPackageId);
@@ -421,7 +421,7 @@ namespace Colloid.AgentPanel.Integration
             {
                 return true;
             }
-            newText = UloopInstaller.MatchLineEndings(UloopInstaller.PrettyPrintManifest(root), manifestText);
+            newText = UloopManifestSupport.MatchLineEndings(UloopManifestSupport.PrettyPrintManifest(root), manifestText);
             return true;
         }
 

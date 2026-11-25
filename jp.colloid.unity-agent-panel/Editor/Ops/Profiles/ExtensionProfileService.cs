@@ -67,15 +67,20 @@ namespace Colloid.AgentPanel.Ops.Profiles
         /// (the Settings master toggle) is off -- the toggle is checked
         /// HERE (not inside ExtensionProfileInjector) so a disabled toggle
         /// short-circuits before even touching disk/TypeCache.
+        /// <paramref name="enabledUapModules"/> / <paramref name="uapOpsEnabled"/>
+        /// feed the <c>requiresUapModules</c> gate (a profile for tools of a
+        /// disabled module is skipped); null modules = no gating.
         /// </summary>
         public static string ComposeAppendSection(string projectRoot, bool profilesEnabled,
-            List<string> approvedHashes, Action<string> log = null)
+            List<string> approvedHashes, Action<string> log = null,
+            IEnumerable<string> enabledUapModules = null, bool uapOpsEnabled = true)
         {
             if (!profilesEnabled)
             {
                 return string.Empty;
             }
-            return ExtensionProfileInjector.ComposeProfilesSection(BuildStatuses(projectRoot, approvedHashes, log));
+            return ExtensionProfileInjector.ComposeProfilesSection(
+                BuildStatuses(projectRoot, approvedHashes, log), enabledUapModules, uapOpsEnabled);
         }
     }
 }

@@ -60,7 +60,7 @@ namespace Colloid.AgentPanel.Tests
         [Test]
         public void Registered_InMarkersModule_AndReadOnly()
         {
-            ToolRegistry registry = ToolRegistry.CreateDefault(false);
+            ToolRegistry registry = ToolRegistry.CreateDefault();
             IUapTool tool = registry.Find("uap_stroke_list");
             Assert.IsNotNull(tool);
             Assert.AreEqual("markers", tool.Module);
@@ -102,6 +102,35 @@ namespace Colloid.AgentPanel.Tests
             Assert.AreEqual(1.0, plane["plane"]["origin"][1].AsDouble(), 1e-6);
             Assert.AreEqual(1.0, plane["plane"]["normal"][1].AsDouble(), 1e-6);
             Assert.IsFalse(plane["samples"][0]["n"].IsArray, "plane samples carry no per-point normal");
+        }
+
+        [Test]
+        public void Execute_Region_ReportsShapeNameAreaCentroidAndContents()
+        {
+            var region = new SceneStroke { Mode = SceneStrokeMode.Plane, Shape = SceneStrokeShape.Rectangle, Closed = true, Name = "plaza", PlaneOrigin = Vector3.zero, PlaneNormal = Vector3.up };
+            region.Points.AddRange(new[] { Vector3.zero, new Vector3(2f, 0f, 0f), new Vector3(2f, 0f, 3f), new Vector3(0f, 0f, 3f) });
+            SceneStrokeStore.Add(region);
+            SceneStrokeStore.Add(Stroke(SceneStrokeMode.Surface, 2));
+            var tool = new UapStrokeListTool();
+            JsonNode root = JsonParser.Parse(Text(tool.Execute(JsonNode.NewObject())));
+            JsonNode first = root["strokes"][0];
+            Assert.AreEqual("plaza", first["name"].AsString());
+            Assert.AreEqual("rectangle", first["shape"].AsString());
+            Assert.IsTrue(first["closed"].AsBool(false));
+            Assert.AreEqual(6.0, first["area"].AsDouble(), 1e-6);
+            Assert.AreEqual(1.0, first["centroid"][0].AsDouble(), 1e-6);
+            Assert.AreEqual(1.5, first["centroid"][2].AsDouble(), 1e-6);
+            Assert.IsTrue(first["contains"].IsObject, "a region lists its contents");
+            Assert.GreaterOrEqual(first["contains"]["count"].AsInt(-1), 0);
+            Assert.IsTrue(first["contains"]["objects"].IsArray);
+            JsonNode second = root["strokes"][1];
+            Assert.AreEqual("freehand", second["shape"].AsString());
+            Assert.IsFalse(second["name"].IsString, "unnamed strokes carry no name");
+            Assert.IsFalse(second["area"].IsNumber, "an open stroke has no area");
+            Assert.IsFalse(second["contains"].IsObject);
+            JsonNode quiet = JsonParser.Parse(Text(tool.Execute(JsonNode.NewObject().Set("contents", false))));
+            Assert.IsFalse(quiet["strokes"][0]["contains"].IsObject, "contents:false skips the scene walk");
+            Assert.AreEqual(6.0, quiet["strokes"][0]["area"].AsDouble(), 1e-6, "area is always there");
         }
 
         [Test]

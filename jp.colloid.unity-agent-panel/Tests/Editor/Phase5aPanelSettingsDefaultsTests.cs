@@ -21,7 +21,7 @@ namespace Colloid.AgentPanel.Tests
             // modules (design-notes kickoff section A1/A2).
             // 2026-09-07: "markers" (Scene-view 3D markers) joined as generation 2.
             // 2026-09-17: "web" (uap_web_fetch) joined as generation 3.
-            CollectionAssert.AreEqual(new List<string> { "core", "prefab", "editor", "markers", "web" }, new PanelSettings().uapOpsModules);
+            CollectionAssert.AreEqual(new List<string> { "core", "prefab", "editor", "markers", "web", "code" }, new PanelSettings().uapOpsModules);
         }
 
         [Test]

@@ -158,6 +158,11 @@ namespace Colloid.AgentPanel.Ops
                 text += " Warning: the marker cap (" + SceneMarkerStore.MaxMarkers
                     + ") was reached, so the oldest agent marker was removed.";
             }
+            if (!SceneMarkerVisibility.Visible)
+            {
+                text += " Note: the user has hidden the agent overlays in the Scene view (the \"Show\" toggle in the"
+                    + " Agent Tools toolbar); the marker is kept but not drawn or captured until they show them again.";
+            }
             return UapToolResults.Text(text);
         }
 

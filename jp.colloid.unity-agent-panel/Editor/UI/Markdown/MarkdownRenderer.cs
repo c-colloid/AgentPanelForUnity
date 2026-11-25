@@ -200,6 +200,7 @@ namespace Colloid.AgentPanel.UI.Markdown
                 label.AddToClassList(ussClass);
             }
             label.RegisterCallback<PointerDownLinkTagEvent>(OnLinkTagClicked);
+            TranscriptSelection.MakeSelectable(label);
             return label;
         }
 

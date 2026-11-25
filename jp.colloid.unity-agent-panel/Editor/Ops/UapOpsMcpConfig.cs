@@ -60,10 +60,27 @@ namespace Colloid.AgentPanel.Ops
 
         /// <summary>
         /// Builds `{"mcpServers":{"unity-ops":{"type":"http","url":"http://127.0.0.1:&lt;port&gt;/mcp","headers":{"Authorization":"Bearer &lt;token&gt;"}}}}`.
+        /// Equivalent to <see cref="BuildConfigJson(int, string, bool)"/>
+        /// with compact:false (every caller before PanelSettings.
+        /// uapToolListMode existed, and any caller today that explicitly
+        /// wants full mode).
         /// </summary>
         public static string BuildConfigJson(int port, string token)
         {
             return BuildConfigJson(true, port, token, null);
+        }
+
+        /// <summary>
+        /// Same payload as the 2-arg overload, on the tools/list endpoint
+        /// PanelSettings.uapToolListMode resolved to for this spawn
+        /// (design note docs/design-notes/2026-09-22-uloop-phase1.md
+        /// section 2.8 B; UapToolListModePolicy.ResolveCompact/EndpointPath
+        /// is the resolution, done once by the caller -- this method only
+        /// ever reflects <paramref name="compact"/> into the URL path).
+        /// </summary>
+        public static string BuildConfigJson(int port, string token, bool compact)
+        {
+            return BuildConfigJson(true, port, token, null, compact);
         }
 
         /// <summary>
@@ -75,16 +92,18 @@ namespace Colloid.AgentPanel.Ops
         /// reaches under that name), as is a later duplicate of a name.
         /// <paramref name="includeUapOps"/> false leaves the UapOps entry
         /// out (UapOps switched off, user servers still wanted).
+        /// <paramref name="compact"/> selects the compact tools/list
+        /// endpoint for the UapOps entry (phase 1 note section 2.8 B).
         /// </summary>
         public static string BuildConfigJson(bool includeUapOps, int port, string token,
-            IList<McpServerConfig> extraServers)
+            IList<McpServerConfig> extraServers, bool compact = false)
         {
             JsonNode servers = JsonNode.NewObject();
             if (includeUapOps)
             {
                 servers.Set(ServerName, JsonNode.NewObject()
                     .Set("type", "http")
-                    .Set("url", "http://127.0.0.1:" + port + "/mcp")
+                    .Set("url", "http://127.0.0.1:" + port + UapToolListModePolicy.EndpointPath(compact))
                     .Set("headers", JsonNode.NewObject()
                         .Set("Authorization", "Bearer " + (token ?? string.Empty))));
             }
@@ -166,9 +185,18 @@ namespace Colloid.AgentPanel.Ops
             return EnsureConfigFileWritten(projectRoot, true, port, token, null, log);
         }
 
+        /// <summary>
+        /// Same as the 4-arg overload, writing the compact-mode URL
+        /// (design section 2.8 B) when <paramref name="compact"/> is true.
+        /// </summary>
+        public static string EnsureConfigFileWritten(string projectRoot, int port, string token, bool compact, Action<string> log = null)
+        {
+            return EnsureConfigFileWritten(projectRoot, true, port, token, null, log, compact);
+        }
+
         /// <summary>The extra-servers form of <see cref="EnsureConfigFileWritten(string,int,string,Action{string})"/>.</summary>
         public static string EnsureConfigFileWritten(string projectRoot, bool includeUapOps, int port, string token,
-            IList<McpServerConfig> extraServers, Action<string> log = null)
+            IList<McpServerConfig> extraServers, Action<string> log = null, bool compact = false)
         {
             if (string.IsNullOrEmpty(projectRoot))
             {
@@ -177,7 +205,7 @@ namespace Colloid.AgentPanel.Ops
             string directory = Path.Combine(projectRoot,
                 GateHookInstaller.DefaultRelativeDirectory.Replace('/', Path.DirectorySeparatorChar));
             string configPath = Path.Combine(directory, ConfigFileName);
-            string json = BuildConfigJson(includeUapOps, port, token, extraServers);
+            string json = BuildConfigJson(includeUapOps, port, token, extraServers, compact);
 
             try
             {
