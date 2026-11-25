@@ -15,7 +15,7 @@
   docs/design-notes/2026-10-07-pro-docs-brushup.md
 -->
 
-**対象版: pro-v0.14.0**(2026-09-28 時点)。Pro のツール一覧は [別文書](PRO-FEATURES.md) にあります。
+**対象版: pro-v0.14.0**(2026-11-25 時点)。Pro のツール一覧は [別文書](PRO-FEATURES.md) にあります。
 
 ## 拡張プロファイルとは
 
