@@ -301,7 +301,8 @@ Core(`vX.Y.Z`)の一覧。Pro のタグは `pro-vX.Y.Z` で、この表には積
 
 ### 次の安定版に含める作業
 
-(なし)
+- Unity 6.3 以降で Core がコンパイルできない不具合の修正(v0.61.0 と v0.61.0-beta.1〜9 が該当。2022.3 / 6000.0 は影響なし): `UnityObjectId.FromText` の 6000.3 以降だけで有効になる分岐が `GameObject` / `Resources` を `UnityEngine.` 修飾なしで書いており CS0103 / CS0246 になっていた。`UapAddressingTests` の `GetInstanceID()` 直呼び(6000.5 でエラー)も `UnityObjectId.TextOf` 経由に。階層パスの `#<id>` が Unity 6.5 で解決できない件も修正(6.5 では EntityId の文字列が int でなく、オブジェクト名として扱われていた。`UapAddressing.IdTextOfPath` で文字列のまま照合)。あわせて CI の Unity 6 系列でホストプロジェクトの `com.unity.burst` を 1.8.31 にする(`ci/stamp-unity-version.sh`。1.8.18 は 6000.5 でコンパイルできない)。週次の EditMode Tests が 10 月 25 日から落ちていた原因。0.61.1-beta.1(2026-11-25)
+- Pro: Unity 6.5 で Pro がコンパイルできない不具合の修正(pro-v0.14.0 が該当): Model / Model Node の Hierarchy バッジ(`UapModelHierarchyBadges`)が `EditorApplication.hierarchyWindowItemOnGUI` と `EditorUtility.InstanceIDToObject(int)` を使っており、6000.5 で CS0619 になっていた。6000.5 以降は EntityId 版の行コールバックを使う。pro-v0.14.1-beta.1(2026-11-25)
 
 | タグ | 内容 |
 |---|---|
