@@ -50,6 +50,8 @@
 - 「その他...」を選ぶと自由回答欄が開きます。
 - 「スキップ」で回答せずに続行できます。
 
+Claude Code 以外のエージェント(Gemini CLI、Codex など ACP 接続のもの)も、`uap_ask_user` ツールを通じて同じ質問カードを出します。答え方は同じです。Unity 操作ツール(UapOps)の「core」モジュールが有効なときに使えます。
+
 ---
 
 [← Unity のコンテキストを渡す(チップと添付)](context.md) · [操作ガイドの目次](../USER-GUIDE.md) · [セッション・履歴・モデル →](sessions-and-models.md)

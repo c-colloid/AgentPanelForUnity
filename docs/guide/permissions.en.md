@@ -50,6 +50,8 @@ When the agent wants to confirm a direction (AskUserQuestion), a question card w
 - Choosing "Other..." opens a free-text field.
 - "Skip" continues without answering.
 
+Agents other than Claude Code (Gemini CLI, Codex and the other ACP agents) show the same question card through the `uap_ask_user` tool, and you answer it the same way. It is available while the "core" module of the Unity operation tools (UapOps) is enabled.
+
 ---
 
 [← Passing Unity context (chips and attachments)](context.en.md) · [User guide contents](../USER-GUIDE.en.md) · [Sessions, history and models →](sessions-and-models.en.md)
