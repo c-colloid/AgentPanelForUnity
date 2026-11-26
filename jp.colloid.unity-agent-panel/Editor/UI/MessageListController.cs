@@ -729,6 +729,16 @@ namespace Colloid.AgentPanel.UI
                 // forces every cached row to rebuild on the next Refresh.
                 hash = hash * 31 + MessageBlockFactory.SettingsGeneration;
                 hash = hash * 31 + (message.role != null ? message.role.GetHashCode() : 0);
+                // The "revert this request" button on a user message comes
+                // and goes with state outside the message (a turn starts
+                // or ends, a newer request takes over, the request is
+                // reverted): the row has to be rebuilt when it does.
+                if (!string.IsNullOrEmpty(message.checkpointId))
+                {
+                    hash = hash * 31 + (Colloid.AgentPanel.Integration.AgentHub.CanRevertRequest(message.checkpointId) ? 1 : 2);
+                    // ...and the confirmation card under it opens and closes.
+                    hash = hash * 31 + (message.checkpointId == Colloid.AgentPanel.Integration.AgentHub.RevertConfirmId ? 1 : 2);
+                }
                 hash = hash * 31 + message.blocks.Count;
                 for (int i = 0; i < message.blocks.Count; i++)
                 {

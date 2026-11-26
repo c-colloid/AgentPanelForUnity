@@ -7,7 +7,133 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-(nothing yet)
+### Changed
+
+- **Both auto-continue settings are now on by default (design note
+  `docs/design-notes/2026-11-26-auto-continue-default-on.md`).** The panel
+  already reconnected to the same session by itself after a domain reload,
+  but the work then stopped until someone asked for more.
+  "Continue automatically after an interruption": when a reload you caused
+  -- saving a script and coming back, a manual recompile, entering or
+  leaving Play Mode -- cuts a running turn short, the panel now sends the
+  banner's "Continue" itself instead of waiting for the click.
+  "Continue automatically after a compile": when the agent's own script
+  commit triggers a compile and reload, the panel now sends a continuation
+  turn carrying the compile result, so a write-compile-fix loop runs
+  without prompting. Both behave exactly as they did when switched on by
+  hand: only in those two situations, always with a note in the
+  transcript, never while the connection is suspended after repeated CLI
+  exits, and Stop ends them. Existing installs are switched on once on
+  upgrade; turn either off under Settings > Unity integration > Unity
+  operations (UapOps) and it stays off. The line under each toggle is a
+  plain hint now rather than a warning-coloured one.
+
+### Added
+
+- **"Revert this request": a checkpoint for each request (design note
+  `docs/design-notes/2026-11-23-request-checkpoints.md`).** Unity's Undo
+  never covered the files a request changes -- scripts, created assets,
+  prefabs -- so Ctrl+Z after a request took back the scene edits and left
+  the files. The panel now copies a file into
+  `Library/AgentPanel/Checkpoints` the moment before a request changes it,
+  and the user message of the newest request that changed something shows
+  "Revert this request". It opens a confirmation card under the message,
+  in the transcript rather than a modal dialog: what will happen, only the
+  caveats that apply to this request (beside a warning-coloured bar), the
+  files involved (folded, file name first, the ones that will not go back
+  at the top) and Revert / Cancel. On Revert the files go back to their
+  earlier content, files the request created are removed with their
+  `.meta`, its scene edits are undone through Unity's Undo, and a
+  left-aligned note lists the result line by line. The numbers shown count
+  what a person would call a file: not folders, and not the `.meta` of an
+  asset that is itself listed. The record is on disk, so it survives a domain reload and
+  an editor restart (the scene part lasts until the editor is restarted),
+  and a request that was cut by a reload and continued automatically is
+  reverted as one. Covered: Claude Code's own Write / Edit (seen before
+  the write through a hook on the control protocol, in every permission
+  mode), `uap_scripts_commit`, and anything saved, created, moved or
+  deleted through the asset database, whichever tool caused it. Shell
+  commands and arbitrary editor code (`uap_execute_code`, menu items) are
+  covered in part: the files a command line names are copied before it
+  runs, the project's file list is compared before and after so that
+  whatever they created is removed on a revert, and any other file they
+  changed is listed in the confirmation as one that cannot be put back.
+  Undo records a turn leaves are read off Unity's Undo history itself, so
+  a snippet or menu item that registers its own Undo is undone with the
+  rest; and before a snippet or menu item runs, the open scenes are
+  snapshotted in Undo (up to 50,000 objects), so what it does to scene
+  objects without calling Undo at all is taken back too, by the turn's
+  Ctrl+Z as well as by the revert. Not covered: another agent's own file edits, files over 128 MB,
+  and anything outside Assets / Packages / ProjectSettings. Requests are
+  reverted newest first; there is no redo, but
+  whatever a revert overwrites or removes is kept in the checkpoint's
+  `redo` folder. After a revert the model is told with the next message,
+  so it does not go on assuming its work still exists. The last 20
+  requests are kept, up to 2 GB. Settings > Unity integration > "Keep a
+  checkpoint for each request" (on by default; the hook half follows a
+  reconnect).
+- **Keep the agent running across script reloads (experimental, off by
+  default; design note `docs/design-notes/2026-11-25-cli-relay.md`).** A
+  domain reload -- a script recompile, entering Play Mode -- used to end
+  the Claude Code process: the panel interrupted the turn, restarted the
+  CLI with `--resume` afterwards and, when asked to, sent "continue". With
+  Settings > Unity integration > Unity operations > "Keep the agent
+  running across script reloads" on, the CLI runs under a small relay
+  process instead (built once per package version with the .NET runtime
+  and compiler Unity ships, like the existing stdio relay). The relay owns
+  the CLI's pipes and outlives the reload; the panel only closes its
+  loopback link before the reload and attaches to the same relay after
+  it. The relay keeps what the CLI printed in between and sends the open
+  turn's lines again, so the turn carries on in the same process: no
+  interrupt, no restart, no re-sent message, and a permission prompt that
+  was waiting is still there, once. `uap_*` tool calls reach Unity through
+  a fixed endpoint on the relay, which holds a call made while Unity is
+  away (up to 25 s) and delivers it to the next domain; a call that was
+  already running when the reload hit is reported as "outcome unknown"
+  rather than run twice. The relay ends with the editor, and by itself
+  when the editor is gone. Claude Code only. Whenever the relay cannot be
+  built, started or re-attached, the panel does what it always did.
+  Verified across real domain reloads on Unity 2022.3 (Linux); Windows and
+  macOS are not yet confirmed, which is why it ships off.
+- **`uap_ask_user`: the question card for ACP agents** (issue #122, design
+  note `docs/design-notes/2026-11-25-acp-ask-user.md`). Gemini CLI, Codex,
+  Qwen Code, Grok and any other ACP agent can now ask multiple-choice
+  questions on the same card Claude Code's AskUserQuestion uses (tabs for
+  several questions, "Other..." free text, Skip) and get the answer back
+  as the tool's result in the same turn. The input is AskUserQuestion's:
+  1-4 questions, 2-4 options each, optional `multiSelect`. The card shows
+  at every auto-approve level, and also when the agent runs tools without
+  asking permission; in that case a call waits up to 20 s and reports
+  `pending` until the card is answered. The standing instructions make the
+  card an ACP agent's default way to ask (design note
+  `docs/design-notes/2026-11-26-ask-user-by-default.md`): it offers
+  candidate answers even for an open-ended question, since "Other..."
+  takes anything else, and asks in prose only when it can name none. With
+  Claude Code the tool answers `unavailable` and points at the built-in
+  one.
+
+### Fixed
+
+- **The script validation gate's hook runs again on Windows (design note
+  `docs/design-notes/2026-11-26-gate-hook-hash-pinned-bootstrap.md`).** The
+  panel passed the whole hook script to the CLI as one `-EncodedCommand`
+  command line. Since v0.53.0, when the hook learned to read shell
+  commands, that line was about 17,900 characters -- more than twice the
+  8,191 a Windows command line may have -- so the hook could not start,
+  and the CLI refused to run it. With permission mode "accept edits" the
+  hook is the only thing that keeps the agent's own Write / Edit and shell
+  writes out of `Assets/**/*.cs` and `*.asmdef`, so that check was not
+  being made.
+  The command line now carries a short bootstrap (about 2,700 characters,
+  whatever the size of the script) that reads the hook script from
+  `UserSettings/AgentPanel/uap-gate-hook-<hash>.ps1`, checks its SHA-256
+  against the value fixed in the command line, and runs it only if they
+  match. A script that is missing or was edited is not run: the tool call
+  is denied with a message saying that a new session regenerates it, and
+  the next session does. If the command line still could not fit (a
+  project path thousands of characters long), the panel falls back to the
+  generic `permissions.deny` rule instead of wiring a hook that cannot
+  start.
 
 ## [0.61.1] - 2026-11-25
 

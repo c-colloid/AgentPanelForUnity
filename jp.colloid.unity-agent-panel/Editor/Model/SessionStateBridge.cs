@@ -40,6 +40,9 @@ namespace Colloid.AgentPanel.Model
         private const string KeySceneStrokes = Prefix + "SceneStrokes";
         private const string KeyComposerImages = Prefix + "ComposerImages";
         private const string KeyReloadDroppedPermissionTool = Prefix + "ReloadDroppedPermissionTool";
+        private const string KeyPendingRevertNotice = Prefix + "PendingRevertNotice";
+        private const string KeyRelayAttach = Prefix + "RelayAttach";
+        private const string KeyPendingRevertNoticeSession = Prefix + "PendingRevertNoticeSession";
 
         /// <summary>
         /// Last claude_code_version seen on ANY connection this editor
@@ -503,6 +506,42 @@ namespace Colloid.AgentPanel.Model
         {
             get { return SessionState.GetString(KeyReloadDroppedPermissionTool, string.Empty); }
             set { SessionState.SetString(KeyReloadDroppedPermissionTool, value ?? string.Empty); }
+        }
+
+        /// <summary>
+        /// What the model must be told about a reverted request (design
+        /// note 2026-11-23-request-checkpoints.md section 6), waiting to be
+        /// prepended to the next message the user sends in that session.
+        /// In SessionState because a revert that restores a script starts
+        /// a compile and a domain reload before the user types anything.
+        /// Empty = nothing pending.
+        /// </summary>
+        public static string PendingRevertNotice
+        {
+            get { return SessionState.GetString(KeyPendingRevertNotice, string.Empty); }
+            set { SessionState.SetString(KeyPendingRevertNotice, value ?? string.Empty); }
+        }
+
+        /// <summary>
+        /// What the next domain needs to re-attach to the CLI relay this
+        /// domain detached from before its reload (design note 2026-11-25-
+        /// cli-relay.md section 5): a JSON object written by
+        /// AgentHub.DetachForReload and consumed ONCE by
+        /// AgentHub.TryReattachRelay. Empty = nothing to attach to. It
+        /// holds the relay's control token; SessionState lives in this
+        /// editor process's memory and is never written to the project.
+        /// </summary>
+        public static string RelayAttachJson
+        {
+            get { return SessionState.GetString(KeyRelayAttach, string.Empty); }
+            set { SessionState.SetString(KeyRelayAttach, value ?? string.Empty); }
+        }
+
+        /// <summary>Session id <see cref="PendingRevertNotice"/> is for (empty = whichever session sends next).</summary>
+        public static string PendingRevertNoticeSession
+        {
+            get { return SessionState.GetString(KeyPendingRevertNoticeSession, string.Empty); }
+            set { SessionState.SetString(KeyPendingRevertNoticeSession, value ?? string.Empty); }
         }
 }
 }

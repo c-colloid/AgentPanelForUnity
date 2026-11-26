@@ -217,7 +217,6 @@ namespace Colloid.AgentPanel.UI
         private PopupField<UapToolListMode> _uapToolListModeField;
         private Label _autoApproveWarningLabel;
         private Label _gateWarningLabel;
-        private Label _autoContinueWarningLabel;
         private Label _agentOverridesNewSessionHint;
         private Toggle _uapOpsCoreModuleToggle;
         private Toggle _uapOpsPrefabModuleToggle;
@@ -248,7 +247,8 @@ namespace Colloid.AgentPanel.UI
         private Toggle _uapOpsGateEnabledToggle;
         private Toggle _uapOpsAutoContinueToggle;
         private Toggle _autoContinueInterruptedToggle;
-        private Label _autoContinueInterruptedWarningLabel;
+        private Toggle _requestCheckpointsToggle;
+        private Toggle _cliRelayToggle;
         private Label _playModeReloadHintLabel;
         private PopupField<UapAutoApproveLevel> _autoApproveLevelField;
 
@@ -3155,9 +3155,9 @@ namespace Colloid.AgentPanel.UI
             // deliberately absent from
             // SettingsChangeDetector.RequiresReconnect -- so the detector,
             // not the handler, is what decides there is nothing to apply.
-            // Warning-styled for
-            // the same "must stay readable without hovering" reason as
-            // the script-validation gate above.
+            // A plain hint since v0.62.0 made ON the default (design
+            // note 2026-11-26-auto-continue-default-on.md): still always
+            // visible, no longer amber on the default value.
             _uapOpsAutoContinueToggle = new Toggle(L10n.S.SettingsAutoContinueLabel);
             _uapOpsAutoContinueToggle.AddToClassList("uap-settings-field");
             _uapOpsAutoContinueToggle.AddToClassList("uap-switch");
@@ -3166,14 +3166,15 @@ namespace Colloid.AgentPanel.UI
             _uapOpsAutoContinueToggle.RegisterValueChangedCallback(OnUapOpsAutoContinueToggleChanged);
             VisualElement autoContinueScope = AddHintScope(section);
             autoContinueScope.Add(_uapOpsAutoContinueToggle);
-            _autoContinueWarningLabel = AddWarning(autoContinueScope, L10n.S.SettingsAutoContinueHelp,
+            AddHint(autoContinueScope, L10n.S.SettingsAutoContinueHelp,
                 L10n.S.SettingsAutoContinueTooltip);
 
             // Interrupted-turn auto-continue (design note 2026-09-06 section
             // 5-1): same shape and same live-read contract as the compile
             // toggle above -- PanelSettings.autoContinueInterruptedTurn is
             // read by ReloadLifecycle when a reload completes, never baked
-            // into a spawn, so no reconnect hint either.
+            // into a spawn, so no reconnect hint either. Default ON since
+            // v0.62.0, so its line is a plain hint like the one above.
             _autoContinueInterruptedToggle = new Toggle(L10n.S.SettingsAutoContinueInterruptedLabel);
             _autoContinueInterruptedToggle.AddToClassList("uap-settings-field");
             _autoContinueInterruptedToggle.AddToClassList("uap-switch");
@@ -3182,9 +3183,36 @@ namespace Colloid.AgentPanel.UI
             _autoContinueInterruptedToggle.RegisterValueChangedCallback(OnAutoContinueInterruptedToggleChanged);
             VisualElement autoContinueInterruptedScope = AddHintScope(section);
             autoContinueInterruptedScope.Add(_autoContinueInterruptedToggle);
-            _autoContinueInterruptedWarningLabel = AddWarning(autoContinueInterruptedScope,
+            AddHint(autoContinueInterruptedScope,
                 L10n.S.SettingsAutoContinueInterruptedHelp,
                 L10n.S.SettingsAutoContinueInterruptedTooltip);
+
+            // Request checkpoints (design note 2026-11-23-request-
+            // checkpoints.md): PanelSettings.requestCheckpoints. A spawn
+            // setting for the pre-write hook half (the reconnect pill
+            // follows from SettingsChangeDetector), read live for the rest.
+            _requestCheckpointsToggle = new Toggle(L10n.S.SettingsRequestCheckpointsLabel);
+            _requestCheckpointsToggle.AddToClassList("uap-settings-field");
+            _requestCheckpointsToggle.AddToClassList("uap-switch");
+            _requestCheckpointsToggle.SetValueWithoutNotify(
+                PanelStateStore.instance.Settings.requestCheckpoints);
+            _requestCheckpointsToggle.RegisterValueChangedCallback(OnRequestCheckpointsToggleChanged);
+            VisualElement requestCheckpointsScope = AddHintScope(section);
+            requestCheckpointsScope.Add(_requestCheckpointsToggle);
+            AddHint(requestCheckpointsScope, L10n.S.SettingsRequestCheckpointsHelp,
+                L10n.S.SettingsRequestCheckpointsTooltip);
+
+            // CLI relay (design note 2026-11-25-cli-relay.md):
+            // PanelSettings.cliRelayEnabled, default OFF. A spawn setting
+            // (the reconnect pill follows from SettingsChangeDetector).
+            _cliRelayToggle = new Toggle(L10n.S.SettingsCliRelayLabel);
+            _cliRelayToggle.AddToClassList("uap-settings-field");
+            _cliRelayToggle.AddToClassList("uap-switch");
+            _cliRelayToggle.SetValueWithoutNotify(PanelStateStore.instance.Settings.cliRelayEnabled);
+            _cliRelayToggle.RegisterValueChangedCallback(OnCliRelayToggleChanged);
+            VisualElement cliRelayScope = AddHintScope(section);
+            cliRelayScope.Add(_cliRelayToggle);
+            AddHint(cliRelayScope, L10n.S.SettingsCliRelayHelp, L10n.S.SettingsCliRelayTooltip);
 
             // Play Mode reload advisor (design note 2026-09-10 section 4):
             // whether Play cuts a turn short at all is entirely a PROJECT
@@ -3686,6 +3714,18 @@ namespace Colloid.AgentPanel.UI
             PanelStateStore.instance.Settings.autoContinueInterruptedTurn = evt.newValue;
             CommitSettingsChange();
             RefreshWarningTones();
+        }
+
+        private void OnRequestCheckpointsToggleChanged(ChangeEvent<bool> evt)
+        {
+            PanelStateStore.instance.Settings.requestCheckpoints = evt.newValue;
+            CommitSettingsChange();
+        }
+
+        private void OnCliRelayToggleChanged(ChangeEvent<bool> evt)
+        {
+            PanelStateStore.instance.Settings.cliRelayEnabled = evt.newValue;
+            CommitSettingsChange();
         }
 
         /// <summary>
@@ -7866,11 +7906,6 @@ namespace Colloid.AgentPanel.UI
             return !gateEnabled;
         }
 
-        internal static bool IsRiskyAutoContinueSetting(bool autoContinueEnabled)
-        {
-            return autoContinueEnabled;
-        }
-
         internal static void SetWarningTone(Label label, bool warn)
         {
             if (label != null)
@@ -7884,8 +7919,6 @@ namespace Colloid.AgentPanel.UI
             Colloid.AgentPanel.Model.PanelSettings settings = PanelStateStore.instance.Settings;
             SetWarningTone(_autoApproveWarningLabel, IsRiskyAutoApproveLevel(settings.autoApproveLevel));
             SetWarningTone(_gateWarningLabel, IsRiskyScriptGateSetting(settings.uapScriptGateEnabled));
-            SetWarningTone(_autoContinueWarningLabel, IsRiskyAutoContinueSetting(settings.uapOpsAutoContinueAfterCompile));
-            SetWarningTone(_autoContinueInterruptedWarningLabel, IsRiskyAutoContinueSetting(settings.autoContinueInterruptedTurn));
             // Design note 2026-09-10 section 4: EditorSettings.
             // enterPlayModeOptions* is a PROJECT setting the user may
             // change (Project Settings > Editor) while this panel stays

@@ -346,12 +346,12 @@ namespace Colloid.AgentPanel.UI
                     "manifest.json を読み取れないため、変更内容を安全に提示できません。",
                 settingsAutoContinueLabel: "コンパイル後に自動継続する",
                 settingsAutoContinueHelp:
-                    "既定 OFF。エージェント自身のスクリプト変更でリロードが起きたとき、継続ターンを自動送信します。会話ログには必ず明示されます。",
+                    "既定 ON。エージェント自身のスクリプト変更でリロードが起きたとき、継続ターンを自動送信します。会話ログには必ず明示されます。",
                 settingsAutoContinueTooltip:
                     "回数の上限はなく、エージェントがコミットをやめるか、CLI の再接続が停止するか、停止ボタンを押すまで続きます。エージェント自身のスクリプト変更でコンパイルとドメインリロードが発生した場合に、コンパイル結果を添えた継続ターンを送り、作業がそこで止まらないようにします。エージェント自身の .cs/.asmdef 変更に起因する場合のみで、無通知の裏ターンは行わず、必ず会話ログに残ります。継続ターンがさらにスクリプトをコミットした場合も、そのリロード後に再び継続するので、書く→コンパイル→直す のループを無人で回せます。止まるのは、エージェントがコミットをやめたとき、CLI プロセスが繰り返し落ちて再接続が停止したとき、停止ボタンを押したときです。",
                 settingsAutoContinueInterruptedLabel: "中断後に自動継続する",
                 settingsAutoContinueInterruptedHelp:
-                    "既定 OFF。リロードやPlayモードでターンが中断されたとき、「続きを実行」を自動送信します。",
+                    "既定 ON。リロードやPlayモードでターンが中断されたとき、「続きを実行」を自動送信します。",
                 settingsAutoContinueInterruptedTooltip:
                     "エージェント起因ではないドメインリロード(スクリプトを保存してエディタに戻った、手動で再コンパイルした、Playモードに入った等)で実行中のターンが中断された場合、パネルはセッションを再接続したうえで、バナーの [続きを実行] ボタンと同じメッセージをクリックを待たずに送信します。回数の上限はなく、CLI の連続終了で接続が停止しているときと、ユーザーが停止したときだけ止まります。送信は必ず会話ログに残ります。",
                 settingsPlayModeReloadOnHint:
@@ -712,6 +712,86 @@ namespace Colloid.AgentPanel.UI
                     "この操作は Unity の Undo（Ctrl+Z）では元に戻せません。許可する前に内容をよく確認してください。",
                 permDiffShowAllFmt: "全{0}行を表示",
                 hubTurnNonUndoableWarningFmt: "このターンにはCtrl+Zで元に戻せない操作が含まれています: {0}。変更内容を確認してから続行してください。",
+                chatRevertRequestButton:
+                    "この依頼を元に戻す",
+                chatRevertRequestTooltip:
+                    "この依頼で変更されたファイルを復元し、作成されたファイルを削除し、シーンの変更を取り消します。実行前に確認します。",
+                revertConfirmTitle:
+                    "この依頼を元に戻しますか?",
+                revertConfirmFilesFmt:
+                    "{0} 個のファイルを復元し、この依頼で作成した {1} 個を削除します。",
+                revertConfirmRestoreOnlyFmt:
+                    "{0} 個のファイルを復元します。",
+                revertConfirmDeleteOnlyFmt:
+                    "この依頼で作成された {0} 個のファイルを削除します。",
+                revertConfirmManualEditsLine:
+                    "その後に手作業で行ったシーンの編集も取り消されます。",
+                revertConfirmNothingLine:
+                    "この依頼の変更は自動では元に戻せません。",
+                revertConfirmNotStoredFmt:
+                    "{0} 個は大きすぎて退避できなかったため復元できません。",
+                revertConfirmUntrackedFilesFmt:
+                    "{0} 個はコマンドで変更されたため復元できません。",
+                revertConfirmChangedAfterFmt:
+                    "{0} 個は依頼の後に編集されています。その編集は失われます。",
+                revertConfirmSceneLine:
+                    "シーンの変更は Unity の Undo で取り消します。",
+                revertConfirmSceneUnavailableLine:
+                    "エディタの再起動後のため、シーンの変更は取り消せません。",
+                revertConfirmUntrackedFmt:
+                    "次の実行によるほかの変更は残る場合があります: {0}。",
+                revertConfirmFilesFoldoutFmt:
+                    "対象のファイル ({0})",
+                revertConfirmTagRestore:
+                    "復元",
+                revertConfirmTagRemove:
+                    "削除",
+                revertConfirmTagLeft:
+                    "戻せない",
+                revertConfirmMoreFilesFmt:
+                    "ほか {0} 件は省略",
+                revertConfirmNoRedoLine:
+                    "この操作はやり直せません。",
+                revertConfirmOkButton:
+                    "元に戻す",
+                revertConfirmCancelButton:
+                    "キャンセル",
+                hubRevertDoneFmt:
+                    "「{0}」を元に戻しました。\n復元 {1} 個、削除 {2} 個。",
+                hubRevertSceneUndone:
+                    "シーンの変更も取り消しました。",
+                hubRevertSceneUnavailable:
+                    "エディタの再起動後のため、シーンの変更は取り消せませんでした。",
+                hubRevertKeptScenesFmt:
+                    "依頼の前から未保存の変更があったため、ファイルは書き換えていません: {0}。元に戻した状態を残すにはシーンを保存してください。",
+                hubRevertProblemsFmt:
+                    "{0} 個は復元されていません: {1}",
+                hubRevertUntrackedFmt:
+                    "次の実行によるほかの変更は残っている場合があります: {0}。",
+                hubRevertRefusedBusy:
+                    "ターンの実行中は元に戻せません。停止するか、完了を待ってください。",
+                hubRevertRefusedPlayMode:
+                    "Play モード中は元に戻せません。先に Play モードを終了してください。",
+                hubRevertRefusedCompiling:
+                    "スクリプトのコンパイル中は元に戻せません。コンパイルが終わってからもう一度試してください。",
+                hubRevertRefusedGone:
+                    "この依頼はもう元に戻せません。元に戻せるのは、変更を行った依頼のうち最も新しいものだけです。",
+                settingsCliRelayLabel:
+                    "スクリプトのリロード中もエージェントを動かし続ける(実験的)",
+                settingsCliRelayHelp:
+                    "補助プロセスが CLI を保持し、Unity のリロード中もターンを中断しません。",
+                settingsCliRelayTooltip:
+                    "既定 OFF。通常はスクリプトの再コンパイルや Play モードへの切り替えで Claude Code のプロセスを終了し、その後に起動し直すため、実行中のターンが中断されます。ON にすると、CLI を小さな補助プロセス(パッケージから Unity 同梱の .NET で一度だけビルドします)の下で動かし、リロード後に Unity がつなぎ直します。ターンはそのまま続き、実行中だったツールやサブエージェントも失われず、リロード中に来た Unity 操作ツールの呼び出しは Unity の復帰を待ちます。補助プロセスをビルド・起動できない場合や、つなぎ直しに失敗した場合は、従来どおりエージェントを起動し直し、その旨を表示します。補助プロセスはエディタと一緒に終了し、エディタが消えた場合は自分で終了します。Claude Code のみ。再接続後に反映されます。",
+                hubCliRelayUnavailableFmt:
+                    "リロード用の補助プロセスなしでエージェントを動かしています({0})。スクリプトのリロード時は従来どおり起動し直します。",
+                hubCliRelayFellBackFmt:
+                    "リロード後に実行中のエージェントへつなぎ直せなかったため({0})、起動し直しました。",
+                settingsRequestCheckpointsLabel:
+                    "依頼ごとにチェックポイントを残す",
+                settingsRequestCheckpointsHelp:
+                    "会話に「この依頼を元に戻す」を追加します。ファイルを戻し、シーンの編集を取り消します。",
+                settingsRequestCheckpointsTooltip:
+                    "依頼がファイルを変更する直前に、そのファイルを Library/AgentPanel/Checkpoints へ退避します。これにより、ドメインリロードやエディタの再起動の後でも、最も新しい依頼を会話から元に戻せます。対象: エージェント自身のファイル編集(Claude Code)、スクリプトのコミット、Unity のアセットデータベース経由で保存・作成・移動・削除されたもの。シェルコマンドとエディタコード(uap_execute_code、メニュー実行)は一部のみ対象です: 作成されたファイルは削除し、コマンドが名指ししたファイルは元に戻し、それ以外に変更されたファイルは「戻せないファイル」として一覧に出します。128 MB を超えるファイルは保存しません。シーンの編集は Unity の Undo で取り消すため、エディタを再起動するまで有効です。直近 20 件の依頼を、合計 2 GB まで保持します。この設定の切り替えは、エージェント自身のファイル編集については再接続後に反映されます。",
                 subagentNoDetails: "このサブエージェントの詳細記録はありません。",
                 settingsUapOpsModulePrefabLabel: "プレハブ",
                 settingsUapOpsModulePrefabHint: "プレハブの作成/オーバーライドの適用・巻き戻しツール一式。",

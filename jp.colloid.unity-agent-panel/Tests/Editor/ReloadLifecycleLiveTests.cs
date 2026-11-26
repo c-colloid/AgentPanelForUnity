@@ -199,6 +199,9 @@ namespace Colloid.AgentPanel.Tests
             PanelSettings settings = PanelStateStore.instance.Settings;
             SessionState.SetString(KeyOrigPath, settings.cliManualPath ?? string.Empty);
             SessionState.SetBool(KeyOrigAutoContinue, settings.autoContinueInterruptedTurn);
+            // Default ON since v0.62.0: the tests that assert the banner
+            // path need it off, and the auto-continue test switches it on.
+            settings.autoContinueInterruptedTurn = false;
             settings.cliManualPath = FakeCliPath;
             PanelStateStore.instance.SaveNow();
 

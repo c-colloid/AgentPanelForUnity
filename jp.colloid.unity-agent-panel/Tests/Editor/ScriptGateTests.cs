@@ -392,6 +392,23 @@ namespace Colloid.AgentPanel.Tests
         }
 
         [Test]
+        public void IsProtectedGateFile_ContentAddressedHookPs1_ReturnsTrue()
+        {
+            // 2026-11-26: the hook script is uap-gate-hook-<hash>.ps1.
+            Assert.IsTrue(ScriptGate.IsProtectedGateFile(
+                @"C:\Proj\UserSettings\AgentPanel\uap-gate-hook-ba7816bf8f01cfea.ps1"));
+            Assert.IsTrue(ScriptGate.IsProtectedGateFile(
+                "UserSettings/AgentPanel/uap-gate-hook-ba7816bf8f01cfea.ps1"));
+        }
+
+        [Test]
+        public void IsProtectedGateFile_HookShapedNameOutsideTheGateFolder_ReturnsFalse()
+        {
+            Assert.IsFalse(ScriptGate.IsProtectedGateFile("Assets/uap-gate-hook-ba7816bf8f01cfea.ps1"));
+            Assert.IsFalse(ScriptGate.IsProtectedGateFile("uap-gate-settings.json"));
+        }
+
+        [Test]
         public void IsProtectedGateFile_AbsoluteUnixPath_ReturnsTrue()
         {
             Assert.IsTrue(ScriptGate.IsProtectedGateFile(
