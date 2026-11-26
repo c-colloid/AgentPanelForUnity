@@ -241,6 +241,9 @@ finalizer から守って SessionState に退避し、リロード後に `FileSt
 
 ## 6. 実装: 中断後の自動継続(`autoContinueInterruptedTurn`、既定 OFF)
 
+> 追記(2026-11-26): 既定は ON に変更した(コンパイル後の自動継続も同時に)。経緯と根拠は
+> `2026-11-26-auto-continue-default-on.md`。以下は当時の記述。
+
 - **設定**: `PanelSettings.autoContinueInterruptedTurn`。Settings の UapOps セクション、
   「コンパイル後に自動継続する」の直下に「中断後に自動継続する」トグルとして追加
   (警告トーンの注記付き、既定 OFF)。
