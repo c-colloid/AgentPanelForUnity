@@ -260,15 +260,34 @@ namespace Colloid.AgentPanel.Ops
         /// </summary>
         public static void Stop()
         {
+            Stop(false);
+        }
+
+        /// <summary>Longest a reload waits for the "not run" answers to be written.</summary>
+        private const int NotRunFlushMillis = 300;
+
+        /// <summary>
+        /// As <see cref="Stop()"/>. <paramref name="callsWillBeRedelivered"/>
+        /// is true when the CLI keeps running behind the CLI relay across
+        /// the domain reload this stop is for: calls still waiting are
+        /// then answered "not run" so the relay delivers them again to the
+        /// next server instance, instead of failing them to the model.
+        /// </summary>
+        public static void Stop(bool callsWillBeRedelivered)
+        {
             if (_dispatcher != null)
             {
-                _dispatcher.CancelAll("UapOps server is stopping.");
+                _dispatcher.CancelAll("UapOps server is stopping.", callsWillBeRedelivered);
             }
             UapWebFetchTool.MainThreadExecutor = null;
             UapConsoleLogBuffer.Uninstall();
             UnhookPump();
             if (_server != null)
             {
+                if (callsWillBeRedelivered)
+                {
+                    _server.WaitUntilIdle(NotRunFlushMillis);
+                }
                 _server.Dispose();
                 _server = null;
             }

@@ -83,6 +83,76 @@ namespace Colloid.AgentPanel.Integration
     /// <see cref="AcpStdioServer"/>) -- a broken toolchain degrades to
     /// today's http-only behavior instead of taking the bridge down.
     /// </summary>
+    /// <summary>
+    /// One helper program this builder can compile from the package's
+    /// Editor/Tools~ folder (2026-11-25, design note docs/design-notes/
+    /// 2026-11-25-cli-relay.md): which two source files, which entry
+    /// point, and where its output is cached. The builder was written for
+    /// the stdio MCP relay alone; the CLI relay is the second program and
+    /// goes through exactly the same toolchain, hashing, caching and
+    /// "never throws, null on failure" contract.
+    /// </summary>
+    public sealed class RelayProgram
+    {
+        /// <summary>Short name for log lines and cache keys.</summary>
+        public string Name;
+        /// <summary>Folder under Editor/Tools~ holding the sources.</summary>
+        public string SourceFolder;
+        public string CoreFile;
+        public string MainFile;
+        /// <summary>Fully qualified type holding Main (csc /main:).</summary>
+        public string MainType;
+        /// <summary>Folder under Library/UnityAgentPanel for the compiled output.</summary>
+        public string OutputFolder;
+        /// <summary>Output assembly file name; the runtimeconfig sits next to it under the same base name.</summary>
+        public string DllName;
+
+        /// <summary>The stdio MCP relay for ACP agents without HTTP MCP support (the builder's original and default program).</summary>
+        public static readonly RelayProgram McpStdio = new RelayProgram
+        {
+            Name = "stdio relay",
+            SourceFolder = "UapMcpStdioRelay",
+            CoreFile = "RelayCore.cs",
+            MainFile = "RelayMain.cs",
+            MainType = "Colloid.AgentPanel.Tools.McpStdioRelay.RelayMain",
+            OutputFolder = "McpStdioRelay",
+            DllName = "relay.dll"
+        };
+
+        /// <summary>The CLI relay: owns the Claude Code CLI across Unity's domain reloads.</summary>
+        public static readonly RelayProgram CliRelay = new RelayProgram
+        {
+            Name = "CLI relay",
+            SourceFolder = "UapCliRelay",
+            CoreFile = "CliRelayCore.cs",
+            MainFile = "CliRelayMain.cs",
+            MainType = "Colloid.AgentPanel.Tools.CliRelay.CliRelayMain",
+            OutputFolder = "CliRelay",
+            DllName = "cli-relay.dll"
+        };
+
+        internal string SourceDir(RelayToolchainPaths paths)
+        {
+            // paths.SourceDir / paths.OutputRoot name the stdio relay's own
+            // folders (used as they are for that program, which is what its
+            // callers and tests set); every other program is a sibling.
+            if (ReferenceEquals(this, McpStdio))
+            {
+                return paths.SourceDir;
+            }
+            return Path.Combine(Path.GetDirectoryName(paths.SourceDir) ?? string.Empty, SourceFolder);
+        }
+
+        internal string OutputRoot(RelayToolchainPaths paths)
+        {
+            if (ReferenceEquals(this, McpStdio))
+            {
+                return paths.OutputRoot ?? string.Empty;
+            }
+            return Path.Combine(Path.GetDirectoryName(paths.OutputRoot ?? string.Empty) ?? string.Empty, OutputFolder);
+        }
+    }
+
     public static class UapStdioRelayBuilder
     {
         /// <summary>Generous but bounded -- a first-time relay compile is a few small files against an already-resolved reference set; anything longer than this points at a stuck/broken toolchain, not a slow one.</summary>
@@ -291,18 +361,56 @@ namespace Colloid.AgentPanel.Integration
         /// </summary>
         public static void Warm(RelayToolchainPaths paths, Action<string> log)
         {
+            Warm(paths, RelayProgram.McpStdio, log);
+        }
+
+        /// <summary>As <see cref="Warm(RelayToolchainPaths, Action{string})"/> for any <see cref="RelayProgram"/>.</summary>
+        public static void Warm(RelayToolchainPaths paths, RelayProgram program, Action<string> log)
+        {
             try
             {
                 string hash;
-                if (!TryPrepare(paths, log, out hash))
+                if (!TryPrepare(paths, program, log, out hash))
                 {
                     return;
                 }
-                StartOrGetBuild(paths, hash, log);
+                StartOrGetBuild(paths, program, hash, log);
             }
             catch (Exception ex)
             {
-                Log(log, "Could not start the stdio relay build: " + ex.Message);
+                Log(log, "Could not start the " + program.Name + " build: " + ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// The compiled assembly of <paramref name="program"/>, building it
+        /// in the background when needed and waiting at most
+        /// <paramref name="waitMillis"/> for that build (0 = only what is
+        /// already on disk or already finished). Null when it is not ready
+        /// in time or cannot be built -- the caller falls back. Safe from
+        /// any thread; never throws.
+        /// </summary>
+        public static string TryGetBuiltDll(RelayToolchainPaths paths, RelayProgram program, Action<string> log,
+            int waitMillis)
+        {
+            try
+            {
+                string hash;
+                if (!TryPrepare(paths, program, log, out hash))
+                {
+                    return null;
+                }
+                Task<string> build = StartOrGetBuild(paths, program, hash, log);
+                if (build == null || !build.Wait(Math.Max(0, waitMillis)))
+                {
+                    return null;
+                }
+                return build.Result;
+            }
+            catch (Exception ex)
+            {
+                Log(log, "Unexpected failure building the " + program.Name + ": " + ex.Message);
+                return null;
             }
         }
 
@@ -314,11 +422,11 @@ namespace Colloid.AgentPanel.Integration
                 return null;
             }
             string hash;
-            if (!TryPrepare(paths, log, out hash))
+            if (!TryPrepare(paths, RelayProgram.McpStdio, log, out hash))
             {
                 return null;
             }
-            Task<string> build = StartOrGetBuild(paths, hash, log);
+            Task<string> build = StartOrGetBuild(paths, RelayProgram.McpStdio, hash, log);
             if (build == null)
             {
                 return null;
@@ -344,7 +452,8 @@ namespace Colloid.AgentPanel.Integration
         }
 
         /// <summary>Validates paths and sources and computes the content hash; false (logged) when nothing can be built.</summary>
-        private static bool TryPrepare(RelayToolchainPaths paths, Action<string> log, out string hash)
+        private static bool TryPrepare(RelayToolchainPaths paths, RelayProgram program, Action<string> log,
+            out string hash)
         {
             hash = null;
             if (paths == null || paths.FailureReason != null)
@@ -352,11 +461,12 @@ namespace Colloid.AgentPanel.Integration
                 Log(log, paths == null ? "No toolchain paths captured." : paths.FailureReason);
                 return false;
             }
-            string relayCorePath = Path.Combine(paths.SourceDir, "RelayCore.cs");
-            string relayMainPath = Path.Combine(paths.SourceDir, "RelayMain.cs");
+            string sourceDir = program.SourceDir(paths);
+            string relayCorePath = Path.Combine(sourceDir, program.CoreFile);
+            string relayMainPath = Path.Combine(sourceDir, program.MainFile);
             if (!File.Exists(relayCorePath) || !File.Exists(relayMainPath))
             {
-                Log(log, "UapMcpStdioRelay source files are missing under '" + paths.SourceDir + "'.");
+                Log(log, program.SourceFolder + " source files are missing under '" + sourceDir + "'.");
                 return false;
             }
             try
@@ -371,9 +481,9 @@ namespace Colloid.AgentPanel.Integration
             lock (_cacheLock)
             {
                 string cachedFailure;
-                if (_failureCache.TryGetValue(hash, out cachedFailure))
+                if (_failureCache.TryGetValue(CacheKey(program, hash), out cachedFailure))
                 {
-                    Log(log, "Stdio relay: reusing cached failure (" + cachedFailure + ").");
+                    Log(log, program.Name + ": reusing cached failure (" + cachedFailure + ").");
                     return false;
                 }
             }
@@ -386,32 +496,44 @@ namespace Colloid.AgentPanel.Integration
         /// one. Two callers never compile the same hash into the same folder
         /// concurrently.
         /// </summary>
-        private static Task<string> StartOrGetBuild(RelayToolchainPaths paths, string hash, Action<string> log)
+        private static string CacheKey(RelayProgram program, string hash)
         {
-            string outDir = Path.Combine(paths.OutputRoot ?? string.Empty, hash);
-            string dllPath = Path.Combine(outDir, "relay.dll");
-            string runtimeConfigPath = Path.Combine(outDir, "relay.runtimeconfig.json");
+            // The stdio relay keeps its bare-hash key (what existed before
+            // there was a second program); the others are namespaced.
+            return ReferenceEquals(program, RelayProgram.McpStdio) ? hash : program.OutputFolder + ":" + hash;
+        }
+
+        private static Task<string> StartOrGetBuild(RelayToolchainPaths paths, RelayProgram program, string hash,
+            Action<string> log)
+        {
+            string key = CacheKey(program, hash);
+            string outDir = Path.Combine(program.OutputRoot(paths), hash);
+            string dllPath = Path.Combine(outDir, program.DllName);
+            string runtimeConfigPath = Path.Combine(outDir,
+                Path.GetFileNameWithoutExtension(program.DllName) + ".runtimeconfig.json");
             lock (_cacheLock)
             {
                 Task<string> existing;
-                if (_builds.TryGetValue(hash, out existing))
+                if (_builds.TryGetValue(key, out existing))
                 {
                     return existing;
                 }
                 if (File.Exists(dllPath) && File.Exists(runtimeConfigPath))
                 {
                     Task<string> done = Task.FromResult(dllPath);
-                    _builds[hash] = done;
+                    _builds[key] = done;
                     return done;
                 }
-                string relayCorePath = Path.Combine(paths.SourceDir, "RelayCore.cs");
-                string relayMainPath = Path.Combine(paths.SourceDir, "RelayMain.cs");
+                string sourceDir = program.SourceDir(paths);
+                string relayCorePath = Path.Combine(sourceDir, program.CoreFile);
+                string relayMainPath = Path.Combine(sourceDir, program.MainFile);
                 Task<string> build = Task.Run(new Func<string>(delegate
                 {
                     string failure;
                     try
                     {
-                        failure = Compile(paths, relayCorePath, relayMainPath, outDir, dllPath, runtimeConfigPath);
+                        failure = Compile(paths, program.MainType, relayCorePath, relayMainPath, outDir, dllPath,
+                            runtimeConfigPath);
                     }
                     catch (Exception ex)
                     {
@@ -423,13 +545,13 @@ namespace Colloid.AgentPanel.Integration
                     }
                     lock (_cacheLock)
                     {
-                        _failureCache[hash] = failure;
-                        _builds.Remove(hash);
+                        _failureCache[key] = failure;
+                        _builds.Remove(key);
                     }
-                    Log(log, "Stdio relay compile failed: " + failure);
+                    Log(log, program.Name + " compile failed: " + failure);
                     return (string)null;
                 }));
-                _builds[hash] = build;
+                _builds[key] = build;
                 return build;
             }
         }
@@ -464,8 +586,8 @@ namespace Colloid.AgentPanel.Integration
         /// description string otherwise. Never throws (every step is
         /// wrapped); safe from any thread (class doc comment).
         /// </summary>
-        private static string Compile(RelayToolchainPaths paths, string relayCorePath, string relayMainPath,
-            string outDir, string dllPath, string runtimeConfigPath)
+        private static string Compile(RelayToolchainPaths paths, string mainType, string relayCorePath,
+            string relayMainPath, string outDir, string dllPath, string runtimeConfigPath)
         {
             CompileAttemptCountForTests++;
             try
@@ -496,7 +618,7 @@ namespace Colloid.AgentPanel.Integration
             rsp.Append("/noconfig").Append('\n');
             rsp.Append("/target:exe").Append('\n');
             rsp.Append("/platform:anycpu").Append('\n');
-            rsp.Append("/main:Colloid.AgentPanel.Tools.McpStdioRelay.RelayMain").Append('\n');
+            rsp.Append("/main:").Append(mainType).Append('\n');
             rsp.Append("/out:").Append(QuoteArg(dllPath)).Append('\n');
             for (int i = 0; i < frameworkDlls.Length; i++)
             {

@@ -87,6 +87,9 @@ namespace Colloid.AgentPanel.Ops
                 {
                     throw new InvalidOperationException("'" + _assetPath + "' is a folder.");
                 }
+                // Request checkpoint (design note 2026-11-23): a direct
+                // write, recorded before the folder and the file exist.
+                UapCheckpointRecorder.Capture(full);
                 Directory.CreateDirectory(Path.GetDirectoryName(full));
                 File.WriteAllBytes(full, _body ?? new byte[0]);
                 UnityEditor.AssetDatabase.ImportAsset(_assetPath, UnityEditor.ImportAssetOptions.ForceSynchronousImport);

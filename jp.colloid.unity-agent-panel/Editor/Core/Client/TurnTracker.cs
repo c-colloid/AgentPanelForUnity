@@ -191,6 +191,24 @@ namespace Colloid.AgentPanel.Core.Client
                 && (nowSeconds - LastActivitySeconds) >= SilenceTimeoutSeconds;
         }
 
+        /// <summary>
+        /// Puts the tracker where another instance left off, for a client
+        /// that re-attaches to a CLI still running its turn (CLI relay,
+        /// design note 2026-11-25-cli-relay.md): the same turn id, the
+        /// same number of open turns and the same interrupt fence. The
+        /// delivery ack is not awaited again -- the message was delivered
+        /// to that CLI long ago -- and the silence clock starts now.
+        /// </summary>
+        public void Restore(int turnId, int openTurns, bool interruptRequested, double nowSeconds)
+        {
+            _lastTurnId = System.Math.Max(_lastTurnId, turnId);
+            CurrentTurnId = turnId;
+            _openTurns = System.Math.Max(0, openTurns);
+            AwaitingAck = false;
+            InterruptRequested = interruptRequested && _openTurns > 0;
+            LastActivitySeconds = nowSeconds;
+        }
+
         /// <summary>Resets all turn state (process restart). Turn ids keep increasing.</summary>
         public void Reset()
         {

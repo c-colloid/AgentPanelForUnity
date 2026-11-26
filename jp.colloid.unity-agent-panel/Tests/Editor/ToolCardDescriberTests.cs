@@ -142,6 +142,21 @@ namespace Colloid.AgentPanel.Tests
         // the input carries no questions at all.
 
         [Test]
+        public void UapAskUser_ShowsTheQuestion_DirectlyAndThroughUapCall()
+        {
+            // 2026-11-25 (design note 2026-11-25-acp-ask-user.md): same
+            // input as AskUserQuestion, so the same row.
+            const string questions = "{\"questions\":[{\"question\":\"Which object?\","
+                + "\"header\":\"Target\",\"options\":[]}]}";
+
+            Assert.AreEqual("Which object?",
+                ToolCardDescriber.Describe("mcp__unity-ops__uap_ask_user", questions).Summary);
+            Assert.AreEqual("Which object?",
+                ToolCardDescriber.Describe("mcp__unity-ops__uap_call",
+                    "{\"name\":\"uap_ask_user\",\"arguments\":" + questions + "}").Summary);
+        }
+
+        [Test]
         public void AskUserQuestion_UsesFirstQuestionText()
         {
             ToolCardDescriber.Description d = ToolCardDescriber.Describe("AskUserQuestion",

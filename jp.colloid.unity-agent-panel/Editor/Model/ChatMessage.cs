@@ -198,6 +198,26 @@ namespace Colloid.AgentPanel.Model
             };
         }
 
+        /// <summary>
+        /// <see cref="title"/> value marking a SystemNote as a block of
+        /// lines: left-aligned, one fact per line, instead of the centred
+        /// one-liner an ordinary note is. Carried in title because a note
+        /// has no other use for that field and it is already serialized.
+        /// </summary>
+        public const string NoteLayoutLines = "lines";
+
+        /// <summary>
+        /// A system note of several lines (separated by '\n'), drawn
+        /// left-aligned. For outcomes with more than one fact -- a centred
+        /// paragraph of four sentences is not readable.
+        /// </summary>
+        public static ChatMessageBlock MakeSystemNoteLines(string text, bool warning = false)
+        {
+            ChatMessageBlock block = MakeSystemNote(text, warning);
+            block.title = NoteLayoutLines;
+            return block;
+        }
+
         public static ChatMessageBlock MakeError(string text)
         {
             return new ChatMessageBlock { kind = ChatBlockKind.Error, text = text ?? string.Empty };
@@ -243,6 +263,16 @@ namespace Colloid.AgentPanel.Model
         public int turnId;
         /// <summary>User messages: set when the isReplay echo confirmed delivery.</summary>
         public bool delivered;
+        /// <summary>
+        /// User messages: id of the request checkpoint this message opened
+        /// (Ops.UapCheckpointRecorder, design note 2026-11-23-request-
+        /// checkpoints.md). Empty when none was opened -- checkpoints off,
+        /// a message sent into an already running turn, or a transcript
+        /// restored from the CLI's own history. The transcript offers
+        /// "revert this request" on the message whose id is the newest
+        /// revertible checkpoint.
+        /// </summary>
+        public string checkpointId = string.Empty;
 
         /// <summary>Appends a block and returns it (builder convenience).</summary>
         public ChatMessageBlock Add(ChatMessageBlock block)

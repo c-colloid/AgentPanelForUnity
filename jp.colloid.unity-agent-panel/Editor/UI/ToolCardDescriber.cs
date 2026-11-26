@@ -156,6 +156,14 @@ namespace Colloid.AgentPanel.UI
                 return DescribeExecuteCode(input, name);
             }
 
+            // uap_ask_user takes AskUserQuestion's input (design note
+            // 2026-11-25-acp-ask-user.md): the row shows the question, as
+            // it does for the built-in tool.
+            if (name.EndsWith("uap_ask_user", System.StringComparison.OrdinalIgnoreCase))
+            {
+                return DescribeAskUserQuestion(input, name);
+            }
+
             // uap_call (design note docs/design-notes/2026-09-22-uloop-
             // phase1.md section 2.8 item 4): the card must show the INNER
             // tool and summarize ITS arguments, not echo "uap_call" with a
