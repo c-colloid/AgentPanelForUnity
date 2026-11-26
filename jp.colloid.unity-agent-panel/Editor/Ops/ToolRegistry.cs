@@ -133,6 +133,11 @@ namespace Colloid.AgentPanel.Ops
             // 2026-09-09-jobs-and-destructive-confirm section 1). Runs
             // off the main thread, so it answers while a job blocks it.
             registry.Register(new UapJobStatusTool());
+            // 2026-11-25: the question card for agents without an
+            // AskUserQuestion of their own (design note
+            // docs/design-notes/2026-11-25-acp-ask-user.md). Off the main
+            // thread: it waits for a person.
+            registry.Register(new UapAskUserTool());
             registry.Register(new UapSceneCreateObjectTool());
             registry.Register(new UapSceneDestroyObjectTool());
             registry.Register(new UapSceneReparentTool());

@@ -36,6 +36,20 @@ namespace Colloid.AgentPanel.Core.Client
             get { return _pending.Count; }
         }
 
+        /// <summary>
+        /// Moves the id counter forward so the ids this map hands out next
+        /// cannot repeat ones an earlier client already sent to the same
+        /// CLI process (a client re-attached through the CLI relay starts
+        /// with a fresh map). Never moves it backwards.
+        /// </summary>
+        public void SeedCounter(int value)
+        {
+            if (value > _counter)
+            {
+                _counter = value;
+            }
+        }
+
         /// <summary>Generates the next request id, e.g. "req_1", "int_2".</summary>
         public string NextRequestId(string prefix)
         {

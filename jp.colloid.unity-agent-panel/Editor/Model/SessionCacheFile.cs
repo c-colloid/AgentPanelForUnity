@@ -258,6 +258,12 @@ namespace Colloid.AgentPanel.Model
                 .Set("timestamp", message.timestamp ?? string.Empty)
                 .Set("turnId", message.turnId)
                 .Set("delivered", message.delivered);
+            // Only when set, so a cache written without checkpoints stays
+            // byte-identical to what earlier versions wrote.
+            if (!string.IsNullOrEmpty(message.checkpointId))
+            {
+                node.Set("checkpointId", message.checkpointId);
+            }
             JsonNode blocks = JsonNode.NewArray();
             for (int i = 0; i < message.blocks.Count; i++)
             {
@@ -417,7 +423,8 @@ namespace Colloid.AgentPanel.Model
                 role = node["role"].AsString(ChatMessage.RoleUser),
                 timestamp = node["timestamp"].AsString(string.Empty),
                 turnId = node["turnId"].AsInt(),
-                delivered = node["delivered"].AsBool()
+                delivered = node["delivered"].AsBool(),
+                checkpointId = node["checkpointId"].AsString(string.Empty)
             };
             string id = node["id"].AsString(null);
             if (!string.IsNullOrEmpty(id))

@@ -660,13 +660,13 @@ namespace Colloid.AgentPanel.UI
 
         public readonly string SettingsAutoContinueLabel = "Continue automatically after a compile";
         public readonly string SettingsAutoContinueHelp =
-            "Off by default. Sends a continuation turn after the agent's own script changes trigger a reload, always announced in the transcript.";
+            "On by default. Sends a continuation turn after the agent's own script changes trigger a reload, always announced in the transcript.";
         public readonly string SettingsAutoContinueTooltip =
             "Chains until the agent stops committing, the CLI is suspended, or you press Stop. When the agent's own script changes trigger a compile and domain reload, the panel sends a continuation turn carrying the compile result, so the work does not simply stop there. Only for the agent's own .cs/.asmdef changes, and never a silent background turn -- the transcript always says it happened. A continuation that commits more scripts continues again after that reload too, so a write-compile-fix loop runs unattended; it ends when the agent stops committing, when the CLI connection is suspended after repeated crashes, or when you press Stop.";
 
         public readonly string SettingsAutoContinueInterruptedLabel = "Continue automatically after an interruption";
         public readonly string SettingsAutoContinueInterruptedHelp =
-            "Off by default. Sends \"continue\" by itself when a reload or Play Mode cuts a turn short.";
+            "On by default. Sends \"continue\" by itself when a reload or Play Mode cuts a turn short.";
         public readonly string SettingsAutoContinueInterruptedTooltip =
             "When a domain reload the agent did not cause -- you saved a script and came back, recompiled, or entered Play Mode -- interrupts a running turn, the panel resumes the session and sends the same \"continue\" the banner button would, instead of waiting for the click. No fixed limit on how many times: it stops only while the connection is suspended after repeated CLI exits, or when you press Interrupt, and it is always announced in the transcript.";
 
@@ -1747,6 +1747,103 @@ namespace Colloid.AgentPanel.UI
         /// <summary>{0} = comma-joined display names of the non-undoable UapOps tools the just-completed turn ran (design section 8.2 B2(c)/8.5 criterion 2).</summary>
         public readonly string HubTurnNonUndoableWarningFmt =
             "This turn ran one or more operations Ctrl+Z cannot undo: {0}. Review the changes before continuing.";
+
+        // -- Request checkpoints (docs/design-notes/2026-11-23-request-checkpoints.md) --
+        public readonly string ChatRevertRequestButton =
+            "Revert this request";
+        public readonly string ChatRevertRequestTooltip =
+            "Restore the files this request changed, delete the ones it created, and undo its scene changes. Asks first.";
+        public readonly string RevertConfirmTitle =
+            "Revert this request?";
+        /// <summary>{0} = files put back, {1} = created files removed.</summary>
+        public readonly string RevertConfirmFilesFmt =
+            "Files to restore: {0}. Files to delete, created by this request: {1}.";
+        /// <summary>{0} = files restored.</summary>
+        public readonly string RevertConfirmRestoreOnlyFmt =
+            "Files to restore: {0}.";
+        /// <summary>{0} = created files deleted.</summary>
+        public readonly string RevertConfirmDeleteOnlyFmt =
+            "Files to delete, created by this request: {0}.";
+        public readonly string RevertConfirmManualEditsLine =
+            "Scene edits you made by hand since then are undone too.";
+        public readonly string RevertConfirmNothingLine =
+            "Nothing this request did can be reverted automatically.";
+        /// <summary>{0} = files whose earlier content was not stored.</summary>
+        public readonly string RevertConfirmNotStoredFmt =
+            "Too large to back up and cannot be restored. Files affected: {0}.";
+        /// <summary>{0} = files changed or deleted with no copy taken first.</summary>
+        public readonly string RevertConfirmUntrackedFilesFmt =
+            "Changed by a command and cannot be restored. Files affected: {0}.";
+        /// <summary>{0} = files the revert writes or deletes that were edited after the request ended.</summary>
+        public readonly string RevertConfirmChangedAfterFmt =
+            "Edits made after the request will be lost. Files affected: {0}.";
+        public readonly string RevertConfirmSceneLine =
+            "Scene changes are undone with Unity's Undo.";
+        public readonly string RevertConfirmSceneUnavailableLine =
+            "Scene changes cannot be undone: the editor was restarted.";
+        /// <summary>{0} = comma-joined tool names with call counts.</summary>
+        public readonly string RevertConfirmUntrackedFmt =
+            "Other changes made by these may remain: {0}.";
+        /// <summary>{0} = number of files listed.</summary>
+        public readonly string RevertConfirmFilesFoldoutFmt =
+            "Files ({0})";
+        public readonly string RevertConfirmTagRestore =
+            "restore";
+        public readonly string RevertConfirmTagRemove =
+            "delete";
+        public readonly string RevertConfirmTagLeft =
+            "skipped";
+        /// <summary>{0} = files not listed.</summary>
+        public readonly string RevertConfirmMoreFilesFmt =
+            "{0} more not listed";
+        public readonly string RevertConfirmNoRedoLine =
+            "This cannot be redone.";
+        public readonly string RevertConfirmOkButton =
+            "Revert";
+        public readonly string RevertConfirmCancelButton =
+            "Cancel";
+        /// <summary>{0} = the request's first line, {1} = files put back, {2} = files removed.</summary>
+        public readonly string HubRevertDoneFmt =
+            "Reverted \"{0}\".\nFiles restored: {1}. Files deleted: {2}.";
+        public readonly string HubRevertSceneUndone =
+            "Scene changes were undone.";
+        public readonly string HubRevertSceneUnavailable =
+            "Scene changes could not be undone: the editor was restarted.";
+        /// <summary>{0} = comma-joined scene paths.</summary>
+        public readonly string HubRevertKeptScenesFmt =
+            "Not written, because the scene had unsaved changes before the request: {0}. Save it to keep the reverted state.";
+        /// <summary>{0} = count, {1} = semicolon-joined paths with reasons.</summary>
+        public readonly string HubRevertProblemsFmt =
+            "Files not restored ({0}): {1}";
+        /// <summary>{0} = comma-joined tool names with call counts.</summary>
+        public readonly string HubRevertUntrackedFmt =
+            "Other changes made by these may remain: {0}.";
+        public readonly string HubRevertRefusedBusy =
+            "Cannot revert while a turn is running. Stop it or wait for it to finish.";
+        public readonly string HubRevertRefusedPlayMode =
+            "Cannot revert in Play Mode. Exit Play Mode first.";
+        public readonly string HubRevertRefusedCompiling =
+            "Cannot revert while scripts are compiling. Try again when the compile has finished.";
+        public readonly string HubRevertRefusedGone =
+            "This request can no longer be reverted: only the newest request that changed something can be.";
+        public readonly string SettingsCliRelayLabel =
+            "Keep the agent running across script reloads (experimental)";
+        public readonly string SettingsCliRelayHelp =
+            "A helper process holds the CLI while Unity reloads, so a running turn is not interrupted.";
+        public readonly string SettingsCliRelayTooltip =
+            "Off by default. Normally a script recompile or entering Play Mode ends the Claude Code process and the panel restarts it afterwards, which interrupts a running turn. With this on, the CLI runs under a small helper process (built once from the package with Unity's own .NET) that Unity re-attaches to after the reload: the turn keeps going, tools and subagents that were running are not lost, and Unity tool calls made during the reload wait for Unity to come back. If the helper cannot be built or started, or re-attaching fails, the panel restarts the agent as before and says so. The helper stops with the editor, and stops by itself if the editor disappears. Claude Code only. Takes effect after a reconnect.";
+        /// <summary>{0} = why the relay could not be used.</summary>
+        public readonly string HubCliRelayUnavailableFmt =
+            "The agent is running without the reload helper ({0}); a script reload will restart it as before.";
+        /// <summary>{0} = why re-attaching failed.</summary>
+        public readonly string HubCliRelayFellBackFmt =
+            "Could not re-attach to the running agent after the reload ({0}); it was restarted instead.";
+        public readonly string SettingsRequestCheckpointsLabel =
+            "Keep a checkpoint for each request";
+        public readonly string SettingsRequestCheckpointsHelp =
+            "Adds \"Revert this request\" to the chat: puts files back and undoes scene edits.";
+        public readonly string SettingsRequestCheckpointsTooltip =
+            "Before a request changes a file, the panel copies it into Library/AgentPanel/Checkpoints, so the newest request can be reverted from the chat even after a domain reload or an editor restart. Covered: the agent's own file edits (Claude Code), script commits, and anything saved, created, moved or deleted through Unity's asset database. Shell commands and editor code (uap_execute_code, menu items) are covered in part: files they create are removed, files a command names are put back, and any other file they change is listed as one that cannot be put back. Files larger than 128 MB are not stored. Scene edits are undone through Unity's Undo, which works until the editor is restarted. The last 20 requests are kept, up to 2 GB. Turning this off or on takes effect for the agent's own file edits after a reconnect.";
 
         /// <summary>
         /// Shown inside an expanded subagent card that turned out to have
@@ -3276,6 +3373,46 @@ namespace Colloid.AgentPanel.UI
             string permUndoNotSupportedTooltip,
             string permDiffShowAllFmt,
             string hubTurnNonUndoableWarningFmt,
+            string chatRevertRequestButton,
+            string chatRevertRequestTooltip,
+            string revertConfirmTitle,
+            string revertConfirmFilesFmt,
+            string revertConfirmRestoreOnlyFmt,
+            string revertConfirmDeleteOnlyFmt,
+            string revertConfirmManualEditsLine,
+            string revertConfirmNothingLine,
+            string revertConfirmNotStoredFmt,
+            string revertConfirmUntrackedFilesFmt,
+            string revertConfirmChangedAfterFmt,
+            string revertConfirmSceneLine,
+            string revertConfirmSceneUnavailableLine,
+            string revertConfirmUntrackedFmt,
+            string revertConfirmFilesFoldoutFmt,
+            string revertConfirmTagRestore,
+            string revertConfirmTagRemove,
+            string revertConfirmTagLeft,
+            string revertConfirmMoreFilesFmt,
+            string revertConfirmNoRedoLine,
+            string revertConfirmOkButton,
+            string revertConfirmCancelButton,
+            string hubRevertDoneFmt,
+            string hubRevertSceneUndone,
+            string hubRevertSceneUnavailable,
+            string hubRevertKeptScenesFmt,
+            string hubRevertProblemsFmt,
+            string hubRevertUntrackedFmt,
+            string hubRevertRefusedBusy,
+            string hubRevertRefusedPlayMode,
+            string hubRevertRefusedCompiling,
+            string hubRevertRefusedGone,
+            string settingsCliRelayLabel,
+            string settingsCliRelayHelp,
+            string settingsCliRelayTooltip,
+            string hubCliRelayUnavailableFmt,
+            string hubCliRelayFellBackFmt,
+            string settingsRequestCheckpointsLabel,
+            string settingsRequestCheckpointsHelp,
+            string settingsRequestCheckpointsTooltip,
             string subagentNoDetails,
             string settingsUapOpsModulePrefabLabel,
             string settingsUapOpsModulePrefabHint,
@@ -4198,6 +4335,46 @@ namespace Colloid.AgentPanel.UI
             PermUndoNotSupportedTooltip = permUndoNotSupportedTooltip;
             PermDiffShowAllFmt = permDiffShowAllFmt;
             HubTurnNonUndoableWarningFmt = hubTurnNonUndoableWarningFmt;
+            ChatRevertRequestButton = chatRevertRequestButton;
+            ChatRevertRequestTooltip = chatRevertRequestTooltip;
+            RevertConfirmTitle = revertConfirmTitle;
+            RevertConfirmFilesFmt = revertConfirmFilesFmt;
+            RevertConfirmRestoreOnlyFmt = revertConfirmRestoreOnlyFmt;
+            RevertConfirmDeleteOnlyFmt = revertConfirmDeleteOnlyFmt;
+            RevertConfirmManualEditsLine = revertConfirmManualEditsLine;
+            RevertConfirmNothingLine = revertConfirmNothingLine;
+            RevertConfirmNotStoredFmt = revertConfirmNotStoredFmt;
+            RevertConfirmUntrackedFilesFmt = revertConfirmUntrackedFilesFmt;
+            RevertConfirmChangedAfterFmt = revertConfirmChangedAfterFmt;
+            RevertConfirmSceneLine = revertConfirmSceneLine;
+            RevertConfirmSceneUnavailableLine = revertConfirmSceneUnavailableLine;
+            RevertConfirmUntrackedFmt = revertConfirmUntrackedFmt;
+            RevertConfirmFilesFoldoutFmt = revertConfirmFilesFoldoutFmt;
+            RevertConfirmTagRestore = revertConfirmTagRestore;
+            RevertConfirmTagRemove = revertConfirmTagRemove;
+            RevertConfirmTagLeft = revertConfirmTagLeft;
+            RevertConfirmMoreFilesFmt = revertConfirmMoreFilesFmt;
+            RevertConfirmNoRedoLine = revertConfirmNoRedoLine;
+            RevertConfirmOkButton = revertConfirmOkButton;
+            RevertConfirmCancelButton = revertConfirmCancelButton;
+            HubRevertDoneFmt = hubRevertDoneFmt;
+            HubRevertSceneUndone = hubRevertSceneUndone;
+            HubRevertSceneUnavailable = hubRevertSceneUnavailable;
+            HubRevertKeptScenesFmt = hubRevertKeptScenesFmt;
+            HubRevertProblemsFmt = hubRevertProblemsFmt;
+            HubRevertUntrackedFmt = hubRevertUntrackedFmt;
+            HubRevertRefusedBusy = hubRevertRefusedBusy;
+            HubRevertRefusedPlayMode = hubRevertRefusedPlayMode;
+            HubRevertRefusedCompiling = hubRevertRefusedCompiling;
+            HubRevertRefusedGone = hubRevertRefusedGone;
+            SettingsCliRelayLabel = settingsCliRelayLabel;
+            SettingsCliRelayHelp = settingsCliRelayHelp;
+            SettingsCliRelayTooltip = settingsCliRelayTooltip;
+            HubCliRelayUnavailableFmt = hubCliRelayUnavailableFmt;
+            HubCliRelayFellBackFmt = hubCliRelayFellBackFmt;
+            SettingsRequestCheckpointsLabel = settingsRequestCheckpointsLabel;
+            SettingsRequestCheckpointsHelp = settingsRequestCheckpointsHelp;
+            SettingsRequestCheckpointsTooltip = settingsRequestCheckpointsTooltip;
             SubagentNoDetails = subagentNoDetails;
             SettingsUapOpsModulePrefabLabel = settingsUapOpsModulePrefabLabel;
             SettingsUapOpsModulePrefabHint = settingsUapOpsModulePrefabHint;

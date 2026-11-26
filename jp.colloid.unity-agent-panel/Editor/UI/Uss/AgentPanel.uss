@@ -589,6 +589,177 @@
     color: var(--uap-text-primary);
 }
 
+/* 2026-11-23 request checkpoints: "Revert this request" at the right end
+   of the user message's role row. A text link, not a filled button -- it
+   is a rarely used escape hatch and must not compete with the message. */
+.uap-msg-revert {
+    margin-left: auto;
+    margin-right: 0;
+    margin-top: 0;
+    margin-bottom: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    padding-left: var(--uap-space-s);
+    padding-right: 0;
+    background-color: rgba(0, 0, 0, 0);
+    border-width: 0;
+    font-size: var(--uap-font-size-meta);
+    color: var(--uap-text-secondary);
+}
+
+.uap-msg-revert:hover,
+.uap-msg-revert:focus,
+.uap-msg-revert:active {
+    background-color: rgba(0, 0, 0, 0);
+    color: var(--uap-text-primary);
+}
+
+/* 2026-11-25 request checkpoints: the "revert this request?" card, the last
+   element of the user message it belongs to (design note 2026-11-23 section
+   11). A NEUTRAL inset surface, not the permission card's amber prompt:
+   the user started this action, and with the whole card amber nothing was
+   left to mark the lines that matter. The only accent is the warn bar
+   beside the caveats. */
+.uap-revert {
+    background-color: var(--uap-bg-base);
+    border-left-width: 1px;
+    border-top-width: 1px;
+    border-bottom-width: 1px;
+    border-right-width: 1px;
+    border-left-color: var(--uap-border-subtle);
+    border-top-color: var(--uap-border-subtle);
+    border-bottom-color: var(--uap-border-subtle);
+    border-right-color: var(--uap-border-subtle);
+    border-top-left-radius: var(--uap-radius);
+    border-top-right-radius: var(--uap-radius);
+    border-bottom-left-radius: var(--uap-radius);
+    border-bottom-right-radius: var(--uap-radius);
+    margin-top: var(--uap-space-m);
+    padding-top: var(--uap-space-m);
+    padding-bottom: var(--uap-space-m);
+    padding-left: var(--uap-space-l);
+    padding-right: var(--uap-space-l);
+    flex-shrink: 0;
+}
+
+.uap-revert-title {
+    -unity-font-style: bold;
+    font-size: var(--uap-font-size-title);
+    color: var(--uap-text-primary);
+    white-space: normal;
+    margin-bottom: var(--uap-space-s);
+}
+
+.uap-revert-line {
+    color: var(--uap-text-primary);
+    white-space: normal;
+    margin-top: var(--uap-space-s);
+}
+
+/* What to read before deciding. Primary text beside a warn-coloured bar:
+   amber TEXT on this surface is 2.9:1 in the light skin. */
+.uap-revert-caveats {
+    margin-top: var(--uap-space-m);
+    padding-left: var(--uap-space-m);
+    padding-bottom: var(--uap-space-xs);
+    border-left-width: 2px;
+    border-left-color: var(--uap-status-warn);
+}
+
+.uap-revert-files {
+    margin-top: var(--uap-space-m);
+}
+
+.uap-revert-files > Toggle {
+    margin-left: 0;
+}
+
+.uap-revert-files > Toggle Label {
+    font-size: var(--uap-font-size-meta);
+    color: var(--uap-text-secondary);
+}
+
+.uap-revert-file {
+    flex-direction: row;
+    align-items: flex-start;
+    margin-top: var(--uap-space-xs);
+}
+
+.uap-revert-tag {
+    flex-shrink: 0;
+    min-width: 56px;
+    font-size: var(--uap-font-size-meta);
+    color: var(--uap-text-secondary);
+}
+
+/* The rows that will NOT go back: weight, not colour, sets them apart. */
+.uap-revert-tag--left {
+    -unity-font-style: bold;
+    color: var(--uap-text-primary);
+}
+
+/* File name + folder. Wraps: at 600px they sit on one line, in a narrow
+   panel the folder drops under the name instead of squeezing it. */
+.uap-revert-where {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.uap-revert-name {
+    flex-shrink: 1;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-right: var(--uap-space-m);
+    font-size: var(--uap-font-size-meta);
+    color: var(--uap-text-primary);
+}
+
+.uap-revert-dir {
+    flex-shrink: 1;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--uap-font-size-small);
+    color: var(--uap-text-secondary);
+}
+
+.uap-revert-more {
+    font-size: var(--uap-font-size-meta);
+    color: var(--uap-text-secondary);
+    margin-top: var(--uap-space-s);
+}
+
+.uap-revert-footer {
+    margin-top: var(--uap-space-l);
+    padding-top: var(--uap-space-m);
+    border-top-width: 1px;
+    border-top-color: var(--uap-border-subtle);
+}
+
+.uap-revert-note {
+    color: var(--uap-text-primary);
+    white-space: normal;
+    margin-bottom: var(--uap-space-m);
+}
+
+.uap-revert-actions {
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.uap-revert-actions > .uap-card-btn {
+    margin-right: var(--uap-space-m);
+}
+
 .uap-text {
     white-space: normal;
     font-size: var(--uap-font-size-body);
@@ -786,6 +957,22 @@
    read stands out from one that is just narration. */
 .uap-note--warn {
     color: var(--uap-status-warn);
+}
+
+/* A system note of several lines (ChatMessageBlock.MakeSystemNoteLines):
+   left-aligned, one fact per line. The revert result is the first user. */
+.uap-note--lines {
+    -unity-text-align: upper-left;
+    color: var(--uap-text-primary);
+    margin-top: var(--uap-space-m);
+    margin-left: var(--uap-space-l);
+    margin-right: var(--uap-space-l);
+}
+
+.uap-note--lines-warn {
+    padding-left: var(--uap-space-m);
+    border-left-width: 2px;
+    border-left-color: var(--uap-status-warn);
 }
 
 .uap-error {

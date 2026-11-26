@@ -552,6 +552,62 @@ namespace Colloid.AgentPanel.Tests
         }
 
         [Test]
+        public void AutoContinue_BothDefaultOn()
+        {
+            var settings = new PanelSettings();
+            Assert.IsTrue(settings.autoContinueInterruptedTurn);
+            Assert.IsTrue(settings.uapOpsAutoContinueAfterCompile);
+        }
+
+        [Test]
+        public void EnsureAutoContinueDefaults_OptInEraAsset_IsSwitchedOnOnce()
+        {
+            // What an asset saved before v0.62.0 deserializes to: the
+            // stored false over the initializer, and no generation stamp.
+            var settings = new PanelSettings
+            {
+                autoContinueInterruptedTurn = false,
+                uapOpsAutoContinueAfterCompile = false,
+                autoContinueDefaultsGeneration = 0
+            };
+
+            Assert.IsTrue(settings.EnsureAutoContinueDefaults());
+            Assert.IsTrue(settings.autoContinueInterruptedTurn);
+            Assert.IsTrue(settings.uapOpsAutoContinueAfterCompile);
+            Assert.AreEqual(PanelSettings.CurrentAutoContinueDefaultsGeneration,
+                settings.autoContinueDefaultsGeneration);
+        }
+
+        [Test]
+        public void EnsureAutoContinueDefaults_RunsOnlyOnce_LaterOffStays()
+        {
+            var settings = new PanelSettings();
+            Assert.IsTrue(settings.EnsureAutoContinueDefaults(),
+                "a fresh asset still has to persist the stamp");
+            settings.autoContinueInterruptedTurn = false;
+            settings.uapOpsAutoContinueAfterCompile = false;
+
+            Assert.IsFalse(settings.EnsureAutoContinueDefaults(),
+                "a second pass must be a no-op");
+            Assert.IsFalse(settings.autoContinueInterruptedTurn,
+                "switching it off after the default flip must stick");
+            Assert.IsFalse(settings.uapOpsAutoContinueAfterCompile,
+                "switching it off after the default flip must stick");
+        }
+
+        [Test]
+        public void EnsureAutoContinueDefaults_SurvivesJsonRoundTrip()
+        {
+            var settings = new PanelSettings();
+            settings.EnsureAutoContinueDefaults();
+            settings.autoContinueInterruptedTurn = false;
+
+            var restored = JsonUtility.FromJson<PanelSettings>(JsonUtility.ToJson(settings));
+            Assert.IsFalse(restored.EnsureAutoContinueDefaults());
+            Assert.IsFalse(restored.autoContinueInterruptedTurn);
+        }
+
+        [Test]
         public void EnsureAutoApproveLevelMigrated_RunsOnlyOnce_LaterUserChoiceStays()
         {
             // The reason this is generation-gated instead of re-seeding

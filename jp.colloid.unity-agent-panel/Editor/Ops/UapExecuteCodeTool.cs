@@ -549,6 +549,10 @@ namespace Colloid.AgentPanel.Ops
                 logLines.Add(line);
             };
 
+            // Request checkpoints (design note 2026-11-23 section 10): the
+            // snippet may write files without the asset database; the
+            // before/after comparison needs its "before" now.
+            bool sceneSnapshot = UapCheckpointRecorder.BeforeUntrackedEditorWork();
             List<string> undoRecordsBefore = TryGetUndoRecordsForTests != null
                 ? TryGetUndoRecordsForTests() : TryReadUndoRecords();
             Undo.IncrementCurrentGroup();
@@ -615,6 +619,14 @@ namespace Colloid.AgentPanel.Ops
             {
                 json.Set("undoNote", "Could not determine whether this run produced Undo records.");
             }
+            if (sceneSnapshot)
+            {
+                // The undoNote above speaks for the snippet's own records;
+                // this says what the panel's snapshot adds on top.
+                json.Set("sceneSnapshotNote", "The open scenes were snapshotted in Undo before this run: changes to scene"
+                    + " objects are undone by the turn's Ctrl+Z and by \"Revert this request\" even without Undo calls."
+                    + " Changes to assets are not covered by the snapshot.");
+            }
             if (EditorApplication.isPlaying)
             {
                 json.Set("playModeWarning", "Play Mode is running: any changes to scene objects are lost when"
@@ -670,46 +682,10 @@ namespace Colloid.AgentPanel.Ops
             return 0;
         }
 
-        /// <summary>
-        /// Best-effort probe into UnityEditor.Undo's PRIVATE record list
-        /// (internal static Undo.GetRecords(List&lt;string&gt;, out int),
-        /// verified against UnityCsReference's Editor/Mono/Undo/Undo.bindings.cs
-        /// -- see the design note): there is no PUBLIC API that reports
-        /// whether a call recorded anything, only ones that report the
-        /// CURRENT group INDEX (Undo.GetCurrentGroup()), which does not
-        /// change just because a record was added to it. Reflection into an
-        /// internal engine method can break on a future Unity version with
-        /// no warning; every caller treats a null result (reflection
-        /// failed) as "unknown" rather than guessing, and the reply says so
-        /// honestly instead of asserting a wrong answer.
-        /// </summary>
-        private static MethodInfo _getRecordsMethod;
-        private static bool _getRecordsResolved;
-
+        /// <summary>The Undo stack's entries, or null when unknown (see <see cref="UapUndoProbe"/>).</summary>
         private static List<string> TryReadUndoRecords()
         {
-            try
-            {
-                if (!_getRecordsResolved)
-                {
-                    _getRecordsResolved = true;
-                    _getRecordsMethod = typeof(Undo).GetMethod("GetRecords",
-                        BindingFlags.NonPublic | BindingFlags.Static, null,
-                        new[] { typeof(List<string>), typeof(int).MakeByRefType() }, null);
-                }
-                if (_getRecordsMethod == null)
-                {
-                    return null;
-                }
-                var list = new List<string>();
-                object[] args = { list, 0 };
-                _getRecordsMethod.Invoke(null, args);
-                return list;
-            }
-            catch (Exception)
-            {
-                return null;
-            }
+            return UapUndoProbe.TryReadRecords();
         }
 
         private static bool TryDescribeUnityObject(object value, out string name, out string typeName, out string path)

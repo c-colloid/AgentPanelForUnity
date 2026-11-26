@@ -241,44 +241,170 @@ namespace Colloid.AgentPanel.Tests
             Assert.AreEqual(string.Empty, GateHookInstaller.EscapePowerShellSingleQuoted(string.Empty));
         }
 
-        // -- BuildInlineHookCommand + BuildSettingsJson -------------------------
+        // -- Hash, file name, bootstrap, command line, settings JSON ------------
+        // 2026-11-26: the command line carries a short bootstrap that pins
+        // the hook script's SHA-256, instead of the whole script
+        // (docs/design-notes/2026-11-26-gate-hook-hash-pinned-bootstrap.md).
+
+        private const string SampleHookPath =
+            @"C:\Proj\UserSettings\AgentPanel\uap-gate-hook-0123456789abcdef.ps1";
+
+        private static string SampleHash()
+        {
+            return GateHookInstaller.ComputeScriptHash(GateHookInstaller.BuildHookScript(ScriptGate.DenyMessage));
+        }
+
+        private static string DecodeEncodedCommand(string command)
+        {
+            string base64 = command.Substring(command.LastIndexOf(' ') + 1);
+            return Encoding.Unicode.GetString(System.Convert.FromBase64String(base64));
+        }
 
         [Test]
-        public void BuildInlineHookCommand_UsesEncodedCommand_ThatDecodesToTheHookScript()
+        public void ComputeScriptHash_KnownVector_UppercaseHex()
         {
-            // SEC-1: the hook runs inline via -EncodedCommand (base64 of the
-            // UTF-16LE script), so no .ps1 lives on disk for an agent to
-            // overwrite. The command must not reference a -File path.
-            string command = GateHookInstaller.BuildInlineHookCommand(ScriptGate.DenyMessage);
+            // FIPS 180-2 test vector for "abc".
+            Assert.AreEqual("BA7816BF8F01CFEA414140DE5DAE2223B00361A396177A9CB410FF61F20015AD",
+                GateHookInstaller.ComputeScriptHash("abc"));
+        }
+
+        [Test]
+        public void ComputeScriptHash_ChangesWithTheScript()
+        {
+            Assert.AreNotEqual(
+                GateHookInstaller.ComputeScriptHash(GateHookInstaller.BuildHookScript("a")),
+                GateHookInstaller.ComputeScriptHash(GateHookInstaller.BuildHookScript("b")));
+        }
+
+        [Test]
+        public void HookFileNameFor_IsPrefixPlusFirst16LowercaseHexDigits()
+        {
+            Assert.AreEqual("uap-gate-hook-ba7816bf8f01cfea.ps1",
+                GateHookInstaller.HookFileNameFor("BA7816BF8F01CFEA414140DE5DAE2223B00361A396177A9CB410FF61F20015AD"));
+        }
+
+        [Test]
+        public void IsHookFileName_LegacyAndContentAddressed_True_OthersFalse()
+        {
+            Assert.IsTrue(GateHookInstaller.IsHookFileName("uap-gate-hook.ps1"));
+            Assert.IsTrue(GateHookInstaller.IsHookFileName("uap-gate-hook-ba7816bf8f01cfea.ps1"));
+            Assert.IsTrue(GateHookInstaller.IsHookFileName("UAP-GATE-HOOK-BA7816BF8F01CFEA.PS1"));
+            Assert.IsFalse(GateHookInstaller.IsHookFileName("uap-gate-hook-.ps1"));
+            Assert.IsFalse(GateHookInstaller.IsHookFileName("uap-gate-settings.json"));
+            Assert.IsFalse(GateHookInstaller.IsHookFileName("SessionCache.json"));
+            Assert.IsFalse(GateHookInstaller.IsHookFileName(null));
+            Assert.IsFalse(GateHookInstaller.IsHookFileName(string.Empty));
+        }
+
+        [Test]
+        public void BuildBootstrapScript_MatchesExactExpectedText()
+        {
+            string expected =
+                "$ErrorActionPreference = 'Stop'\n"
+                + "try {\n"
+                + "    $bytes = [IO.File]::ReadAllBytes('C:\\Proj\\hook.ps1')\n"
+                + "    $sha = [Security.Cryptography.SHA256]::Create()\n"
+                + "    $hash = [BitConverter]::ToString($sha.ComputeHash($bytes)).Replace('-', '')\n"
+                + "    if ($hash -ne 'ABCD') { throw 'hash mismatch' }\n"
+                + "    $block = [scriptblock]::Create([Text.Encoding]::UTF8.GetString($bytes))\n"
+                + "} catch {\n"
+                + "    '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\","
+                + "\"permissionDecisionReason\":\"" + GateHookInstaller.UnverifiedHookDenyMessage + "\"}}'\n"
+                + "    exit 0\n"
+                + "}\n"
+                + "& $block\n";
+            Assert.AreEqual(expected, GateHookInstaller.BuildBootstrapScript(@"C:\Proj\hook.ps1", "ABCD"));
+        }
+
+        [Test]
+        public void BuildBootstrapScript_PathWithSingleQuote_DoublesIt()
+        {
+            string bootstrap = GateHookInstaller.BuildBootstrapScript(@"C:\It's mine\hook.ps1", "ABCD");
+            StringAssert.Contains(@"ReadAllBytes('C:\It''s mine\hook.ps1')", bootstrap);
+        }
+
+        [Test]
+        public void UnverifiedHookDenyMessage_NeedsNoEscaping()
+        {
+            // It sits inside a JSON string inside a single-quoted PowerShell
+            // literal. Both layers escape, but the pinned bootstrap text
+            // above assumes neither had anything to do.
+            foreach (char c in GateHookInstaller.UnverifiedHookDenyMessage)
+            {
+                Assert.IsTrue(c >= 0x20 && c <= 0x7E && c != '\'' && c != '"' && c != '\\',
+                    "character needing an escape: U+" + ((int)c).ToString("X4"));
+            }
+        }
+
+        [Test]
+        public void BuildInlineHookCommand_UsesEncodedCommand_ThatDecodesToTheBootstrap()
+        {
+            string hash = SampleHash();
+            string command = GateHookInstaller.BuildInlineHookCommand(SampleHookPath, hash);
             StringAssert.StartsWith(
                 "powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ", command);
             StringAssert.DoesNotContain("-File", command);
-            string base64 = command.Substring(command.LastIndexOf(' ') + 1);
-            string decoded = Encoding.Unicode.GetString(System.Convert.FromBase64String(base64));
-            Assert.AreEqual(GateHookInstaller.BuildHookScript(ScriptGate.DenyMessage), decoded);
+            Assert.AreEqual(GateHookInstaller.BuildBootstrapScript(SampleHookPath, hash), DecodeEncodedCommand(command));
         }
 
         [Test]
-        public void BuildSettingsJson_WithoutDenyFallback_InlinesHookViaEncodedCommand_NoPs1()
+        public void BuildInlineHookCommand_StaysFarBelowTheCommandLineLimit()
         {
-            string json = GateHookInstaller.BuildSettingsJson(ScriptGate.DenyMessage, includeDenyFallback: false);
+            // The regression this shape exists for: with the whole script
+            // inline the command was over 17,000 characters, cmd.exe's limit
+            // is 8,191, and the CLI refused to start the hook -- so nothing
+            // gated script writes under acceptEdits. A 240-character path
+            // (close to MAX_PATH) must still leave half the budget unused.
+            string longPath = @"C:\" + new string('p', 240 - 3 - 4) + ".ps1";
+            Assert.AreEqual(240, longPath.Length);
+            string command = GateHookInstaller.BuildInlineHookCommand(longPath, SampleHash());
+            Assert.Less(command.Length, GateHookInstaller.MaxHookCommandLength / 2,
+                "hook command line is " + command.Length + " characters.");
+        }
+
+        [Test]
+        public void BuildInlineHookCommand_LengthDoesNotDependOnTheScript()
+        {
+            // The script is on disk; only its 64-digit hash is on the
+            // command line. Growing the script must not grow the command.
+            string small = GateHookInstaller.BuildInlineHookCommand(SampleHookPath,
+                GateHookInstaller.ComputeScriptHash("x"));
+            string large = GateHookInstaller.BuildInlineHookCommand(SampleHookPath,
+                GateHookInstaller.ComputeScriptHash(new string('x', 100000)));
+            Assert.AreEqual(small.Length, large.Length);
+        }
+
+        [Test]
+        public void MaxHookCommandLength_IsBelowTheCmdExeLimit()
+        {
+            Assert.Less(GateHookInstaller.MaxHookCommandLength, 8191);
+        }
+
+        [Test]
+        public void BuildSettingsJson_WithoutDenyFallback_WiresTheBootstrapCommand()
+        {
+            string hash = SampleHash();
+            string json = GateHookInstaller.BuildSettingsJson(SampleHookPath, hash, includeDenyFallback: false);
             JsonNode root = JsonParser.Parse(json);
             Assert.AreEqual("Write|Edit|MultiEdit|Bash|PowerShell", root["hooks"]["PreToolUse"][0]["matcher"].AsString());
+            Assert.AreEqual("command", root["hooks"]["PreToolUse"][0]["hooks"][0]["type"].AsString());
             string command = root["hooks"]["PreToolUse"][0]["hooks"][0]["command"].AsString();
-            StringAssert.Contains("-EncodedCommand", command);
+            Assert.AreEqual(GateHookInstaller.BuildInlineHookCommand(SampleHookPath, hash), command);
             StringAssert.DoesNotContain("-File", command);
-            StringAssert.DoesNotContain(".ps1", command);
+            Assert.IsFalse(root.HasKey("permissions"), "the deny glob would shadow the hook.");
         }
 
         [Test]
-        public void BuildSettingsJson_HookCommandDecodesBackToTheHookScript()
+        public void BuildSettingsJson_CommandOverTheLimit_FallsBackToPermissionsDeny()
         {
-            string json = GateHookInstaller.BuildSettingsJson(ScriptGate.DenyMessage, includeDenyFallback: false);
-            JsonNode root = JsonParser.Parse(json);
-            string command = root["hooks"]["PreToolUse"][0]["hooks"][0]["command"].AsString();
-            string base64 = command.Substring(command.LastIndexOf(' ') + 1);
-            string decoded = Encoding.Unicode.GetString(System.Convert.FromBase64String(base64));
-            Assert.AreEqual(GateHookInstaller.BuildHookScript(ScriptGate.DenyMessage), decoded);
+            // A hook the CLI refuses to start gates nothing, so a command
+            // that cannot fit ships the generic deny glob instead.
+            string absurdPath = @"C:\" + new string('p', 6000) + ".ps1";
+            Assert.Greater(GateHookInstaller.BuildInlineHookCommand(absurdPath, SampleHash()).Length,
+                GateHookInstaller.MaxHookCommandLength);
+            string json = GateHookInstaller.BuildSettingsJson(absurdPath, SampleHash(), includeDenyFallback: false);
+            Assert.AreEqual(
+                "{\"permissions\":{\"deny\":[\"Edit(Assets/**/*.cs)\",\"Edit(Assets/**/*.asmdef)\"]}}", json);
         }
 
         [Test]
@@ -293,7 +419,7 @@ namespace Colloid.AgentPanel.Tests
             // gave up rather than re-routing through staging. The two
             // shapes are therefore mutually exclusive: the deny fallback
             // ships INSTEAD OF the hook, only where the hook cannot run.
-            string json = GateHookInstaller.BuildSettingsJson(ScriptGate.DenyMessage, includeDenyFallback: true);
+            string json = GateHookInstaller.BuildSettingsJson(SampleHookPath, SampleHash(), includeDenyFallback: true);
             const string expected =
                 "{\"permissions\":{\"deny\":[\"Edit(Assets/**/*.cs)\",\"Edit(Assets/**/*.asmdef)\"]}}";
             Assert.AreEqual(expected, json);
@@ -304,7 +430,7 @@ namespace Colloid.AgentPanel.Tests
         [Test]
         public void BuildSettingsJson_DenyFallbackJson_ParsesToTheTwoNarrowGlobs()
         {
-            string json = GateHookInstaller.BuildSettingsJson(ScriptGate.DenyMessage, includeDenyFallback: true);
+            string json = GateHookInstaller.BuildSettingsJson(SampleHookPath, SampleHash(), includeDenyFallback: true);
             JsonNode root = JsonParser.Parse(json);
             Assert.AreEqual(2, root["permissions"]["deny"].Count);
             Assert.AreEqual("Edit(Assets/**/*.cs)", root["permissions"]["deny"][0].AsString());
@@ -369,20 +495,6 @@ namespace Colloid.AgentPanel.Tests
             }
         }
 
-        [Test]
-        public void BuildSettingsJson_NullDenyMessage_TreatedAsEmpty_StillValidEncodedCommand()
-        {
-            // A null deny message must not throw; BuildHookScript treats it
-            // as empty, and the command is still a valid -EncodedCommand.
-            string json = GateHookInstaller.BuildSettingsJson(null, includeDenyFallback: false);
-            JsonNode root = JsonParser.Parse(json);
-            string command = root["hooks"]["PreToolUse"][0]["hooks"][0]["command"].AsString();
-            StringAssert.Contains("-EncodedCommand", command);
-            string base64 = command.Substring(command.LastIndexOf(' ') + 1);
-            string decoded = Encoding.Unicode.GetString(System.Convert.FromBase64String(base64));
-            Assert.AreEqual(GateHookInstaller.BuildHookScript(null), decoded);
-        }
-
         // -- EnsureInstalled (real disk, temp directory) -------------------------
 
         private string _tempRoot;
@@ -403,49 +515,107 @@ namespace Colloid.AgentPanel.Tests
             }
         }
 
+        private static string GateDir(string root)
+        {
+            return Path.Combine(root, "UserSettings", "AgentPanel");
+        }
+
+        private static string CurrentHookPath(string root)
+        {
+            return Path.Combine(GateDir(root), GateHookInstaller.HookFileNameFor(SampleHash()));
+        }
+
+        /// <summary>The hook command of an installed settings file, or null when it shipped the deny fallback (no PowerShell on this machine).</summary>
+        private static string InstalledHookCommand(string settingsPath)
+        {
+            JsonNode root = JsonParser.Parse(File.ReadAllText(settingsPath));
+            if (!root.HasKey("hooks"))
+            {
+                return null;
+            }
+            return root["hooks"]["PreToolUse"][0]["hooks"][0]["command"].AsString();
+        }
+
         [Test]
-        public void EnsureInstalled_WritesOnlySettingsFile_NoHookPs1()
+        public void EnsureInstalled_ReturnsTheSettingsPath()
         {
             string settingsPath = GateHookInstaller.EnsureInstalled(_tempRoot);
 
             Assert.IsNotNull(settingsPath);
-            string expectedDir = Path.Combine(_tempRoot, "UserSettings", "AgentPanel");
-            Assert.AreEqual(Path.Combine(expectedDir, GateHookInstaller.SettingsFileName), settingsPath);
+            Assert.AreEqual(Path.Combine(GateDir(_tempRoot), GateHookInstaller.SettingsFileName), settingsPath);
             Assert.IsTrue(File.Exists(settingsPath));
-            // SEC-1: no executable .ps1 is written under the agent-writable tree.
-            Assert.IsFalse(File.Exists(Path.Combine(expectedDir, GateHookInstaller.HookFileName)),
-                "the hook is inlined via -EncodedCommand; no .ps1 must be written.");
         }
 
         [Test]
-        public void EnsureInstalled_RemovesStaleHookPs1FromAnOlderVersion()
+        public void EnsureInstalled_HookShape_WritesTheScriptTheCommandPins()
         {
-            // Simulate a prior install that wrote the .ps1: EnsureInstalled
-            // must delete it so no editable script lingers (SEC-1).
-            string dir = Path.Combine(_tempRoot, "UserSettings", "AgentPanel");
+            string settingsPath = GateHookInstaller.EnsureInstalled(_tempRoot);
+            string command = InstalledHookCommand(settingsPath);
+            string hookPath = CurrentHookPath(_tempRoot);
+            if (command == null)
+            {
+                // Deny-fallback machine: no hook, so no script either.
+                Assert.IsFalse(File.Exists(hookPath));
+                return;
+            }
+            Assert.IsTrue(File.Exists(hookPath), "the script the bootstrap reads must exist.");
+            byte[] onDisk = File.ReadAllBytes(hookPath);
+            Assert.AreEqual(GateHookInstaller.BuildHookScript(ScriptGate.DenyMessage), Encoding.UTF8.GetString(onDisk));
+            Assert.AreNotEqual(0xEF, onDisk[0], "a BOM would change the hash the bootstrap computes.");
+            // The pinned hash is the hash of the bytes actually on disk.
+            string onDiskHash;
+            using (var sha = System.Security.Cryptography.SHA256.Create())
+            {
+                onDiskHash = System.BitConverter.ToString(sha.ComputeHash(onDisk)).Replace("-", string.Empty);
+            }
+            Assert.AreEqual(GateHookInstaller.BuildBootstrapScript(hookPath, onDiskHash), DecodeEncodedCommand(command));
+            Assert.LessOrEqual(command.Length, GateHookInstaller.MaxHookCommandLength);
+        }
+
+        [Test]
+        public void EnsureInstalled_TamperedHookScript_IsRestoredOnTheNextInstall()
+        {
+            string settingsPath = GateHookInstaller.EnsureInstalled(_tempRoot);
+            if (InstalledHookCommand(settingsPath) == null)
+            {
+                Assert.Ignore("no PowerShell on this machine: the deny fallback ships, there is no hook script.");
+            }
+            string hookPath = CurrentHookPath(_tempRoot);
+            File.WriteAllText(hookPath, "exit 0 # agent-edited: allow everything");
+
+            GateHookInstaller.EnsureInstalled(_tempRoot);
+
+            Assert.AreEqual(GateHookInstaller.BuildHookScript(ScriptGate.DenyMessage), File.ReadAllText(hookPath));
+        }
+
+        [Test]
+        public void EnsureInstalled_LeavesAnotherVersionsHookScriptAlone()
+        {
+            // A CLI process started by a different package version may
+            // still be running against its own content-addressed script.
+            Directory.CreateDirectory(GateDir(_tempRoot));
+            string other = Path.Combine(GateDir(_tempRoot), "uap-gate-hook-0000000000000000.ps1");
+            File.WriteAllText(other, "# another version");
+
+            GateHookInstaller.EnsureInstalled(_tempRoot);
+
+            Assert.IsTrue(File.Exists(other));
+            Assert.AreEqual("# another version", File.ReadAllText(other));
+        }
+
+        [Test]
+        public void EnsureInstalled_RemovesLegacyFixedNameHookPs1()
+        {
+            // Versions before 2026-08-22 wrote uap-gate-hook.ps1 and ran it
+            // with -File; nothing references it anymore.
+            string dir = GateDir(_tempRoot);
             Directory.CreateDirectory(dir);
             string hookPath = Path.Combine(dir, GateHookInstaller.HookFileName);
             File.WriteAllText(hookPath, "# stale attacker-writable hook");
 
             GateHookInstaller.EnsureInstalled(_tempRoot);
 
-            Assert.IsFalse(File.Exists(hookPath), "a stale hook .ps1 must be removed on install.");
-        }
-
-        [Test]
-        public void EnsureInstalled_SettingsJsonInlinesTheHook_NoPathReference()
-        {
-            string settingsPath = GateHookInstaller.EnsureInstalled(_tempRoot);
-
-            JsonNode root = JsonParser.Parse(File.ReadAllText(settingsPath));
-            // May ship the deny-fallback shape on a machine with no
-            // PowerShell; when it ships the hook, it must be inlined.
-            if (root.HasKey("hooks"))
-            {
-                string command = root["hooks"]["PreToolUse"][0]["hooks"][0]["command"].AsString();
-                StringAssert.Contains("-EncodedCommand", command);
-                StringAssert.DoesNotContain(".ps1", command);
-            }
+            Assert.IsFalse(File.Exists(hookPath), "a legacy hook .ps1 must be removed on install.");
         }
 
         [Test]
@@ -463,6 +633,23 @@ namespace Colloid.AgentPanel.Tests
         }
 
         [Test]
+        public void EnsureInstalled_CalledTwiceWithNoChange_DoesNotRewriteHookScript()
+        {
+            string settingsPath = GateHookInstaller.EnsureInstalled(_tempRoot);
+            if (InstalledHookCommand(settingsPath) == null)
+            {
+                Assert.Ignore("no PowerShell on this machine: the deny fallback ships, there is no hook script.");
+            }
+            string hookPath = CurrentHookPath(_tempRoot);
+            System.DateTime writeTime1 = File.GetLastWriteTimeUtc(hookPath);
+
+            System.Threading.Thread.Sleep(50);
+            GateHookInstaller.EnsureInstalled(_tempRoot);
+
+            Assert.AreEqual(writeTime1, File.GetLastWriteTimeUtc(hookPath));
+        }
+
+        [Test]
         public void EnsureInstalled_NullProjectRoot_ReturnsNull()
         {
             Assert.IsNull(GateHookInstaller.EnsureInstalled(null));
@@ -475,13 +662,12 @@ namespace Colloid.AgentPanel.Tests
         }
 
         // -- Non-ASCII projectRoot ------------------------------------------------
-        // The hook path is no longer embedded in the JSON (it is inlined as a
-        // base64 -EncodedCommand, pure ASCII), so a CJK project folder can no
-        // longer corrupt the command. This still guards that a non-ASCII root
-        // installs cleanly and the JSON round-trips.
+        // The hook script's absolute path is embedded in the bootstrap, which
+        // travels as base64 of UTF-16 -- so the settings JSON stays pure
+        // ASCII and a CJK project folder reaches PowerShell intact.
 
         [Test]
-        public void EnsureInstalled_NonAsciiProjectRoot_InstallsCleanly_ValidJson()
+        public void EnsureInstalled_NonAsciiProjectRoot_InstallsCleanly_PathSurvivesInTheBootstrap()
         {
             // U+30B3 U+30ED U+30A4 U+30C9 ("Koroido" in katakana), as escapes so this ASCII-only source file has no literal CJK.
             string nonAsciiRoot = Path.Combine(_tempRoot, "\u30b3\u30ed\u30a4\u30c9");
@@ -491,10 +677,16 @@ namespace Colloid.AgentPanel.Tests
 
             Assert.IsNotNull(settingsPath, "a non-ASCII project root must not fail installation.");
             string rawJson = File.ReadAllText(settingsPath, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
-            JsonNode root = JsonParser.Parse(rawJson);
-            Assert.IsTrue(root.IsObject, "the settings file must be valid JSON.");
-            Assert.IsFalse(File.Exists(Path.Combine(nonAsciiRoot, "UserSettings", "AgentPanel", GateHookInstaller.HookFileName)),
-                "no .ps1 must be written even for a non-ASCII project root.");
+            foreach (char c in rawJson)
+            {
+                Assert.LessOrEqual((int)c, 0x7F, "the settings JSON must stay ASCII.");
+            }
+            string command = InstalledHookCommand(settingsPath);
+            if (command != null)
+            {
+                StringAssert.Contains("ReadAllBytes('" + CurrentHookPath(nonAsciiRoot) + "')",
+                    DecodeEncodedCommand(command));
+            }
         }
 
         [Test]

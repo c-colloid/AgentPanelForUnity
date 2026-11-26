@@ -142,11 +142,13 @@ namespace Colloid.AgentPanel.Ops
         /// <summary>
         /// True when <paramref name="filePath"/> is one of the gate's own
         /// config files under UserSettings/AgentPanel/ (the `--settings`
-        /// JSON or a stale hook .ps1). Defense in depth for SEC-1: editing
-        /// these is how an agent would try to disable the gate (rewrite the
-        /// settings JSON) or -- before the hook was inlined via
-        /// -EncodedCommand -- escalate to arbitrary code execution by
-        /// overwriting the .ps1. The can_use_tool pre-filter denies a
+        /// JSON or a hook .ps1, legacy or content-addressed). Defense in
+        /// depth for SEC-1: editing these is how an agent would try to
+        /// disable the gate (rewrite the settings JSON) or -- before the
+        /// hook command pinned the script's hash -- escalate to arbitrary
+        /// code execution by overwriting the .ps1; today a rewritten .ps1
+        /// only makes the hook deny everything until the next session, which
+        /// is still worth refusing. The can_use_tool pre-filter denies a
         /// Write/Edit/MultiEdit to them (default/plan modes). Matched
         /// case-insensitively against the tail of a normalized, dot-collapsed
         /// path, requiring a `/` boundary (or an exact project-relative
@@ -159,13 +161,23 @@ namespace Colloid.AgentPanel.Ops
                 return false;
             }
             string normalized = CollapseDotSegments(filePath.Replace('\\', '/')).ToLowerInvariant();
+            int slash = normalized.LastIndexOf('/');
+            if (slash < 0)
+            {
+                return false;
+            }
+            string parent = normalized.Substring(0, slash);
+            string name = normalized.Substring(slash + 1);
             string dir = GateHookInstaller.DefaultRelativeDirectory.ToLowerInvariant();
-            string hookRel = dir + "/" + GateHookInstaller.HookFileName.ToLowerInvariant();
-            string settingsRel = dir + "/" + GateHookInstaller.SettingsFileName.ToLowerInvariant();
-            return normalized == hookRel
-                || normalized == settingsRel
-                || normalized.EndsWith("/" + hookRel, StringComparison.Ordinal)
-                || normalized.EndsWith("/" + settingsRel, StringComparison.Ordinal);
+            if (parent != dir && !parent.EndsWith("/" + dir, StringComparison.Ordinal))
+            {
+                return false;
+            }
+            // The hook script is content-addressed since 2026-11-26
+            // (uap-gate-hook-<hash>.ps1), so the name is matched by shape
+            // (GateHookInstaller.IsHookFileName), not against one constant.
+            return name == GateHookInstaller.SettingsFileName.ToLowerInvariant()
+                || GateHookInstaller.IsHookFileName(name);
         }
 
         /// <summary>
@@ -307,6 +319,20 @@ namespace Colloid.AgentPanel.Ops
         /// IsGatedScriptPath resolution.
         /// </summary>
         private static IEnumerable<string> ExtractBashWriteTargets(string command)
+        {
+            return ExtractShellWriteTargets(command);
+        }
+
+        /// <summary>
+        /// The write destinations a shell command names (redirections,
+        /// tee, .NET file writes, sed -i / cp / mv / install / dd and the
+        /// PowerShell content and copy cmdlets) -- the same best-effort
+        /// scan the gate uses, exposed for request checkpoints
+        /// (UapCheckpointPolicy.ShellTargets), which copy those files
+        /// before the command runs. Unfiltered: the caller decides what a
+        /// candidate path means.
+        /// </summary>
+        public static IEnumerable<string> ExtractShellWriteTargets(string command)
         {
             if (string.IsNullOrEmpty(command))
             {

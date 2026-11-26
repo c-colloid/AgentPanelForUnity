@@ -177,12 +177,10 @@ namespace Colloid.AgentPanel.Tests
         }
 
         [Test]
-        public void GateAndAutoContinue_RiskIsTheNonDefaultValue()
+        public void Gate_RiskIsTheNonDefaultValue()
         {
             Assert.IsFalse(SettingsView.IsRiskyScriptGateSetting(true), "gate on is the recommended default");
             Assert.IsTrue(SettingsView.IsRiskyScriptGateSetting(false));
-            Assert.IsFalse(SettingsView.IsRiskyAutoContinueSetting(false), "auto-continue off is the default");
-            Assert.IsTrue(SettingsView.IsRiskyAutoContinueSetting(true));
         }
 
         [Test]

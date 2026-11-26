@@ -93,6 +93,44 @@ namespace Colloid.AgentPanel.Core.Protocol
                 .Set("subtype", "initialize"));
         }
 
+        /// <summary>
+        /// Handshake that also registers one PreToolUse hook answered over
+        /// this same pipe (design note 2026-11-23-request-checkpoints.md
+        /// section 2): for every tool matching <paramref name="hookMatcher"/>
+        /// the CLI sends a "hook_callback" control_request BEFORE running
+        /// the tool and waits for <see cref="HookCallbackContinue"/>.
+        /// Measured against CLI 2.1.330: it fires in every permission mode,
+        /// acceptEdits included (where can_use_tool does not). A null or
+        /// empty matcher gives the plain handshake.
+        /// </summary>
+        public static string Initialize(string requestId, string hookMatcher, string hookCallbackId)
+        {
+            if (string.IsNullOrEmpty(hookMatcher))
+            {
+                return Initialize(requestId);
+            }
+            RequireNonEmpty(hookCallbackId, "hookCallbackId");
+            return ControlRequest(requestId, JsonNode.NewObject()
+                .Set("subtype", "initialize")
+                .Set("hooks", JsonNode.NewObject()
+                    .Set("PreToolUse", JsonNode.NewArray()
+                        .Add(JsonNode.NewObject()
+                            .Set("matcher", hookMatcher)
+                            .Set("hookCallbackIds", JsonNode.NewArray().Add(hookCallbackId))))));
+        }
+
+        /// <summary>
+        /// Answers a "hook_callback" control_request with an empty hook
+        /// result: no decision, the tool proceeds through its normal
+        /// permission path. The CLI does not run the tool until this
+        /// arrives, so every hook_callback must be answered.
+        /// </summary>
+        public static string HookCallbackContinue(string requestId)
+        {
+            RequireNonEmpty(requestId, "requestId");
+            return ControlResponse(requestId, JsonNode.NewObject());
+        }
+
         /// <summary>Interrupts the running turn (stop button).</summary>
         public static string Interrupt(string requestId)
         {

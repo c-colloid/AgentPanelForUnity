@@ -1,5 +1,7 @@
 using System;
+using Colloid.AgentPanel.Core.Json;
 using Colloid.AgentPanel.Core.Process;
+using Colloid.AgentPanel.Core.Protocol;
 
 namespace Colloid.AgentPanel.Core.Acp
 {
@@ -38,6 +40,7 @@ namespace Colloid.AgentPanel.Core.Acp
         private readonly object _bridgeLock = new object();
         private AcpProtocolBridge _bridge;
         private bool _stopping;
+        private readonly Func<string, JsonNode, bool> _askPresenter;
 
         public AcpBridgeTransport(AcpLaunchSpec spec, IProcessKiller killer, Action<string> logger = null)
         {
@@ -47,6 +50,7 @@ namespace Colloid.AgentPanel.Core.Acp
             }
             _spec = spec;
             _logger = logger;
+            _askPresenter = PresentAskUser;
             _process = new ClaudeCliProcess(killer, logger, OnAgentStdoutLine);
             _process.Exited += OnProcessExited;
         }
@@ -132,6 +136,9 @@ namespace Colloid.AgentPanel.Core.Acp
             };
             _bridge = bridge;
             _stopping = false;
+            // uap_ask_user called without a permission request first has
+            // nobody to show its card: this agent's bridge does it.
+            AskUserQuestionBroker.SetPresenter(_askPresenter);
             _process.Start(executablePath, _spec.Arguments ?? string.Empty, workingDirectory, null);
         }
 
@@ -178,6 +185,7 @@ namespace Colloid.AgentPanel.Core.Acp
         public void Dispose()
         {
             _stopping = true;
+            AskUserQuestionBroker.ClearPresenter(_askPresenter);
             _process.Exited -= OnProcessExited;
             _process.Dispose();
         }
@@ -233,8 +241,27 @@ namespace Colloid.AgentPanel.Core.Acp
             return false;
         }
 
+        /// <summary>
+        /// AskUserQuestionBroker's presenter: runs on the HTTP worker
+        /// thread that carries the tool call, so it takes the bridge lock
+        /// like the reader and main threads do.
+        /// </summary>
+        private bool PresentAskUser(string fingerprint, JsonNode input)
+        {
+            AcpProtocolBridge bridge = _bridge;
+            if (bridge == null || _stopping || !_process.IsRunning)
+            {
+                return false;
+            }
+            lock (_bridgeLock)
+            {
+                return bridge.PresentAskUser(fingerprint, input);
+            }
+        }
+
         private void OnProcessExited()
         {
+            AskUserQuestionBroker.ClearPresenter(_askPresenter);
             AcpProtocolBridge bridge = _bridge;
             if (bridge != null && !_stopping)
             {
