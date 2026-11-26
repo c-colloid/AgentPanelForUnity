@@ -99,6 +99,9 @@ ACP 接続かつ core モジュール有効のときだけ、初回プロンプ�
 `uap_ask_user` で尋ねる。Claude Code には足さない(AskUserQuestion があり、手段を 2 つ
 示すと選択が割れる)。ツールの説明にも「Claude Code は AskUserQuestion を使う」と書いた。
 
+(2026-11-26 追記)この案内は「選択肢を挙げられるときだけ」から「質問は原則カードで」に
+強めた。`2026-11-26-ask-user-by-default.md` を参照。
+
 会話ログのツール行は AskUserQuestion と同じく質問文を表示する(`ToolCardDescriber`)。
 
 ## 3. 却下した代替案
