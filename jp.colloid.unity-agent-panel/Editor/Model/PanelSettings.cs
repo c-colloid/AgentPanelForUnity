@@ -690,10 +690,12 @@ namespace Colloid.AgentPanel.Model
         /// agent can react to the compile result instead of the work simply
         /// stopping there.
         ///
-        /// DEFAULT OFF, and it stays off unless the user asks for it. Every
-        /// guardrail the design specified is a consequence of the same fact:
-        /// this is the only feature in the panel that makes the agent act
-        /// without a human sending anything. So it fires only when the
+        /// DEFAULT ON since v0.62.0 (design note 2026-11-26-auto-continue-
+        /// default-on.md; opt-in before that, and an asset from that period
+        /// is switched on once by <see cref="EnsureAutoContinueDefaults"/>).
+        /// Every guardrail the design specified is a consequence of the
+        /// same fact: this makes the agent act without a human sending
+        /// anything. So it fires only when the
         /// reload is attributable to the agent's own .cs/.asmdef work,
         /// always leaves a visible system note (no silent background turn),
         /// and the continuation carries the compile result with it --
@@ -711,7 +713,7 @@ namespace Colloid.AgentPanel.Model
         /// at the moment a reload completes, never baked into a spawn
         /// argument.
         /// </summary>
-        public bool uapOpsAutoContinueAfterCompile;
+        public bool uapOpsAutoContinueAfterCompile = true;
 
         /// <summary>
         /// Auto-continue an INTERRUPTED turn (docs/design-notes/2026-09-06-
@@ -721,9 +723,13 @@ namespace Colloid.AgentPanel.Model
         /// entering Play Mode -- cuts a running turn short, the panel
         /// resumes the session and, with this ON, sends the same "continue"
         /// message the ResumeBanner's button would have sent, instead of
-        /// waiting for the click. DEFAULT OFF for the same reason as
-        /// <see cref="uapOpsAutoContinueAfterCompile"/>: it is a turn the
-        /// human did not send. Guardrails: only when the reload actually
+        /// waiting for the click. DEFAULT ON since v0.62.0 (design note
+        /// 2026-11-26-auto-continue-default-on.md): the turn
+        /// it continues is one the human DID send and a reload cut short,
+        /// so finishing it is what they asked for. An asset written while
+        /// this was opt-in is switched on once by
+        /// <see cref="EnsureAutoContinueDefaults"/>.
+        /// Guardrails: only when the reload actually
         /// interrupted an open turn (AgentHub.ResumedMidTurn), never while
         /// the crash-loop guard holds the connection, always announced by a
         /// one-line transcript note (no user bubble -- design note
@@ -733,7 +739,82 @@ namespace Colloid.AgentPanel.Model
         /// the same note. Read live when a reload completes; not a spawn
         /// argument, so not part of SettingsChangeDetector.
         /// </summary>
-        public bool autoContinueInterruptedTurn;
+        public bool autoContinueInterruptedTurn = true;
+
+        /// <summary>
+        /// Generation of the auto-continue defaults this build implements.
+        /// 1 = the v0.62.0 flip of <see cref="autoContinueInterruptedTurn"/>
+        /// and <see cref="uapOpsAutoContinueAfterCompile"/> from opt-in to
+        /// default ON.
+        /// </summary>
+        public const int CurrentAutoContinueDefaultsGeneration = 1;
+
+        /// <summary>
+        /// Highest auto-continue defaults generation this asset has been
+        /// brought through. Zero for a brand-new asset (the initializers
+        /// already hold true, so the pass below only stamps it) and for one
+        /// written while the two settings were opt-in.
+        /// </summary>
+        public int autoContinueDefaultsGeneration;
+
+        /// <summary>
+        /// Brings an asset written while the two auto-continue settings
+        /// were opt-in to the new defaults, once. A field initializer
+        /// cannot do it: the stored false deserializes over it, and a
+        /// stored false from that period is the old default far more often
+        /// than a decision (both toggles started off, so nobody had to
+        /// switch them off). Generation-gated like
+        /// <see cref="EnsureAutoApproveLevelMigrated"/>, so switching either
+        /// OFF afterwards sticks. Returns true whenever it ran -- the stamp
+        /// itself has to reach disk, for the reason spelled out in that
+        /// method.
+        /// </summary>
+        public bool EnsureAutoContinueDefaults()
+        {
+            if (autoContinueDefaultsGeneration >= CurrentAutoContinueDefaultsGeneration)
+            {
+                return false;
+            }
+            autoContinueInterruptedTurn = true;
+            uapOpsAutoContinueAfterCompile = true;
+            autoContinueDefaultsGeneration = CurrentAutoContinueDefaultsGeneration;
+            return true;
+        }
+
+        /// <summary>
+        /// Request checkpoints (docs/design-notes/2026-11-23-request-
+        /// checkpoints.md): record, per user request, the files it changes
+        /// and the Undo groups of its scene edits, so the transcript can
+        /// offer "revert this request" -- across a domain reload and an
+        /// editor restart, which Unity's own Undo cannot do for files at
+        /// all. DEFAULT ON: recording only copies a file the moment before
+        /// it is changed, into Library/AgentPanel/Checkpoints (bounded;
+        /// see Ops.UapCheckpointStore's limits), and nothing is ever
+        /// reverted without the user pressing the button and confirming.
+        ///
+        /// Part of SettingsChangeDetector.RequiresReconnect: the pre-write
+        /// hook that sees Claude Code's own Write / Edit is registered in
+        /// the initialize handshake, once per spawn. The recording window
+        /// itself is read live (AgentHub.BeginCheckpointForTurn).
+        /// </summary>
+        public bool requestCheckpoints = true;
+
+        /// <summary>
+        /// CLI relay (docs/design-notes/2026-11-25-cli-relay.md): run the
+        /// Claude Code CLI as the child of a small helper process that
+        /// outlives Unity's domain reloads, so a script recompile or
+        /// entering Play Mode no longer kills the CLI, interrupts the
+        /// running turn and costs a --resume restart. DEFAULT OFF and
+        /// labelled experimental: it has only been exercised on Linux, and
+        /// when the helper cannot be built or started, or re-attaching
+        /// after a reload fails for any reason, the panel falls back to
+        /// the kill + resume behaviour it has always had. Claude Code
+        /// backend only.
+        ///
+        /// Part of SettingsChangeDetector.RequiresReconnect: which
+        /// transport holds the CLI is decided when it is spawned.
+        /// </summary>
+        public bool cliRelayEnabled;
 
         /// <summary>
         /// MIGRATION SOURCE ONLY as of the UapAutoApproveLevel rework --

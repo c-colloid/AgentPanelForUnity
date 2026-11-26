@@ -308,6 +308,20 @@ namespace Colloid.AgentPanel.Ops
         /// </summary>
         private static IEnumerable<string> ExtractBashWriteTargets(string command)
         {
+            return ExtractShellWriteTargets(command);
+        }
+
+        /// <summary>
+        /// The write destinations a shell command names (redirections,
+        /// tee, .NET file writes, sed -i / cp / mv / install / dd and the
+        /// PowerShell content and copy cmdlets) -- the same best-effort
+        /// scan the gate uses, exposed for request checkpoints
+        /// (UapCheckpointPolicy.ShellTargets), which copy those files
+        /// before the command runs. Unfiltered: the caller decides what a
+        /// candidate path means.
+        /// </summary>
+        public static IEnumerable<string> ExtractShellWriteTargets(string command)
+        {
             if (string.IsNullOrEmpty(command))
             {
                 yield break;

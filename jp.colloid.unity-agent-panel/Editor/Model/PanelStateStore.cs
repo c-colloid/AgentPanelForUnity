@@ -112,6 +112,13 @@ namespace Colloid.AgentPanel.Model
             // level the user picks afterwards is never re-seeded.
             bool autoApproveMigrated = Settings.EnsureAutoApproveLevelMigrated();
 
+            // v0.62.0: the two auto-continue settings (after an
+            // interruption, after a compile) became default ON. Same
+            // load-time, generation-gated shape as the two above, so an
+            // asset from the opt-in period is switched on once and a later
+            // OFF is kept.
+            bool autoContinueDefaultApplied = Settings.EnsureAutoContinueDefaults();
+
             // MODEL-4: hydrate the [NonSerialized] ignore fields from their
             // JSON sidecar, then fold in whatever an older build left
             // serialized inside THIS asset (one-time; clears the legacy
@@ -138,6 +145,7 @@ namespace Colloid.AgentPanel.Model
 
             if (stateVersion != CurrentStateVersion || cjkDefaultApplied
                 || moduleDefaultsApplied || autoApproveMigrated
+                || autoContinueDefaultApplied
                 || consoleIgnoresMigrated || acpAuthMethodMigrated)
             {
                 // Legacy layout, a corrupted asset that loaded as
