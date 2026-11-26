@@ -172,6 +172,8 @@ namespace Colloid.AgentPanel.Model
                 || spawnedWith.showThinking != current.showThinking
                 || spawnedWith.uapOpsEnabled != current.uapOpsEnabled
                 || spawnedWith.uapScriptGateEnabled != current.uapScriptGateEnabled
+                || spawnedWith.requestCheckpoints != current.requestCheckpoints
+                || spawnedWith.cliRelayEnabled != current.cliRelayEnabled
                 || spawnedWith.extensionProfilesEnabled != current.extensionProfilesEnabled
                 || spawnedWith.unityPluginSteeringEnabled != current.unityPluginSteeringEnabled
                 || spawnedWith.uloopAgentUseEnabled != current.uloopAgentUseEnabled

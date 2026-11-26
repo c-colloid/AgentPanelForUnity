@@ -9,8 +9,40 @@ using Colloid.AgentPanel.Core.Protocol;
 namespace Colloid.AgentPanel.Core.Client
 {
     /// <summary>Options for AgentClient.Start (ARCHITECTURE.md D2).</summary>
+    /// <summary>
+    /// What a client needs to pick up a CLI that is ALREADY running behind
+    /// the CLI relay (AgentClient.Attach, design note 2026-11-25-cli-
+    /// relay.md): the request id of the handshake the previous client
+    /// sent (its response is replayed by the relay), and the turn state
+    /// that client was in.
+    /// </summary>
+    public sealed class AgentClientAttachOptions
+    {
+        /// <summary>request_id of the initialize control_request the CLI already answered.</summary>
+        public string InitializeRequestId;
+        public int TurnId;
+        /// <summary>Open turns (0 = the CLI was idle).</summary>
+        public int OpenTurns;
+        public bool InterruptRequested;
+        /// <summary>The request id counter starts above this, so new ids never repeat ones the CLI has seen.</summary>
+        public int RequestCounterSeed;
+        /// <summary>Seconds to wait for the replayed handshake response; 0 = the default.</summary>
+        public double InitializeTimeoutSeconds;
+    }
+
     public sealed class AgentClientOptions
     {
+        /// <summary>
+        /// Tool-name matcher of a PreToolUse hook registered in the
+        /// initialize handshake and answered over the control protocol
+        /// (OutboundMessages.Initialize's hook overload; raised as
+        /// AgentClient.HookCallbackReceived). Null/empty registers no
+        /// hook, leaving the handshake line byte-identical to before this
+        /// option existed. Read once per spawn.
+        /// </summary>
+        public string PreToolUseHookMatcher;
+        /// <summary>callback_id for <see cref="PreToolUseHookMatcher"/>. Required when the matcher is set.</summary>
+        public string PreToolUseHookCallbackId;
         /// <summary>Full path of the claude executable. Required.</summary>
         public string CliPath;
         /// <summary>Working directory (Unity project root). Required.</summary>
@@ -317,6 +349,21 @@ namespace Colloid.AgentPanel.Core.Client
             get { return _turns.TurnActive; }
         }
 
+        /// <summary>How many turns are open (see TurnTracker.OpenTurnCount); saved at a relay detach.</summary>
+        public int OpenTurnCount
+        {
+            get { return _turns.OpenTurnCount; }
+        }
+
+        /// <summary>True while the current turn is fenced off after an interrupt; saved at a relay detach.</summary>
+        public bool InterruptRequested
+        {
+            get { return _turns.InterruptRequested; }
+        }
+
+        /// <summary>request_id of the initialize handshake this client sent (Start) or adopted (Attach); null before either.</summary>
+        public string InitializeRequestId { get; private set; }
+
         /// <summary>request_id of the can_use_tool prompt awaiting an answer, or null.</summary>
         public string PendingPermissionRequestId
         {
@@ -381,6 +428,14 @@ namespace Colloid.AgentPanel.Core.Client
         /// docs/design-notes/2026-09-10-compacting-indicator.md).</summary>
         public event Action<SystemStatusMessage> StatusReceived;
         public event Action<ControlRequestMessage> PermissionRequested;
+        /// <summary>
+        /// A "hook_callback" control_request: a tool matching
+        /// AgentClientOptions.PreToolUseHookMatcher is about to run.
+        /// Request["input"] carries tool_name / tool_input. Handlers run
+        /// synchronously BEFORE the client answers, i.e. before the tool
+        /// touches anything; the client sends the answer itself.
+        /// </summary>
+        public event Action<ControlRequestMessage> HookCallbackReceived;
         public event Action<ResultMessage> TurnCompleted;
         /// <summary>Silence backstop fired: the turn was force-closed without a result.</summary>
         public event Action TurnStalled;
@@ -484,15 +539,92 @@ namespace Colloid.AgentPanel.Core.Client
                 options.SubagentModel, options.ClaudeAuth);
 
             string requestId = _requests.NextRequestId("req");
+            InitializeRequestId = requestId;
             _requests.Track(requestId, "initialize", NowSeconds(),
                 options.InitializeTimeoutSeconds > 0
                     ? options.InitializeTimeoutSeconds
                     : PendingRequestMap.DefaultTimeoutSeconds,
                 OnInitializeResolved);
-            if (!_transport.WriteLine(OutboundMessages.Initialize(requestId)))
+            if (!_transport.WriteLine(OutboundMessages.Initialize(requestId,
+                    options.PreToolUseHookMatcher, options.PreToolUseHookCallbackId)))
             {
                 HandleProcessDeath("initialize write failed");
             }
+        }
+
+        /// <summary>
+        /// Adopts a CLI that is already running behind the CLI relay
+        /// (design note 2026-11-25-cli-relay.md) instead of spawning one:
+        /// nothing is written and the transport is not started -- it is
+        /// already connected, and the relay replays the CLI's init line,
+        /// its handshake response and every line of the open turn through
+        /// the ordinary <see cref="Pump"/> path. This only prepares the
+        /// client to receive that replay: the handshake id it should
+        /// expect, the turn it is in the middle of, and a request-id
+        /// counter that cannot collide with the previous client's.
+        /// Valid from NotStarted or Errored, like Start.
+        /// </summary>
+        public void Attach(AgentClientAttachOptions options)
+        {
+            if (options == null)
+            {
+                throw new ArgumentNullException("options");
+            }
+            if (State != AgentClientState.NotStarted && State != AgentClientState.Errored)
+            {
+                throw new InvalidOperationException(
+                    "AgentClient.Attach is only valid from NotStarted/Errored (was " + State + ").");
+            }
+            _transportExited = false;
+            _deathHandled = false;
+            _stopRequested = false;
+            _pendingPermissionRequestId = null;
+            _pendingPermissionRequest = null;
+            _permissionQueue.Clear();
+            _liveModel = null;
+            _requests.Clear();
+            _requests.SeedCounter(options.RequestCounterSeed);
+            _turns.Reset();
+            _turns.Restore(options.TurnId, options.OpenTurns, options.InterruptRequested, NowSeconds());
+
+            SetState(AgentClientState.Starting);
+            InitializeRequestId = options.InitializeRequestId;
+            if (!string.IsNullOrEmpty(options.InitializeRequestId))
+            {
+                _requests.Track(options.InitializeRequestId, "initialize", NowSeconds(),
+                    options.InitializeTimeoutSeconds > 0
+                        ? options.InitializeTimeoutSeconds
+                        : PendingRequestMap.DefaultTimeoutSeconds,
+                    OnInitializeResolved);
+            }
+        }
+
+        /// <summary>
+        /// Lets go of the CLI without stopping it (CLI relay, before a
+        /// domain reload): no interrupt, no stdin close, no kill. The
+        /// transport closes its link to the relay, which keeps the CLI and
+        /// everything it prints until a client attaches again. Ends in
+        /// NotStarted, like Stop, so the Dispose that follows has nothing
+        /// left to stop. Returns false -- having done a normal Stop --
+        /// when the transport cannot detach.
+        /// </summary>
+        public bool Detach(int stopGraceMillis)
+        {
+            var detachable = _transport as IDetachableCliTransport;
+            if (detachable == null || State == AgentClientState.NotStarted || State == AgentClientState.Errored)
+            {
+                Stop(stopGraceMillis);
+                return false;
+            }
+            _stopRequested = true;
+            detachable.Detach();
+            _turns.Reset();
+            _requests.Clear();
+            _pendingPermissionRequestId = null;
+            _pendingPermissionRequest = null;
+            _permissionQueue.Clear();
+            SetState(AgentClientState.NotStarted);
+            return true;
         }
 
         /// <summary>
@@ -1136,8 +1268,18 @@ namespace Colloid.AgentPanel.Core.Client
             }
             if (State == AgentClientState.Starting)
             {
-                SetState(AgentClientState.Ready);
+                SetState(ReadyOrStreaming());
             }
+        }
+
+        /// <summary>
+        /// Where Starting leads once the handshake is in: Ready for a
+        /// freshly spawned CLI (it never has an open turn), Streaming for
+        /// a client attached in the middle of one.
+        /// </summary>
+        private AgentClientState ReadyOrStreaming()
+        {
+            return _turns.TurnActive ? AgentClientState.Streaming : AgentClientState.Ready;
         }
 
         private void HandleAssistant(AssistantMessage message)
@@ -1282,9 +1424,30 @@ namespace Colloid.AgentPanel.Core.Client
                 _permissionQueue.Enqueue(message);
                 PromoteNextPermission();
             }
+            else if (message.Subtype == "hook_callback")
+            {
+                // The PreToolUse hook registered in the handshake (design
+                // note 2026-11-23-request-checkpoints.md section 2). The
+                // CLI holds the tool until it is answered, so the answer
+                // goes out whatever the subscriber does. A turn left
+                // waiting on an unanswered hook would look exactly like a
+                // hung tool.
+                try
+                {
+                    Raise(HookCallbackReceived, message);
+                }
+                catch (Exception ex)
+                {
+                    Log("hook_callback handler failed (" + message.RequestId + "): " + ex.Message);
+                }
+                finally
+                {
+                    _transport.WriteLine(OutboundMessages.HookCallbackContinue(message.RequestId));
+                }
+            }
             else
             {
-                // hook_callback / request_user_dialog / mcp_message: v1 logs and ignores.
+                // request_user_dialog / mcp_message: v1 logs and ignores.
                 Log("Ignored control_request subtype '" + message.Subtype
                     + "' (" + message.RequestId + ").");
             }
@@ -1371,7 +1534,7 @@ namespace Colloid.AgentPanel.Core.Client
             InitializeResponse = response;
             if (State == AgentClientState.Starting)
             {
-                SetState(AgentClientState.Ready);
+                SetState(ReadyOrStreaming());
             }
         }
 

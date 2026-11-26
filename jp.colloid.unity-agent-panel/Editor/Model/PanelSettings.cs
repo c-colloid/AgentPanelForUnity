@@ -736,6 +736,41 @@ namespace Colloid.AgentPanel.Model
         public bool autoContinueInterruptedTurn;
 
         /// <summary>
+        /// Request checkpoints (docs/design-notes/2026-11-23-request-
+        /// checkpoints.md): record, per user request, the files it changes
+        /// and the Undo groups of its scene edits, so the transcript can
+        /// offer "revert this request" -- across a domain reload and an
+        /// editor restart, which Unity's own Undo cannot do for files at
+        /// all. DEFAULT ON: recording only copies a file the moment before
+        /// it is changed, into Library/AgentPanel/Checkpoints (bounded;
+        /// see Ops.UapCheckpointStore's limits), and nothing is ever
+        /// reverted without the user pressing the button and confirming.
+        ///
+        /// Part of SettingsChangeDetector.RequiresReconnect: the pre-write
+        /// hook that sees Claude Code's own Write / Edit is registered in
+        /// the initialize handshake, once per spawn. The recording window
+        /// itself is read live (AgentHub.BeginCheckpointForTurn).
+        /// </summary>
+        public bool requestCheckpoints = true;
+
+        /// <summary>
+        /// CLI relay (docs/design-notes/2026-11-25-cli-relay.md): run the
+        /// Claude Code CLI as the child of a small helper process that
+        /// outlives Unity's domain reloads, so a script recompile or
+        /// entering Play Mode no longer kills the CLI, interrupts the
+        /// running turn and costs a --resume restart. DEFAULT OFF and
+        /// labelled experimental: it has only been exercised on Linux, and
+        /// when the helper cannot be built or started, or re-attaching
+        /// after a reload fails for any reason, the panel falls back to
+        /// the kill + resume behaviour it has always had. Claude Code
+        /// backend only.
+        ///
+        /// Part of SettingsChangeDetector.RequiresReconnect: which
+        /// transport holds the CLI is decided when it is spawned.
+        /// </summary>
+        public bool cliRelayEnabled;
+
+        /// <summary>
         /// MIGRATION SOURCE ONLY as of the UapAutoApproveLevel rework --
         /// superseded by <see cref="autoApproveLevel"/>, which generalizes
         /// this single ReadOnly-only toggle into a four-level policy

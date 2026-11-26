@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
 using Colloid.AgentPanel.Core.Json;
+using Colloid.AgentPanel.Core.Protocol;
 
 namespace Colloid.AgentPanel.Core.Acp
 {
@@ -46,6 +47,10 @@ namespace Colloid.AgentPanel.Core.Acp
     ///   tool_use block; tool_call_update reaching completed/failed -> user
     ///   message with one tool_result block.
     /// - session/request_permission          -> control_request can_use_tool.
+    ///   For uap_ask_user the request is the question itself
+    ///   (requires_user_interaction); the answers the card returns go to
+    ///   AskUserQuestionBroker, where the tool call that follows picks
+    ///   them up (design note 2026-11-25-acp-ask-user.md).
     /// - session/prompt response             -> assistant (flush) + result.
     /// - session/update available_commands_update -> system/init re-emit
     ///   with slash_commands (the composer's "/" popup).
@@ -191,6 +196,10 @@ namespace Colloid.AgentPanel.Core.Acp
             public string AllowAlwaysId;
             public string RejectOnceId;
             public string RejectAlwaysId;
+            /// <summary>Set when this request is a uap_ask_user question card: the key its answers are posted under.</summary>
+            public string AskFingerprint;
+            /// <summary>True for a card the bridge raised itself (<see cref="PresentAskUser"/>): no agent request waits for its answer.</summary>
+            public bool Synthetic;
         }
 
         public AcpProtocolBridge(AcpLaunchSpec spec, string workingDirectory,
@@ -1342,6 +1351,7 @@ namespace Colloid.AgentPanel.Core.Acp
                 _queuedPrompts.Clear();
                 FlushAssistantText();
                 CompleteOpenToolCalls("The agent ended the turn before this tool call reported a result.");
+                EndAskUserQuestions();
                 EmitResult(true, response.ErrorMessage, "error_during_execution", null);
                 return;
             }
@@ -1360,6 +1370,7 @@ namespace Colloid.AgentPanel.Core.Acp
             CompleteOpenToolCalls(stopReason == "cancelled"
                 ? "Cancelled before the tool call reported a result."
                 : "The agent ended the turn before this tool call reported a result.");
+            EndAskUserQuestions();
             bool isError = stopReason == "refusal";
             EmitResult(isError, isError ? "The agent refused to continue." : _turnText.ToString(),
                 isError ? "error_during_execution" : "success", stopReason);
@@ -1440,17 +1451,36 @@ namespace Colloid.AgentPanel.Core.Acp
                 && inner["updatedPermissions"].IsArray
                 && inner["updatedPermissions"].Count > 0;
             bool interrupt = inner["interrupt"].AsBool(false);
-            string optionId = ChooseOptionId(pending, allow, always);
-            JsonNode outcome;
-            if (optionId != null)
+            if (pending.AskFingerprint != null)
             {
-                outcome = JsonNode.NewObject().Set("outcome", "selected").Set("optionId", optionId);
+                // The card's answers ride on updatedInput, which an ACP
+                // permission outcome cannot carry: hand them to the broker
+                // BEFORE the agent is let through, so the tool call it
+                // makes next finds them. An empty object is the card's Skip.
+                if (allow)
+                {
+                    AskUserQuestionBroker.PostAnswers(pending.AskFingerprint, inner["updatedInput"]["answers"]);
+                }
+                else if (pending.Synthetic)
+                {
+                    AskUserQuestionBroker.PostAnswers(pending.AskFingerprint, null);
+                }
             }
-            else
+            if (!pending.Synthetic)
             {
-                outcome = JsonNode.NewObject().Set("outcome", "cancelled");
+                // A question is never "always allowed": every one needs its own answer.
+                string optionId = ChooseOptionId(pending, allow, always && pending.AskFingerprint == null);
+                JsonNode outcome;
+                if (optionId != null)
+                {
+                    outcome = JsonNode.NewObject().Set("outcome", "selected").Set("optionId", optionId);
+                }
+                else
+                {
+                    outcome = JsonNode.NewObject().Set("outcome", "cancelled");
+                }
+                _toAgent(AcpJsonRpc.Response(pending.RpcId, JsonNode.NewObject().Set("outcome", outcome)));
             }
-            _toAgent(AcpJsonRpc.Response(pending.RpcId, JsonNode.NewObject().Set("outcome", outcome)));
             if (!allow && interrupt && _promptInFlight && !string.IsNullOrEmpty(_sessionId))
             {
                 _cancelRequested = true;
@@ -1481,10 +1511,135 @@ namespace Colloid.AgentPanel.Core.Acp
             }
             foreach (KeyValuePair<string, PermissionState> pair in _pendingPermissions)
             {
+                if (pair.Value.Synthetic)
+                {
+                    // No agent request behind it; the waiting tool call is told instead.
+                    AskUserQuestionBroker.Dismiss(pair.Value.AskFingerprint);
+                    continue;
+                }
                 _toAgent(AcpJsonRpc.Response(pair.Value.RpcId, JsonNode.NewObject()
                     .Set("outcome", JsonNode.NewObject().Set("outcome", "cancelled"))));
             }
             _pendingPermissions.Clear();
+        }
+
+        /// <summary>
+        /// A turn is over (or the agent is gone): the panel drops its
+        /// pending cards at the result, so forget the self-raised question
+        /// cards, wake any uap_ask_user call still waiting, and drop
+        /// answers nobody took so they cannot answer a later question.
+        /// </summary>
+        private void EndAskUserQuestions()
+        {
+            List<string> synthetic = null;
+            foreach (KeyValuePair<string, PermissionState> pair in _pendingPermissions)
+            {
+                if (pair.Value.Synthetic)
+                {
+                    (synthetic ?? (synthetic = new List<string>())).Add(pair.Key);
+                }
+            }
+            if (synthetic != null)
+            {
+                for (int i = 0; i < synthetic.Count; i++)
+                {
+                    _pendingPermissions.Remove(synthetic[i]);
+                }
+            }
+            AskUserQuestionBroker.DismissAll();
+        }
+
+        private const string AskUserWireName = "mcp__" + UapServerName + "__" + AskUserQuestionBroker.ToolName;
+        private const string UapCallWireName = "mcp__" + UapServerName + "__uap_call";
+
+        /// <summary>
+        /// The uap_ask_user input of a call mapped to
+        /// <paramref name="mappedName"/> -- called directly or through the
+        /// compact tool list's uap_call -- when the card can show it; null
+        /// for any other call and for an input the tool itself will refuse
+        /// (that one goes through as an ordinary call and comes back with
+        /// the tool's own error). Pure.
+        /// </summary>
+        internal static JsonNode AskUserInput(string mappedName, JsonNode arguments)
+        {
+            if (arguments == null || !arguments.IsObject)
+            {
+                return null;
+            }
+            JsonNode input = null;
+            if (mappedName == AskUserWireName)
+            {
+                input = arguments;
+            }
+            else if (mappedName == UapCallWireName
+                && arguments["name"].AsString() == AskUserQuestionBroker.ToolName)
+            {
+                input = arguments["arguments"];
+            }
+            return input != null && AskUserQuestionBroker.Validate(input) == null ? input : null;
+        }
+
+        /// <summary>
+        /// Raises the question card for a uap_ask_user call the agent made
+        /// WITHOUT asking permission first (a mode that approves every
+        /// tool), on behalf of <see cref="AskUserQuestionBroker.Ask"/>.
+        /// The card is an ordinary can_use_tool to the panel; no agent
+        /// request waits on it, its answer goes to the broker only. False
+        /// when no turn is running to show it in. Call under the same lock
+        /// as every other entry point.
+        /// </summary>
+        public bool PresentAskUser(string fingerprint, JsonNode input)
+        {
+            if (!_promptInFlight || string.IsNullOrEmpty(fingerprint) || input == null || !input.IsObject)
+            {
+                return false;
+            }
+            foreach (KeyValuePair<string, PermissionState> pair in _pendingPermissions)
+            {
+                if (pair.Value.AskFingerprint == fingerprint)
+                {
+                    return true; // Already on screen.
+                }
+            }
+            string toolCallId = string.Empty;
+            for (int i = _toolCallOrder.Count - 1; i >= 0; i--)
+            {
+                ToolCallState state;
+                if (_toolCalls.TryGetValue(_toolCallOrder[i], out state) && !state.Completed
+                    && state.Input != null)
+                {
+                    JsonNode candidate = AskUserInput(state.Name, McpArguments(state.Name, state.Input));
+                    if (candidate != null && AskUserQuestionBroker.Fingerprint(candidate) == fingerprint)
+                    {
+                        toolCallId = state.Id;
+                        break;
+                    }
+                }
+            }
+            string requestId = PermissionRequestIdPrefix + (++_permissionCounter);
+            _pendingPermissions[requestId] = new PermissionState
+            {
+                ToolCallId = toolCallId,
+                AskFingerprint = fingerprint,
+                Synthetic = true
+            };
+            EmitAskUserRequest(requestId, input, toolCallId);
+            return true;
+        }
+
+        private void EmitAskUserRequest(string requestId, JsonNode input, string toolCallId)
+        {
+            EmitToPanel(JsonNode.NewObject()
+                .Set("type", "control_request")
+                .Set("request_id", requestId)
+                .Set("request", JsonNode.NewObject()
+                    .Set("subtype", "can_use_tool")
+                    .Set("tool_name", AskUserWireName)
+                    .Set("display_name", AskUserWireName)
+                    .Set("input", input)
+                    .Set("tool_use_id", toolCallId ?? string.Empty)
+                    .Set("permission_suggestions", JsonNode.NewArray())
+                    .Set("requires_user_interaction", true)));
         }
 
         // =====================================================================
@@ -1536,6 +1691,7 @@ namespace Colloid.AgentPanel.Core.Acp
         public void OnAgentExited()
         {
             _pendingRpc.Clear();
+            EndAskUserQuestions();
             _pendingPermissions.Clear();
             _queuedPrompts.Clear();
             if (_promptInFlight)
@@ -2378,6 +2534,16 @@ namespace Colloid.AgentPanel.Core.Acp
                 && !toolName.StartsWith("mcp__", StringComparison.Ordinal) ? state.Title : toolName;
             JsonNode input = state != null && state.Input != null
                 ? McpArguments(toolName, state.Input) : JsonNode.NewObject();
+            JsonNode askInput = AskUserInput(toolName, input);
+            if (askInput != null)
+            {
+                // The request IS the question: show the card in place of
+                // an allow/deny prompt. Its answers reach the tool through
+                // the broker (HandlePanelPermissionAnswer).
+                pending.AskFingerprint = AskUserQuestionBroker.Fingerprint(askInput);
+                EmitAskUserRequest(requestId, askInput, toolCallId);
+                return;
+            }
             JsonNode suggestions = JsonNode.NewArray();
             if (pending.AllowAlwaysId != null)
             {

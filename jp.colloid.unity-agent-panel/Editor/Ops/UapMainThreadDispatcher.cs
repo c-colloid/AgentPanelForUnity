@@ -282,6 +282,20 @@ namespace Colloid.AgentPanel.Ops
         /// </summary>
         public void CancelAll(string reason)
         {
+            CancelAll(reason, false);
+        }
+
+        /// <summary>
+        /// As <see cref="CancelAll(string)"/>; with <paramref name="notRun"/>
+        /// the waiting calls fail with <see cref="UapNotRunException"/>,
+        /// which the HTTP layer turns into "503, not run" instead of a
+        /// tool error. Used when the server stops for a domain reload
+        /// while the CLI lives on behind the CLI relay: every call this
+        /// reaches was still queued, so it is safe for the relay to hold
+        /// it and deliver it again once Unity is back.
+        /// </summary>
+        public void CancelAll(string reason, bool notRun)
+        {
             List<WorkItem> pending;
             lock (_lock)
             {
@@ -295,7 +309,13 @@ namespace Colloid.AgentPanel.Ops
             for (int i = 0; i < pending.Count; i++)
             {
                 WorkItem item = pending[i];
-                item.Error = new InvalidOperationException(reason);
+                // A pollable item that already ran its first tick sits in
+                // the queue too (it re-enqueues itself): that one DID
+                // start, so it is never reported as "not run".
+                bool neverStarted = Volatile.Read(ref item.StartState) == StateQueued;
+                item.Error = notRun && neverStarted
+                    ? new UapNotRunException(reason)
+                    : new InvalidOperationException(reason);
                 item.Done.Set();
             }
         }
@@ -594,6 +614,19 @@ namespace Colloid.AgentPanel.Ops
             }
             result.Add(JsonNode.NewObject().Set("type", "text").Set("text", text.ToString()));
             return result;
+        }
+    }
+
+    /// <summary>
+    /// A tool call that was accepted but never started, and never will be
+    /// by this server instance (design note 2026-11-25-cli-relay.md
+    /// section 4). Distinct from every other failure because it is the one
+    /// case where sending the same call again is certainly safe.
+    /// </summary>
+    public sealed class UapNotRunException : InvalidOperationException
+    {
+        public UapNotRunException(string message) : base(message)
+        {
         }
     }
 }

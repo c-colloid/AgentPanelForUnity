@@ -44,7 +44,9 @@ namespace Colloid.AgentPanel.Core.Client
                 case AgentClientState.NotStarted:
                     return to == AgentClientState.Starting;
                 case AgentClientState.Starting:
-                    return to == AgentClientState.Ready;
+                    // Streaming: a client attached to a CLI that is in the
+                    // middle of a turn (AgentClient.Attach, CLI relay).
+                    return to == AgentClientState.Ready || to == AgentClientState.Streaming;
                 case AgentClientState.Ready:
                     return to == AgentClientState.Streaming;
                 case AgentClientState.Streaming:

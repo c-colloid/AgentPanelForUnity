@@ -148,6 +148,7 @@ namespace Colloid.AgentPanel.Ops
             ArmAccept();
             if (ctx != null)
             {
+                System.Threading.Interlocked.Increment(ref _inFlight);
                 try
                 {
                     HandleContext(ctx);
@@ -156,6 +157,27 @@ namespace Colloid.AgentPanel.Ops
                 {
                     Log("HandleContext failed: " + ex);
                 }
+                finally
+                {
+                    System.Threading.Interlocked.Decrement(ref _inFlight);
+                }
+            }
+        }
+
+        private int _inFlight;
+
+        /// <summary>
+        /// Waits (bounded) until no request is being answered. Called
+        /// before the listener closes for a domain reload behind the CLI
+        /// relay: the "not run" answers just released must reach the
+        /// relay, or it could not tell them from calls that did run.
+        /// </summary>
+        public void WaitUntilIdle(int maxMillis)
+        {
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            while (System.Threading.Volatile.Read(ref _inFlight) > 0 && watch.ElapsedMilliseconds < maxMillis)
+            {
+                System.Threading.Thread.Sleep(5);
             }
         }
 
@@ -265,6 +287,10 @@ namespace Colloid.AgentPanel.Ops
             if (!string.IsNullOrEmpty(response.McpSessionId))
             {
                 res.Headers["Mcp-Session-Id"] = response.McpSessionId;
+            }
+            if (response.NotRun)
+            {
+                res.Headers["X-Uap-Not-Run"] = "1";
             }
             if (!string.IsNullOrEmpty(response.Body))
             {

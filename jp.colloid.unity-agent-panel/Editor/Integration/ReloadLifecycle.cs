@@ -171,7 +171,19 @@ namespace Colloid.AgentPanel.Integration
             // Guarded: whatever happens in the teardown, the flags below
             // MUST still be written -- they are what the next domain reads
             // to resume at all.
-            Guarded("shutdown for reload", AgentHub.ShutdownForReload);
+            //
+            // CLI relay (design note 2026-11-25-cli-relay.md): when the CLI
+            // runs behind the relay it is NOT stopped -- the link is closed
+            // and the relay keeps the CLI and what it prints until the next
+            // domain attaches. DetachForReload returns false (having done
+            // nothing) when there is no relay, and on any failure the
+            // ordinary shutdown still runs.
+            bool detached = false;
+            Guarded("detach for reload", delegate { detached = AgentHub.DetachForReload(); });
+            if (!detached)
+            {
+                Guarded("shutdown for reload", AgentHub.ShutdownForReload);
+            }
 
             // Shutdown cleared TurnRunning and the process record; re-set
             // the flags the post-reload restore path needs.
@@ -209,7 +221,10 @@ namespace Colloid.AgentPanel.Integration
             // BEFORE spawn" ordering with no special-casing needed here.
             try
             {
-                UapOpsServer.Stop();
+                // After a detach the CLI lives on: a call that was queued
+                // but not started is answered "not run", and the relay
+                // delivers it again to the next domain.
+                UapOpsServer.Stop(detached);
             }
             catch (System.Exception ex)
             {
@@ -251,6 +266,33 @@ namespace Colloid.AgentPanel.Integration
             // and killed here, before any --resume spawn could share its
             // session file with it. A dead PID just clears the record. This
             // is also the crashed/hard-killed-editor path.
+            //
+            // CLI relay: step 0 is to pick the still-running CLI up again.
+            // When that works the recorded process IS the relay we are now
+            // attached to, so nothing is reaped and nothing is resumed;
+            // when it does not, the relay was told to stop and everything
+            // below runs exactly as it always did.
+            bool attached = false;
+            bool attachedTurnOpen = false;
+            Guarded("re-attach cli relay", delegate { attached = AgentHub.TryReattachRelay(out attachedTurnOpen); });
+            if (attached)
+            {
+                bool relayWasRunning = SessionStateBridge.ClientWasRunning;
+                SessionStateBridge.ClientWasRunning = false;
+                Guarded("reconcile auto-continue", AgentHub.ReconcileInterruptedAutoContinueSend);
+                // A turn that ended before the reload still gets its
+                // "compile finished" follow-up; a turn that is still
+                // running needs no nudge.
+                Guarded("auto-continue after compile",
+                    delegate { AgentHub.TryAutoContinueAfterCompile(relayWasRunning && !attachedTurnOpen); });
+                // The pending permission was not dropped: the relay still
+                // holds the request and replays it.
+                Guarded("consume reload-dropped permission",
+                    delegate { AgentHub.ConsumeReloadDroppedPermission(false); });
+                Guarded("auto-continue drain", AgentHub.StartAutoContinueDrain);
+                Guarded("drain queued sends", CompileGate.DrainPending);
+                return true;
+            }
             Guarded("reap orphans", AgentHub.ReapOrphansNow);
 
             // Defect 2 fix (2026-08-04): both of these MUST run on EVERY
