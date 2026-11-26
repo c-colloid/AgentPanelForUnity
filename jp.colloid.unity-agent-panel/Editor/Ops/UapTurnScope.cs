@@ -20,9 +20,12 @@ namespace Colloid.AgentPanel.Ops
     /// disallow (if any) and resets bookkeeping BEFORE the reload, so a
     /// mid-turn domain reload (a manual compile, a package change, ...)
     /// can never leave AssetDatabase.AllowAutoRefresh permanently
-    /// unbalanced. The Undo group is simply abandoned in that case --
-    /// Unity's own Undo history does not survive a domain reload cleanly
-    /// either way, so there is nothing this class could preserve there.
+    /// unbalanced. The Undo group is simply abandoned in that case; what
+    /// survives the reload is the request checkpoint this class feeds
+    /// (UapCheckpointRecorder, design note 2026-11-23-request-
+    /// checkpoints.md): it remembers each turn's Undo group and every
+    /// file the request changed, so "revert this request" still works
+    /// after the reload even though the single-Ctrl+Z grouping does not.
     /// </summary>
     public static class UapTurnScope
     {
@@ -65,6 +68,10 @@ namespace Colloid.AgentPanel.Ops
             Undo.IncrementCurrentGroup();
             Undo.SetCurrentGroupName("Agent turn");
             _undoGroupStart = Undo.GetCurrentGroup();
+            // Request checkpoints (design note 2026-11-23): the open
+            // recording window, if AgentHub opened one for this turn,
+            // remembers which Undo group holds the turn's scene edits.
+            UapCheckpointRecorder.NoteUndoGroup(_undoGroupStart);
             if (RefreshCounter.Increment())
             {
                 AssetDatabase.DisallowAutoRefresh();
@@ -84,12 +91,18 @@ namespace Colloid.AgentPanel.Ops
                 return;
             }
             _undoGroupActive = false;
+            // Before the collapse: the open recording window compares the
+            // Undo stack with what it was when the turn began.
+            UapCheckpointRecorder.NoteTurnUndoRecords();
             Undo.CollapseUndoOperations(_undoGroupStart);
             if (RefreshCounter.Decrement())
             {
                 AssetDatabase.AllowAutoRefresh();
                 AssetDatabase.Refresh();
             }
+            // AFTER the refresh above: the assets it imports (a new file's
+            // .meta, for one) still belong to the request being recorded.
+            UapCheckpointRecorder.EndTurn();
         }
 
         private static void ReleaseForDomainReload()
@@ -100,6 +113,12 @@ namespace Colloid.AgentPanel.Ops
                 AssetDatabase.AllowAutoRefresh();
             }
             RefreshCounter.ForceReset();
+            UapCheckpointRecorder.NoteTurnUndoRecords();
+            // The recording window does not cross a reload: whatever the
+            // editor imports afterwards is not this turn's doing. The
+            // journal is on disk, and a continuation turn re-opens the same
+            // checkpoint (UapCheckpointRecorder.ContinueRequest).
+            UapCheckpointRecorder.EndTurn();
         }
 
         /// <summary>Test-only: resets to a clean, never-started slate without touching AssetDatabase (for tests that only exercise RefreshCounter's own class directly, this is unused; kept for symmetry/future EditMode coverage).</summary>

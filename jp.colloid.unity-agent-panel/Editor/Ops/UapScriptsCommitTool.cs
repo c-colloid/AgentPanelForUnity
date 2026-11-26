@@ -359,6 +359,11 @@ namespace Colloid.AgentPanel.Ops
                 string stagedOriginal = Path.Combine(state.StagingRoot, rel.Replace('/', Path.DirectorySeparatorChar));
                 string destRel = ScriptStagingScanner.ToAssetsRelativePath(rel);
                 string dest = Path.Combine(state.ProjectRoot, "Assets", destRel.Replace('/', Path.DirectorySeparatorChar));
+                // Request checkpoint (design note 2026-11-23): this write
+                // bypasses the AssetDatabase, so the recorder is told here
+                // -- before the folder is made, so a folder this commit
+                // creates is recorded as created too.
+                UapCheckpointRecorder.Capture(dest);
                 string destDir = Path.GetDirectoryName(dest);
                 if (!string.IsNullOrEmpty(destDir))
                 {

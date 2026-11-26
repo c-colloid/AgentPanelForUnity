@@ -50,7 +50,8 @@ namespace Colloid.AgentPanel.UI
             {
                 case ChatMessage.RoleUser:
                     root.AddToClassList("uap-msg--user");
-                    AddRoleRow(root, null, L10n.S.ChatRoleUser, false);
+                    AddRevertButtonIfOffered(
+                        AddRoleRow(root, null, L10n.S.ChatRoleUser, false), message);
                     break;
                 case ChatMessage.RoleAssistant:
                     root.AddToClassList("uap-msg--assistant");
@@ -96,6 +97,10 @@ namespace Colloid.AgentPanel.UI
                     root.Add(blockElement);
                 }
                 i++;
+            }
+            if (message.role == ChatMessage.RoleUser)
+            {
+                AddRevertConfirmIfOpen(root, message);
             }
             // Right-click menu (copy selection / copy message / ask about
             // selection) and the Ctrl+C shortcut; the labels below opted
@@ -552,6 +557,17 @@ namespace Colloid.AgentPanel.UI
         private static VisualElement CreateSystemNoteBlock(ChatMessageBlock block)
         {
             Label label = Selectable(CreatePlainLabel(block.text, "uap-note"));
+            if (block.title == ChatMessageBlock.NoteLayoutLines)
+            {
+                // Several facts, one per line: left-aligned, and a warning
+                // block gets the same side bar as the revert card's caveats.
+                label.AddToClassList("uap-note--lines");
+                if (block.warning)
+                {
+                    label.AddToClassList("uap-note--lines-warn");
+                }
+                return label;
+            }
             if (block.warning)
             {
                 label.AddToClassList("uap-note--warn");
@@ -613,7 +629,325 @@ namespace Colloid.AgentPanel.UI
             }
         }
 
-        private static void AddRoleRow(VisualElement root, string sparkGlyph,
+        /// <summary>
+        /// "Revert this request" on the user message whose checkpoint is
+        /// the one that can be reverted now (design note 2026-11-23-
+        /// request-checkpoints.md sections 5 and 11): the newest request
+        /// that changed something, while no turn is running. The link only
+        /// OPENS the confirmation card under the message
+        /// (<see cref="AddRevertConfirmIfOpen"/>); nothing is reverted
+        /// until that card's own button is pressed. While the card is open
+        /// the link is not drawn at all -- the card's Cancel is the way
+        /// back, and a greyed-out link next to it read as a rendering
+        /// leftover. Link and card are both part of
+        /// MessageListController's row signature, so the row is rebuilt
+        /// when either answer changes.
+        /// </summary>
+        private static void AddRevertButtonIfOffered(VisualElement roleRow, ChatMessage message)
+        {
+            string checkpointId = message.checkpointId;
+            if (!Colloid.AgentPanel.Integration.AgentHub.CanRevertRequest(checkpointId)
+                || checkpointId == Colloid.AgentPanel.Integration.AgentHub.RevertConfirmId)
+            {
+                return;
+            }
+            if (_revertCardShownFor == checkpointId)
+            {
+                // The link is back, so the card was closed: opening it
+                // again should bring it into view again.
+                _revertCardShownFor = null;
+            }
+            var button = new Button(delegate
+            {
+                Colloid.AgentPanel.Integration.AgentHub.BeginRevertConfirm(checkpointId);
+            })
+            {
+                text = L10n.S.ChatRevertRequestButton,
+                tooltip = L10n.S.ChatRevertRequestTooltip
+            };
+            button.AddToClassList("uap-msg-revert");
+            roleRow.Add(button);
+        }
+
+        /// <summary>
+        /// The confirmation card, as the last element of the user message
+        /// it belongs to. In the transcript rather than a modal dialog so
+        /// the user can still scroll back and read what the request did
+        /// while deciding, and so it looks like the panel's other prompts.
+        /// </summary>
+        private static void AddRevertConfirmIfOpen(VisualElement root, ChatMessage message)
+        {
+            string checkpointId = message.checkpointId;
+            if (string.IsNullOrEmpty(checkpointId)
+                || checkpointId != Colloid.AgentPanel.Integration.AgentHub.RevertConfirmId)
+            {
+                return;
+            }
+            Colloid.AgentPanel.Ops.UapRevertPreview preview =
+                Colloid.AgentPanel.Integration.AgentHub.DescribeRevert(checkpointId);
+            if (preview == null)
+            {
+                return;
+            }
+            root.Add(CreateRevertConfirmCard(preview, checkpointId));
+        }
+
+        /// <summary>
+        /// What the revert will do, one fact per line, for a preview: the
+        /// files (the wording follows which of restore / delete applies),
+        /// then the scene. When there is nothing it can do, the one line
+        /// that says so.
+        /// </summary>
+        internal static List<string> ComposeRevertEffectLines(Colloid.AgentPanel.Ops.UapRevertPreview preview)
+        {
+            var lines = new List<string>();
+            if (preview.FilesToRestore > 0 && preview.FilesToRemove > 0)
+            {
+                lines.Add(L10n.F(L10n.S.RevertConfirmFilesFmt, preview.FilesToRestore, preview.FilesToRemove));
+            }
+            else if (preview.FilesToRestore > 0)
+            {
+                lines.Add(L10n.F(L10n.S.RevertConfirmRestoreOnlyFmt, preview.FilesToRestore));
+            }
+            else if (preview.FilesToRemove > 0)
+            {
+                lines.Add(L10n.F(L10n.S.RevertConfirmDeleteOnlyFmt, preview.FilesToRemove));
+            }
+            if (preview.SceneUndo)
+            {
+                lines.Add(L10n.S.RevertConfirmSceneLine);
+            }
+            if (lines.Count == 0)
+            {
+                lines.Add(L10n.S.RevertConfirmNothingLine);
+            }
+            return lines;
+        }
+
+        /// <summary>
+        /// What the user should know before pressing Revert: what will be
+        /// lost with it, and what will NOT go back. Only the caveats that
+        /// apply to THIS request -- a wall of standing disclaimers is what
+        /// teaches people to stop reading them. Empty for a request with
+        /// none, and then the card has no caveat group at all.
+        /// </summary>
+        internal static List<string> ComposeRevertCaveatLines(Colloid.AgentPanel.Ops.UapRevertPreview preview)
+        {
+            var lines = new List<string>();
+            if (preview.SceneUndo)
+            {
+                // Unity's Undo is one stack: taking the request's scene
+                // edits back takes everything after them back too.
+                lines.Add(L10n.S.RevertConfirmManualEditsLine);
+            }
+            else if (preview.SceneUndoUnavailable)
+            {
+                lines.Add(L10n.S.RevertConfirmSceneUnavailableLine);
+            }
+            if (preview.ChangedSince > 0)
+            {
+                lines.Add(L10n.F(L10n.S.RevertConfirmChangedAfterFmt, preview.ChangedSince));
+            }
+            if (preview.FilesChangedUntracked > 0)
+            {
+                lines.Add(L10n.F(L10n.S.RevertConfirmUntrackedFilesFmt, preview.FilesChangedUntracked));
+            }
+            if (preview.FilesNotStored > 0)
+            {
+                lines.Add(L10n.F(L10n.S.RevertConfirmNotStoredFmt, preview.FilesNotStored));
+            }
+            if (!string.IsNullOrEmpty(preview.Untracked))
+            {
+                lines.Add(L10n.F(L10n.S.RevertConfirmUntrackedFmt, preview.Untracked));
+            }
+            return lines;
+        }
+
+        /// <summary>Paths one confirmation card lists before it says how many more there are.</summary>
+        internal const int RevertConfirmMaxListedFiles = 12;
+
+        /// <summary>The checkpoint whose card was last scrolled into view, so a row rebuild does not scroll again.</summary>
+        private static string _revertCardShownFor;
+
+        private static VisualElement CreateRevertConfirmCard(
+            Colloid.AgentPanel.Ops.UapRevertPreview preview, string checkpointId)
+        {
+            var card = new VisualElement();
+            card.AddToClassList("uap-revert");
+
+            var title = new Label(L10n.S.RevertConfirmTitle);
+            title.AddToClassList("uap-revert-title");
+            card.Add(title);
+
+            List<string> effects = ComposeRevertEffectLines(preview);
+            for (int i = 0; i < effects.Count; i++)
+            {
+                var line = new Label(effects[i]);
+                line.AddToClassList("uap-revert-line");
+                card.Add(line);
+            }
+
+            List<string> caveats = ComposeRevertCaveatLines(preview);
+            if (caveats.Count > 0)
+            {
+                // The one accented element of the card: a warn-coloured bar
+                // down the side of the lines to read before deciding. The
+                // text itself stays in the primary colour (amber text on
+                // this surface fails contrast in the light skin).
+                var group = new VisualElement();
+                group.AddToClassList("uap-revert-caveats");
+                for (int i = 0; i < caveats.Count; i++)
+                {
+                    var line = new Label(caveats[i]);
+                    line.AddToClassList("uap-revert-line");
+                    group.Add(line);
+                }
+                card.Add(group);
+            }
+
+            int fileCount = preview.RestorePaths.Count + preview.RemovePaths.Count + preview.LeftAsIsPaths.Count;
+            if (fileCount > 0)
+            {
+                string stateKey = "revert-files:" + checkpointId;
+                var files = new Foldout { text = L10n.F(L10n.S.RevertConfirmFilesFoldoutFmt, fileCount) };
+                files.SetValueWithoutNotify(ExpandStateMemory.Get(stateKey, false));
+                files.AddToClassList("uap-revert-files");
+                files.RegisterValueChangedCallback(evt =>
+                {
+                    if (evt.target == files)
+                    {
+                        ExpandStateMemory.Set(stateKey, evt.newValue);
+                    }
+                });
+                // The files that will NOT go back first: with a long list
+                // they are the ones a cap must never hide.
+                int listed = 0;
+                listed = AddRevertFileRows(files, preview.LeftAsIsPaths, L10n.S.RevertConfirmTagLeft, "uap-revert-tag--left", listed);
+                listed = AddRevertFileRows(files, preview.RestorePaths, L10n.S.RevertConfirmTagRestore, null, listed);
+                listed = AddRevertFileRows(files, preview.RemovePaths, L10n.S.RevertConfirmTagRemove, null, listed);
+                if (fileCount > listed)
+                {
+                    var more = new Label(L10n.F(L10n.S.RevertConfirmMoreFilesFmt, fileCount - listed));
+                    more.AddToClassList("uap-revert-more");
+                    files.Add(more);
+                }
+                card.Add(files);
+            }
+
+            var footer = new VisualElement();
+            footer.AddToClassList("uap-revert-footer");
+            var note = new Label(L10n.S.RevertConfirmNoRedoLine);
+            note.AddToClassList("uap-revert-note");
+            footer.Add(note);
+
+            var actions = new VisualElement();
+            actions.AddToClassList("uap-revert-actions");
+            Button confirm = null;
+            Button cancel = null;
+            confirm = new Button(delegate
+            {
+                // One revert per card: a second click while the first is
+                // still restoring files would only add a "cannot revert"
+                // note under the result.
+                confirm.SetEnabled(false);
+                cancel.SetEnabled(false);
+                Colloid.AgentPanel.Integration.AgentHub.RevertRequest(checkpointId);
+            })
+            {
+                text = L10n.S.RevertConfirmOkButton
+            };
+            confirm.AddToClassList("uap-card-btn");
+            confirm.AddToClassList("uap-card-btn--primary");
+            confirm.SetEnabled(preview.HasAnythingToDo);
+            actions.Add(confirm);
+            cancel = new Button(Colloid.AgentPanel.Integration.AgentHub.CancelRevertConfirm)
+            {
+                text = L10n.S.RevertConfirmCancelButton
+            };
+            cancel.AddToClassList("uap-card-btn");
+            actions.Add(cancel);
+            footer.Add(actions);
+            card.Add(footer);
+
+            if (_revertCardShownFor != checkpointId)
+            {
+                // Opened just now: bring the whole card into view once, so
+                // its buttons are not left below the fold (or under the
+                // "Latest" pill). Later rebuilds of the row leave the
+                // scroll position alone.
+                _revertCardShownFor = checkpointId;
+                card.RegisterCallback<GeometryChangedEvent>(ScrollRevertCardIntoView);
+            }
+            return card;
+        }
+
+        private static void ScrollRevertCardIntoView(GeometryChangedEvent evt)
+        {
+            var card = evt.target as VisualElement;
+            if (card == null)
+            {
+                return;
+            }
+            card.UnregisterCallback<GeometryChangedEvent>(ScrollRevertCardIntoView);
+            ScrollView scroll = card.GetFirstAncestorOfType<ScrollView>();
+            if (scroll != null)
+            {
+                // After the list's own post-rebuild scroll restore has run.
+                card.schedule.Execute((System.Action)(() =>
+                {
+                    // The row may have been rebuilt in the meantime; ScrollTo
+                    // throws for an element that is no longer inside it.
+                    if (card.panel != null && scroll.contentContainer.Contains(card))
+                    {
+                        scroll.ScrollTo(card);
+                    }
+                })).StartingIn(60);
+            }
+        }
+
+        private static int AddRevertFileRows(VisualElement parent, List<string> paths, string tagText,
+            string tagModifier, int listed)
+        {
+            for (int i = 0; i < paths.Count && listed < RevertConfirmMaxListedFiles; i++, listed++)
+            {
+                string name;
+                string directory;
+                Colloid.AgentPanel.Ops.UapCheckpointPolicy.SplitPath(paths[i], out name, out directory);
+                var row = new VisualElement();
+                row.AddToClassList("uap-revert-file");
+                row.tooltip = paths[i];
+                var tag = new Label(tagText);
+                tag.AddToClassList("uap-revert-tag");
+                if (tagModifier != null)
+                {
+                    tag.AddToClassList(tagModifier);
+                }
+                row.Add(tag);
+                // The file name whole and first; the folder after it is
+                // what gets cut when the panel is narrow.
+                // Name and folder share one wrapping box: side by side while
+                // there is room, the folder under the name when there is
+                // not. The name is never the one that gives way.
+                var where = new VisualElement();
+                where.AddToClassList("uap-revert-where");
+                var file = new Label(name);
+                file.AddToClassList("uap-revert-name");
+                ApplyMonoFont(file);
+                where.Add(file);
+                if (directory.Length > 0)
+                {
+                    var folder = new Label(directory);
+                    folder.AddToClassList("uap-revert-dir");
+                    ApplyMonoFont(folder);
+                    where.Add(folder);
+                }
+                row.Add(where);
+                parent.Add(row);
+            }
+            return listed;
+        }
+
+        private static VisualElement AddRoleRow(VisualElement root, string sparkGlyph,
             string roleText, bool isAssistant)
         {
             var row = new VisualElement();
@@ -632,6 +966,7 @@ namespace Colloid.AgentPanel.UI
             }
             row.Add(role);
             root.Add(row);
+            return row;
         }
 
         /// <summary>

@@ -322,6 +322,15 @@ namespace Colloid.AgentPanel.Ops
             {
                 return SuccessResult(id, _executor.Execute(tool, input));
             }
+            catch (UapNotRunException)
+            {
+                // Never started (the server is stopping for a domain
+                // reload). Not a tool result: the CLI relay holds the call
+                // and sends it again when Unity is back.
+                UapOpsHttpResponse notRun = UapOpsHttpResponse.StatusOnly(503);
+                notRun.NotRun = true;
+                return notRun;
+            }
             catch (Exception ex)
             {
                 return JsonResponse(200, JsonRpcResult(id, ToolErrorResult(ex.Message)));
