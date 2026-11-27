@@ -167,8 +167,8 @@ namespace Colloid.AgentPanel.Model
         /// moment the reload completes (never baked into a spawn argument
         /// -- see that field's own doc comment). False means the feature
         /// is off: WITHOUT this check the panel would resume the agent
-        /// even for a user who never opted in, defeating the entire
-        /// point of this being an opt-in (default OFF) feature.
+        /// even for a user who switched it off (default ON since
+        /// v0.62.0; opt-in before that).
         /// </param>
         /// <param name="attributableToAgentScripts">
         /// True only when THIS reload followed a turn whose OWN
@@ -397,7 +397,7 @@ namespace Colloid.AgentPanel.Model
         /// <summary>
         /// The pure decision behind AgentHub.TryAutoContinueInterruptedTurn
         /// (PanelSettings.autoContinueInterruptedTurn). True only when every
-        /// guardrail passes: the user opted in, the reload really did
+        /// guardrail passes: the setting is on, the reload really did
         /// interrupt an open turn (AgentHub.ResumedMidTurn), the crash-loop
         /// guard is not holding the connection, and no OTHER
         /// auto-continuation (the compile one) is already queued for this

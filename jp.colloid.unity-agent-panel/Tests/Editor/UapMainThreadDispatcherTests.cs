@@ -188,6 +188,36 @@ namespace Colloid.AgentPanel.Tests
             Assert.AreEqual(0, dispatcher.PendingCount);
         }
 
+        /// <summary>
+        /// CLI relay (design note 2026-11-25-cli-relay.md): when the server
+        /// stops for a domain reload and the CLI lives on, a call that was
+        /// still queued fails as "not run" -- the one case the relay may
+        /// deliver again to the next domain.
+        /// </summary>
+        [Test]
+        public void CancelAll_NotRun_FailsAQueuedItemWithUapNotRunException()
+        {
+            var dispatcher = new UapMainThreadDispatcher { DefaultTimeoutMillis = 15000 };
+            var tool = new StubUapTool();
+
+            Task<JsonNode> call = Task.Run(() => dispatcher.Execute(tool, JsonNode.NewObject()));
+            Assert.IsTrue(SpinWaitUntil(() => dispatcher.PendingCount == 1, 2000));
+
+            dispatcher.CancelAll("UapOps server is stopping.", true);
+
+            Exception thrown = null;
+            try
+            {
+                JsonNode unused = call.Result;
+            }
+            catch (AggregateException aggregate)
+            {
+                thrown = aggregate.InnerException;
+            }
+            Assert.IsInstanceOf<UapNotRunException>(thrown);
+            Assert.AreEqual(0, tool.ExecuteCallCount);
+        }
+
         [Test]
         public void CancelAll_WithNothingQueued_IsANoOp()
         {

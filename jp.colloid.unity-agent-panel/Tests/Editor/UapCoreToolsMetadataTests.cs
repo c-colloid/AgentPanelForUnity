@@ -18,6 +18,7 @@ namespace Colloid.AgentPanel.Tests
 
         [TestCase("uap_ping", false)]
         [TestCase("uap_job_status", false)]
+        [TestCase("uap_ask_user", false)]
         [TestCase("uap_scene_create_object", true)]
         [TestCase("uap_scene_destroy_object", true)]
         [TestCase("uap_scene_reparent", true)]
@@ -71,6 +72,7 @@ namespace Colloid.AgentPanel.Tests
         [TestCase("uap_scripts_commit")]
         [TestCase("uap_compile")]
         [TestCase("uap_help")]
+        [TestCase("uap_ask_user")]
         [TestCase("uap_game_watch")]
         public void Tool_IsInCoreModule(string toolName)
         {
@@ -101,6 +103,7 @@ namespace Colloid.AgentPanel.Tests
         [TestCase("uap_scripts_commit")]
         [TestCase("uap_compile")]
         [TestCase("uap_help")]
+        [TestCase("uap_ask_user")]
         [TestCase("uap_game_watch")]
         public void Tool_InputSchema_IsAnObjectSchema(string toolName)
         {
@@ -130,6 +133,7 @@ namespace Colloid.AgentPanel.Tests
         [TestCase("uap_search")]
         [TestCase("uap_compile")]
         [TestCase("uap_help")]
+        [TestCase("uap_ask_user")]
         [TestCase("uap_game_watch")]
         public void Tool_Description_IsNonEmpty(string toolName)
         {

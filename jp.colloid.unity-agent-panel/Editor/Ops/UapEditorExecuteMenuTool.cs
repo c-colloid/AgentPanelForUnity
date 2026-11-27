@@ -142,6 +142,9 @@ namespace Colloid.AgentPanel.Ops
                 throw new InvalidOperationException(refusal);
             }
 
+            // Request checkpoints (design note 2026-11-23 section 10): a
+            // menu item is arbitrary editor code as far as files go.
+            UapCheckpointRecorder.BeforeUntrackedEditorWork();
             var run = new MenuRun { MenuPath = menuPath, StartedUtc = DateTime.UtcNow };
             Record(run);
             try

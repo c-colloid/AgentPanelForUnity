@@ -29,6 +29,11 @@ namespace Colloid.AgentPanel.Tests
             "uap_ping",
             // 2026-09-09: reads the job ledger off the main thread, changes nothing.
             "uap_job_status",
+            // 2026-11-25: shows a question card and returns the answer;
+            // the project is not touched. The ACP bridge marks its
+            // permission request requires_user_interaction, which no
+            // auto-approve level answers, so ReadOnly never hides the card.
+            "uap_ask_user",
             "uap_query_hierarchy",
             "uap_query_component_types",
             "uap_component_list",

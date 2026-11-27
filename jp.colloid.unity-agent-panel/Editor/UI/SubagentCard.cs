@@ -27,6 +27,7 @@ namespace Colloid.AgentPanel.UI
     {
         private readonly SubagentRecord _subagent;
         private VisualElement _details;
+        private bool _detailsPopulated;
         private Label _chevron;
         private Label _progressLabel;
         private ScrollView _nestedScroll;
@@ -204,7 +205,9 @@ namespace Colloid.AgentPanel.UI
                 _details = new VisualElement();
                 _details.AddToClassList("uap-subcard-details");
                 _details.style.display = DisplayStyle.None;
-                PopulateDetails();
+                // Filled on the first expand (design note 2026-11-28-lazy-
+                // tool-card-details.md): a collapsed card's nested
+                // transcript is up to 120 blocks nobody is looking at.
                 Add(_details);
                 header.RegisterCallback<ClickEvent>(delegate { ToggleExpanded(); });
 
@@ -342,6 +345,10 @@ namespace Colloid.AgentPanel.UI
             if (_expanded)
             {
                 TryLazyLoadNestedBlocks();
+                if (!_detailsPopulated)
+                {
+                    PopulateDetails();
+                }
             }
             _details.style.display = _expanded ? DisplayStyle.Flex : DisplayStyle.None;
             _chevron.text = _expanded ? IconLoader.GlyphChevronDown : IconLoader.GlyphChevronRight;
@@ -445,6 +452,7 @@ namespace Colloid.AgentPanel.UI
         /// <summary>(Re)builds the expand-details content from current subagent state.</summary>
         private void PopulateDetails()
         {
+            _detailsPopulated = true;
             _details.Clear();
 
             if (!string.IsNullOrEmpty(_subagent.summaryMarkdown))

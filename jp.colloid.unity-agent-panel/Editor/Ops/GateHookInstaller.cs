@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Security.Cryptography;
 using System.Text;
 using Colloid.AgentPanel.Core.Json;
 
@@ -9,44 +10,90 @@ namespace Colloid.AgentPanel.Ops
     /// Generates and installs the script validation gate's PreToolUse hook
     /// (design section 8.7 -- the mechanism that actually fires under
     /// `--permission-mode acceptEdits`, unlike the can_use_tool pre-filter
-    /// alone, per the section's live-E2E finding). Writes ONE file under
+    /// alone, per the section's live-E2E finding). Writes TWO files under
     /// `&lt;projectRoot&gt;/UserSettings/AgentPanel/`:
     /// <list type="bullet">
+    /// <item>The hook script (<see cref="BuildHookScript"/>, which denies --
+    /// via stdout JSON, exit 0 -- a gated Assets/**/*.cs|*.asmdef target and
+    /// exits 0 silently otherwise), under a CONTENT-ADDRESSED name
+    /// (<see cref="HookFileNameFor"/>).</item>
     /// <item><see cref="SettingsFileName"/> -- the `--settings` JSON. When a
-    /// PowerShell interpreter exists it wires an INLINE hook: the whole
-    /// PowerShell script (<see cref="BuildHookScript"/>, which denies -- via
-    /// stdout JSON, exit 0 -- a gated Assets/**/*.cs|*.asmdef target and
-    /// exits 0 silently otherwise) is base64-encoded into a
-    /// `-EncodedCommand` command line (<see cref="BuildInlineHookCommand"/>),
-    /// so NO executable .ps1 is written to the agent-writable UserSettings
-    /// tree (SEC-1). Otherwise it emits the narrow `permissions.deny` glob
-    /// as a degraded fallback (never both -- see BuildSettingsJson) so an
+    /// PowerShell interpreter exists it wires a short INLINE bootstrap
+    /// (<see cref="BuildBootstrapScript"/>, passed as `-EncodedCommand`)
+    /// that reads the hook script once, compares its SHA-256 with the value
+    /// PINNED in the command line itself, and only then runs the bytes it
+    /// hashed. Otherwise it emits the narrow `permissions.deny` glob as a
+    /// degraded fallback (never both -- see BuildSettingsJson) so an
     /// unrunnable hook still stops the write with a generic message instead
     /// of silently allowing it through.</item>
     /// </list>
-    /// A stale <see cref="HookFileName"/> from an older version is deleted
-    /// on install so the executable script never lingers on disk.
     ///
-    /// Both file bodies are PURE functions of their inputs
-    /// (BuildHookScript/BuildSettingsJson) -- no UnityEditor/disk
-    /// dependency -- so their exact generated text is unit-tested directly.
-    /// Only <see cref="EnsureInstalled"/> touches disk, and it rewrites a
-    /// file only when its computed content actually differs from what is
-    /// already there (plain content comparison after a read -- equivalent
-    /// to a hash compare for this purpose, without pulling in a hashing
-    /// dependency for two small text files), so a spawn that runs this on
+    /// Why not the whole script inline (the 2026-08-22 SEC-1 shape): once
+    /// the shell-command scan was added (2026-09-15) the base64 of the
+    /// UTF-16 script passed 17,000 characters, more than twice cmd.exe's
+    /// 8,191-character command line limit, and the CLI refused to run the
+    /// hook at all -- the gate's only layer under acceptEdits was gone.
+    /// The bootstrap stays around 2,000 characters plus the path, however
+    /// large the script grows. Why this keeps SEC-1 closed: the script
+    /// file is agent-writable again, but a rewritten file no longer matches
+    /// the pinned hash, so the bootstrap DENIES the tool call instead of
+    /// running it (fail closed), and the hash lives in the settings JSON the
+    /// CLI reads only at spawn. Design note:
+    /// docs/design-notes/2026-11-26-gate-hook-hash-pinned-bootstrap.md.
+    ///
+    /// The file bodies are PURE functions of their inputs -- no
+    /// UnityEditor/disk dependency -- so their exact generated text is
+    /// unit-tested directly. Only <see cref="EnsureInstalled"/> touches
+    /// disk, and it rewrites a file only when its computed content actually
+    /// differs from what is already there, so a spawn that runs this on
     /// every StartClient call does not needlessly bump either file's mtime.
     ///
-    /// Windows-only (design section 8.7 point 5): PowerShell -File is the
-    /// v1 mechanism; a non-Windows platform gets the can_use_tool layer
-    /// only (AgentHub gates this class's call site on
-    /// RuntimePlatform.WindowsEditor, mirroring every other Windows-only
-    /// check in this codebase -- see WindowsCliPathProbe's precedent).
+    /// Windows-only (design section 8.7 point 5): a non-Windows platform
+    /// gets the can_use_tool layer only (AgentHub gates this class's call
+    /// site on RuntimePlatform.WindowsEditor, mirroring every other
+    /// Windows-only check in this codebase -- see WindowsCliPathProbe's
+    /// precedent).
     /// </summary>
     public static class GateHookInstaller
     {
-        /// <summary>PowerShell hook script filename, under DefaultRelativeDirectory.</summary>
+        /// <summary>
+        /// The hook script filename of the versions before the hook was
+        /// inlined (2026-08-22). Never written anymore; a leftover one is
+        /// still deleted on install and still counts as a protected gate
+        /// file (<see cref="IsHookFileName"/>).
+        /// </summary>
         public const string HookFileName = "uap-gate-hook.ps1";
+
+        /// <summary>Prefix of the content-addressed hook script filename (<see cref="HookFileNameFor"/>).</summary>
+        public const string HookFilePrefix = "uap-gate-hook-";
+
+        /// <summary>Extension of the hook script file.</summary>
+        public const string HookFileExtension = ".ps1";
+
+        /// <summary>
+        /// Longest hook command line this class will wire. cmd.exe refuses
+        /// anything over 8,191 characters, and that is the shortest limit a
+        /// hook command can meet on Windows (CreateProcess allows 32,767);
+        /// the rest is margin. A command over this is NOT shipped -- the
+        /// settings JSON falls back to the `permissions.deny` glob, because
+        /// a hook the CLI refuses to start gates nothing.
+        /// </summary>
+        public const int MaxHookCommandLength = 8000;
+
+        /// <summary>
+        /// What the bootstrap answers when the hook script is missing or no
+        /// longer matches the pinned hash. It cannot tell a gated write from
+        /// a harmless one without the script, so it denies every matched
+        /// tool call and says how to recover. ASCII, and free of quotes and
+        /// backslashes by convention (it is JSON-encoded and then embedded
+        /// in a single-quoted PowerShell literal; both steps escape, this
+        /// just keeps the generated text readable).
+        /// </summary>
+        public const string UnverifiedHookDenyMessage =
+            "The Agent Panel for Unity script validation gate could not verify its hook script"
+            + " (the file under UserSettings/AgentPanel/ is missing or was modified), so this tool call"
+            + " was blocked. Tell the user to start a new session from the Agent Panel; that regenerates"
+            + " the file. Do not try to recreate or edit it.";
 
         /// <summary>`--settings` JSON filename, under DefaultRelativeDirectory.</summary>
         public const string SettingsFileName = "uap-gate-settings.json";
@@ -265,43 +312,132 @@ namespace Colloid.AgentPanel.Ops
         }
 
         /// <summary>
-        /// Builds the PowerShell command line that runs the gate hook
-        /// INLINE, with no .ps1 file on disk. The entire hook script
-        /// (<see cref="BuildHookScript"/>) is base64-encoded as UTF-16LE and
-        /// passed via `-EncodedCommand`, exactly the encoding PowerShell's
-        /// -EncodedCommand expects (Convert.ToBase64String over
-        /// Encoding.Unicode bytes). Security (SEC-1, the acceptEdits
-        /// privilege escalation this closes): the previous `-File
-        /// &lt;hook.ps1&gt;` form kept an executable script under
-        /// UserSettings/AgentPanel/ that ScriptGate does NOT protect, so
-        /// under `--permission-mode acceptEdits` (where the can_use_tool
-        /// pre-filter never fires) an agent could overwrite that .ps1 and
-        /// have the CLI run arbitrary PowerShell on the next Write/Edit. With
-        /// the script inlined into the `--settings` JSON there is no hook
-        /// file to overwrite, and settings.json is read only at spawn (so a
-        /// mid-session rewrite cannot affect the running process, and the
-        /// next spawn regenerates it). base64 is pure ASCII and contains no
-        /// whitespace, so it needs no shell quoting.
+        /// SHA-256 of <paramref name="script"/> as it is stored on disk
+        /// (UTF-8, no BOM -- the bytes AtomicFile writes), as 64 uppercase
+        /// hex digits: the form `[BitConverter]::ToString(...)` minus its
+        /// dashes produces in the bootstrap.
         /// </summary>
-        public static string BuildInlineHookCommand(string denyMessage)
+        public static string ComputeScriptHash(string script)
         {
-            string script = BuildHookScript(denyMessage);
-            string encoded = Convert.ToBase64String(Encoding.Unicode.GetBytes(script));
+            byte[] bytes = new UTF8Encoding(false).GetBytes(script ?? string.Empty);
+            byte[] hash;
+            using (SHA256 sha = SHA256.Create())
+            {
+                hash = sha.ComputeHash(bytes);
+            }
+            var sb = new StringBuilder(hash.Length * 2);
+            for (int i = 0; i < hash.Length; i++)
+            {
+                sb.Append(hash[i].ToString("X2", System.Globalization.CultureInfo.InvariantCulture));
+            }
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// The hook script's filename for a given <see cref="ComputeScriptHash"/>
+        /// value: the prefix, the first 16 hex digits (lowercase), `.ps1`.
+        /// Content-addressed so two script versions never share a file: a
+        /// CLI process that outlives a package update (it is re-attached
+        /// across domain reloads) keeps finding the file ITS command line
+        /// pinned, instead of being denied everything because a newer spawn
+        /// rewrote a shared file under it. The name is only an address --
+        /// the bootstrap checks the full 256-bit hash, not the name.
+        /// </summary>
+        public static string HookFileNameFor(string hashHex)
+        {
+            string hex = (hashHex ?? string.Empty).ToLowerInvariant();
+            if (hex.Length > 16)
+            {
+                hex = hex.Substring(0, 16);
+            }
+            return HookFilePrefix + hex + HookFileExtension;
+        }
+
+        /// <summary>
+        /// True when <paramref name="fileName"/> (a bare name, no directory)
+        /// is a hook script this class wrote, in either naming: the legacy
+        /// fixed name or a content-addressed one. Case-insensitive.
+        /// </summary>
+        public static bool IsHookFileName(string fileName)
+        {
+            if (string.IsNullOrEmpty(fileName))
+            {
+                return false;
+            }
+            if (string.Equals(fileName, HookFileName, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+            return fileName.Length > HookFilePrefix.Length + HookFileExtension.Length
+                && fileName.StartsWith(HookFilePrefix, StringComparison.OrdinalIgnoreCase)
+                && fileName.EndsWith(HookFileExtension, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Builds the bootstrap the hook command line carries. It reads the
+        /// hook script's bytes ONCE, hashes those bytes, and runs those same
+        /// bytes -- so there is no window between the check and the use in
+        /// which the file could be swapped. Anything that goes wrong before
+        /// the script is verified (file missing, unreadable, hash mismatch)
+        /// prints a deny decision and exits 0: fail CLOSED, unlike the hook
+        /// script's own fail-open on malformed stdin, because here the
+        /// failure means the gate itself is not the code the panel wrote.
+        /// The script runs OUTSIDE the try, so its own errors keep the
+        /// semantics <see cref="BuildHookScript"/> documents.
+        /// </summary>
+        public static string BuildBootstrapScript(string hookAbsolutePath, string hashHex)
+        {
+            string denyJson = JsonWriter.Write(JsonNode.NewObject()
+                .Set("hookSpecificOutput", JsonNode.NewObject()
+                    .Set("hookEventName", "PreToolUse")
+                    .Set("permissionDecision", "deny")
+                    .Set("permissionDecisionReason", UnverifiedHookDenyMessage)));
+            var sb = new StringBuilder(1024);
+            sb.Append("$ErrorActionPreference = 'Stop'\n");
+            sb.Append("try {\n");
+            sb.Append("    $bytes = [IO.File]::ReadAllBytes('")
+                .Append(EscapePowerShellSingleQuoted(hookAbsolutePath)).Append("')\n");
+            sb.Append("    $sha = [Security.Cryptography.SHA256]::Create()\n");
+            sb.Append("    $hash = [BitConverter]::ToString($sha.ComputeHash($bytes)).Replace('-', '')\n");
+            sb.Append("    if ($hash -ne '").Append(EscapePowerShellSingleQuoted(hashHex))
+                .Append("') { throw 'hash mismatch' }\n");
+            sb.Append("    $block = [scriptblock]::Create([Text.Encoding]::UTF8.GetString($bytes))\n");
+            sb.Append("} catch {\n");
+            sb.Append("    '").Append(EscapePowerShellSingleQuoted(denyJson)).Append("'\n");
+            sb.Append("    exit 0\n");
+            sb.Append("}\n");
+            sb.Append("& $block\n");
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// Builds the PowerShell command line of the hook: the bootstrap
+        /// (<see cref="BuildBootstrapScript"/>) base64-encoded as UTF-16LE
+        /// and passed via `-EncodedCommand`, exactly the encoding PowerShell
+        /// expects (Convert.ToBase64String over Encoding.Unicode bytes).
+        /// base64 is pure ASCII with no whitespace, so it needs no shell
+        /// quoting, and a non-ASCII project path survives intact inside it.
+        /// </summary>
+        public static string BuildInlineHookCommand(string hookAbsolutePath, string hashHex)
+        {
+            string bootstrap = BuildBootstrapScript(hookAbsolutePath, hashHex);
+            string encoded = Convert.ToBase64String(Encoding.Unicode.GetBytes(bootstrap));
             return "powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand " + encoded;
         }
 
         /// <summary>
-        /// Builds the `--settings` JSON wiring the INLINE PowerShell hook
-        /// (<see cref="BuildInlineHookCommand"/>, built from
-        /// <paramref name="denyMessage"/>) into a PreToolUse hook for
-        /// Write/Edit/MultiEdit, via JsonWriter (the same escaping-authority
-        /// used for every other outbound JSON payload here). When
-        /// <paramref name="includeDenyFallback"/> is true, emits the narrow
-        /// `permissions.deny` glob confirmed by the pre-implementation
-        /// probe (design section 8.7 point 3) INSTEAD OF the hook: it
-        /// blocks a gated Assets/**/*.cs write, does not over-block a
-        /// non-script Assets/ write, and does not block a write outside
-        /// Assets/ (the staging folder).
+        /// Builds the `--settings` JSON wiring the bootstrap command
+        /// (<see cref="BuildInlineHookCommand"/>) into a PreToolUse hook for
+        /// Write/Edit/MultiEdit and the shell tools, via JsonWriter (the
+        /// same escaping-authority used for every other outbound JSON
+        /// payload here). When <paramref name="includeDenyFallback"/> is
+        /// true -- or the command would exceed
+        /// <see cref="MaxHookCommandLength"/> (a pathologically long project
+        /// path) -- emits the narrow `permissions.deny` glob confirmed by
+        /// the pre-implementation probe (design section 8.7 point 3) INSTEAD
+        /// OF the hook: it blocks a gated Assets/**/*.cs write, does not
+        /// over-block a non-script Assets/ write, and does not block a write
+        /// outside Assets/ (the staging folder).
         ///
         /// The two are mutually exclusive because the deny rule
         /// SHORT-CIRCUITS the hook: measured twice (implementation probe,
@@ -316,10 +452,11 @@ namespace Colloid.AgentPanel.Ops
         /// for machines where the hook could not run at all (see
         /// <see cref="IsHookRunnable"/>).
         /// </summary>
-        public static string BuildSettingsJson(string denyMessage, bool includeDenyFallback)
+        public static string BuildSettingsJson(string hookAbsolutePath, string hashHex, bool includeDenyFallback)
         {
             JsonNode root = JsonNode.NewObject();
-            if (includeDenyFallback)
+            string command = includeDenyFallback ? null : BuildInlineHookCommand(hookAbsolutePath, hashHex);
+            if (command == null || command.Length > MaxHookCommandLength)
             {
                 root.Set("permissions", JsonNode.NewObject()
                     .Set("deny", JsonNode.NewArray()
@@ -327,7 +464,6 @@ namespace Colloid.AgentPanel.Ops
                         .Add("Edit(Assets/**/*.asmdef)")));
                 return JsonWriter.Write(root);
             }
-            string command = BuildInlineHookCommand(denyMessage);
             root.Set("hooks", JsonNode.NewObject()
                 .Set("PreToolUse", JsonNode.NewArray()
                     .Add(JsonNode.NewObject()
@@ -342,17 +478,21 @@ namespace Colloid.AgentPanel.Ops
         // -- Installer (touches disk) --------------------------------------------
 
         /// <summary>
-        /// Ensures the `--settings` JSON exists under
+        /// Ensures the hook script and the `--settings` JSON exist under
         /// `&lt;projectRoot&gt;/UserSettings/AgentPanel/` with up-to-date
-        /// content, rewriting it only when its freshly computed content
+        /// content, rewriting each only when its freshly computed content
         /// differs from what is already on disk (so a spawn that calls this
-        /// every time does not needlessly touch its mtime). The PowerShell
-        /// hook is now INLINED into that JSON via `-EncodedCommand`
-        /// (<see cref="BuildInlineHookCommand"/>), so NO .ps1 is written --
-        /// this closes SEC-1, the acceptEdits escalation where a writable
-        /// hook file let an agent run arbitrary PowerShell. Any stale
-        /// <see cref="HookFileName"/> left by an older version is deleted so
-        /// the executable script never lingers on disk.
+        /// every time does not needlessly touch its mtime -- and so a hook
+        /// script an agent tampered with is put back at the next spawn).
+        /// The script is written BEFORE the settings that pin its hash; if
+        /// it cannot be written, or no PowerShell exists, the settings carry
+        /// the `permissions.deny` fallback instead of a hook that would deny
+        /// everything. A legacy fixed-name <see cref="HookFileName"/> is
+        /// deleted. Content-addressed scripts of OTHER versions are left
+        /// alone on purpose: a CLI process started by an older package
+        /// version may still be running against one (see
+        /// <see cref="HookFileNameFor"/>); they are a few KB each and appear
+        /// only when the script text itself changes.
         ///
         /// Returns the settings JSON file's absolute path (for
         /// AgentClientOptions.SettingsFilePath -- the CLI resolves
@@ -370,10 +510,12 @@ namespace Colloid.AgentPanel.Ops
             }
             string directory = Path.Combine(projectRoot,
                 DefaultRelativeDirectory.Replace('/', Path.DirectorySeparatorChar));
-            string hookPath = Path.Combine(directory, HookFileName);
+            string legacyHookPath = Path.Combine(directory, HookFileName);
             string settingsPath = Path.Combine(directory, SettingsFileName);
 
-            string settingsJson = BuildSettingsJson(ScriptGate.DenyMessage, !IsHookRunnable());
+            string script = BuildHookScript(ScriptGate.DenyMessage);
+            string hash = ComputeScriptHash(script);
+            string hookPath = Path.Combine(directory, HookFileNameFor(hash));
 
             try
             {
@@ -385,10 +527,15 @@ namespace Colloid.AgentPanel.Ops
                 return null;
             }
 
-            // The hook is inlined into settings.json now; remove any .ps1 a
-            // previous version wrote so no editable executable script is
-            // left under the agent-writable UserSettings tree (SEC-1).
-            TryDeleteStaleHook(hookPath, log);
+            TryDeleteStaleHook(legacyHookPath, log);
+
+            bool hookReady = IsHookRunnable() && WriteIfChanged(hookPath, script, log);
+            if (hookReady && BuildInlineHookCommand(hookPath, hash).Length > MaxHookCommandLength)
+            {
+                Log(log, "The hook command line would exceed " + MaxHookCommandLength
+                    + " characters (project path too long); using the permissions.deny fallback.");
+            }
+            string settingsJson = BuildSettingsJson(hookPath, hash, !hookReady);
 
             if (!WriteIfChanged(settingsPath, settingsJson, log))
             {
@@ -507,7 +654,8 @@ namespace Colloid.AgentPanel.Ops
 
         /// <summary>
         /// Writes text to <paramref name="path"/> as UTF-8 with no BOM (the
-        /// settings JSON body is pure ASCII today; UTF-8 is headroom), only
+        /// hook script is pure ASCII; the settings JSON is too, its base64
+        /// carrying any non-ASCII path), only
         /// when it differs from the file's current content -- delegated to
         /// the shared MODEL-2 helper, which also makes the write ATOMIC
         /// (staged tmp + swap) instead of the previous in-place

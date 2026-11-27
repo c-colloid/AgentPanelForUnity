@@ -69,6 +69,24 @@ namespace Colloid.AgentPanel.Integration
         /// </summary>
         private static string _reaperProcessName = ZombieReaper.DefaultProcessName;
 
+        // -- CLI relay (design note 2026-11-25-cli-relay.md) ------------------------
+        // Non-null while the current client talks to the CLI through the
+        // relay process, which keeps the CLI alive across a domain reload.
+        private static RelayCliTransport _relayTransport;
+        // Ids of the assistant messages built from CLI lines that came
+        // after the last finished turn result. A re-attach removes exactly
+        // these: the relay replays those lines and the ordinary handlers
+        // build the messages again.
+        private static readonly List<string> _assistantIdsSinceResult = new List<string>();
+        // Counts attaches; seeds the request id counter so ids never repeat.
+        private static int _relayGeneration;
+        private static bool _relayUnavailableLogged;
+        // True from a re-attach until the relay's replay has been pumped.
+        private static bool _relayReplaying;
+        // Launched for a spawn that has not adopted it yet (StartClient
+        // can still fail in between); ended by the next teardown.
+        private static RelayCliTransport _relayPendingAdoption;
+
         /// <summary>The backend the current settings select (design note 2026-09-10-acp-backends.md section 2).</summary>
         public static AgentBackend CurrentBackend
         {
@@ -2089,6 +2107,7 @@ namespace Colloid.AgentPanel.Integration
             client.CompactBoundaryReceived += OnCompactBoundaryReceived;
             client.StatusReceived += OnStatusReceived;
             client.PermissionRequested += OnPermissionRequested;
+            client.HookCallbackReceived += OnHookCallbackReceived;
         }
 
         /// <summary>
@@ -2989,6 +3008,386 @@ namespace Colloid.AgentPanel.Integration
             RaiseChanged();
         }
 
+        // -- CLI relay: launch / detach / re-attach --------------------------------
+
+        /// <summary>Process name the orphan reaper matches the relay by (the .NET host Unity ships).</summary>
+        internal const string RelayReaperProcessName = "dotnet";
+        private const int RelayAttachSchemaVersion = 1;
+
+        /// <summary>True while the CLI runs behind the relay (it then survives a domain reload).</summary>
+        public static bool UsingCliRelay
+        {
+            get { return _relayTransport != null; }
+        }
+
+        private static string RelayRunDirectory(string projectRoot)
+        {
+            return Path.Combine(projectRoot, "Library", "UnityAgentPanel", "CliRelay", "run");
+        }
+
+        /// <summary>
+        /// Starts a relay for the spawn that follows, or returns null --
+        /// the caller then uses the ordinary in-process transport, which
+        /// is the restart-on-reload behaviour the panel always had. The
+        /// relay program is compiled once per package version in the
+        /// background; until that has finished this returns null.
+        /// </summary>
+        private static RelayCliTransport TryLaunchRelay(string projectRoot, IProcessKiller killer)
+        {
+            string reason;
+            try
+            {
+                RelayToolchainPaths paths = UapStdioRelayBuilder.CapturePaths();
+                UapStdioRelayBuilder.Warm(paths, RelayProgram.CliRelay, Log);
+                string dll = UapStdioRelayBuilder.TryGetBuiltDll(paths, RelayProgram.CliRelay, Log, RelayBuildWaitMillis);
+                if (dll != null)
+                {
+                    RelayCliTransport relay = RelayCliTransport.Launch(new RelayLaunchOptions
+                    {
+                        DotnetHost = paths.DotnetHost,
+                        RelayDll = dll,
+                        RunDirectory = RelayRunDirectory(projectRoot),
+                        UnityPid = System.Diagnostics.Process.GetCurrentProcess().Id,
+                        CtlToken = UapOpsAuth.GenerateToken(),
+                        McpToken = UapOpsAuth.GenerateToken()
+                    }, killer, Log);
+                    if (relay != null)
+                    {
+                        _relayPendingAdoption = relay;
+                        return relay;
+                    }
+                    reason = RelayCliTransport.LastFailure;
+                }
+                else
+                {
+                    reason = string.IsNullOrEmpty(paths.FailureReason)
+                        ? "the relay program is still being built"
+                        : paths.FailureReason;
+                }
+            }
+            catch (Exception ex)
+            {
+                reason = ex.Message;
+            }
+            if (!_relayUnavailableLogged)
+            {
+                _relayUnavailableLogged = true;
+                Log(L10n.F(L10n.S.HubCliRelayUnavailableFmt, reason));
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// How long a spawn waits for the relay build. The build runs once
+        /// per package version and is cached on disk, so this is paid at
+        /// most once, right after the setting is first turned on.
+        /// </summary>
+        internal const int DefaultRelayBuildWaitMillis = 5000;
+        internal static int RelayBuildWaitMillis = DefaultRelayBuildWaitMillis;
+
+        private static void NoteRelayResultProcessed()
+        {
+            _assistantIdsSinceResult.Clear();
+            RelayCliTransport relay = _relayTransport;
+            if (relay == null)
+            {
+                return;
+            }
+            try
+            {
+                relay.NoteResultProcessed();
+            }
+            catch (Exception ex)
+            {
+                Log("CLI relay ack failed: " + ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// The reload teardown for a CLI behind the relay: instead of
+        /// interrupting and killing it (ShutdownForReload), close the link
+        /// and leave it running. What the next domain needs to pick it up
+        /// again goes to SessionStateBridge.RelayAttachJson first. Returns
+        /// false, having done nothing, when there is no relay to detach
+        /// from -- the caller then runs ShutdownForReload.
+        /// </summary>
+        internal static bool DetachForReload()
+        {
+            RelayCliTransport relay = _relayTransport;
+            AgentClient client = _client;
+            if (relay == null || client == null || !relay.IsRunning
+                || client.State == AgentClientState.NotStarted
+                || client.State == AgentClientState.Errored
+                || !PanelStateStore.instance.Settings.cliRelayEnabled)
+            {
+                return false;
+            }
+            RelayEndpoint endpoint = relay.Endpoint;
+            JsonNode ids = JsonNode.NewArray();
+            for (int i = 0; i < _assistantIdsSinceResult.Count; i++)
+            {
+                ids.Add(_assistantIdsSinceResult[i]);
+            }
+            JsonNode info = JsonNode.NewObject()
+                .Set("v", RelayAttachSchemaVersion)
+                .Set("ctlPort", endpoint.CtlPort)
+                .Set("mcpPort", endpoint.McpPort)
+                .Set("token", endpoint.CtlToken)
+                .Set("mcpToken", endpoint.McpToken)
+                .Set("relayPid", endpoint.RelayPid)
+                .Set("relayStartTicks", endpoint.RelayStartTicks)
+                .Set("cliPid", endpoint.CliPid)
+                .Set("resultsProcessed", relay.ResultsProcessed)
+                .Set("turnId", client.CurrentTurnId)
+                .Set("openTurns", client.OpenTurnCount)
+                .Set("turnWasOpen", client.TurnActive)
+                .Set("interruptRequested", client.InterruptRequested)
+                .Set("initRequestId", client.InitializeRequestId ?? string.Empty)
+                .Set("generation", _relayGeneration + 1)
+                .Set("sessionId", client.SessionId ?? string.Empty)
+                // What the CLI was SPAWNED with: after the re-attach the
+                // "settings changed, reconnect to apply" comparison must
+                // still be against these, not against the settings as
+                // they are then.
+                .Set("spawnSettings", _lastSpawnedSettingsSnapshot != null
+                    ? JsonUtility.ToJson(_lastSpawnedSettingsSnapshot) : string.Empty)
+                .Set("spawnInstructions", _lastSpawnedCustomInstructions ?? string.Empty)
+                .Set("cliUpdatePending", CliUpdateReconnectPending)
+                .Set("assistantIds", ids);
+            SessionStateBridge.RelayAttachJson = JsonWriter.Write(info);
+            TearDownClient(false, ReloadStopGraceMillis, detach: true);
+            SaveSessionCache();
+            RaiseChanged();
+            return true;
+        }
+
+        /// <summary>
+        /// First step after a domain reload: pick the CLI up again from
+        /// the relay the previous domain detached from. On success the
+        /// client is live again in the SAME turn -- the relay replays the
+        /// lines of the open turn and the ordinary handlers rebuild the
+        /// transcript from them -- and true is returned with the open
+        /// turn's state in <paramref name="turnWasOpen"/>. On any failure
+        /// the relay is told to stop and false is returned: the caller
+        /// carries on with the restart-and-resume path as if the relay
+        /// had never been there.
+        /// </summary>
+        internal static bool TryReattachRelay(out bool turnWasOpen)
+        {
+            turnWasOpen = false;
+            string json = SessionStateBridge.RelayAttachJson;
+            if (string.IsNullOrEmpty(json))
+            {
+                return false;
+            }
+            // One shot: whatever happens below, it is never tried twice.
+            SessionStateBridge.RelayAttachJson = string.Empty;
+            string failure = null;
+            RelayCliTransport transport = null;
+            try
+            {
+                JsonNode info;
+                string parseError;
+                if (!JsonParser.TryParse(json, out info, out parseError) || !info.IsObject
+                    || info["v"].AsInt() != RelayAttachSchemaVersion)
+                {
+                    failure = "the saved relay record is not readable";
+                    return false;
+                }
+                PanelSettings settings = PanelStateStore.instance.Settings;
+                string projectRoot = GetProjectRoot();
+                var endpoint = new RelayEndpoint
+                {
+                    CtlPort = info["ctlPort"].AsInt(),
+                    McpPort = info["mcpPort"].AsInt(),
+                    CtlToken = info["token"].AsString(string.Empty),
+                    McpToken = info["mcpToken"].AsString(string.Empty),
+                    RelayPid = info["relayPid"].AsInt(),
+                    RelayStartTicks = info["relayStartTicks"].AsLong(),
+                    CliPid = info["cliPid"].AsInt()
+                };
+                IProcessKiller killer = CreateKiller();
+                transport = RelayCliTransport.Attach(endpoint, info["resultsProcessed"].AsInt(),
+                    System.Diagnostics.Process.GetCurrentProcess().Id, RelayRunDirectory(projectRoot), killer, Log);
+                if (transport == null)
+                {
+                    failure = RelayCliTransport.LastFailure;
+                    return false;
+                }
+                if (!settings.cliRelayEnabled || AgentBackends.IsAcp(settings.agentBackend))
+                {
+                    failure = "the setting was turned off";
+                    return false;
+                }
+
+                turnWasOpen = info["turnWasOpen"].AsBool();
+                if (settings.uapOpsEnabled)
+                {
+                    UapOpsServer.EnsureStarted(Log);
+                    UapOpsServer.SetEnabledModules(settings.uapOpsModules);
+                    UapOpsServer.SetCompactToolList(
+                        UapToolListModePolicy.ResolveCompact(settings.uapToolListMode, false));
+                }
+                if (turnWasOpen)
+                {
+                    // Before any replayed hook or tool call can arrive:
+                    // they record into the request's checkpoint window.
+                    ReopenTurnScopeAfterAttach(settings);
+                }
+
+                _reaper = new ZombieReaper(
+                    Path.Combine(projectRoot, "UserSettings", "AgentPanel", "cli-process.json"),
+                    killer, Log);
+                _reaperProcessName = RelayReaperProcessName;
+                _relayGeneration = info["generation"].AsInt();
+                _reachedReadyThisProcess = true;
+                CurrentAcpAgentName = null;
+                LastError = null;
+
+                // The relay sends the lines after the last finished result
+                // again; drop what the previous domain had built from them.
+                // Only now, after every step that can still fail: a
+                // fallback keeps the partial output in the transcript.
+                var replayed = new HashSet<string>();
+                foreach (JsonNode id in info["assistantIds"].Items)
+                {
+                    replayed.Add(id.AsString(string.Empty));
+                }
+                if (replayed.Count > 0)
+                {
+                    Session.messages.RemoveAll(delegate(ChatMessage m) { return m != null && replayed.Contains(m.id); });
+                }
+                _streamingAssistant = null;
+                _assistantIdsSinceResult.Clear();
+
+                var client = new AgentClient(transport, Log);
+                WireClientHandlers(client);
+                client.Attach(new AgentClientAttachOptions
+                {
+                    InitializeRequestId = info["initRequestId"].AsString(string.Empty),
+                    TurnId = info["turnId"].AsInt(),
+                    OpenTurns = turnWasOpen ? Math.Max(1, info["openTurns"].AsInt()) : 0,
+                    InterruptRequested = info["interruptRequested"].AsBool(),
+                    RequestCounterSeed = _relayGeneration * 10000,
+                    InitializeTimeoutSeconds = 60
+                });
+                if (!transport.IsRunning)
+                {
+                    // The CLI ended (or the link dropped) before this
+                    // client was listening; it would never hear of it.
+                    failure = "the CLI ended while the panel was attaching";
+                    return false;
+                }
+                _client = client;
+                _relayTransport = transport;
+                _relayReplaying = true;
+                UnityEditor.EditorApplication.update -= WatchRelayReplay;
+                UnityEditor.EditorApplication.update += WatchRelayReplay;
+                PanelSettings spawnSettings = null;
+                string spawnSettingsJson = info["spawnSettings"].AsString(string.Empty);
+                if (!string.IsNullOrEmpty(spawnSettingsJson))
+                {
+                    spawnSettings = JsonUtility.FromJson<PanelSettings>(spawnSettingsJson);
+                }
+                _lastSpawnedSettingsSnapshot = spawnSettings ?? CloneNextSpawnOnlyFields(settings);
+                _lastSpawnedCustomInstructions = info["spawnInstructions"].AsString(string.Empty);
+                CliUpdateReconnectPending = info["cliUpdatePending"].AsBool();
+                _reaper.Record(transport.ProcessId, transport.ProcessStartTimeUtcTicks, _reaperProcessName);
+                SessionStateBridge.Pid = transport.ProcessId;
+                SessionStateBridge.ProcessStartTicks = transport.ProcessStartTimeUtcTicks;
+                SessionStateBridge.TurnRunning = turnWasOpen;
+                EditorUpdatePump.Attach(client);
+                if (settings.uapOpsEnabled)
+                {
+                    // Last: this releases the MCP calls the relay held
+                    // while no domain was there to answer them.
+                    transport.SetMcpBackend(UapOpsServer.Port, UapOpsServer.Token);
+                }
+                transport = null;
+                RaiseChanged();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                failure = ex.Message;
+                if (_relayTransport != null)
+                {
+                    // Thrown after the client was adopted: end it the
+                    // ordinary way (this stops the relay and the CLI).
+                    TearDownClient(false, ReloadStopGraceMillis);
+                }
+                return false;
+            }
+            finally
+            {
+                if (transport != null)
+                {
+                    // Attached but not adopted: stop the relay and its CLI
+                    // so the resume that follows has the session to itself.
+                    try
+                    {
+                        transport.Stop(null, ReloadStopGraceMillis);
+                    }
+                    catch (Exception)
+                    {
+                    }
+                }
+                if (failure != null)
+                {
+                    turnWasOpen = false;
+                    Log(L10n.F(L10n.S.HubCliRelayFellBackFmt, failure));
+                }
+            }
+        }
+
+        /// <summary>
+        /// True while the lines a relay re-attach replays are still being
+        /// pumped. Handlers whose effect must happen once per real event
+        /// (not once per time the line is seen) check this.
+        /// </summary>
+        private static bool IsRelayReplaying()
+        {
+            return _relayReplaying && _relayTransport != null;
+        }
+
+        /// <summary>
+        /// Runs between pumps: the replay is over once the relay has said
+        /// "live" and everything received so far has been dispatched.
+        /// </summary>
+        private static void WatchRelayReplay()
+        {
+            RelayCliTransport relay = _relayTransport;
+            if (!_relayReplaying || relay == null
+                || (relay.ReplayFinished && relay.Output.Count == 0))
+            {
+                _relayReplaying = false;
+                UnityEditor.EditorApplication.update -= WatchRelayReplay;
+            }
+        }
+
+        /// <summary>
+        /// Opens the recording window and the turn scope again for a turn
+        /// that is still running after a re-attach, in the order a send
+        /// uses (SendUserMessage): the request's checkpoint first, then
+        /// the scope that reports its Undo group to it.
+        /// </summary>
+        private static void ReopenTurnScopeAfterAttach(PanelSettings settings)
+        {
+            try
+            {
+                if (settings.requestCheckpoints)
+                {
+                    // Same turn as before the reload: not counted again.
+                    UapCheckpointRecorder.ContinueRequest(false);
+                }
+                UapTurnScope.BeginIfNeeded();
+            }
+            catch (Exception ex)
+            {
+                Log("Reopening the turn scope after a relay attach failed: " + ex.Message);
+            }
+        }
+
         /// <summary>
         /// Kills a recorded orphan CLI process without starting a client.
         /// Called by ReloadLifecycle on the first update tick after a domain
@@ -3748,10 +4147,34 @@ namespace Colloid.AgentPanel.Integration
                 wire = ConversationHandover.Compose(handover, wire);
                 SessionStateBridge.HandoverPendingFrom = -1;
             }
-            if (!_client.SendUserContent(wire, blocks))
+            // A request the user reverted since the model last heard from
+            // them (design note 2026-11-23 section 6): say so ahead of
+            // their words, or the model goes on assuming its files exist.
+            string revertNotice = PeekRevertNoticeFor(wire);
+            string outgoing = revertNotice != null
+                ? (wire.Length > 0 ? revertNotice + "\n\n" + wire : revertNotice)
+                : wire;
+            if (!_client.SendUserContent(outgoing, blocks))
             {
                 // Refused or the write failed (death path already ran).
                 return false;
+            }
+            if (revertNotice != null)
+            {
+                SessionStateBridge.PendingRevertNotice = string.Empty;
+                SessionStateBridge.PendingRevertNoticeSession = string.Empty;
+            }
+            // Request checkpoints: the message that STARTS a turn opens the
+            // recording window (a new checkpoint for the user's own
+            // message, the previous one again for a continuation the panel
+            // sends by itself). Before BeginIfNeeded, which reports the
+            // turn's Undo group to the open window. The CLI cannot have
+            // touched a file yet -- its hook callbacks are read on a later
+            // pump of this same thread.
+            string checkpointId = null;
+            if (!UapTurnScope.IsActive)
+            {
+                checkpointId = BeginCheckpointForTurn(string.IsNullOrEmpty(displayText) ? wire : displayText);
             }
             // Phase 5a design section 1.3/8.2: one Undo group + one
             // Refresh-suppression window per EXECUTING turn. Idempotent --
@@ -3784,7 +4207,8 @@ namespace Colloid.AgentPanel.Integration
                     role = ChatMessage.RoleUser,
                     timestamp = DateTime.UtcNow.ToString("o"),
                     turnId = _client.CurrentTurnId,
-                    delivered = true
+                    delivered = true,
+                    checkpointId = checkpointId ?? string.Empty
                 };
                 if (!string.IsNullOrEmpty(shown))
                 {
@@ -3813,6 +4237,327 @@ namespace Colloid.AgentPanel.Integration
             SessionStateBridge.TurnRunning = _client.TurnActive;
             RaiseChanged();
             return true;
+        }
+
+        // -- Request checkpoints (design note 2026-11-23-request-checkpoints.md) --
+
+        /// <summary>
+        /// Opens the recording window for the turn a send is starting.
+        /// Returns the new checkpoint's id for a message the user wrote
+        /// (it goes on their chat bubble); null for a continuation the
+        /// panel sends by itself, which re-opens the request's existing
+        /// checkpoint, and null when checkpoints are off.
+        /// </summary>
+        private static string BeginCheckpointForTurn(string requestText)
+        {
+            if (!PanelStateStore.instance.Settings.requestCheckpoints)
+            {
+                return null;
+            }
+            if (_suppressTranscriptBubble)
+            {
+                UapCheckpointRecorder.ContinueRequest();
+                return null;
+            }
+            return UapCheckpointRecorder.BeginRequest(
+                UapCheckpointPolicy.ComposeTitle(requestText), Session.sessionId);
+        }
+
+        /// <summary>
+        /// The pending revert notice when this send should carry it: one is
+        /// waiting, it is for this session, and the message is not a slash
+        /// command (text in front of the slash would stop the CLI from
+        /// reading it as a command; the notice then waits for the next
+        /// ordinary message). Null otherwise.
+        /// </summary>
+        private static string PeekRevertNoticeFor(string wire)
+        {
+            if (_suppressTranscriptBubble)
+            {
+                return null;
+            }
+            string notice = SessionStateBridge.PendingRevertNotice;
+            if (string.IsNullOrEmpty(notice))
+            {
+                return null;
+            }
+            string forSession = SessionStateBridge.PendingRevertNoticeSession;
+            if (!string.IsNullOrEmpty(forSession) && !string.IsNullOrEmpty(Session.sessionId)
+                && forSession != Session.sessionId)
+            {
+                return null;
+            }
+            string command;
+            string commandArgs;
+            if (SlashCommandCatalog.TryParse(wire, out command, out commandArgs))
+            {
+                return null;
+            }
+            return notice;
+        }
+
+        /// <summary>
+        /// The CLI is about to run one of its file-writing tools (the
+        /// PreToolUse hook registered in the handshake). Record the target
+        /// file as it is now; AgentClient answers the hook right after this
+        /// returns, and only then does the CLI write.
+        /// </summary>
+        private static void OnHookCallbackReceived(ControlRequestMessage request)
+        {
+            if (request == null || request.Request == null
+                || !PanelStateStore.instance.Settings.requestCheckpoints)
+            {
+                return;
+            }
+            JsonNode input = request.Request["input"];
+            string toolName = input["tool_name"].AsString(null);
+            string command = UapCheckpointPolicy.ShellCommandOfToolInput(toolName, input["tool_input"]);
+            if (command != null)
+            {
+                // A shell command: copy the files its text names and take
+                // the "before" picture the end-of-turn comparison needs.
+                UapCheckpointRecorder.BeforeShellCommand(command);
+                return;
+            }
+            string path = UapCheckpointPolicy.FilePathOfToolInput(toolName, input["tool_input"]);
+            if (path != null)
+            {
+                UapCheckpointRecorder.CaptureFromAgent(path);
+            }
+        }
+
+        /// <summary>
+        /// Counts the tool call toward the open checkpoint: an Undo-covered
+        /// UapOps tool as a scene edit (what a revert undoes through
+        /// Unity's Undo), a shell tool or an arbitrary-editor-code tool as
+        /// untracked (what a revert names as possibly left behind).
+        /// </summary>
+        private static void TrackCheckpointTool(string wireToolName, JsonNode input)
+        {
+            // A relay re-attach replays tool calls the checkpoint has
+            // already counted.
+            if (!UapCheckpointRecorder.IsRecording || IsRelayReplaying())
+            {
+                return;
+            }
+            IUapTool tool = UapOpsServer.ResolveEffectiveTool(wireToolName, input, out _);
+            if (tool != null)
+            {
+                if (tool.ReadOnly)
+                {
+                    return;
+                }
+                if (tool.Undoable)
+                {
+                    UapCheckpointRecorder.NoteSceneOp();
+                }
+                else if (UapCheckpointPolicy.IsArbitraryEditorTool(tool.Name))
+                {
+                    UapCheckpointRecorder.NoteUntracked(tool.Name);
+                }
+                return;
+            }
+            if (UapCheckpointPolicy.IsShellTool(wireToolName))
+            {
+                UapCheckpointRecorder.NoteUntracked(wireToolName);
+            }
+        }
+
+        /// <summary>
+        /// True when the transcript may offer "revert this request" for
+        /// <paramref name="checkpointId"/>: it is the newest checkpoint
+        /// that recorded something, and no turn is running (a running
+        /// turn is still adding to its own checkpoint). Cheap enough for
+        /// the transcript's per-refresh signature.
+        /// </summary>
+        public static bool CanRevertRequest(string checkpointId)
+        {
+            if (string.IsNullOrEmpty(checkpointId))
+            {
+                return false;
+            }
+            if (UapTurnScope.IsActive || (_client != null && _client.TurnActive))
+            {
+                return false;
+            }
+            // A revert rewrites files and asks Unity to import them; neither
+            // is something to offer while scripts compile or the game runs.
+            if (UnityEditor.EditorApplication.isCompiling || UnityEditor.EditorApplication.isPlayingOrWillChangePlaymode)
+            {
+                return false;
+            }
+            return checkpointId == UapCheckpointRecorder.TopRevertibleId;
+        }
+
+        /// <summary>What reverting the request would do, for the confirmation card. Null when it cannot be reverted now.</summary>
+        public static UapRevertPreview DescribeRevert(string checkpointId)
+        {
+            return CanRevertRequest(checkpointId) ? UapCheckpointRecorder.Describe(checkpointId) : null;
+        }
+
+        private static string _revertConfirmId;
+
+        /// <summary>
+        /// The checkpoint whose "revert this request?" card is open in the
+        /// transcript, or null. Only ever a request that can be reverted
+        /// right now: a turn starting, a newer request taking over or the
+        /// revert itself closes the card without anyone having to clear
+        /// it (design note 2026-11-23-request-checkpoints.md section 11).
+        /// Deliberately not persisted -- after a domain reload the card
+        /// is closed and nothing is half-confirmed.
+        /// </summary>
+        public static string RevertConfirmId
+        {
+            get
+            {
+                // Self-clearing, not just filtered: a card that became
+                // unavailable (a turn started, Play Mode, a newer request)
+                // must not pop back open by itself when the request becomes
+                // revertible again later.
+                if (_revertConfirmId != null && !CanRevertRequest(_revertConfirmId))
+                {
+                    _revertConfirmId = null;
+                }
+                return _revertConfirmId;
+            }
+        }
+
+        /// <summary>Opens the confirmation card for the request (the "Revert this request" link). No-op when it cannot be reverted now.</summary>
+        public static void BeginRevertConfirm(string checkpointId)
+        {
+            if (!CanRevertRequest(checkpointId))
+            {
+                return;
+            }
+            _revertConfirmId = checkpointId;
+            RaiseChanged();
+        }
+
+        /// <summary>Closes the confirmation card without reverting.</summary>
+        public static void CancelRevertConfirm()
+        {
+            if (_revertConfirmId == null)
+            {
+                return;
+            }
+            _revertConfirmId = null;
+            RaiseChanged();
+        }
+
+        /// <summary>
+        /// Reverts the request behind <paramref name="checkpointId"/>
+        /// (scene edits through Undo, files from the journal), writes what
+        /// happened into the transcript, queues the notice the model gets
+        /// with the user's next message, and only then lets Unity import
+        /// the restored files -- a restored script starts a compile and a
+        /// domain reload, and the note has to be in the session before it.
+        /// </summary>
+        public static UapRevertOutcome RevertRequest(string checkpointId)
+        {
+            _revertConfirmId = null;
+            UapRevertOutcome outcome;
+            if (UapTurnScope.IsActive || (_client != null && _client.TurnActive))
+            {
+                outcome = new UapRevertOutcome { Refusal = UapRevertRefusal.Busy };
+            }
+            else
+            {
+                outcome = UapCheckpointRecorder.Revert(checkpointId);
+            }
+            if (!outcome.Ok)
+            {
+                AppendSystemNote(DescribeRevertRefusal(outcome.Refusal), true);
+                RaiseChanged();
+                return outcome;
+            }
+            UapCheckpoint checkpoint = outcome.Checkpoint;
+            UapCheckpointRevertReport files = outcome.Files;
+            // The same "what is a file" rule as the confirmation card, so
+            // the note cannot report other numbers than the card promised.
+            int restored = UapCheckpointPolicy.DisplayFiles(checkpoint, files.Restored).Count;
+            int removed = UapCheckpointPolicy.DisplayFiles(checkpoint, files.Removed).Count;
+            var leftovers = new List<string>(UapCheckpointPolicy.DisplayFiles(checkpoint, files.NotStored));
+            for (int i = 0; i < files.Failed.Count; i++)
+            {
+                // "path: reason". A folder that could not be removed
+                // ("dir/: ...") is not one of the user's files.
+                string failed = files.Failed[i];
+                int colon = failed.IndexOf(": ", StringComparison.Ordinal);
+                string failedPath = colon >= 0 ? failed.Substring(0, colon) : failed;
+                if (failedPath.Length > 0 && failedPath[failedPath.Length - 1] != '/')
+                {
+                    leftovers.Add(failed);
+                }
+            }
+            string untracked = UapCheckpointPolicy.DescribeUntracked(checkpoint.Untracked);
+
+            // One fact per line. What went back is plain; only what did NOT
+            // go back is in the warning tone, as its own block.
+            var done = new System.Text.StringBuilder();
+            done.Append(L10n.F(L10n.S.HubRevertDoneFmt, UapCheckpointPolicy.ShortTitle(checkpoint.Title), restored, removed));
+            if (outcome.SceneUndone)
+            {
+                done.Append('\n').Append(L10n.S.HubRevertSceneUndone);
+            }
+            var left = new System.Text.StringBuilder();
+            if (outcome.SceneUndoUnavailable)
+            {
+                AppendLine(left, L10n.S.HubRevertSceneUnavailable);
+            }
+            if (files.Kept.Count > 0)
+            {
+                AppendLine(left, L10n.F(L10n.S.HubRevertKeptScenesFmt, string.Join(", ", files.Kept.ToArray())));
+            }
+            if (leftovers.Count > 0)
+            {
+                AppendLine(left, L10n.F(L10n.S.HubRevertProblemsFmt, leftovers.Count, string.Join(", ", leftovers.ToArray())));
+            }
+            if (untracked.Length > 0)
+            {
+                AppendLine(left, L10n.F(L10n.S.HubRevertUntrackedFmt, untracked));
+            }
+            var note = new ChatMessage
+            {
+                role = ChatMessage.RoleSystem,
+                timestamp = DateTime.UtcNow.ToString("o")
+            };
+            note.Add(ChatMessageBlock.MakeSystemNoteLines(done.ToString(), false));
+            if (left.Length > 0)
+            {
+                note.Add(ChatMessageBlock.MakeSystemNoteLines(left.ToString(), true));
+            }
+            Session.AddMessage(note);
+            SessionStateBridge.PendingRevertNotice = UapCheckpointPolicy.ComposeModelNotice(
+                checkpoint.Title, restored, removed,
+                outcome.SceneUndone, outcome.SceneUndoUnavailable, leftovers.Count, untracked);
+            SessionStateBridge.PendingRevertNoticeSession = checkpoint.SessionId ?? string.Empty;
+            RaiseChanged();
+            UapCheckpointRecorder.RefreshAfterRevert();
+            return outcome;
+        }
+
+        private static void AppendLine(System.Text.StringBuilder builder, string line)
+        {
+            if (builder.Length > 0)
+            {
+                builder.Append('\n');
+            }
+            builder.Append(line);
+        }
+
+        private static string DescribeRevertRefusal(UapRevertRefusal refusal)
+        {
+            switch (refusal)
+            {
+                case UapRevertRefusal.Busy:
+                    return L10n.S.HubRevertRefusedBusy;
+                case UapRevertRefusal.PlayMode:
+                    return L10n.S.HubRevertRefusedPlayMode;
+                case UapRevertRefusal.Compiling:
+                    return L10n.S.HubRevertRefusedCompiling;
+                default:
+                    return L10n.S.HubRevertRefusedGone;
+            }
         }
 
         /// <summary>
@@ -4302,8 +5047,17 @@ namespace Colloid.AgentPanel.Integration
             }
             else
             {
-                transport = new ClaudeCliProcess(killer, Log);
+                RelayCliTransport relay = settings.cliRelayEnabled ? TryLaunchRelay(projectRoot, killer) : null;
+                if (relay != null)
+                {
+                    transport = relay;
+                }
+                else
+                {
+                    transport = new ClaudeCliProcess(killer, Log);
+                }
             }
+            var relayTransport = transport as RelayCliTransport;
             ResetAcpSignInState();
             AcpSignInError = null;
             AcpAuthMethodId = null;
@@ -4315,24 +5069,7 @@ namespace Colloid.AgentPanel.Integration
             _acpSignInFailReasonThisProcess = null;
             _reachedReadyThisProcess = false;
             var client = new AgentClient(transport, Log);
-            client.StateChanged += OnStateChanged;
-            client.TextDelta += OnTextDelta;
-            client.ThinkingDelta += OnThinkingDelta;
-            client.AssistantMessageCompleted += OnAssistantMessageCompleted;
-            client.ToolUseStarted += OnToolUseStarted;
-            client.ToolResultReceived += OnToolResultReceived;
-            client.TaskEventReceived += OnTaskEventReceived;
-            client.ThinkingTokensReceived += OnThinkingTokensReceived;
-            client.CompactBoundaryReceived += OnCompactBoundaryReceived;
-            client.StatusReceived += OnStatusReceived;
-            client.PermissionRequested += OnPermissionRequested;
-            client.ControlRequestResolved += OnControlRequestResolved;
-            client.TurnCompleted += OnTurnCompleted;
-            client.TurnStalled += OnTurnStalled;
-            client.SessionIdChanged += OnSessionIdChanged;
-            client.InitMessageReceived += OnInitMessageReceived;
-            client.ProcessDied += OnProcessDied;
-            client.StderrLine += OnStderrLine;
+            WireClientHandlers(client);
 
             string customInstructions = CustomInstructionsFile.CreateDefault(projectRoot, Log).Load();
             // NOT an AgentClientOptions field (see AgentDefinitionFileWriter's
@@ -4397,8 +5134,19 @@ namespace Colloid.AgentPanel.Integration
                 }
                 else
                 {
-                    mcpConfigValue = ComputeMcpConfigValue(
-                        true, projectRoot, UapOpsServer.Port, UapOpsServer.Token, settings.mcpServers, Log, uapToolListCompact);
+                    // Through the relay the CLI is given the relay's own
+                    // fixed endpoint: Unity's server gets a new port and
+                    // token in every domain, the relay's stay put and it
+                    // forwards to whichever backend is registered.
+                    mcpConfigValue = relayTransport != null
+                        ? ComputeMcpConfigValue(true, projectRoot, relayTransport.Endpoint.McpPort,
+                            relayTransport.Endpoint.McpToken, settings.mcpServers, Log, uapToolListCompact)
+                        : ComputeMcpConfigValue(
+                            true, projectRoot, UapOpsServer.Port, UapOpsServer.Token, settings.mcpServers, Log, uapToolListCompact);
+                    if (relayTransport != null)
+                    {
+                        relayTransport.SetMcpBackend(UapOpsServer.Port, UapOpsServer.Token);
+                    }
                 }
             }
             else
@@ -4489,6 +5237,10 @@ namespace Colloid.AgentPanel.Integration
             // enforcement.
             uapOpsSteeringSection = AppendSection(uapOpsSteeringSection,
                 ComposeScriptGateSteeringSection(settings.uapScriptGateEnabled));
+            // 2026-11-25 (docs/design-notes/2026-11-25-acp-ask-user.md): an
+            // ACP agent has no AskUserQuestion; tell it the card exists.
+            uapOpsSteeringSection = AppendSection(uapOpsSteeringSection,
+                ComposeAskUserSteeringSection(isAcp, settings.uapOpsEnabled, settings.uapOpsModules));
             string appendSystemPrompt = ComposeAppendSystemPrompt(
                 customInstructions, settings.subagentCostPolicy,
                 uapOpsSteeringSection, unityPluginSteeringSection, profilesSection);
@@ -4542,6 +5294,12 @@ namespace Colloid.AgentPanel.Integration
                     ClaudeAuth = isAcp ? ClaudeAuthMode.Auto : settings.claudeAuth,
                     McpConfigJson = mcpConfigValue,
                     SettingsFilePath = settingsFilePath,
+                    // Request checkpoints (design note 2026-11-23): the
+                    // pre-write hook is Claude Code's control protocol; an
+                    // ACP agent's own file edits are not seen this way.
+                    PreToolUseHookMatcher = !isAcp && settings.requestCheckpoints
+                        ? UapCheckpointPolicy.HookMatcher : null,
+                    PreToolUseHookCallbackId = UapCheckpointPolicy.HookCallbackId,
                     InitializeTimeoutSeconds = isAcp ? AcpInitializeTimeoutSeconds : 0
                 });
             }
@@ -4557,6 +5315,15 @@ namespace Colloid.AgentPanel.Integration
             }
 
             _client = client;
+            _relayTransport = relayTransport;
+            _relayPendingAdoption = null;
+            _relayReplaying = false;
+            _assistantIdsSinceResult.Clear();
+            if (relayTransport != null)
+            {
+                // The reaper has to find the relay: it owns the CLI.
+                _reaperProcessName = RelayReaperProcessName;
+            }
             // This spawn runs whatever binary the path holds now, so an
             // update's pending reconnect is satisfied.
             CliUpdateReconnectPending = false;
@@ -4568,6 +5335,34 @@ namespace Colloid.AgentPanel.Integration
             EditorUpdatePump.Attach(client);
             RaiseChanged();
             return true;
+        }
+
+        /// <summary>
+        /// Every AgentClient event the hub listens to. Shared by a fresh
+        /// spawn (StartClient) and a relay re-attach (TryReattachRelay) so
+        /// the two can never drift apart.
+        /// </summary>
+        private static void WireClientHandlers(AgentClient client)
+        {
+            client.StateChanged += OnStateChanged;
+            client.TextDelta += OnTextDelta;
+            client.ThinkingDelta += OnThinkingDelta;
+            client.AssistantMessageCompleted += OnAssistantMessageCompleted;
+            client.ToolUseStarted += OnToolUseStarted;
+            client.ToolResultReceived += OnToolResultReceived;
+            client.TaskEventReceived += OnTaskEventReceived;
+            client.ThinkingTokensReceived += OnThinkingTokensReceived;
+            client.CompactBoundaryReceived += OnCompactBoundaryReceived;
+            client.StatusReceived += OnStatusReceived;
+            client.PermissionRequested += OnPermissionRequested;
+            client.HookCallbackReceived += OnHookCallbackReceived;
+            client.ControlRequestResolved += OnControlRequestResolved;
+            client.TurnCompleted += OnTurnCompleted;
+            client.TurnStalled += OnTurnStalled;
+            client.SessionIdChanged += OnSessionIdChanged;
+            client.InitMessageReceived += OnInitMessageReceived;
+            client.ProcessDied += OnProcessDied;
+            client.StderrLine += OnStderrLine;
         }
 
         /// <summary>
@@ -5040,6 +5835,48 @@ namespace Colloid.AgentPanel.Integration
         }
 
         /// <summary>
+        /// Tells an ACP agent that the card (uap_ask_user, design note
+        /// 2026-11-25-acp-ask-user.md) is its default way to ask the user,
+        /// open-ended questions included: it offers candidate answers and
+        /// the card's "Other" takes the rest (design note
+        /// 2026-11-26-ask-user-by-default.md). Without it the agent asks in
+        /// prose, which is what it did before the tool existed. Empty for Claude Code (it has AskUserQuestion,
+        /// and naming a second way to ask would only split its choice) and
+        /// whenever the tool is not on offer: UapOps off, or the "core"
+        /// module it lives in disabled.
+        /// </summary>
+        internal static string ComposeAskUserSteeringSection(bool isAcp, bool uapOpsEnabled,
+            IEnumerable<string> enabledModules)
+        {
+            if (!isAcp || !uapOpsEnabled || enabledModules == null)
+            {
+                return string.Empty;
+            }
+            bool core = false;
+            foreach (string module in enabledModules)
+            {
+                if (module == "core")
+                {
+                    core = true;
+                    break;
+                }
+            }
+            if (!core)
+            {
+                return string.Empty;
+            }
+            return "Ask the user through " + UapAskUserTool.ToolName + " by default, not in prose:"
+                + " whenever you need them to decide or clarify something (which object, which"
+                + " approach, overwrite or keep), call it with 2-4 candidate answers per question, the"
+                + " recommended one first. The panel shows the questions as a card with one button"
+                + " per option plus a free-text \"Other\", and the call returns what they picked. When"
+                + " a question seems open-ended, still offer the likeliest answers as options: the"
+                + " user can type their own under \"Other\". Ask in prose only when no candidate"
+                + " answers can be named or the tool answers \"unavailable\". Do not ask to confirm"
+                + " something the user already said.";
+        }
+
+        /// <summary>
         /// The script validation gate's standing instruction (design note
         /// 2026-09-15-script-gate-steering-and-powershell.md section 2):
         /// tells the agent up front that *.cs / *.asmdef go through
@@ -5466,8 +6303,24 @@ namespace Colloid.AgentPanel.Integration
         }
 
         private static void TearDownClient(bool clearZombieRecord,
-            int stopGraceMillis = AgentClient.DefaultStopGraceMillis)
+            int stopGraceMillis = AgentClient.DefaultStopGraceMillis, bool detach = false)
         {
+            _relayTransport = null;
+            _relayReplaying = false;
+            if (_relayPendingAdoption != null)
+            {
+                // A spawn failed after its relay was started: nothing else
+                // holds this relay, so end it here.
+                RelayCliTransport stray = _relayPendingAdoption;
+                _relayPendingAdoption = null;
+                try
+                {
+                    stray.Kill();
+                }
+                catch (Exception)
+                {
+                }
+            }
             // HUB-9: the inert-gate warning is per SPAWN -- the next
             // StartClient re-evaluates and may need to warn again (settings
             // can change between spawns).
@@ -5503,7 +6356,16 @@ namespace Colloid.AgentPanel.Integration
                     // Explicit Stop first so the caller-chosen grace applies
                     // (Dispose alone would use the default); Dispose is then
                     // a no-op stop plus transport cleanup.
-                    client.Stop(stopGraceMillis);
+                    // detach (CLI relay, before a domain reload): let go of
+                    // the link and leave the CLI running in the relay.
+                    if (detach)
+                    {
+                        client.Detach(stopGraceMillis);
+                    }
+                    else
+                    {
+                        client.Stop(stopGraceMillis);
+                    }
                     client.Dispose();
                 }
                 catch (Exception ex)
@@ -5789,6 +6651,7 @@ namespace Colloid.AgentPanel.Integration
             ToolCallRecord record = BuildToolCallRecord(block);
             _openToolCalls[block.Id] = record;
             TrackNonUndoableToolIfNeeded(block.Name, block.Input);
+            TrackCheckpointTool(block.Name, block.Input);
 
             SubagentRecord parentSubagent = null;
             if (!string.IsNullOrEmpty(parentToolUseId))
@@ -5903,7 +6766,9 @@ namespace Colloid.AgentPanel.Integration
                 return;
             }
             string text = AutoContinueAfterCompilePolicy.ExtractTextContent(block.ResultContent);
-            if (AutoContinueAfterCompilePolicy.ScriptCommitMovedFiles(text))
+            // Not while a relay re-attach replays the turn: the reload that
+            // commit caused is the one that just happened.
+            if (!IsRelayReplaying() && AutoContinueAfterCompilePolicy.ScriptCommitMovedFiles(text))
             {
                 _currentTurnScriptsCommitAttributable = true;
             }
@@ -6564,6 +7429,9 @@ namespace Colloid.AgentPanel.Integration
             note.Add(ChatMessageBlock.MakeSystemNote(
                 CompactionNote.Describe(message.Trigger, message.PreTokens)));
             Session.AddMessage(note);
+            // Built from a CLI line, like the assistant messages: a relay
+            // re-attach replays that line, so the note is rebuilt too.
+            _assistantIdsSinceResult.Add(note.id);
             SaveSessionCache();
             RaiseChanged();
         }
@@ -6636,6 +7504,11 @@ namespace Colloid.AgentPanel.Integration
 
         private static void OnTurnCompleted(ResultMessage result)
         {
+            // CLI relay: this result is dealt with from here on (it ends
+            // up in the saved transcript), so the relay may forget every
+            // line up to it. First statement on purpose -- the count of
+            // results is the only cursor a re-attach has.
+            NoteRelayResultProcessed();
             // keepBackgroundSubagents: a result closes the PARENT's turn,
             // not the background subagents it launched -- those keep
             // reporting (task_progress / task_notification and their
@@ -6945,6 +7818,9 @@ namespace Colloid.AgentPanel.Integration
             Session.sessionId = sessionId;
             Session.agentBackend = (int)CurrentBackend;
             SessionStateBridge.CurrentSessionId = sessionId;
+            // A new conversation's first request was opened before the CLI
+            // reported its session id.
+            UapCheckpointRecorder.NoteSessionId(sessionId);
             if (AgentBackends.IsAcp(CurrentBackend))
             {
                 OnAcpSessionIdChanged(previousId, previousBackend, requested, sessionId);
@@ -7320,6 +8196,7 @@ namespace Colloid.AgentPanel.Integration
                     turnId = _client != null ? _client.CurrentTurnId : 0
                 };
                 Session.AddMessage(_streamingAssistant);
+                _assistantIdsSinceResult.Add(_streamingAssistant.id);
             }
             return _streamingAssistant;
         }
@@ -7682,6 +8559,8 @@ namespace Colloid.AgentPanel.Integration
                 showThinking = source.showThinking,
                 uapOpsEnabled = source.uapOpsEnabled,
                 uapScriptGateEnabled = source.uapScriptGateEnabled,
+                requestCheckpoints = source.requestCheckpoints,
+                cliRelayEnabled = source.cliRelayEnabled,
                 uloopAgentUseEnabled = source.uloopAgentUseEnabled,
                 uapToolListMode = source.uapToolListMode,
                 allowedTools = source.allowedTools != null

@@ -220,6 +220,100 @@ namespace Colloid.AgentPanel.Tests
             Assert.AreEqual("\"a \\\"b\\\" c\"", UapStdioRelayBuilder.QuoteArg("a \"b\" c"));
         }
 
+        // -- managed reference filter ---------------------------------------------------
+        // docs/design-notes/2026-11-27-relay-managed-references.md: on Windows the
+        // shared-framework directory also holds native dlls, and one of them as a
+        // /r: reference fails the whole relay compile with CS0009.
+
+        /// <summary>A minimal PE32+ image: headers only, 16 data directories, the CLI header entry (14) set or zero.</summary>
+        private static byte[] FakePe(bool withCliHeader)
+        {
+            byte[] bytes = new byte[0x200];
+            bytes[0] = 0x4D; // "MZ"
+            bytes[1] = 0x5A;
+            bytes[0x3C] = 0x80; // e_lfanew
+            bytes[0x80] = 0x50; // "PE" 0 0
+            bytes[0x81] = 0x45;
+            int optional = 0x80 + 24;
+            bytes[optional] = 0x0B; // PE32+ magic 0x20B
+            bytes[optional + 1] = 0x02;
+            bytes[optional + 108] = 16; // NumberOfRvaAndSizes
+            if (withCliHeader)
+            {
+                int entry = optional + 112 + 14 * 8;
+                bytes[entry + 1] = 0x20; // rva 0x2000
+                bytes[entry + 4] = 0x48; // size 72
+            }
+            return bytes;
+        }
+
+        [Test]
+        public void IsManagedAssembly_TellsManagedFromNativeAndGarbage()
+        {
+            string managed = Path.Combine(_root, "managed.dll");
+            string native = Path.Combine(_root, "native.dll");
+            string text = Path.Combine(_root, "text.dll");
+            string empty = Path.Combine(_root, "empty.dll");
+            File.WriteAllBytes(managed, FakePe(true));
+            File.WriteAllBytes(native, FakePe(false));
+            File.WriteAllText(text, "fake");
+            File.WriteAllBytes(empty, new byte[0]);
+
+            Assert.IsTrue(UapStdioRelayBuilder.IsManagedAssembly(managed));
+            Assert.IsFalse(UapStdioRelayBuilder.IsManagedAssembly(native));
+            Assert.IsFalse(UapStdioRelayBuilder.IsManagedAssembly(text));
+            Assert.IsFalse(UapStdioRelayBuilder.IsManagedAssembly(empty));
+            Assert.IsFalse(UapStdioRelayBuilder.IsManagedAssembly(Path.Combine(_root, "missing.dll")));
+            // A real managed assembly, whatever this Editor runs on.
+            Assert.IsTrue(UapStdioRelayBuilder.IsManagedAssembly(typeof(TestAttribute).Assembly.Location));
+        }
+
+        [Test]
+        public void ManagedFrameworkReferences_DropsNativeDllsFromTheReferenceList()
+        {
+            // The Windows layout of Microsoft.NETCore.App: managed and native side by side.
+            File.WriteAllBytes(Path.Combine(_root, "System.Runtime.dll"), FakePe(true));
+            File.WriteAllBytes(Path.Combine(_root, "System.Private.CoreLib.dll"), FakePe(true));
+            File.WriteAllBytes(Path.Combine(_root, "ucrtbase.dll"), FakePe(false));
+            File.WriteAllBytes(Path.Combine(_root, "coreclr.dll"), FakePe(false));
+            File.WriteAllBytes(Path.Combine(_root, "System.IO.Compression.Native.dll"), FakePe(false));
+
+            string[] references = UapStdioRelayBuilder.ManagedFrameworkReferences(_root);
+
+            CollectionAssert.AreEqual(
+                new[]
+                {
+                    Path.Combine(_root, "System.Private.CoreLib.dll"),
+                    Path.Combine(_root, "System.Runtime.dll")
+                },
+                references);
+        }
+
+        [Test]
+        public void ManagedFrameworkReferences_RealSharedFramework_HoldsCoreLibAndNoNativeDll()
+        {
+            RelayToolchainPaths paths = UapStdioRelayBuilder.CapturePaths();
+            if (paths.FailureReason != null)
+            {
+                Assert.Ignore("Unity's bundled dotnet/Roslyn were not found in this Editor install: "
+                    + paths.FailureReason);
+                return;
+            }
+            string[] references = UapStdioRelayBuilder.ManagedFrameworkReferences(paths.SharedFrameworkDir);
+            bool hasCoreLib = false;
+            for (int i = 0; i < references.Length; i++)
+            {
+                string name = Path.GetFileName(references[i]);
+                hasCoreLib |= name == "System.Private.CoreLib.dll";
+                Assert.IsFalse(
+                    name == "coreclr.dll" || name == "clrjit.dll" || name == "ucrtbase.dll"
+                    || name == "hostpolicy.dll" || name.EndsWith(".Native.dll", StringComparison.Ordinal)
+                    || name.StartsWith("api-ms-win-", StringComparison.Ordinal),
+                    "native dll in the reference list: " + name);
+            }
+            Assert.IsTrue(hasCoreLib, "System.Private.CoreLib.dll is missing from the reference list");
+        }
+
         // -- real toolchain (guarded) --------------------------------------------------
 
         [Test]

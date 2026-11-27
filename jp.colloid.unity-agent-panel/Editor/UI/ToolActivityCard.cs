@@ -17,7 +17,13 @@ namespace Colloid.AgentPanel.UI
     /// </summary>
     public sealed class ToolActivityCard : VisualElement
     {
-        private readonly VisualElement _details;
+        // Built on the first expand, not with the card (design note
+        // 2026-11-28-lazy-tool-card-details.md): a collapsed card's
+        // input / result / diff view is hundreds of elements nobody is
+        // looking at, and a long turn holds hundreds of cards.
+        private VisualElement _details;
+        private readonly ToolCallRecord _record;
+        private readonly bool _hasDetails;
         private readonly Label _chevron;
         private readonly string _toolUseId = string.Empty;
         private bool _expanded;
@@ -160,9 +166,8 @@ namespace Colloid.AgentPanel.UI
 
             if (hasDetails)
             {
-                _details = BuildDetails(record);
-                _details.style.display = DisplayStyle.None;
-                Add(_details);
+                _record = record;
+                _hasDetails = true;
                 header.RegisterCallback<ClickEvent>(delegate { ToggleExpanded(); });
 
                 bool restoreExpanded;
@@ -178,7 +183,7 @@ namespace Colloid.AgentPanel.UI
 
         private void ToggleExpanded()
         {
-            if (_details == null)
+            if (!_hasDetails)
             {
                 return;
             }
@@ -198,12 +203,27 @@ namespace Colloid.AgentPanel.UI
         private void SetExpanded(bool expanded)
         {
             _expanded = expanded;
-            _details.style.display = _expanded ? DisplayStyle.Flex : DisplayStyle.None;
+            if (_expanded && _details == null)
+            {
+                // The details pane is always the card's last child.
+                _details = BuildDetails(_record);
+                Add(_details);
+            }
+            if (_details != null)
+            {
+                _details.style.display = _expanded ? DisplayStyle.Flex : DisplayStyle.None;
+            }
             _chevron.text = _expanded ? IconLoader.GlyphChevronDown : IconLoader.GlyphChevronRight;
             if (!string.IsNullOrEmpty(_toolUseId))
             {
                 ExpandedByToolUseId[_toolUseId] = _expanded;
             }
+        }
+
+        /// <summary>Test seam: whether the details pane has been built (it is built on the first expand).</summary>
+        internal bool DetailsBuiltForTests
+        {
+            get { return _details != null; }
         }
 
         /// <summary>Test seam (InternalsVisibleTo "Colloid.AgentPanel.Editor.Tests",
@@ -675,16 +695,24 @@ namespace Colloid.AgentPanel.UI
             var children = new VisualElement();
             children.AddToClassList("uap-toolgroup-children");
             children.style.display = DisplayStyle.None;
-            for (int i = 0; i < records.Count; i++)
-            {
-                children.Add(new ToolActivityCard(records[i]));
-            }
             group.Add(children);
 
             bool expanded = false;
+            bool built = false;
             Action<bool> apply = delegate(bool open)
             {
                 expanded = open;
+                if (expanded && !built)
+                {
+                    // The cards a closed group swallows are built when it
+                    // is first opened: a long turn folds hundreds of them.
+                    built = true;
+                    for (int i = 0; i < records.Count; i++)
+                    {
+                        children.Add(new ToolActivityCard(records[i]));
+                    }
+                    TextEscapes.Disable(children);
+                }
                 children.style.display = expanded ? DisplayStyle.Flex : DisplayStyle.None;
                 chevron.text = expanded
                     ? IconLoader.GlyphChevronDown : IconLoader.GlyphChevronRight;

@@ -29,6 +29,12 @@ namespace Colloid.AgentPanel.Ops
         public string Body;
         /// <summary>Set only on a successful "initialize" response (Mcp-Session-Id header).</summary>
         public string McpSessionId;
+        /// <summary>
+        /// The request was accepted but never run and never will be by
+        /// this server instance; sent as the header "X-Uap-Not-Run: 1"
+        /// (the CLI relay's cue that delivering it again is safe).
+        /// </summary>
+        public bool NotRun;
 
         public static UapOpsHttpResponse StatusOnly(int statusCode)
         {
