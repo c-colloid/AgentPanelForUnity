@@ -16,7 +16,7 @@
   docs/design-notes/2026-10-07-pro-docs-brushup.md
 -->
 
-**対象版: pro-v0.14.1**(2026-11-25 時点)。同梱プロファイルは [別文書](PRO-PROFILES.md) にあります。
+**対象版: pro-v0.14.2**(2026-11-28 時点)。同梱プロファイルは [別文書](PRO-PROFILES.md) にあります。
 
 Agent Panel Pro は、無料の [Agent Panel for Unity](../README.md)(Core)に **Unity 操作ツール 53 本** と **同梱プロファイル 18 件** を追加する有料パッケージです。ツールはすべて Core のチャット画面からエージェント(Claude Code など)が呼び出すもので、スクリプトを書かせることなく、プレハブ・アニメーション・ライトマップ・メッシュなどを直接編集させられます。
 
@@ -216,7 +216,7 @@ SDK が独自に持つエディタウィンドウ(UI Toolkit 製)を、エージ
 <summary>BOOTH などに貼るプレーンテキスト(Markdown 記法なし)</summary>
 
 ```text
-■ Agent Panel Pro 収録機能(pro-v0.14.1 時点)
+■ Agent Panel Pro 収録機能(pro-v0.14.2 時点)
 Agent Panel for Unity(無料・Core)に追加する Unity 操作ツール 53 本と、主要アセット向けの同梱プロファイル 18 件。
 すべて Core のチャット画面からエージェントが呼び出すツールで、スクリプトを書かせずに Unity を直接操作させられます。
 

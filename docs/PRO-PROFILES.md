@@ -15,7 +15,7 @@
   docs/design-notes/2026-10-07-pro-docs-brushup.md
 -->
 
-**対象版: pro-v0.14.1**(2026-11-25 時点)。Pro のツール一覧は [別文書](PRO-FEATURES.md) にあります。
+**対象版: pro-v0.14.2**(2026-11-28 時点)。Pro のツール一覧は [別文書](PRO-FEATURES.md) にあります。
 
 ## 拡張プロファイルとは
 
@@ -91,7 +91,7 @@ Agent Panel for Unity は、プロジェクトに入っているサードパー�
 <summary>BOOTH などに貼るプレーンテキスト(Markdown 記法なし)</summary>
 
 ```text
-■ 同梱プロファイル(pro-v0.14.1 時点、18 件)
+■ 同梱プロファイル(pro-v0.14.2 時点、18 件)
 対応 SDK がプロジェクトに入っていると自動で検出され、その SDK の要点(コンポーネントの正式名、ビルド時にしか反映されない仕組み、やってはいけない操作、確認の手順)がエージェントへの指示に追加されます。設定は不要です。
 
 【VRChat】VRChat SDK3(共通 / アバター / ワールド)、Udon、UdonSharp、NDMF、Modular Avatar、AAO: Avatar Optimizer、VRCFury、lilycalInventory、lilToon
